@@ -1,19 +1,8 @@
-export type PendingRequestType = 'login' | 'payment' | 'certificate' | 'identity';
+import { AuthChallengeEvent, PaymentRequestEvent, RecurringPaymentRequest } from "portal-app-lib";
 
 export interface PendingRequest {
   id: string;
-  type: PendingRequestType;
+  type: AuthChallengeEvent | PaymentRequestEvent | RecurringPaymentRequest;
   status: 'pending' | 'approved' | 'denied';
   timestamp: string;
-  title: string;
-  description: string;
-  metadata: {
-    requester?: string;
-    amount?: number;
-    recipient?: string;
-    ipAddress?: string;
-    device?: string;
-    location?: string;
-    certificateType?: string;
-  };
 }

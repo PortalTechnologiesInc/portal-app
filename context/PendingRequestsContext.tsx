@@ -10,8 +10,8 @@ import {
 } from 'react'
 import type { PendingRequest, PendingRequestType } from '../models/PendingRequest';
 import { mockPendingRequests } from '../mocks/PendingRequests';
-import { getNostrServiceInstance, LocalAuthChallengeListener } from '../services/nostr/NostrService'
-import { AuthChallengeEvent } from 'portal-app-lib';
+import { getNostrServiceInstance, LocalAuthChallengeListener, LocalPaymentRequestListener } from '../services/nostr/NostrService'
+import { AuthChallengeEvent, CalendarWrapper, Currency, PaymentRequestEvent, PaymentRequestListener, PaymentStatusContent, RecurrenceInfo, RecurringPaymentRequest, RecurringPaymentStatusContent, SinglePaymentRequest, Timestamp } from 'portal-app-lib';
 
 // Preload mock data to avoid loading delay when the context is used
 const PRELOADED_REQUESTS = mockPendingRequests;
@@ -29,6 +29,12 @@ interface PendingRequestsContextType {
   setRequestFailed: (failed: boolean) => void;
 }
 
+type AuthResolver = { kind: "boolean"; cb: (v: boolean) => void };
+type PaymentResolver = { kind: "payment"; cb: (v: PaymentStatusContent) => void };
+type RecurringResolver = { kind: "recurring"; cb: (v: RecurringPaymentStatusContent) => void };
+
+type Resolver = AuthResolver | PaymentResolver | RecurringResolver;
+
 const PendingRequestsContext = createContext<PendingRequestsContextType | undefined>(undefined);
 
 export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -37,7 +43,8 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
   const [isLoadingRequest, setIsLoadingRequest] = useState(false);
   const [requestFailed, setRequestFailed] = useState(false);
   const [timeoutId, setTimeoutId] = useState<NodeJS.Timeout | null>(null);
-  const [resolvers, setResolvers] = useState<Map<string, (value: boolean) => void>>(new Map());
+  const [resolvers, setResolvers] = useState<Map<string, Resolver>>(new Map());
+
 
   // Memoize hasPending to avoid recalculation on every render
   const hasPending = useMemo(() => {
@@ -69,16 +76,28 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
   );
 
   getNostrServiceInstance().setAuthChallengeListener(new LocalAuthChallengeListener((event: AuthChallengeEvent) => {
-
-    // aggiorna lista
-    const id = "randomId";
-
-    console.log(event)
+    const id = crypto.randomUUID();
     return new Promise((resolve) => {
-      resolvers.set(id, resolve)
+      resolvers.set(id, { kind: "boolean", cb: resolve })
       setResolvers(resolvers)
     })
   }))
+
+  getNostrServiceInstance().setPaymentRequestListeners(new LocalPaymentRequestListener(
+    (event: SinglePaymentRequest) => {
+      const id = crypto.randomUUID();
+      return new Promise((resolve) => {
+        resolvers.set(id, { kind: "payment", cb: resolve })
+        setResolvers(resolvers)
+      })
+    }, (event: RecurringPaymentRequest) => {
+      const id = crypto.randomUUID();
+      return new Promise((resolve) => {
+        resolvers.set(id, { kind: "recurring", cb: resolve })
+        setResolvers(resolvers)
+      })
+    }
+  ))
 
   const approve = useCallback((id: string) => {
     setPendingRequests(prev =>
@@ -86,76 +105,108 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
     );
     const resolver = resolvers.get(id)
     if (resolver) {
-      resolver(true)
-      resolvers.delete(id)
-      setResolvers(resolvers)
+      switch (resolver.kind) {
+        case "boolean": resolver.cb(true); break;
+        case "payment": resolver.cb(new PaymentStatusContent.Pending); break;
+        case "recurring": resolver.cb(new RecurringPaymentStatusContent.Confirmed(
+          {
+            subscriptionId: id,
+            authorizedAmount: 100n,
+            authorizedCurrency: new Currency.Fiat("$"),
+            authorizedRecurrence: {
+              until: 0n,
+              calendar: {
+                inner: {
+                  nextOccurrence: function (from: Timestamp): Timestamp | undefined {
+                    throw new Error('Function not implemented.');
+                  },
+                  toCalendarString: function (): string {
+                    throw new Error('Function not implemented.');
+                  },
+                  toHumanReadable: function (showTimezone: boolean): string {
+                    throw new Error('Function not implemented.');
+                  }
+                }
+              },
+              maxPayments: 24,
+              firstPaymentDue: 0n
+            }
+          }
+        )); break;
+}
+resolvers.delete(id)
+setResolvers(resolvers)
     }
   }, []);
 
-  const deny = useCallback((id: string) => {
-    setPendingRequests(prev =>
-      prev.map(request => (request.id === id ? { ...request, status: 'denied' } : request))
-    );
-    const resolver = resolvers.get(id)
-    if (resolver) {
-      resolver(false)
-      resolvers.delete(id)
-      setResolvers(resolvers)
-    }
-  }, []);
-
-  // Show skeleton loader and set timeout for request
-  const showSkeletonLoader = useCallback(() => {
-    // Clean up any existing timeout
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-    }
-
-    setIsLoadingRequest(true);
-    setRequestFailed(false);
-
-    // Set new timeout for 10 seconds
-    const newTimeoutId = setTimeout(() => {
-      setIsLoadingRequest(false);
-      setRequestFailed(true);
-    }, 10000);
-
-    setTimeoutId(newTimeoutId);
-  }, [timeoutId]);
-
-  // Memoize the context value to prevent recreation on every render
-  const contextValue = useMemo(
-    () => ({
-      pendingRequests,
-      getByType,
-      getById,
-      approve,
-      deny,
-      hasPending,
-      isLoadingRequest,
-      requestFailed,
-      showSkeletonLoader,
-      setRequestFailed,
-    }),
-    [
-      pendingRequests,
-      getByType,
-      getById,
-      approve,
-      deny,
-      hasPending,
-      isLoadingRequest,
-      requestFailed,
-      showSkeletonLoader,
-      setRequestFailed,
-    ]
+const deny = useCallback((id: string) => {
+  setPendingRequests(prev =>
+    prev.map(request => (request.id === id ? { ...request, status: 'denied' } : request))
   );
+  const resolver = resolvers.get(id)
+  if (resolver) {
+    switch (resolver.kind) {
+      case "boolean": resolver.cb(false); break;
+      case "payment": resolver.cb(new PaymentStatusContent.Rejected({ reason: "User refused to pay" })); break;
+      case "recurring": resolver.cb(new RecurringPaymentStatusContent.Rejected({ reason: "User refused the recurring payment subscription" })); break;
+    }
+    resolvers.delete(id)
+    setResolvers(resolvers)
+  }
+}, []);
 
-  return (
-    <PendingRequestsContext.Provider value={contextValue}>
-      {children}
-    </PendingRequestsContext.Provider>
-  );
+// Show skeleton loader and set timeout for request
+const showSkeletonLoader = useCallback(() => {
+  // Clean up any existing timeout
+  if (timeoutId) {
+    clearTimeout(timeoutId);
+  }
+
+  setIsLoadingRequest(true);
+  setRequestFailed(false);
+
+  // Set new timeout for 10 seconds
+  const newTimeoutId = setTimeout(() => {
+    setIsLoadingRequest(false);
+    setRequestFailed(true);
+  }, 10000);
+
+  setTimeoutId(newTimeoutId);
+}, [timeoutId]);
+
+// Memoize the context value to prevent recreation on every render
+const contextValue = useMemo(
+  () => ({
+    pendingRequests,
+    getByType,
+    getById,
+    approve,
+    deny,
+    hasPending,
+    isLoadingRequest,
+    requestFailed,
+    showSkeletonLoader,
+    setRequestFailed,
+  }),
+  [
+    pendingRequests,
+    getByType,
+    getById,
+    approve,
+    deny,
+    hasPending,
+    isLoadingRequest,
+    requestFailed,
+    showSkeletonLoader,
+    setRequestFailed,
+  ]
+);
+
+return (
+  <PendingRequestsContext.Provider value={contextValue}>
+    {children}
+  </PendingRequestsContext.Provider>
+);
 };
 
 export const usePendingRequests = () => {
