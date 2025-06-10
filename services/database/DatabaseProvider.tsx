@@ -1,5 +1,4 @@
 import {
-	useEffect,
 	useState,
 	useCallback,
 	type ReactNode,
@@ -12,8 +11,6 @@ import {
 	type SQLiteDatabase,
 	openDatabaseAsync,
 } from "expo-sqlite";
-import { useOnboarding } from "@/context/OnboardingContext";
-import { getMnemonic, mnemonicEvents } from "@/services/SecureStorageService";
 
 // Database name constant to ensure consistency
 export const DATABASE_NAME = "portal-app.db";
@@ -22,13 +19,11 @@ export const DATABASE_NAME = "portal-app.db";
 interface DatabaseContextType {
 	isDbInitializing: boolean;
 	isDbInitialized: boolean;
-	shouldInitDb: boolean;
 }
 
 const DatabaseContext = createContext<DatabaseContextType>({
 	isDbInitializing: false,
 	isDbInitialized: false,
-	shouldInitDb: false,
 });
 
 // Hook to consume the database context
@@ -65,52 +60,8 @@ interface DatabaseProviderProps {
 }
 
 export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
-	const { isOnboardingComplete } = useOnboarding();
-	const [shouldInitDb, setShouldInitDb] = useState(false);
 	const [dbInitialized, setDbInitialized] = useState(false);
 	const [isDbInitializing, setIsDbInitializing] = useState(false);
-
-	// Check mnemonic and init database when conditions are met
-	const checkMnemonicAndInit = useCallback(async () => {
-		if (isOnboardingComplete) {
-			const mnemonic = await getMnemonic();
-			if (mnemonic) {
-				console.log(
-					"Onboarding complete and mnemonic available - initializing database",
-				);
-				setShouldInitDb(true);
-			} else {
-				console.log("Mnemonic not available - database initialization delayed");
-				setShouldInitDb(false);
-			}
-		} else {
-			console.log("Onboarding not complete - database initialization delayed");
-			setShouldInitDb(false);
-		}
-	}, [isOnboardingComplete]);
-
-	// Initial check
-	useEffect(() => {
-		checkMnemonicAndInit();
-	}, [checkMnemonicAndInit]);
-
-	// Also listen for mnemonic changes
-	useEffect(() => {
-		// Subscribe to mnemonic change events
-		const mnemonicSubscription = mnemonicEvents.addListener(
-			"mnemonicChanged",
-			() => {
-				console.log(
-					"Mnemonic changed - checking database initialization status",
-				);
-				checkMnemonicAndInit();
-			},
-		);
-
-		return () => {
-			mnemonicSubscription.remove();
-		};
-	}, [checkMnemonicAndInit]);
 
 	// Function to migrate database schema if needed
 	const migrateDbIfNeeded = useCallback(async (db: SQLiteDatabase) => {
@@ -230,23 +181,17 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
 	const contextValue = {
 		isDbInitializing,
 		isDbInitialized: dbInitialized,
-		shouldInitDb,
 	};
 
 	return (
 		<DatabaseContext.Provider value={contextValue}>
 			<Fragment>
-				{shouldInitDb ? (
 					<SQLiteProvider
 						databaseName={DATABASE_NAME}
 						onInit={migrateDbIfNeeded}
 					>
 						{children}
 					</SQLiteProvider>
-				) : (
-					// Render children without SQLite when not ready
-					children
-				)}
 			</Fragment>
 		</DatabaseContext.Provider>
 	);
