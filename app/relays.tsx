@@ -335,18 +335,19 @@ const styles = StyleSheet.create({
   textFieldAction: {
     paddingHorizontal: 8,
   },
-  saveButton: {
-    backgroundColor: Colors.almostWhite,
-    padding: 16,
-    borderRadius: 8,
-    width: "100%",
-    maxWidth: 500,
-    alignItems: "center",
-    alignSelf: "center",
-  },
-  saveButtonText: {
-    color: Colors.darkGray,
-    fontSize: 16,
-    fontWeight: "bold",
-  },
+	saveButton: {
+		backgroundColor: Colors.primaryDark,
+		padding: 16,
+		borderRadius: 8,
+		width: '100%',
+		maxWidth: 500,
+		alignItems: 'center',
+		alignSelf: 'center',
+		marginBottom: 8,
+	},
+	saveButtonText: {
+		color: Colors.almostWhite,
+		fontSize: 16,
+		fontWeight: 'bold',
+	},
 });

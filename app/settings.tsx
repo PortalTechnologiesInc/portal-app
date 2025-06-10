@@ -41,7 +41,6 @@ export default function SettingsScreen() {
 	const nostrService = useNostrService();
 	const { refreshLockStatus } = useAppLock();
 	const [isWalletConnectedState, setIsWalletConnectedState] = useState(false);
-	const [isRelayConnectedState, setIsRelayConnectedState] = useState(false);
 	const [isLoading, setIsLoading] = useState(true);
 	const [usernameInput, setUsernameInput] = useState('');
 	const [profileIsLoading, setProfileIsLoading] = useState(false);
@@ -54,8 +53,6 @@ export default function SettingsScreen() {
 		const checkWalletConnection = async () => {
 			try {
 				const walletConnected = await isWalletConnected();
-				const relayConnected = false
-				setIsRelayConnectedState(relayConnected)
 				setIsWalletConnectedState(walletConnected);
 			} catch (error) {
 				console.error('Error checking connection:', error);
@@ -465,6 +462,30 @@ export default function SettingsScreen() {
 						</ThemedView>
 					</ThemedView>
 
+					{/* Nostr Section */}
+					<ThemedView style={styles.section}>
+						<ThemedText style={styles.sectionTitle}>Relays</ThemedText>
+						<ThemedView style={styles.walletSection}>
+							<TouchableOpacity
+								style={styles.card}
+								onPress={handleNostrCardPress}
+								activeOpacity={0.7}
+							>
+								<View style={styles.cardContent}>
+									<View style={styles.cardLeft}>
+										<ThemedText style={styles.cardTitle}>
+											Nostr relays
+										</ThemedText>
+										<ThemedText style={styles.cardStatus}>
+											Manage the Nostr relays your app connects to
+										</ThemedText>
+									</View>
+									<ChevronRight size={24} color={Colors.almostWhite} />
+								</View>
+							</TouchableOpacity>
+						</ThemedView>
+					</ThemedView>
+
 					{/* Security Section */}
 					<ThemedView style={styles.section}>
 						<ThemedText style={styles.sectionTitle}>Security</ThemedText>
@@ -523,29 +544,6 @@ export default function SettingsScreen() {
 						</ThemedView>
 					</ThemedView>
 
-					{/* Nostr Section */}
-					<ThemedView style={styles.section}>
-						<ThemedText style={styles.sectionTitle}>Relays</ThemedText>
-						<ThemedView style={styles.walletSection}>
-							<TouchableOpacity
-								style={styles.card}
-								onPress={handleNostrCardPress}
-								activeOpacity={0.7}
-							>
-								<View style={styles.cardContent}>
-									<View style={styles.cardLeft}>
-										<ThemedText style={styles.cardTitle}>
-											Nostr relays
-										</ThemedText>
-										<ThemedText style={styles.cardStatus}>
-											{isRelayConnectedState ? "Connected" : "Not connected"}
-										</ThemedText>
-									</View>
-									<ChevronRight size={24} color={Colors.almostWhite} />
-								</View>
-							</TouchableOpacity>
-						</ThemedView>
-					</ThemedView>
 					{/* Extra Section */}
 					<ThemedView style={styles.section}>
 						<ThemedText style={styles.sectionTitle}>Extra</ThemedText>
