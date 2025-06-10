@@ -17,6 +17,8 @@ import {
 } from 'portal-app-lib';
 import { PendingRequest } from '@/models/PendingRequest';
 import uuid from 'react-native-uuid';
+import { DatabaseService } from '@/services/database';
+import { useSQLiteContext } from 'expo-sqlite';
 
 // Constants and helper classes from original NostrService
 const DEFAULT_RELAYS = [
@@ -99,6 +101,9 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   const [nwcWallet, setNwcWallet] = useState<Nwc | null>(null);
   const [pendingRequests, setPendingRequests] = useState<{ [key: string]: PendingRequest }>({});
 
+  const sqliteContext = useSQLiteContext();
+  const DB = new DatabaseService(sqliteContext);
+
   // Initialize the NostrService
   useEffect(() => {
     if (!mnemonic) {
@@ -119,7 +124,13 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         setPublicKey(publicKeyStr);
 
         // Create and initialize portal app
-        const app = await PortalApp.create(keypair, DEFAULT_RELAYS);
+        
+        let relays = (await DB.getRelays()).map(relay => relay.ws_uri)
+        if (relays.length === 0) {
+          DEFAULT_RELAYS.forEach(relay => relays.push(relay))
+          await DB.updateRelays(DEFAULT_RELAYS)
+        }
+        const app = await PortalApp.create(keypair, relays);
         app.listen(); // Listen asynchronously
 
         app
@@ -210,6 +221,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         // Save portal app instance
         setPortalApp(app);
         console.log('NostrService initialized successfully with public key:', publicKeyStr);
+        console.log('Running on those relays:', relays);
 
         // Mark as initialized
         setIsInitialized(true);
