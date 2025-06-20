@@ -1,8 +1,9 @@
 import type React from 'react';
 import { createContext, useContext, useState, useEffect } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import { Profile } from 'portal-app-lib';
+import * as FileSystem from 'expo-file-system';
 import { useNostrService } from './NostrServiceContext';
+import { base64ToArrayBuffer } from '@/utils/Images';
 
 const USERNAME_KEY = 'portal_username';
 const AVATAR_KEY = 'portal_avatar';
@@ -133,6 +134,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
     try {
       await SecureStore.setItemAsync(USERNAME_KEY, newUsername);
       setUsernameState(newUsername);
+      await nostrService.portalApp?.registerNip05(newUsername);
     } catch (e) {
       console.error('Failed to save username:', e);
     }
@@ -142,6 +144,10 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
     try {
       if (uri) {
         await SecureStore.setItemAsync(AVATAR_KEY, uri);
+        const base64image = await FileSystem.readAsStringAsync(uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        await nostrService.portalApp?.registerImg(base64ToArrayBuffer(base64image))
       } else {
         await SecureStore.deleteItemAsync(AVATAR_KEY);
       }

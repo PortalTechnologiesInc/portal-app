@@ -24,12 +24,13 @@
         android = {
           buildToolsVersion = "35.0.0";
           cmakeVersion = "3.22.1";
+          ndkVersion = "27.1.12297006";
         };
         androidComposition = pkgs.androidenv.composeAndroidPackages {
           buildToolsVersions = [ android.buildToolsVersion "34.0.0" ];
           platformVersions = [ "35" ];
           includeNDK = true;
-          ndkVersion = "26.1.10909125";
+          ndkVersion = android.ndkVersion;
           cmakeVersions = [ android.cmakeVersion ];
         };
       in
