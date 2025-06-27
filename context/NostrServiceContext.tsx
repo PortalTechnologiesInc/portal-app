@@ -26,10 +26,7 @@ import { useSQLiteContext } from 'expo-sqlite';
 
 // Constants and helper classes from original NostrService
 const DEFAULT_RELAYS = [
-  'relay.getportal.cc',
-  'wss://relay.damus.io',
-  'wss://nostr.wine',
-  'wss://nostr-pub.wellorder.net',
+  'wss://relay.getportal.cc',
   'wss://relay.nostr.band',
   'wss://nos.lol',
   'wss://offchain.pub',
@@ -581,8 +578,30 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
       if (!portalApp) {
         throw new Error('PortalApp not initialized');
       }
+
+      // Check relay connection status before attempting to fetch profile
+      if (!connectionStatus || !(connectionStatus instanceof Map) || connectionStatus.size === 0) {
+        console.warn('DEBUG: No relays connected, cannot fetch service profile for:', pubKey);
+        throw new Error('No relay connections available. Please check your internet connection and try again.');
+      }
+
+      // Check if at least one relay is connected
+      let connectedCount = 0;
+      for (const [url, status] of connectionStatus.entries()) {
+        const finalStatus = typeof status === 'number' ? mapNumericStatusToString(status) : 'Unknown';
+        if (finalStatus === 'Connected') {
+          connectedCount++;
+        }
+      }
+
+      if (connectedCount === 0) {
+        console.warn('DEBUG: No relays in Connected state, cannot fetch service profile for:', pubKey);
+        throw new Error('No relay connections available. Please check your internet connection and try again.');
+      }
+
       console.log('DEBUG: NostrService.getServiceName called with pubKey:', pubKey);
       console.log('DEBUG: PortalApp is initialized:', !!portalApp);
+      console.log('DEBUG: Connected relays:', connectedCount, '/', connectionStatus.size);
 
       try {
         const service = await portalApp.fetchProfile(pubKey);
@@ -593,7 +612,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         throw error;
       }
     },
-    [portalApp]
+    [portalApp, connectionStatus]
   );
 
   const dismissPendingRequest = useCallback((id: string) => {

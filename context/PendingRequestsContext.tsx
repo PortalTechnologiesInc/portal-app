@@ -25,6 +25,15 @@ import { useDatabaseStatus } from '@/services/database/DatabaseProvider';
 import { useActivities } from '@/context/ActivitiesContext';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { serviceNameCache } from '@/utils/serviceNameCache';
+
+// Helper function to extract the best available service name from a profile
+const getServiceNameFromProfile = (profile: any): string | null => {
+  // Priority order: nip05 -> displayName -> name -> null
+  if (profile?.nip05) return profile.nip05;
+  if (profile?.displayName) return profile.displayName;
+  if (profile?.name) return profile.name;
+  return null;
+};
 // Define a type for pending activities
 type PendingActivity = Omit<ActivityWithDates, 'id' | 'created_at'>;
 type PendingSubscription = Omit<SubscriptionWithDates, 'id' | 'created_at'>;
@@ -264,7 +273,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           addActivityWithFallback({
             type: 'pay',
             service_key: paymentRequest.serviceKey,
-            service_name: serviceName?.nip05 ?? 'Unknown Service',
+            service_name: getServiceNameFromProfile(serviceName) ?? 'Unknown Service',
             detail: 'Payment approved',
             date: new Date(),
             amount: Number(paymentRequest.content.amount) / 1000,
@@ -308,7 +317,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               service_key: request.metadata.serviceKey,
               detail: 'User approved login',
               date: new Date(),
-              service_name: serviceName?.nip05 ?? 'Unknown Service',
+              service_name: getServiceNameFromProfile(serviceName) ?? 'Unknown Service',
               amount: null,
               currency: null,
               request_id: id,
@@ -345,7 +354,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               addActivityWithFallback({
                 type: 'pay',
                 service_key: request.metadata.serviceKey,
-                service_name: serviceName?.nip05 ?? 'Unknown Service',
+                service_name: getServiceNameFromProfile(serviceName) ?? 'Unknown Service',
                 detail: 'Payment approved',
                 date: new Date(),
                 amount: Number(amount) / 1000,
@@ -377,7 +386,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               .then(serviceName => {
                 return addSubscriptionWithFallback({
                   request_id: id,
-                  service_name: serviceName?.nip05 ?? 'Unknown Service',
+                  service_name: getServiceNameFromProfile(serviceName) ?? 'Unknown Service',
                   service_key: request.metadata.serviceKey,
                   amount: Number(amount) / 1000,
                   currency: 'sats',
@@ -442,7 +451,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               service_key: request.metadata.serviceKey,
               detail: 'User denied login',
               date: new Date(),
-              service_name: serviceName?.nip05 ?? 'Unknown Service',
+              service_name: getServiceNameFromProfile(serviceName) ?? 'Unknown Service',
               amount: null,
               currency: null,
               request_id: id,
@@ -480,7 +489,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               addActivityWithFallback({
                 type: 'pay',
                 service_key: request.metadata.serviceKey,
-                service_name: serviceName?.nip05 ?? 'Unknown Service',
+                service_name: getServiceNameFromProfile(serviceName) ?? 'Unknown Service',
                 detail: 'Payment denied by user',
                 date: new Date(),
                 amount: Number(amount) / 1000,
@@ -525,7 +534,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               addActivityWithFallback({
                 type: 'pay',
                 service_key: request.metadata.serviceKey,
-                service_name: serviceName?.nip05 ?? 'Unknown Service',
+                service_name: getServiceNameFromProfile(serviceName) ?? 'Unknown Service',
                 detail: 'Subscription denied by user',
                 date: new Date(),
                 amount: Number(amount) / 1000,
@@ -597,9 +606,10 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
       try {
         const profile = await nostrService.getServiceName(serviceKey);
-        if (profile?.nip05) {
+        const serviceName = getServiceNameFromProfile(profile);
+        if (serviceName) {
           // Add to cache
-          serviceNameCache[serviceKey] = profile.nip05;
+          serviceNameCache[serviceKey] = serviceName;
         }
       } catch (error) {
         // Handle specific connection errors more gracefully
@@ -612,6 +622,13 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               `Nostr listener disconnected while fetching service name for ${serviceKey}. Will retry later.`
             );
             // Don't log as error since this is a transient connection issue
+            return;
+          }
+          if (error.message.includes('No relay connections available')) {
+            console.warn(
+              `No relay connections available while fetching service name for ${serviceKey}. Will retry when connected.`
+            );
+            // Don't log as error since this is a connection issue
             return;
           }
         }
