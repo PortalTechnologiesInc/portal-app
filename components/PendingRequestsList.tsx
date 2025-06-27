@@ -28,7 +28,6 @@ export const PendingRequestsList: React.FC = () => {
     pendingUrl,
     showSkeletonLoader,
     setRequestFailed,
-    preloadServiceNames,
   } = usePendingRequests();
   const nostrService = useNostrService();
   const [data, setData] = useState<PendingRequest[]>([]);
@@ -60,17 +59,14 @@ export const PendingRequestsList: React.FC = () => {
 
     setData(finalData);
 
-    // Preload service names
-    if (sortedRequests.length > 0) {
-      preloadServiceNames().catch(console.error);
-    }
+    // Service names are now loaded automatically by individual cards
   }, [nostrService.pendingRequests, isLoadingRequest, requestFailed]);
 
   const handleRetry = () => {
     setRequestFailed(false);
     if (pendingUrl) {
       showSkeletonLoader(pendingUrl);
-      nostrService.sendAuthInit(pendingUrl);
+      nostrService.sendKeyHandshake(pendingUrl);
     }
   };
 

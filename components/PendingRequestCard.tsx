@@ -6,7 +6,6 @@ import type { PendingRequest } from '../models/PendingRequest';
 import { usePendingRequests } from '../context/PendingRequestsContext';
 import { useNostrService } from '@/context/NostrServiceContext';
 import type { SinglePaymentRequest, RecurringPaymentRequest } from 'portal-app-lib';
-import { serviceNameCache } from '@/utils/serviceNameCache';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Colors } from '@/constants/Colors';
@@ -42,12 +41,11 @@ const truncatePubkey = (pubkey: string | undefined) => {
 };
 
 export const PendingRequestCard: FC<PendingRequestCardProps> = ({ request }) => {
-  const { approve, deny, preloadServiceNames } = usePendingRequests();
+  const { approve, deny } = usePendingRequests();
   const { id, metadata, type } = request;
   const nostrService = useNostrService();
-  const [serviceName, setServiceName] = useState<string>(
-    serviceNameCache[metadata.serviceKey] || 'Unknown Service'
-  );
+  const [serviceName, setServiceName] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const isMounted = useRef(true);
 
   // Theme colors
@@ -68,25 +66,33 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = ({ request }) => 
   const recurrence = calendarObj?.inner.toHumanReadable(false);
 
   useEffect(() => {
-    // First check if we already have the service name in cache
-    if (serviceNameCache[metadata.serviceKey]) {
-      setServiceName(serviceNameCache[metadata.serviceKey]);
-      return;
-    }
-
-    // If not in cache, trigger a preload of all service names
-    preloadServiceNames().then(() => {
-      // After preloading, check the cache again
-      if (isMounted.current && serviceNameCache[metadata.serviceKey]) {
-        setServiceName(serviceNameCache[metadata.serviceKey]);
+    const fetchServiceName = async () => {
+      if (!isMounted.current) return;
+      
+      try {
+        setIsLoading(true);
+        const name = await nostrService.getServiceName(metadata.serviceKey);
+        
+        if (isMounted.current) {
+          setServiceName(name);
+          setIsLoading(false);
+        }
+      } catch (error) {
+        console.error('Failed to fetch service name:', error);
+        if (isMounted.current) {
+          setServiceName(null);
+          setIsLoading(false);
+        }
       }
-    });
+    };
+
+    fetchServiceName();
 
     // Cleanup function to prevent state updates after unmount
     return () => {
       isMounted.current = false;
     };
-  }, [metadata.serviceKey]);
+  }, [metadata.serviceKey, nostrService]);
 
   const recipientPubkey = metadata.recipient;
 
@@ -104,7 +110,15 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = ({ request }) => 
         {getRequestTypeText(type)}
       </Text>
 
-      <Text style={[styles.serviceName, { color: primaryTextColor }]}>{serviceName}</Text>
+      <Text 
+        style={[
+          styles.serviceName, 
+          { color: primaryTextColor },
+          !serviceName && styles.unknownService
+        ]}
+      >
+        {serviceName || 'Unknown Service'}
+      </Text>
 
       <Text style={[styles.serviceInfo, { color: secondaryTextColor }]}>
         {truncatePubkey(recipientPubkey)}
@@ -188,6 +202,9 @@ const styles = StyleSheet.create({
     fontSize: 26,
     fontWeight: '600',
     marginBottom: 4,
+  },
+  unknownService: {
+    fontStyle: 'italic',
   },
   serviceInfo: {
     fontSize: 14,

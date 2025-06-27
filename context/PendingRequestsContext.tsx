@@ -10,7 +10,7 @@ import {
 } from 'react';
 import type { PendingRequest, PendingRequestType } from '../models/PendingRequest';
 import type {
-  AuthInitUrl,
+  KeyHandshakeUrl,
   PaymentResponseContent,
   Profile,
   RecurringPaymentRequest,
@@ -24,15 +24,19 @@ import type { ActivityWithDates, SubscriptionWithDates } from '@/services/databa
 import { useDatabaseStatus } from '@/services/database/DatabaseProvider';
 import { useActivities } from '@/context/ActivitiesContext';
 import { useNostrService } from '@/context/NostrServiceContext';
-import { serviceNameCache } from '@/utils/serviceNameCache';
 
-// Helper function to extract the best available service name from a profile
-const getServiceNameFromProfile = (profile: any): string | null => {
-  // Priority order: nip05 -> displayName -> name -> null
-  if (profile?.nip05) return profile.nip05;
-  if (profile?.displayName) return profile.displayName;
-  if (profile?.name) return profile.name;
-  return null;
+// Helper function to get service name with fallback
+const getServiceNameWithFallback = async (
+  nostrService: any,
+  serviceKey: string
+): Promise<string> => {
+  try {
+    const serviceName = await nostrService.getServiceName(serviceKey);
+    return serviceName || 'Unknown Service';
+  } catch (error) {
+    console.error('Failed to fetch service name:', error);
+    return 'Unknown Service';
+  }
 };
 // Define a type for pending activities
 type PendingActivity = Omit<ActivityWithDates, 'id' | 'created_at'>;
@@ -45,10 +49,9 @@ interface PendingRequestsContextType {
   deny: (id: string) => void;
   isLoadingRequest: boolean;
   requestFailed: boolean;
-  pendingUrl: AuthInitUrl | undefined;
-  showSkeletonLoader: (parsedUrl: AuthInitUrl) => void;
+  pendingUrl: KeyHandshakeUrl | undefined;
+  showSkeletonLoader: (parsedUrl: KeyHandshakeUrl) => void;
   setRequestFailed: (failed: boolean) => void;
-  preloadServiceNames: () => Promise<void>;
 }
 
 const PendingRequestsContext = createContext<PendingRequestsContextType | undefined>(undefined);
@@ -56,7 +59,7 @@ const PendingRequestsContext = createContext<PendingRequestsContextType | undefi
 export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // Use preloaded data to avoid loading delay on mount
   const [isLoadingRequest, setIsLoadingRequest] = useState(false);
-  const [pendingUrl, setPendingUrl] = useState<AuthInitUrl | undefined>(undefined);
+  const [pendingUrl, setPendingUrl] = useState<KeyHandshakeUrl | undefined>(undefined);
   const [requestFailed, setRequestFailed] = useState(false);
   const [timeoutId, setTimeoutId] = useState<number | null>(null);
   const [resolvers, setResolvers] = useState<
@@ -263,9 +266,10 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           // Update the subscription last payment date
           await db!.updateSubscriptionLastPayment(subscription.id, new Date());
 
-          let serviceName: Profile | undefined = undefined;
+          let serviceName = 'Unknown Service';
           try {
-            serviceName = await nostrService.getServiceName(paymentRequest.serviceKey);
+            const fetchedName = await nostrService.getServiceName(paymentRequest.serviceKey);
+            serviceName = fetchedName || 'Unknown Service';
           } catch (e) {
             console.error('Error getting service name:', e);
           }
@@ -273,7 +277,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           addActivityWithFallback({
             type: 'pay',
             service_key: paymentRequest.serviceKey,
-            service_name: getServiceNameFromProfile(serviceName) ?? 'Unknown Service',
+            service_name: serviceName,
             detail: 'Payment approved',
             date: new Date(),
             amount: Number(paymentRequest.content.amount) / 1000,
@@ -311,19 +315,19 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           request.result(approvedAuthResponse);
 
           // Add an activity record directly via the database service
-          nostrService.getServiceName(request.metadata.serviceKey).then(serviceName => {
-            addActivityWithFallback({
-              type: 'auth',
-              service_key: request.metadata.serviceKey,
-              detail: 'User approved login',
-              date: new Date(),
-              service_name: getServiceNameFromProfile(serviceName) ?? 'Unknown Service',
-              amount: null,
-              currency: null,
-              request_id: id,
-              subscription_id: null,
+                      getServiceNameWithFallback(nostrService, request.metadata.serviceKey).then(serviceName => {
+              addActivityWithFallback({
+                type: 'auth',
+                service_key: request.metadata.serviceKey,
+                detail: 'User approved login',
+                date: new Date(),
+                service_name: serviceName,
+                amount: null,
+                currency: null,
+                request_id: id,
+                subscription_id: null,
+              });
             });
-          });
           break;
         case 'payment':
           request.result({
@@ -350,11 +354,11 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               }
             }
 
-            nostrService.getServiceName(request.metadata.serviceKey).then(serviceName => {
+            getServiceNameWithFallback(nostrService, request.metadata.serviceKey).then(serviceName => {
               addActivityWithFallback({
                 type: 'pay',
                 service_key: request.metadata.serviceKey,
-                service_name: getServiceNameFromProfile(serviceName) ?? 'Unknown Service',
+                service_name: serviceName,
                 detail: 'Payment approved',
                 date: new Date(),
                 amount: Number(amount) / 1000,
@@ -381,12 +385,11 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             // Extract currency symbol from the Currency object
             const currencyObj = req.content.currency;
 
-            nostrService
-              .getServiceName(request.metadata.serviceKey)
+            getServiceNameWithFallback(nostrService, request.metadata.serviceKey)
               .then(serviceName => {
                 return addSubscriptionWithFallback({
                   request_id: id,
-                  service_name: getServiceNameFromProfile(serviceName) ?? 'Unknown Service',
+                  service_name: serviceName,
                   service_key: request.metadata.serviceKey,
                   amount: Number(amount) / 1000,
                   currency: 'sats',
@@ -445,13 +448,13 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           request.result(deniedAuthResponse);
 
           // Add denied login activity to database
-          nostrService.getServiceName(request.metadata.serviceKey).then(serviceName => {
+          getServiceNameWithFallback(nostrService, request.metadata.serviceKey).then(serviceName => {
             addActivityWithFallback({
               type: 'auth',
               service_key: request.metadata.serviceKey,
               detail: 'User denied login',
               date: new Date(),
-              service_name: getServiceNameFromProfile(serviceName) ?? 'Unknown Service',
+              service_name: serviceName,
               amount: null,
               currency: null,
               request_id: id,
@@ -485,11 +488,11 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               }
             }
 
-            nostrService.getServiceName(request.metadata.serviceKey).then(serviceName => {
+            getServiceNameWithFallback(nostrService, request.metadata.serviceKey).then(serviceName => {
               addActivityWithFallback({
                 type: 'pay',
                 service_key: request.metadata.serviceKey,
-                service_name: getServiceNameFromProfile(serviceName) ?? 'Unknown Service',
+                service_name: serviceName,
                 detail: 'Payment denied by user',
                 date: new Date(),
                 amount: Number(amount) / 1000,
@@ -530,11 +533,11 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               }
             }
 
-            nostrService.getServiceName(request.metadata.serviceKey).then(serviceName => {
+            getServiceNameWithFallback(nostrService, request.metadata.serviceKey).then(serviceName => {
               addActivityWithFallback({
                 type: 'pay',
                 service_key: request.metadata.serviceKey,
-                service_name: getServiceNameFromProfile(serviceName) ?? 'Unknown Service',
+                service_name: serviceName,
                 detail: 'Subscription denied by user',
                 date: new Date(),
                 amount: Number(amount) / 1000,
@@ -554,7 +557,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
   // Show skeleton loader and set timeout for request
   const showSkeletonLoader = useCallback(
-    (parsedUrl: AuthInitUrl) => {
+    (parsedUrl: KeyHandshakeUrl) => {
       // Clean up any existing timeout
       if (timeoutId) {
         clearTimeout(timeoutId);
@@ -584,69 +587,11 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
     setRequestFailed(false);
   }, [timeoutId]);
 
-  // Add this function to the PendingRequestsProvider component
-  const preloadServiceNames = useCallback(async () => {
-    // Check if NostrService is properly initialized
-    if (!nostrService.isInitialized || !nostrService.portalApp) {
-      console.log('NostrService not ready for fetching service names');
-      return;
-    }
 
-    // Get all unique service keys from pending requests
-    const serviceKeys = new Set(
-      Object.values(nostrService.pendingRequests).map(req => req.metadata.serviceKey)
-    );
 
-    // Fetch service names for each service key if not already in cache
-    const fetchPromises = Array.from(serviceKeys).map(async serviceKey => {
-      // Skip if already in cache
-      if (serviceNameCache[serviceKey]) {
-        return;
-      }
-
-      try {
-        const profile = await nostrService.getServiceName(serviceKey);
-        const serviceName = getServiceNameFromProfile(profile);
-        if (serviceName) {
-          // Add to cache
-          serviceNameCache[serviceKey] = serviceName;
-        }
-      } catch (error) {
-        // Handle specific connection errors more gracefully
-        if (error instanceof Error) {
-          if (
-            error.message.includes('ListenerDisconnected') ||
-            error.message.includes('AppError.ListenerDisconnected')
-          ) {
-            console.warn(
-              `Nostr listener disconnected while fetching service name for ${serviceKey}. Will retry later.`
-            );
-            // Don't log as error since this is a transient connection issue
-            return;
-          }
-          if (error.message.includes('No relay connections available')) {
-            console.warn(
-              `No relay connections available while fetching service name for ${serviceKey}. Will retry when connected.`
-            );
-            // Don't log as error since this is a connection issue
-            return;
-          }
-        }
-        console.error(`Failed to fetch service name for ${serviceKey}:`, error);
-      }
-    });
-
-    await Promise.allSettled(fetchPromises); // Use allSettled to continue even if some fail
-  }, [nostrService]);
-
-  // Add preloadServiceNames to the useEffect that depends on pendingRequests
+  // Check for expected pending requests and clear skeleton loader
   useEffect(() => {
-    // Only preload service names if we have pending requests and NostrService is ready
-    if (Object.keys(nostrService.pendingRequests).length > 0 && nostrService.isInitialized) {
-      preloadServiceNames();
-    }
-
-    // Existing code for removing skeleton when we get the expected request
+    // Check for removing skeleton when we get the expected request
     for (const request of Object.values(nostrService.pendingRequests)) {
       if (request.metadata.serviceKey === pendingUrl?.mainKey) {
         // Clear timeout and reset loading states directly to avoid dependency issues
@@ -657,7 +602,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
         setRequestFailed(false);
       }
     }
-  }, [nostrService.pendingRequests, pendingUrl, timeoutId]); // Added timeoutId back for the clearTimeout logic
+  }, [nostrService.pendingRequests, pendingUrl, timeoutId]);
 
   // Memoize the context value to prevent recreation on every render
   // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
@@ -672,7 +617,6 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
       pendingUrl,
       showSkeletonLoader,
       setRequestFailed,
-      preloadServiceNames,
     }),
     [
       getByType,
@@ -684,7 +628,6 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
       pendingUrl,
       showSkeletonLoader,
       setRequestFailed,
-      preloadServiceNames,
     ]
   );
 

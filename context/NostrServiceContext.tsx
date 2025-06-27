@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { AppState } from 'react-native';
 import {
   AuthChallengeEvent,
-  AuthInitUrl,
+  KeyHandshakeUrl,
   Mnemonic,
   PaymentResponseContent,
   Profile,
@@ -18,6 +18,10 @@ import {
   AuthResponseStatus,
   CloseRecurringPaymentResponse,
   ClosedRecurringPaymentListener,
+  initLogger,
+  LogLevel,
+  LogEntry,
+  LogCallback,
 } from 'portal-app-lib';
 import { PendingRequest } from '@/models/PendingRequest';
 import uuid from 'react-native-uuid';
@@ -31,6 +35,11 @@ const DEFAULT_RELAYS = [
   'wss://nos.lol',
   'wss://offchain.pub',
 ];
+
+// Helper function to extract service name from profile (nip05 only)
+const getServiceNameFromProfile = (profile: any): string | null => {
+  return profile?.nip05 || null;
+};
 
 // Types for connection management
 export type RelayConnectionStatus =
@@ -140,8 +149,8 @@ interface NostrServiceContextType {
   payInvoice: (invoice: string) => Promise<string>;
   lookupInvoice: (invoice: string) => Promise<LookupInvoiceResponse>;
   disconnectWallet: () => void;
-  sendAuthInit: (url: AuthInitUrl) => Promise<void>;
-  getServiceName: (publicKey: string) => Promise<Profile | undefined>;
+  sendKeyHandshake: (url: KeyHandshakeUrl) => Promise<void>;
+  getServiceName: (publicKey: string) => Promise<string | null>;
   dismissPendingRequest: (id: string) => void;
   setUserProfile: (profile: Profile) => Promise<void>;
   submitNip05: (nip05: string) => Promise<void>;
@@ -266,6 +275,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   const [nwcTimeoutUntil, setNwcTimeoutUntil] = useState<number | null>(null);
   const [nwcCheckInProgress, setNwcCheckInProgress] = useState(false);
   const [lastNwcCheck, setLastNwcCheck] = useState<number>(0);
+  const [appIsActive, setAppIsActive] = useState(true);
   const [walletInfo, setWalletInfo] = useState<WalletInfoState>({
     data: null,
     isLoading: false,
@@ -283,8 +293,16 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
   // Initialize the NostrService
   useEffect(() => {
+    const abortController = new AbortController();
+
     if (!mnemonic) {
       console.log('No mnemonic provided, initialization skipped');
+      return;
+    }
+
+    // Only initialize when app is active
+    if (!appIsActive) {
+      console.log('App not active, skipping initialization');
       return;
     }
 
@@ -310,7 +328,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         const app = await PortalApp.create(keypair, relays);
 
         // Start listening and give it a moment to establish connections
-        app.listen(); // Listen asynchronously
+        app.listen({ signal: abortController.signal });
         console.log('PortalApp listening started...');
 
         app
@@ -431,7 +449,12 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     };
 
     initializeNostrService();
-  }, [mnemonic]);
+
+    return () => {
+      console.log('Aborting NostrService initialization');
+      abortController.abort();
+    };
+  }, [mnemonic, appIsActive]);
 
   useEffect(() => {
     console.log('Updated pending requests:', pendingRequests);
@@ -560,55 +583,74 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   }, []);
 
   // Send auth init
-  const sendAuthInit = useCallback(
-    async (url: AuthInitUrl): Promise<void> => {
+  const sendKeyHandshake = useCallback(
+    async (url: KeyHandshakeUrl): Promise<void> => {
       if (!portalApp) {
         throw new Error('PortalApp not initialized');
       }
 
       console.log('Sending auth init', url);
-      return portalApp.sendAuthInit(url);
+      return portalApp.sendKeyHandshake(url);
     },
     [portalApp]
   );
 
-  // Get service name
+  // Get service name with database caching
   const getServiceName = useCallback(
-    async (pubKey: string): Promise<Profile | undefined> => {
+    async (pubKey: string): Promise<string | null> => {
       if (!portalApp) {
         throw new Error('PortalApp not initialized');
       }
 
-      // Check relay connection status before attempting to fetch profile
-      if (!connectionStatus || !(connectionStatus instanceof Map) || connectionStatus.size === 0) {
-        console.warn('DEBUG: No relays connected, cannot fetch service profile for:', pubKey);
-        throw new Error('No relay connections available. Please check your internet connection and try again.');
-      }
-
-      // Check if at least one relay is connected
-      let connectedCount = 0;
-      for (const [url, status] of connectionStatus.entries()) {
-        const finalStatus = typeof status === 'number' ? mapNumericStatusToString(status) : 'Unknown';
-        if (finalStatus === 'Connected') {
-          connectedCount++;
-        }
-      }
-
-      if (connectedCount === 0) {
-        console.warn('DEBUG: No relays in Connected state, cannot fetch service profile for:', pubKey);
-        throw new Error('No relay connections available. Please check your internet connection and try again.');
-      }
-
-      console.log('DEBUG: NostrService.getServiceName called with pubKey:', pubKey);
-      console.log('DEBUG: PortalApp is initialized:', !!portalApp);
-      console.log('DEBUG: Connected relays:', connectedCount, '/', connectionStatus.size);
-
       try {
-        const service = await portalApp.fetchProfile(pubKey);
-        console.log('DEBUG: portalApp.fetchProfile returned:', service);
-        return service;
+        // Step 1: Check for valid cached entry (not expired)
+        const cachedName = await DB.getCachedServiceName(pubKey);
+        if (cachedName) {
+          console.log('DEBUG: Using cached service name for:', pubKey, '->', cachedName);
+          return cachedName;
+        }
+
+        // Step 2: Check relay connection status before attempting network fetch
+        if (!connectionStatus || !(connectionStatus instanceof Map) || connectionStatus.size === 0) {
+          console.warn('DEBUG: No relays connected, cannot fetch service profile for:', pubKey);
+          throw new Error('No relay connections available. Please check your internet connection and try again.');
+        }
+
+        // Check if at least one relay is connected
+        let connectedCount = 0;
+        for (const [url, status] of connectionStatus.entries()) {
+          const finalStatus = typeof status === 'number' ? mapNumericStatusToString(status) : 'Unknown';
+          if (finalStatus === 'Connected') {
+            connectedCount++;
+          }
+        }
+
+        if (connectedCount === 0) {
+          console.warn('DEBUG: No relays in Connected state, cannot fetch service profile for:', pubKey);
+          throw new Error('No relay connections available. Please check your internet connection and try again.');
+        }
+
+        console.log('DEBUG: NostrService.getServiceName fetching from network for pubKey:', pubKey);
+        console.log('DEBUG: Connected relays:', connectedCount, '/', connectionStatus.size);
+
+        // Step 3: Fetch from network
+        const profile = await portalApp.fetchProfile(pubKey);
+        console.log('DEBUG: portalApp.fetchProfile returned:', profile);
+
+        // Step 4: Extract service name from profile
+        const serviceName = getServiceNameFromProfile(profile);
+        
+        if (serviceName) {
+          // Step 5: Cache the result
+          await DB.setCachedServiceName(pubKey, serviceName);
+          console.log('DEBUG: Cached new service name for:', pubKey, '->', serviceName);
+          return serviceName;
+        } else {
+          console.log('DEBUG: No service name found in profile for:', pubKey);
+          return null;
+        }
       } catch (error) {
-        console.log('DEBUG: portalApp.fetchProfile error:', error);
+        console.log('DEBUG: getServiceName error for:', pubKey, error);
         throw error;
       }
     },
@@ -871,6 +913,9 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     const handleAppStateChange = async (nextAppState: string) => {
       console.log('AppState changed to:', nextAppState);
 
+      // Update app active state
+      setAppIsActive(nextAppState === 'active');
+
       if (nextAppState === 'active') {
         if (portalAppRef.current) {
           console.log('📱 App became active - refreshing connection status');
@@ -885,7 +930,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
             console.error('Error refreshing connection status on app active:', error);
           }
         } else {
-          console.log('⚠️ App became active but portalApp is null');
+          console.log('⚠️ App became active but portalApp is null - will re-initialize');
         }
       }
     };
@@ -983,6 +1028,37 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     }
   }, [nwcWallet, nwcConnectionStatus, refreshWalletInfo]);
 
+  /* useEffect(() => {
+    class Logger implements LogCallback {
+      log(entry: LogEntry) {
+        const message = `[${entry.target}] ${entry.message}`;
+        switch (entry.level) {
+          case LogLevel.Trace:
+            console.trace(message);
+            break;
+          case LogLevel.Debug:
+            console.debug(message);
+            break;
+          case LogLevel.Info:
+            console.info(message);
+            break;
+          case LogLevel.Warn:
+            console.warn(message);
+            break;
+          case LogLevel.Error:
+            console.error(message);
+            break;
+        }
+      }
+    }
+    try {
+      initLogger(new Logger(), LogLevel.Warn)
+      console.log('Logger initialized');
+    } catch (error) {
+      console.error('Error initializing logger:', error);
+    }
+  }, []); */
+
   // Context value
   const contextValue: NostrServiceContextType = {
     isInitialized,
@@ -994,7 +1070,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     payInvoice,
     lookupInvoice,
     disconnectWallet,
-    sendAuthInit,
+    sendKeyHandshake,
     getServiceName,
     dismissPendingRequest,
     setUserProfile,

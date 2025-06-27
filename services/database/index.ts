@@ -50,6 +50,13 @@ export interface NostrRelay {
   created_at: number;
 }
 
+export interface NameCacheRecord {
+  service_pubkey: string;
+  service_name: string;
+  expires_at: number; // Unix timestamp in seconds
+  created_at: number; // Unix timestamp in seconds
+}
+
 // Application layer types (with Date objects)
 export interface ActivityWithDates extends Omit<ActivityRecord, 'date' | 'created_at'> {
   date: Date;
@@ -77,7 +84,7 @@ export interface NostrRelayWithDates extends Omit<NostrRelay, 'created_at'> {
 }
 
 export class DatabaseService {
-  constructor(private db: SQLiteDatabase) { }
+  constructor(private db: SQLiteDatabase) {}
 
   // Database reset method
   async dropAllTables(): Promise<void> {
@@ -371,45 +378,96 @@ export class DatabaseService {
     }));
   }
 
-  async updateRelays(
-    relays: string[]
-  ): Promise<number> {
+  async updateRelays(relays: string[]): Promise<number> {
     this.db.withTransactionAsync(async () => {
       const placeholders = relays.map(() => '?').join(', ');
       await this.db.runAsync(
         `DELETE FROM nostr_relays
            WHERE ws_uri NOT IN (?)`,
-        [
-          placeholders,
-        ]
+        [placeholders]
       );
       for (const relay of relays) {
         await this.db.runAsync(
           `INSERT OR IGNORE INTO nostr_relays (
               ws_uri, created_at
             ) VALUES (?, ?)`,
-          [
-            relay,
-            toUnixSeconds(Date.now())
-          ]
+          [relay, toUnixSeconds(Date.now())]
         );
       }
-    })
-    return 0
-  };
+    });
+    return 0;
+  }
 
   /**
    * Get relays
    * @returns Promise that resolves with an object containing the ws uri and it's creation date
    */
   async getRelays(): Promise<NostrRelayWithDates[]> {
-    const records = await this.db.getAllAsync<NostrRelay>(
-      `SELECT * FROM nostr_relays`
-    );
+    const records = await this.db.getAllAsync<NostrRelay>(`SELECT * FROM nostr_relays`);
 
     return records.map(record => ({
       ...record,
-      created_at: fromUnixSeconds(record.created_at)
+      created_at: fromUnixSeconds(record.created_at),
     }));
-  };
+  }
+
+  // Name cache methods
+
+  /**
+   * Get a cached service name if it exists and hasn't expired (within 1 hour)
+   * @param pubkey The public key to look up
+   * @returns The cached service name or null if not found/expired
+   */
+  async getCachedServiceName(pubkey: string): Promise<string | null> {
+    const now = toUnixSeconds(Date.now());
+
+    const record = await this.db.getFirstAsync<NameCacheRecord>(
+      'SELECT * FROM name_cache WHERE service_pubkey = ? AND expires_at > ?',
+      [pubkey, now]
+    );
+
+    return record?.service_name || null;
+  }
+
+  /**
+   * Store a service name in the cache with 1-hour expiration
+   * @param pubkey The public key
+   * @param serviceName The resolved service name
+   */
+  async setCachedServiceName(pubkey: string, serviceName: string): Promise<void> {
+    const now = toUnixSeconds(Date.now());
+    const expiresAt = now + 60 * 60; // 1 hour from now
+
+    await this.db.runAsync(
+      `INSERT OR REPLACE INTO name_cache (
+        service_pubkey, service_name, expires_at, created_at
+      ) VALUES (?, ?, ?, ?)`,
+      [pubkey, serviceName, expiresAt, now]
+    );
+  }
+
+  /**
+   * Check if a cached entry exists (regardless of expiration)
+   * @param pubkey The public key to check
+   * @returns True if an entry exists, false otherwise
+   */
+  async hasCachedServiceName(pubkey: string): Promise<boolean> {
+    const record = await this.db.getFirstAsync<{ count: number }>(
+      'SELECT COUNT(*) as count FROM name_cache WHERE service_pubkey = ?',
+      [pubkey]
+    );
+
+    return (record?.count || 0) > 0;
+  }
+
+  /**
+   * Clean up expired cache entries (optional maintenance method)
+   */
+  async cleanExpiredNameCache(): Promise<number> {
+    const now = toUnixSeconds(Date.now());
+
+    const result = await this.db.runAsync('DELETE FROM name_cache WHERE expires_at <= ?', [now]);
+
+    return result.changes;
+  }
 }

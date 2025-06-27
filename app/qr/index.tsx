@@ -2,10 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, BackHandler } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/constants/Colors';
 import { router } from 'expo-router';
 import { usePendingRequests } from '@/context/PendingRequestsContext';
-import { parseAuthInitUrl } from 'portal-app-lib';
+import { parseKeyHandshakeUrl } from 'portal-app-lib';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 
@@ -54,9 +53,9 @@ export default function QRScannerScreen() {
 
     try {
       // Show the skeleton loader
-      const parsedUrl = parseAuthInitUrl(data);
+      const parsedUrl = parseKeyHandshakeUrl(data);
       showSkeletonLoader(parsedUrl);
-      nostrService.sendAuthInit(parsedUrl);
+      nostrService.sendKeyHandshake(parsedUrl);
     } catch (error) {
       console.error('Failed to process QR code:', error);
     }

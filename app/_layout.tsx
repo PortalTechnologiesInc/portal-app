@@ -10,7 +10,7 @@ import { DeeplinkProvider } from '@/context/DeeplinkContext';
 import { ActivitiesProvider } from '@/context/ActivitiesContext';
 import { DatabaseProvider } from '@/services/database/DatabaseProvider';
 import { MnemonicProvider, useMnemonic } from '@/context/MnemonicContext';
-import { NostrServiceProvider } from '@/context/NostrServiceContext';
+import NostrServiceProvider from '@/context/NostrServiceContext';
 import { AppLockProvider, useAppLock } from '@/context/AppLockContext';
 import { AppLockScreen } from '@/components/AppLockScreen';
 import { StatusBar } from 'expo-status-bar';

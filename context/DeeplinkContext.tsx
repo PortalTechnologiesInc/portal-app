@@ -2,7 +2,7 @@ import { createContext, useContext, useCallback, type ReactNode, useRef } from '
 import { useEffect } from 'react';
 import * as Linking from 'expo-linking';
 import * as SecureStore from 'expo-secure-store';
-import { parseAuthInitUrl } from 'portal-app-lib';
+import { parseKeyHandshakeUrl } from 'portal-app-lib';
 import { usePendingRequests } from '@/context/PendingRequestsContext';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { router } from 'expo-router';
@@ -67,14 +67,14 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
         }
 
         // Parse the URL only if it contains actual authentication parameters
-        const parsedUrl = parseAuthInitUrl(url);
+        const parsedUrl = parseKeyHandshakeUrl(url);
         console.log('Parsed deeplink URL:', parsedUrl);
 
         // Show the skeleton loader
         showSkeletonLoader(parsedUrl);
 
         // Send auth init request
-        nostrService.sendAuthInit(parsedUrl);
+        nostrService.sendKeyHandshake(parsedUrl);
       } catch (error) {
         console.error('Failed to handle deeplink URL:', error);
       }
