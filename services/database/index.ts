@@ -63,6 +63,17 @@ export interface ActivityWithDates extends Omit<ActivityRecord, 'date' | 'create
   created_at: Date;
 }
 
+export interface StoredPendingRequest {
+  id: string;
+  request_id: string;
+  approved: boolean;
+  created_at: Date;
+}
+
+export interface StoredPendingRequestWithDates extends Omit<StoredPendingRequest, 'created_at'> {
+  created_at: Date;
+}
+
 export interface SubscriptionWithDates
   extends Omit<
     SubscriptionRecord,
@@ -469,5 +480,43 @@ export class DatabaseService {
     const result = await this.db.runAsync('DELETE FROM name_cache WHERE expires_at <= ?', [now]);
 
     return result.changes;
+  }
+
+  // Subscription methods
+  async storePendingRequest(
+    eventId: string,
+    approved: boolean,
+  ): Promise<string> {
+    const id = uuid.v4();
+    const now = toUnixSeconds(Date.now());
+
+    try {
+
+      await this.db.runAsync(
+        `INSERT OR IGNORE INTO stored_pending_requests (
+        id, event_id, approved, created_at
+      ) VALUES (?, ?, ?, ?)`,
+        [
+          id,
+          eventId,
+          approved ? '1' : '0',
+          now,
+        ]
+      );
+    } catch (e) {
+
+    }
+
+    return id;
+  }
+
+  // Subscription methods
+  async isPendingRequestStored(eventId: string): Promise<boolean> {
+    const records = await this.db.getFirstAsync<StoredPendingRequest>(
+      `SELECT * FROM stored_pending_requests
+        WHERE event_id = ?`,
+      [eventId]
+    );
+    return records ? true : false
   }
 }

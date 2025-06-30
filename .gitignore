@@ -29,6 +29,9 @@ yarn-debug.*
 yarn-error.*
 .cursorrules
 
+#idea
+.idea
+
 # macOS
 .DS_Store
 *.pem

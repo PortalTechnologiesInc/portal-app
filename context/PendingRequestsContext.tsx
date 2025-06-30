@@ -11,10 +11,7 @@ import {
 import type { PendingRequest, PendingRequestType } from '../models/PendingRequest';
 import type {
   KeyHandshakeUrl,
-  PaymentResponseContent,
-  Profile,
   RecurringPaymentRequest,
-  RecurringPaymentResponseContent,
   SinglePaymentRequest,
 } from 'portal-app-lib';
 import { PaymentStatus, RecurringPaymentStatus, AuthResponseStatus } from 'portal-app-lib';
@@ -62,9 +59,6 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
   const [pendingUrl, setPendingUrl] = useState<KeyHandshakeUrl | undefined>(undefined);
   const [requestFailed, setRequestFailed] = useState(false);
   const [timeoutId, setTimeoutId] = useState<number | null>(null);
-  const [resolvers, setResolvers] = useState<
-    Map<string, (value: boolean | PaymentResponseContent | RecurringPaymentResponseContent) => void>
-  >(new Map());
 
   // Create database instance for adding activities, but handle case where it's not ready
   const [db, setDb] = useState<DatabaseService | null>(null);
@@ -304,6 +298,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
       }
 
       nostrService.dismissPendingRequest(id);
+      db?.storePendingRequest(id, true)
 
       switch (request.type) {
         case 'login':
@@ -438,6 +433,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
       }
 
       nostrService.dismissPendingRequest(id);
+      db?.storePendingRequest(id, false)
 
       switch (request?.type) {
         case 'login':

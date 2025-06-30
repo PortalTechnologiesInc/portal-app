@@ -11,6 +11,9 @@ import { ThemedText } from './ThemedText';
 import { useEffect, useState } from 'react';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { Layout } from '@/constants/Layout';
+import { DatabaseService } from '@/services/database';
+import { useSQLiteContext } from 'expo-sqlite';
+import { useDatabaseStatus } from '@/services/database/DatabaseProvider';
 
 // Create a skeleton request that adheres to the PendingRequest interface
 const createSkeletonRequest = (): PendingRequest => ({
@@ -18,7 +21,7 @@ const createSkeletonRequest = (): PendingRequest => ({
   metadata: {} as AuthChallengeEvent,
   type: 'login',
   timestamp: new Date(),
-  result: () => {},
+  result: () => { },
 });
 
 export const PendingRequestsList: React.FC = () => {
@@ -32,15 +35,38 @@ export const PendingRequestsList: React.FC = () => {
   const nostrService = useNostrService();
   const [data, setData] = useState<PendingRequest[]>([]);
 
+  // Only try to access SQLite context if the database is initialized
+  let sqliteContext = null;
+  try {
+    // This will throw an error if SQLiteProvider is not available
+    sqliteContext = useSQLiteContext();
+  } catch (error) {
+    // SQLiteContext is not available, which is expected sometimes
+    console.log('SQLite context not available yet, activity tracking will be delayed');
+  }
+
+  if (!sqliteContext) {
+    console.log('SQLite context is null');
+    return;
+  }
+
+  // Get database initialization status
+  const dbStatus = useDatabaseStatus();
+
+
   // Theme colors
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
 
   useEffect(() => {
-    // Get sorted requests
-    const sortedRequests = Object.values(nostrService.pendingRequests)
+    const db = new DatabaseService(sqliteContext);
+
+    (async () => {
+      // Get sorted requests
+      const sortedRequests = Object.values(nostrService.pendingRequests)
       .filter(request => {
+
         if (
           request.type === 'payment' &&
           (request.metadata as SinglePaymentRequest).content.subscriptionId
@@ -51,16 +77,25 @@ export const PendingRequestsList: React.FC = () => {
       })
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
+      const filteredRequests = await Promise.all(sortedRequests.map(async request => {
+        if (await db.isPendingRequestStored(request.metadata.eventId)) {
+          return null; // Request is stored, so filter it out
+        }
+        return request; // Request is not stored, so keep it
+      }));
+
+      // Remove null values (filtered out requests)
+      const nonStoredRequests = filteredRequests.filter(request => request !== null);
+
     // Add skeleton if needed
-    const finalData =
-      requestFailed || isLoadingRequest
-        ? [createSkeletonRequest(), ...sortedRequests]
-        : sortedRequests;
+    const finalData = requestFailed || isLoadingRequest
+      ? [createSkeletonRequest(), ...nonStoredRequests]
+      : nonStoredRequests;
 
     setData(finalData);
+    })();
 
-    // Service names are now loaded automatically by individual cards
-  }, [nostrService.pendingRequests, isLoadingRequest, requestFailed]);
+  }, [nostrService.pendingRequests, isLoadingRequest, requestFailed, sqliteContext, dbStatus.isDbInitialized]);
 
   const handleRetry = () => {
     setRequestFailed(false);

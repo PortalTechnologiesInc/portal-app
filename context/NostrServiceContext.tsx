@@ -334,13 +334,18 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         app
           .listenForAuthChallenge(
             new LocalAuthChallengeListener((event: AuthChallengeEvent) => {
-              const id = uuid.v4();
+              const id = event.eventId;
 
               console.log(`Auth challenge with id ${id} received`, event);
 
               return new Promise<AuthResponseStatus>(resolve => {
                 setPendingRequests(prev => {
                   const newPendingRequests = { ...prev };
+
+                  if (prev[id]) {
+                    return prev
+                  }
+                  
                   newPendingRequests[id] = {
                     id,
                     metadata: event,
@@ -369,13 +374,18 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
           .listenForPaymentRequest(
             new LocalPaymentRequestListener(
               (event: SinglePaymentRequest) => {
-                const id = uuid.v4();
+                const id = event.eventId;
 
                 console.log(`Single payment request with id ${id} received`, event);
 
                 return new Promise<PaymentResponseContent>(resolve => {
                   setPendingRequests(prev => {
                     const newPendingRequests = { ...prev };
+
+                    if (prev[id]) {
+                      return prev
+                    }
+
                     newPendingRequests[id] = {
                       id,
                       metadata: event,
@@ -394,13 +404,18 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                 });
               },
               (event: RecurringPaymentRequest) => {
-                const id = uuid.v4();
+                const id = event.eventId;
 
                 console.log(`Recurring payment request with id ${id} received`, event);
 
                 return new Promise<RecurringPaymentResponseContent>(resolve => {
                   setPendingRequests(prev => {
                     const newPendingRequests = { ...prev };
+
+                    if (prev[id]) {
+                      return prev
+                    }
+
                     newPendingRequests[id] = {
                       id,
                       metadata: event,

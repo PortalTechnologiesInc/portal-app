@@ -59,7 +59,7 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
   const migrateDbIfNeeded = useCallback(async (db: SQLiteDatabase) => {
     console.log('Database initialization started');
     setIsDbInitializing(true);
-    const DATABASE_VERSION = 5;
+    const DATABASE_VERSION = 6;
 
     try {
       let { user_version: currentDbVersion } = (await db.getFirstAsync<{
@@ -163,6 +163,19 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
         		`);
         currentDbVersion = 5;
       }
+
+      if (currentDbVersion <= 5) {
+        await db.execAsync(`
+          			CREATE TABLE IF NOT EXISTS stored_pending_requests (
+            			id TEXT NOT NULL UNIQUE,
+                  event_id TEXT NOT NULL,
+                  approved INTEGER NOT NULL, 
+            			created_at INTEGER NOT NULL -- Unix timestamp
+                );
+        		`);
+        currentDbVersion = 6;
+      }
+
       await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
       console.log(`Database migration completed to version ${DATABASE_VERSION}`);
       setDbInitialized(true);
