@@ -18,15 +18,11 @@ import {
   AuthResponseStatus,
   CloseRecurringPaymentResponse,
   ClosedRecurringPaymentListener,
-  initLogger,
-  LogLevel,
-  LogEntry,
-  LogCallback,
 } from 'portal-app-lib';
 import { PendingRequest } from '@/models/PendingRequest';
-import uuid from 'react-native-uuid';
 import { DatabaseService } from '@/services/database';
 import { useSQLiteContext } from 'expo-sqlite';
+import { PortalAppManager } from '@/app/PortalAppManager';
 
 // Constants and helper classes from original NostrService
 const DEFAULT_RELAYS = [
@@ -325,7 +321,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
           DEFAULT_RELAYS.forEach(relay => relays.push(relay));
           await DB.updateRelays(DEFAULT_RELAYS);
         }
-        const app = await PortalApp.create(keypair, relays);
+        const app = await PortalAppManager.getInstance(keypair, relays);
 
         // Start listening and give it a moment to establish connections
         app.listen({ signal: abortController.signal });
