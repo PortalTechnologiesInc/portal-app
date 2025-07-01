@@ -127,8 +127,11 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
   const handleSaveProfile = async () => {
     if (!isProfileEditable || profileIsLoading) return;
 
+    // Normalize and validate username
+    const normalizedUsername = usernameInput.trim().toLowerCase();
+    
     // Check if anything has actually changed
-    const usernameChanged = usernameInput.trim() !== networkUsername;
+    const usernameChanged = normalizedUsername !== networkUsername;
     const avatarChanged = avatarUri !== networkAvatarUri;
 
     if (!usernameChanged && !avatarChanged) {
@@ -136,15 +139,27 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
       return;
     }
 
+    // Client-side validation
+    if (normalizedUsername.includes(' ')) {
+      showToast('Username cannot contain spaces', 'error');
+      return;
+    }
+
+    if (normalizedUsername && !/^[a-z0-9._-]+$/.test(normalizedUsername)) {
+      showToast('Username can only contain lowercase letters, numbers, dots, underscores, and hyphens', 'error');
+      return;
+    }
+
     setProfileIsLoading(true);
     try {
-      const trimmedUsername = usernameInput.trim();
-      
       // Use the setProfile method to save both username and avatar to the network
-      await setProfile(trimmedUsername || username || '', avatarUri);
+      await setProfile(normalizedUsername || username || '', avatarUri);
+
+      // Update local input to reflect the normalized username
+      setUsernameInput(normalizedUsername || username || '');
 
       // Update network state after successful save
-      setNetworkUsername(trimmedUsername || username || '');
+      setNetworkUsername(normalizedUsername || username || '');
       setNetworkAvatarUri(avatarUri);
 
       // Provide specific feedback about what was saved
@@ -277,7 +292,11 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
                     !isProfileEditable && styles.usernameInputDisabled,
                   ]}
                   value={usernameInput}
-                  onChangeText={setUsernameInput}
+                  onChangeText={(text) => {
+                    // Automatically convert to lowercase and remove spaces
+                    const normalizedText = text.toLowerCase().replace(/\s/g, '');
+                    setUsernameInput(normalizedText);
+                  }}
                   placeholder="username"
                   placeholderTextColor={inputPlaceholderColor}
                   autoCapitalize="none"

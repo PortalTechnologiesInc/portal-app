@@ -217,11 +217,47 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
       if (fetchedProfile) {
         console.log('Profile fetched successfully');
+        console.log('Raw profile data:', JSON.stringify(fetchedProfile, null, 2));
 
-        // Extract data from fetched profile
-        const fetchedUsername = fetchedProfile.nip05?.split('@')[0] || fetchedProfile.name || '';
-        console.log("profile data:", fetchedProfile)
+        // Extract data from fetched profile with proper normalization
+        let fetchedUsername = '';
+        
+        // Try to get username from nip05 first (most reliable)
+        if (fetchedProfile.nip05) {
+          const nip05Parts = fetchedProfile.nip05.split('@');
+          if (nip05Parts.length > 0 && nip05Parts[0]) {
+            fetchedUsername = nip05Parts[0];
+            console.log('Username extracted from nip05:', fetchedUsername);
+          }
+        }
+        
+        // Fallback to name field if nip05 didn't work
+        if (!fetchedUsername && fetchedProfile.name) {
+          fetchedUsername = fetchedProfile.name;
+          console.log('Username extracted from name field:', fetchedUsername);
+        }
+        
+        // Fallback to displayName if nothing else worked
+        if (!fetchedUsername && fetchedProfile.displayName) {
+          fetchedUsername = fetchedProfile.displayName;
+          console.log('Username extracted from displayName field:', fetchedUsername);
+        }
+        
+        // Always normalize the username to match server behavior
+        // The server trims and lowercases, so we should do the same
+        if (fetchedUsername) {
+          const originalUsername = fetchedUsername;
+          fetchedUsername = fetchedUsername.trim().toLowerCase().replace(/\s+/g, '');
+          
+          if (originalUsername !== fetchedUsername) {
+            console.log('Username normalized from:', originalUsername, 'to:', fetchedUsername);
+          }
+        }
+        
         const fetchedAvatarUri = fetchedProfile.picture || null; // Ensure null instead of empty string
+
+        console.log('Final extracted username:', fetchedUsername);
+        console.log('Final extracted avatarUri:', fetchedAvatarUri);
 
         // Save the fetched data to local storage
         if (fetchedUsername) {
@@ -315,10 +351,23 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         throw new Error('Portal app or public key not initialized');
       }
 
+      // Validate and normalize username
+      const normalizedUsername = newUsername.trim().toLowerCase();
+      
+      // Check for invalid characters
+      if (normalizedUsername.includes(' ')) {
+        throw new Error('Username cannot contain spaces');
+      }
+      
+      // Additional validation for username format (optional - portal.cc specific rules)
+      if (normalizedUsername && !/^[a-z0-9._-]+$/.test(normalizedUsername)) {
+        throw new Error('Username can only contain lowercase letters, numbers, dots, underscores, and hyphens');
+      }
+
       setSyncStatus('syncing');
 
       // Determine what has actually changed (compare against network state, not local state)
-      const usernameChanged = newUsername !== networkUsername;
+      const usernameChanged = normalizedUsername !== networkUsername;
       const avatarChanged = newAvatarUri !== networkAvatarUri;
 
       console.log('Updating profile - username changed:', usernameChanged, 'avatar changed:', avatarChanged);
@@ -334,12 +383,12 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
       let actualUsernameToUse = networkUsername; // Default to current network username
 
       if (usernameChanged) {
-        console.log('Registering NIP05 username:', newUsername);
+        console.log('Registering NIP05 username:', normalizedUsername);
 
         try {
-          await nostrService.submitNip05(newUsername);
+          await nostrService.submitNip05(normalizedUsername);
           console.log('NIP05 registration successful');
-          actualUsernameToUse = newUsername; // Use new username if successful
+          actualUsernameToUse = normalizedUsername; // Use new username if successful
         } catch (error: any) {
           console.error('NIP05 registration failed');
 
@@ -352,7 +401,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
           }
 
           if (errorMessage.includes('409')) {
-            nip05Error = `Username "${newUsername}" is already taken. Please choose a different name.`;
+            nip05Error = `Username "${normalizedUsername}" is already taken. Please choose a different name.`;
           } else {
             nip05Error = `Registration service offline. Please try again later.`;
           }
