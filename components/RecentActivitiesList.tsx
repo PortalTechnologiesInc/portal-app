@@ -1,21 +1,16 @@
-import React, { useCallback, useMemo, useEffect } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { View, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
 import { router } from 'expo-router';
 import { ThemedText } from './ThemedText';
-import { Colors } from '@/constants/Colors';
-import { ActivityType } from '@/models/Activity';
-import { formatCentsToCurrency, formatDayAndDate, formatRelativeTime } from '@/utils';
-import { Key, BanknoteIcon } from 'lucide-react-native';
+import { formatDayAndDate } from '@/utils';
 import { useActivities } from '@/context/ActivitiesContext';
 import type { ActivityWithDates } from '@/services/database';
 import { useThemeColor } from '@/hooks/useThemeColor';
-
-// Import shared activity row component that we'll create
 import { ActivityRow } from './ActivityRow';
 
 export const RecentActivitiesList: React.FC = () => {
-  // Use the activities from the context
-  const { activities, isDbReady, refreshData } = useActivities();
+  // Use the main activities state to automatically get updates
+  const { isDbReady, activities } = useActivities();
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -23,15 +18,12 @@ export const RecentActivitiesList: React.FC = () => {
   const primaryTextColor = useThemeColor({}, 'textPrimary');
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
 
-  // Refresh data when component mounts
-  useEffect(() => {
-    refreshData();
-  }, [refreshData]);
-
-  // Get only the first 5 most recent activities
+  // Get recent activities from the main activities list (last 5)
   const recentActivities = useMemo(() => {
     return activities.slice(0, 5);
   }, [activities]);
+
+  const isLoading = !isDbReady;
 
   const handleSeeAll = useCallback(() => {
     router.push('/ActivityList');
@@ -54,33 +46,35 @@ export const RecentActivitiesList: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {!isDbReady ? (
+      {!isLoading ? (
+        recentActivities.length === 0 ? (
+          <View style={[styles.emptyContainer, { backgroundColor: cardBackgroundColor }]}>
+            <ThemedText style={[styles.emptyText, { color: secondaryTextColor }]}>
+              No recent activities
+            </ThemedText>
+          </View>
+        ) : (
+          <>
+            <ThemedText style={[styles.dateHeader, { color: secondaryTextColor }]}>
+              {today}
+            </ThemedText>
+
+            <FlatList
+              data={recentActivities}
+              keyExtractor={item => item.id}
+              renderItem={({ item }) => <ActivityRow activity={item} />}
+              scrollEnabled={false}
+              removeClippedSubviews={false}
+              initialNumToRender={5}
+            />
+          </>
+        )
+      ) : (
         <View style={[styles.emptyContainer, { backgroundColor: cardBackgroundColor }]}>
           <ThemedText style={[styles.emptyText, { color: secondaryTextColor }]}>
             Loading activities...
           </ThemedText>
         </View>
-      ) : recentActivities.length === 0 ? (
-        <View style={[styles.emptyContainer, { backgroundColor: cardBackgroundColor }]}>
-          <ThemedText style={[styles.emptyText, { color: secondaryTextColor }]}>
-            No recent activities
-          </ThemedText>
-        </View>
-      ) : (
-        <>
-          <ThemedText style={[styles.dateHeader, { color: secondaryTextColor }]}>
-            {today}
-          </ThemedText>
-
-          <FlatList
-            data={recentActivities}
-            keyExtractor={item => item.id}
-            renderItem={({ item }) => <ActivityRow activity={item} />}
-            scrollEnabled={false}
-            removeClippedSubviews={false}
-            initialNumToRender={5}
-          />
-        </>
       )}
     </View>
   );

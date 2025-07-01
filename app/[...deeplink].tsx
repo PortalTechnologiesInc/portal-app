@@ -28,7 +28,7 @@ export default function DeeplinkHandler() {
 			return "/onboarding";
 		}
 		if (!mnemonic) {
-			return "/settings";
+			return "/(tabs)/Settings";
 		}
 		return "/(tabs)";
 	};

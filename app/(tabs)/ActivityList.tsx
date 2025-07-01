@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { View, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
 import { ThemedText } from '../../components/ThemedText';
 import { ActivityType as ActivityTypeEnum } from '../../models/Activity';
@@ -9,9 +9,18 @@ import { useActivities } from '@/context/ActivitiesContext';
 import { ActivityRow } from '@/components/ActivityRow';
 import { router } from 'expo-router';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { useFocusEffect } from '@react-navigation/native';
 
 const ItemList: React.FC = () => {
-  const { activities, isDbReady, refreshData } = useActivities();
+  const { 
+    activities, 
+    isDbReady, 
+    refreshData, 
+    loadMoreActivities, 
+    hasMoreActivities, 
+    isLoadingMore,
+    resetToFirstPage
+  } = useActivities();
   const [filter, setFilter] = useState<ActivityTypeEnum | null>(null);
 
   // Theme colors
@@ -24,10 +33,25 @@ const ItemList: React.FC = () => {
   const buttonSecondaryTextColor = useThemeColor({}, 'buttonSecondaryText');
   const buttonPrimaryTextColor = useThemeColor({}, 'buttonPrimaryText');
 
-  // Refresh data when component mounts or becomes focused
-  useEffect(() => {
-    refreshData();
-  }, [refreshData]);
+  // Ref for FlatList to control scroll position
+  const flatListRef = useRef<FlatList>(null);
+
+  // Reset to first 20 activities when entering/leaving page for memory optimization
+  useFocusEffect(
+    useCallback(() => {
+      // When page comes into focus - reset to first 20 activities (fresh data)
+      if (isDbReady) {
+        resetToFirstPage();
+      }
+
+      // Return cleanup function that runs when page loses focus
+      return () => {
+        // Scroll to top and reset to first 20 activities when leaving the page
+        flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+        resetToFirstPage();
+      };
+    }, [isDbReady, resetToFirstPage])
+  );
 
   // Memoize filtered items to prevent recalculation on every render
   const filteredItems = useMemo(
@@ -73,7 +97,19 @@ const ItemList: React.FC = () => {
 
   // Memoized list header and footer components
   const ListHeaderComponent = useMemo(() => <View style={{ height: 16 }} />, []);
-  const ListFooterComponent = useMemo(() => <View style={{ height: 24 }} />, []);
+  const ListFooterComponent = useMemo(() => (
+    <View style={{ height: 48, alignItems: 'center', justifyContent: 'center' }}>
+      {isLoadingMore ? (
+        <ThemedText style={[styles.loadingText, { color: secondaryTextColor }]}>
+          Loading more activities...
+        </ThemedText>
+      ) : !hasMoreActivities && activities.length > 0 ? (
+        <ThemedText style={[styles.endOfListText, { color: secondaryTextColor }]}>
+          No more activities
+        </ThemedText>
+      ) : null}
+    </View>
+  ), [isLoadingMore, hasMoreActivities, activities.length, secondaryTextColor]);
 
   // link handler
   const handleLinkPress = useCallback((activity: ActivityWithDates) => {
@@ -83,15 +119,29 @@ const ItemList: React.FC = () => {
     });
   }, []);
 
+  // Infinite scroll handler
+  const handleEndReached = useCallback(() => {
+    if (hasMoreActivities && !isLoadingMore && filter === null) {
+      loadMoreActivities();
+    }
+  }, [hasMoreActivities, isLoadingMore, loadMoreActivities, filter]);
+
+  // Load all activities handler for when filters are applied
+  const handleLoadAllActivities = useCallback(async () => {
+    while (hasMoreActivities && !isLoadingMore) {
+      await loadMoreActivities();
+    }
+  }, [hasMoreActivities, isLoadingMore, loadMoreActivities]);
+
   // Memoize list item renderer
   const listItemRenderer = useCallback(
     ({ item }: { item: { title: string; data: ActivityWithDates[] } }) => (
       <>
         {renderSectionHeader({ section: { title: item.title } })}
-        {item.data.map((activity: ActivityWithDates) => (
+        {item.data.map((activity: ActivityWithDates, index: number) => (
           <TouchableOpacity
             onPress={() => handleLinkPress(activity)}
-            key={`${activity.id}-${activity.date.getTime()}`}
+            key={`${activity.id}-${item.title}-${index}`}
           >
             <React.Fragment>
               <ActivityRow activity={activity} />
@@ -204,18 +254,39 @@ const ItemList: React.FC = () => {
             </ThemedText>
           </View>
         ) : (
-          <FlatList
-            showsVerticalScrollIndicator={false}
-            data={listData}
-            renderItem={listItemRenderer}
-            keyExtractor={item => item.title}
-            ListHeaderComponent={ListHeaderComponent}
-            ListFooterComponent={ListFooterComponent}
-            removeClippedSubviews={true}
-            maxToRenderPerBatch={10}
-            windowSize={10}
-            initialNumToRender={8}
-          />
+          <>
+            {filter !== null && hasMoreActivities && (
+              <View style={[styles.filterNote, { backgroundColor: surfaceSecondaryColor }]}>
+                <ThemedText style={[styles.filterNoteText, { color: secondaryTextColor }]}>
+                  Filtering is applied to currently loaded activities only.
+                </ThemedText>
+                <TouchableOpacity
+                  style={[styles.loadAllButton, { backgroundColor: buttonPrimaryColor }]}
+                  onPress={handleLoadAllActivities}
+                  disabled={isLoadingMore}
+                >
+                  <ThemedText style={[styles.loadAllButtonText, { color: buttonPrimaryTextColor }]}>
+                    {isLoadingMore ? 'Loading...' : 'Load All Activities'}
+                  </ThemedText>
+                </TouchableOpacity>
+              </View>
+            )}
+            <FlatList
+              showsVerticalScrollIndicator={false}
+              data={listData}
+              renderItem={listItemRenderer}
+              keyExtractor={item => item.title}
+              ListHeaderComponent={ListHeaderComponent}
+              ListFooterComponent={ListFooterComponent}
+              removeClippedSubviews={true}
+              maxToRenderPerBatch={10}
+              windowSize={10}
+              initialNumToRender={8}
+              onEndReached={handleEndReached}
+              onEndReachedThreshold={0.1}
+              ref={flatListRef}
+            />
+          </>
         )}
       </ThemedView>
     </SafeAreaView>
@@ -269,6 +340,32 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     // color handled by theme
+  },
+  loadingText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  filterNote: {
+    padding: 16,
+    marginBottom: 12,
+    borderRadius: 20,
+  },
+  filterNoteText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  loadAllButton: {
+    padding: 12,
+    borderRadius: 20,
+    marginTop: 12,
+  },
+  loadAllButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  endOfListText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
 

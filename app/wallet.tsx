@@ -336,7 +336,7 @@ export default function WalletManagementScreen() {
     // Otherwise, navigate back to the source screen if specified
     if (sourceParam === 'settings') {
       setTimeout(() => {
-        router.replace('/settings');
+        router.replace('/(tabs)/Settings');
       }, 100);
     }
   };

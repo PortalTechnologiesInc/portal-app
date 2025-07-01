@@ -57,7 +57,7 @@ export const Colors = {
     buttonSecondaryText: '#495057',
     buttonDanger: '#dc3545',
     buttonDangerText: '#ffffff',
-    buttonSuccess: '#0a7ea4',
+    buttonSuccess: '#27ae60',
     buttonSuccessText: '#ffffff',
 
     // Skeleton/loading colors
@@ -114,7 +114,7 @@ export const Colors = {
     buttonSecondaryText: '#ECEDEE',
     buttonDanger: '#dc3545',
     buttonDangerText: '#ffffff',
-    buttonSuccess: '#0a7ea4',
+    buttonSuccess: '#27ae60',
     buttonSuccessText: '#ffffff',
 
     // Skeleton/loading colors

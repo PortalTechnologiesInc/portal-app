@@ -25,7 +25,7 @@ import {
 import { PendingRequest } from '@/models/PendingRequest';
 import { DatabaseService } from '@/services/database';
 import { useSQLiteContext } from 'expo-sqlite';
-import { PortalAppManager } from '@/app/PortalAppManager';
+import { PortalAppManager } from '@/services/PortalAppManager';
 
 // Constants and helper classes from original NostrService
 const DEFAULT_RELAYS = [

@@ -104,7 +104,7 @@ export default function WalletQRScannerScreen() {
               } else {
                 // Return to original source (settings)
                 router.replace({
-                  pathname: '/settings',
+                  pathname: '/(tabs)/Settings',
                 });
               }
             }}

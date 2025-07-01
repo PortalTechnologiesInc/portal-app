@@ -79,13 +79,10 @@ const AuthenticatedAppContent = () => {
   // Add screens based on app state
   if (!isOnboardingComplete) {
     screens.push(<Stack.Screen key="onboarding" name="onboarding" />);
-  } else if (!mnemonic) {
-    screens.push(<Stack.Screen key="settings-only" name="settings" options={{ presentation: 'modal' }} />);
   } else {
-    // User is onboarded and has mnemonic - show all main screens
+    // User is onboarded - show all main screens
     screens.push(
       <Stack.Screen key="tabs" name="(tabs)" options={{ headerShown: false }} />,
-      <Stack.Screen key="settings" name="settings" options={{ presentation: 'modal' }} />,
       <Stack.Screen key="wallet" name="wallet" options={{ presentation: 'modal' }} />,
       <Stack.Screen key="qr" name="qr" options={{ presentation: 'fullScreenModal' }} />,
       <Stack.Screen key="subscription" name="subscription" />,

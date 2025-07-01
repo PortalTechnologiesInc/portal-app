@@ -220,6 +220,20 @@ export class DatabaseService {
     }));
   }
 
+  // Optimized method to get only the 5 most recent activities
+  async getRecentActivities(limit = 5): Promise<ActivityWithDates[]> {
+    const records = await this.db.getAllAsync<ActivityRecord>(
+      `SELECT * FROM activities ORDER BY date DESC LIMIT ?`,
+      [limit]
+    );
+
+    return records.map(record => ({
+      ...record,
+      date: fromUnixSeconds(record.date),
+      created_at: fromUnixSeconds(record.created_at),
+    }));
+  }
+
   // Subscription methods
   async addSubscription(
     subscription: Omit<SubscriptionWithDates, 'id' | 'created_at'>
@@ -483,29 +497,18 @@ export class DatabaseService {
   }
 
   // Subscription methods
-  async storePendingRequest(
-    eventId: string,
-    approved: boolean,
-  ): Promise<string> {
+  async storePendingRequest(eventId: string, approved: boolean): Promise<string> {
     const id = uuid.v4();
     const now = toUnixSeconds(Date.now());
 
     try {
-
       await this.db.runAsync(
         `INSERT OR IGNORE INTO stored_pending_requests (
         id, event_id, approved, created_at
       ) VALUES (?, ?, ?, ?)`,
-        [
-          id,
-          eventId,
-          approved ? '1' : '0',
-          now,
-        ]
+        [id, eventId, approved ? '1' : '0', now]
       );
-    } catch (e) {
-
-    }
+    } catch (e) {}
 
     return id;
   }
@@ -517,6 +520,6 @@ export class DatabaseService {
         WHERE event_id = ?`,
       [eventId]
     );
-    return records ? true : false
+    return records ? true : false;
   }
 }
