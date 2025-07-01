@@ -54,33 +54,38 @@ const isBase64String = (str: string): boolean => {
 
 const USERNAME_KEY = 'portal_username';
 const AVATAR_URI_KEY = 'portal_avatar_uri';
+const DISPLAY_NAME_KEY = 'portal_display_name';
 
 type ProfileSyncStatus = 'idle' | 'syncing' | 'completed' | 'failed';
 
 type UserProfileContextType = {
   username: string;
+  displayName: string;
   avatarUri: string | null;
   syncStatus: ProfileSyncStatus;
   isProfileEditable: boolean;
   avatarRefreshKey: number; // Add refresh key to force image cache invalidation
   setUsername: (username: string) => Promise<void>;
+  setDisplayName: (displayName: string) => Promise<void>;
   setAvatarUri: (uri: string | null) => Promise<void>;
-  setProfile: (username: string, avatarUri?: string | null) => Promise<void>;
+  setProfile: (username: string, displayName?: string, avatarUri?: string | null) => Promise<void>;
   fetchProfile: (
     publicKey: string
-  ) => Promise<{ found: boolean; username?: string; avatarUri?: string }>;
+  ) => Promise<{ found: boolean; username?: string; displayName?: string; avatarUri?: string }>;
 };
 
 const UserProfileContext = createContext<UserProfileContextType | null>(null);
 
 export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [username, setUsernameState] = useState<string>('');
+  const [displayName, setDisplayNameState] = useState<string>('');
   const [avatarUri, setAvatarUriState] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<ProfileSyncStatus>('idle');
   const [avatarRefreshKey, setAvatarRefreshKey] = useState<number>(Date.now());
 
   // Track what's actually saved on the network (for change detection)
   const [networkUsername, setNetworkUsername] = useState<string>('');
+  const [networkDisplayName, setNetworkDisplayName] = useState<string>('');
   const [networkAvatarUri, setNetworkAvatarUri] = useState<string | null>(null);
 
   const nostrService = useNostrService();
@@ -95,6 +100,11 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         const savedUsername = await SecureStore.getItemAsync(USERNAME_KEY);
         if (savedUsername) {
           setUsernameState(savedUsername);
+        }
+
+        const savedDisplayName = await SecureStore.getItemAsync(DISPLAY_NAME_KEY);
+        if (savedDisplayName) {
+          setDisplayNameState(savedDisplayName);
         }
 
         // Load cached avatar URI from SecureStore
@@ -188,7 +198,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const fetchProfile = async (
     publicKey: string
-  ): Promise<{ found: boolean; username?: string; avatarUri?: string }> => {
+  ): Promise<{ found: boolean; username?: string; displayName?: string; avatarUri?: string }> => {
     if (!publicKey || syncStatus === 'syncing') {
       return { found: false };
     }
@@ -221,6 +231,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
         // Extract data from fetched profile with proper normalization
         let fetchedUsername = '';
+        let fetchedDisplayName = '';
         
         // Try to get username from nip05 first (most reliable)
         if (fetchedProfile.nip05) {
@@ -254,15 +265,33 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
           }
         }
         
+        // Extract display name (more flexible, keep as-is)
+        if ('displayName' in fetchedProfile) {
+          fetchedDisplayName = fetchedProfile.displayName || ''; // Allow empty string
+          console.log('Display name extracted (including empty):', fetchedDisplayName);
+        } else if (fetchedProfile.name && fetchedProfile.name !== fetchedUsername) {
+          // Fallback to name if it's different from username
+          fetchedDisplayName = fetchedProfile.name;
+          console.log('Display name extracted from name field:', fetchedDisplayName);
+        } else {
+          // Final fallback to username
+          fetchedDisplayName = fetchedUsername;
+          console.log('Display name set to username:', fetchedDisplayName);
+        }
+        
         const fetchedAvatarUri = fetchedProfile.picture || null; // Ensure null instead of empty string
 
         console.log('Final extracted username:', fetchedUsername);
+        console.log('Final extracted display name:', fetchedDisplayName);
         console.log('Final extracted avatarUri:', fetchedAvatarUri);
 
         // Save the fetched data to local storage
         if (fetchedUsername) {
           await setUsername(fetchedUsername);
         }
+        
+        // Always set display name, even if empty (user might have intentionally cleared it)
+        await setDisplayName(fetchedDisplayName);
 
         // Always update avatar to match network profile (even if null/empty)
         setAvatarUriState(fetchedAvatarUri);
@@ -280,6 +309,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
         // Update network state to reflect what was fetched
         setNetworkUsername(fetchedUsername);
+        setNetworkDisplayName(fetchedDisplayName);
         setNetworkAvatarUri(fetchedAvatarUri);
 
         setSyncStatus('completed');
@@ -288,6 +318,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         return {
           found: true,
           username: fetchedUsername || undefined,
+          displayName: fetchedDisplayName || undefined,
           avatarUri: fetchedAvatarUri || undefined,
         };
       } else {
@@ -325,6 +356,21 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   };
 
+  const setDisplayName = async (newDisplayName: string) => {
+    try {
+      if (newDisplayName === '') {
+        // If display name is empty, remove it from storage
+        await SecureStore.deleteItemAsync(DISPLAY_NAME_KEY);
+      } else {
+        // Store non-empty display name
+        await SecureStore.setItemAsync(DISPLAY_NAME_KEY, newDisplayName);
+      }
+      setDisplayNameState(newDisplayName);
+    } catch (e) {
+      console.error('Failed to save display name:', e);
+    }
+  };
+
   const setAvatarUri = async (uri: string | null) => {
     try {
       if (uri) {
@@ -345,7 +391,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   };
 
-  const setProfile = async (newUsername: string, newAvatarUri?: string | null) => {
+  const setProfile = async (newUsername: string, newDisplayName?: string, newAvatarUri?: string | null) => {
     try {
       if (!nostrService.portalApp || !nostrService.publicKey) {
         throw new Error('Portal app or public key not initialized');
@@ -368,11 +414,12 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
       // Determine what has actually changed (compare against network state, not local state)
       const usernameChanged = normalizedUsername !== networkUsername;
+      const displayNameChanged = newDisplayName !== networkDisplayName;
       const avatarChanged = newAvatarUri !== networkAvatarUri;
 
-      console.log('Updating profile - username changed:', usernameChanged, 'avatar changed:', avatarChanged);
+      console.log('Updating profile - username changed:', usernameChanged, 'display name changed:', displayNameChanged, 'avatar changed:', avatarChanged);
 
-      if (!usernameChanged && !avatarChanged) {
+      if (!usernameChanged && !displayNameChanged && !avatarChanged) {
         console.log('No changes detected, skipping profile update');
         setSyncStatus('completed');
         return;
@@ -485,7 +532,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const profileUpdate = {
         nip05: `${actualUsernameToUse}@getportal.cc`,
         name: actualUsernameToUse,
-        displayName: actualUsernameToUse,
+        displayName: newDisplayName !== undefined ? newDisplayName : actualUsernameToUse,
         picture: imageUrl, // Use the portal image URL or empty string
       };
 
@@ -494,6 +541,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
       // Update local state - use the actual username that worked
       await setUsername(actualUsernameToUse);
+      await setDisplayName(newDisplayName !== undefined ? newDisplayName : actualUsernameToUse);
       if (avatarChanged) {
         // Store the portal image URL, not the local file URI
         setAvatarUriState(imageUrl || null);
@@ -511,6 +559,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
       // Update network state to reflect what was actually saved
       setNetworkUsername(actualUsernameToUse);
+      setNetworkDisplayName(newDisplayName !== undefined ? newDisplayName : actualUsernameToUse);
       setNetworkAvatarUri(imageUrl || null);
 
       if (nip05Error) {
@@ -533,11 +582,13 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
     <UserProfileContext.Provider
       value={{
         username,
+        displayName,
         avatarUri,
         syncStatus,
         isProfileEditable,
         avatarRefreshKey,
         setUsername,
+        setDisplayName,
         setAvatarUri,
         setProfile,
         fetchProfile,
