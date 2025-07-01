@@ -228,7 +228,7 @@ export default function Home() {
   if (isLoading || isFirstLaunch === null) {
     return (
       <View style={[styles.loaderContainer, { backgroundColor }]}>
-        <ActivityIndicator size="large" color={statusConnectedColor} />
+        <ActivityIndicator size="large" color={buttonPrimaryColor} />
       </View>
     );
   }
@@ -242,8 +242,8 @@ export default function Home() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              colors={[statusConnectedColor]}
-              tintColor={statusConnectedColor}
+              colors={[buttonPrimaryColor]}
+              tintColor={buttonPrimaryColor}
               title="Pull to refresh profile"
               titleColor={secondaryTextColor}
             />
@@ -342,7 +342,7 @@ export default function Home() {
                 </ThemedText>
 
                 <View style={styles.illustrationContainer}>
-                  <QrCode size={80} color={statusConnectedColor} style={styles.illustration} />
+                  <QrCode size={80} color={buttonPrimaryColor} style={styles.illustration} />
                 </View>
 
                 <ThemedText

@@ -40,6 +40,9 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
     displayName,
     avatarUri, 
     avatarRefreshKey, 
+    networkUsername,
+    networkDisplayName,
+    networkAvatarUri,
     setUsername, 
     setDisplayName,
     setAvatarUri, 
@@ -51,9 +54,6 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
   const nostrService = useNostrService();
   const [usernameInput, setUsernameInput] = useState('');
   const [displayNameInput, setDisplayNameInput] = useState('');
-  const [networkUsername, setNetworkUsername] = useState('');
-  const [networkDisplayName, setNetworkDisplayName] = useState('');
-  const [networkAvatarUri, setNetworkAvatarUri] = useState<string | null>(null);
   const [profileIsLoading, setProfileIsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -79,15 +79,6 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
       setDisplayNameInput(displayName);
     }
   }, [username, displayName]);
-
-  // Track network state when profile is loaded/refreshed from network
-  useEffect(() => {
-    if (syncStatus === 'completed') {
-      setNetworkUsername(username);
-      setNetworkDisplayName(displayName);
-      setNetworkAvatarUri(avatarUri);
-    }
-  }, [syncStatus, username, displayName, avatarUri]);
 
   const handleAvatarPress = async () => {
     if (!isProfileEditable) {
@@ -172,11 +163,6 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
       // Update local inputs to reflect the normalized values
       setUsernameInput(normalizedUsername || username || '');
       setDisplayNameInput(trimmedDisplayName);
-
-      // Update network state after successful save
-      setNetworkUsername(normalizedUsername || username || '');
-      setNetworkDisplayName(trimmedDisplayName);
-      setNetworkAvatarUri(avatarUri);
 
       // Provide specific feedback about what was saved
       const changes = [];

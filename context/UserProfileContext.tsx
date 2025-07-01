@@ -65,6 +65,10 @@ type UserProfileContextType = {
   syncStatus: ProfileSyncStatus;
   isProfileEditable: boolean;
   avatarRefreshKey: number; // Add refresh key to force image cache invalidation
+  // Network state for change detection
+  networkUsername: string;
+  networkDisplayName: string;
+  networkAvatarUri: string | null;
   setUsername: (username: string) => Promise<void>;
   setDisplayName: (displayName: string) => Promise<void>;
   setAvatarUri: (uri: string | null) => Promise<void>;
@@ -587,6 +591,10 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         syncStatus,
         isProfileEditable,
         avatarRefreshKey,
+        // Network state for change detection
+        networkUsername,
+        networkDisplayName,
+        networkAvatarUri,
         setUsername,
         setDisplayName,
         setAvatarUri,

@@ -3,7 +3,6 @@ import { View, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
 import { ThemedText } from '../../components/ThemedText';
 import { ActivityType as ActivityTypeEnum } from '../../models/Activity';
 import { ThemedView } from '@/components/ThemedView';
-import { Colors } from '@/constants/Colors';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { ActivityWithDates } from '@/services/database';
 import { useActivities } from '@/context/ActivitiesContext';
