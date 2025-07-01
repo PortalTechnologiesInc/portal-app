@@ -5,6 +5,7 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -32,6 +33,7 @@ import { getActivityStatus } from '@/utils/activityHelpers';
 import { ActivityHeader } from '@/components/ActivityDetail/ActivityHeader';
 import { ActivityMainCard } from '@/components/ActivityDetail/ActivityMainCard';
 import { ActivityDetailRow } from '@/components/ActivityDetail/ActivityDetailRow';
+import * as Clipboard from 'expo-clipboard';
 
 export default function ActivityDetailScreen() {
   const { id } = useLocalSearchParams();
@@ -79,23 +81,31 @@ export default function ActivityDetailScreen() {
   };
 
   const handleCopyId = () => {
-    // TODO: Implement copy functionality
-    console.log('Copy activity ID:', id);
+    Clipboard.setStringAsync(id as string);
   };
 
   const handleShare = () => {
-    // TODO: Implement share functionality
-    console.log('Share activity:', activity);
+    if (!activity) return;
+
+    const shareContent = {
+      title: 'Activity Details',
+      message: `Activity ID: ${activity.id}\nType: ${activity.type}\nStatus: ${getActivityStatus(activity.detail)}`,
+      url: `myapp://activity/${activity.id}`, // Deep link to the activity
+    };
+
+    Share.share(shareContent);
   };
 
   const handleCopyServiceKey = () => {
-    // TODO: Implement copy functionality
-    console.log('Copy service key:', activity?.service_key);
+    if (!activity) return;
+
+    Clipboard.setStringAsync(activity.service_key as string);
   };
 
   const handleCopyRequestId = () => {
-    // TODO: Implement copy functionality
-    console.log('Copy request ID:', activity?.request_id);
+    if (!activity) return;
+
+    Clipboard.setStringAsync(activity.request_id as string);
   };
 
   if (loading) {
