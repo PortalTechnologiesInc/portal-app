@@ -16,11 +16,12 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useRouter } from 'expo-router';
 import { Colors } from '@/constants/Colors';
-import { Plus, Edit, User, Pencil, ArrowLeft } from 'lucide-react-native';
+import { Plus, Edit, User, Pencil, ArrowLeft, Copy } from 'lucide-react-native';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useUserProfile } from '@/context/UserProfileContext';
 import { useNostrService } from '@/context/NostrServiceContext';
 import * as ImagePicker from 'expo-image-picker';
+import * as Clipboard from 'expo-clipboard';
 import { showToast } from '@/utils/Toast';
 import { formatAvatarUri } from '@/utils';
 
@@ -40,7 +41,7 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
     avatarRefreshKey, 
     setUsername, 
     setAvatarUri, 
-    setProfile, 
+    setProfile,
     isProfileEditable, 
     fetchProfile, 
     syncStatus 
@@ -126,20 +127,42 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
   const handleSaveProfile = async () => {
     if (!isProfileEditable || profileIsLoading) return;
 
+    // Check if anything has actually changed
+    const usernameChanged = usernameInput.trim() !== networkUsername;
+    const avatarChanged = avatarUri !== networkAvatarUri;
+
+    if (!usernameChanged && !avatarChanged) {
+      showToast('No changes to save', 'success');
+      return;
+    }
+
     setProfileIsLoading(true);
     try {
       const trimmedUsername = usernameInput.trim();
       
-      if (trimmedUsername && trimmedUsername !== username) {
-        await setUsername(trimmedUsername);
-      }
+      // Use the setProfile method to save both username and avatar to the network
+      await setProfile(trimmedUsername || username || '', avatarUri);
 
-      // Save profile using individual setters rather than setProfile
-      showToast('Profile updated successfully', 'success');
+      // Update network state after successful save
+      setNetworkUsername(trimmedUsername || username || '');
+      setNetworkAvatarUri(avatarUri);
+
+      // Provide specific feedback about what was saved
+      if (usernameChanged && avatarChanged) {
+        showToast('Profile and avatar saved successfully', 'success');
+      } else if (usernameChanged) {
+        showToast('Profile saved successfully', 'success');
+      } else if (avatarChanged) {
+        showToast('Avatar saved successfully', 'success');
+      }
+      
     } catch (error) {
       console.error('Error saving profile:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to save profile';
       showToast(errorMessage, 'error');
+
+      // Reset username input to original network username when save fails
+      setUsernameInput(networkUsername);
     } finally {
       setProfileIsLoading(false);
     }
@@ -308,9 +331,26 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
               <ThemedText style={[styles.masterKeyLabel, { color: textSecondary }]}>
                 Master Key
               </ThemedText>
-              <ThemedText style={[styles.masterKeyValue, { color: textPrimary }]}>
-                ax87DJe9IjdDJi40PoaW55tR...
-              </ThemedText>
+              <View style={styles.masterKeyContent}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.scrollableMasterKey}
+                  contentContainerStyle={styles.scrollableMasterKeyContent}
+                >
+                  <ThemedText style={[styles.masterKeyValue, { color: textPrimary }]}>
+                    ax87DJe9IjdDJi40PoaW55tRf3h9kM2nQx4bV8cL1sEp6yR7tU9wA3mN5lK8hJ2bVx4cZ9qS2fG5hK8jL4mN7pQ1rT3uY6wA9bC2eF5hI7kM0nP4qS6vY8zA1dF3gH5jL7mP9rT2uW4yB6cE8gJ0kN2oQ4sV6xA8bD1fH3iL5nP7rT9uW2yC4eG6hJ8lN0pS2vY4zA6cF8iL0oR3tW5yB7dG9jM1pS3vY5zA8cF0hL2oR4tW6yB8dG1jM3pS5vY7zA9cF1hL3oR5tW7yB9dG2jM4pS6vY8zA0cF2hL4oR6tW8yB0dG3jM5pS7vY9zA1cF3hL5oR7tW9yB1dG4jM6pS8vY0zA2cF4hL6oR8tW0yB2dG5jM7pS9vY1zA3cF5hL7oR9tW1yB3dG6jM8pS0vY2zA4cF6hL8oR0tW2yB4dG7jM9pS1vY3zA5cF7hL9oR1tW3yB5dG8jM0pS2vY4zA6cF8hL0oR2tW4yB6dG9jM1pS3vY5zA7cF9hL1oR3tW5yB7dG0jM2pS4vY6zA8c
+                  </ThemedText>
+                </ScrollView>
+                <TouchableOpacity onPress={() => {
+                  // Copy master key to clipboard
+                  const masterKey = 'ax87DJe9IjdDJi40PoaW55tRf3h9kM2nQx4bV8cL1sEp6yR7tU9wA3mN5lK8hJ2bVx4cZ9qS2fG5hK8jL4mN7pQ1rT3uY6wA9bC2eF5hI7kM0nP4qS6vY8zA1dF3gH5jL7mP9rT2uW4yB6cE8gJ0kN2oQ4sV6xA8bD1fH3iL5nP7rT9uW2yC4eG6hJ8lN0pS2vY4zA6cF8iL0oR3tW5yB7dG9jM1pS3vY5zA8cF0hL2oR4tW6yB8dG1jM3pS5vY7zA9cF1hL3oR5tW7yB9dG2jM4pS6vY8zA0cF2hL4oR6tW8yB0dG3jM5pS7vY9zA1cF3hL5oR7tW9yB1dG4jM6pS8vY0zA2cF4hL6oR8tW0yB2dG5jM7pS9vY1zA3cF5hL7oR9tW1yB3dG6jM8pS0vY2zA4cF6hL8oR0tW2yB4dG7jM9pS1vY3zA5cF7hL9oR1tW3yB5dG8jM0pS2vY4zA6cF8hL0oR2tW4yB6dG9jM1pS3vY5zA7cF9hL1oR3tW5yB7dG0jM2pS4vY6zA8c';
+                  Clipboard.setStringAsync(masterKey);
+                  showToast('Master key copied to clipboard', 'success');
+                }} style={styles.copyMasterKeyButton}>
+                  <Copy size={16} color={textSecondary} />
+                </TouchableOpacity>
+              </View>
             </View>
 
             {identities.length > 0 ? (
@@ -331,7 +371,7 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
 
             <TouchableOpacity
               style={[styles.createButton, { backgroundColor: buttonPrimary }]}
-              onPress={() => router.replace('/(tabs)')}
+              onPress={() => console.log('create new identity')}
             >
               <Plus size={16} color={buttonPrimaryText} style={styles.createButtonIcon} />
               <ThemedText style={[styles.createButtonText, { color: buttonPrimaryText }]}>
@@ -469,6 +509,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 4,
   },
+  masterKeyContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+  },
+  scrollableMasterKey: {
+    flex: 1,
+    maxHeight: 24,
+    marginRight: 12,
+  },
+  scrollableMasterKeyContent: {
+    alignItems: 'center',
+    paddingRight: 8,
+  },
   masterKeyValue: {
     fontSize: 16,
     fontFamily: 'monospace',
@@ -530,5 +584,12 @@ const styles = StyleSheet.create({
   createButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  copyMasterKeyButton: {
+    padding: 8,
+    marginLeft: 12,
+    minWidth: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

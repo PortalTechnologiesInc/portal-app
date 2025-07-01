@@ -220,7 +220,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
         // Extract data from fetched profile
         const fetchedUsername = fetchedProfile.nip05?.split('@')[0] || fetchedProfile.name || '';
-        console.log("aaaaaaaaaaaaaaaaaaa", fetchedProfile)
+        console.log("profile data:", fetchedProfile)
         const fetchedAvatarUri = fetchedProfile.picture || null; // Ensure null instead of empty string
 
         // Save the fetched data to local storage
