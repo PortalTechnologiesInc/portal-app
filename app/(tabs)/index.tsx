@@ -197,7 +197,7 @@ export default function Home() {
   }, [isFirstLaunch, markWelcomeAsViewed]);
 
   const handleSettingsNavigate = useCallback(() => {
-    router.push('/settings');
+    router.push('/(tabs)/IdentityList');
   }, []);
 
   // Don't render anything until we've checked the onboarding status and first launch status

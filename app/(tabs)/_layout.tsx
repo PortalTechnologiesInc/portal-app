@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Tabs } from 'expo-router';
-import { Home, List, Receipt, Award, UserSquare2 } from 'lucide-react-native';
+import { Home, List, Receipt, Award, UserSquare2, Settings } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
 import { View, Platform, ToastAndroid } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,6 +22,10 @@ const CertificateIcon = React.memo(({ color }: { color: string }) => (
 
 const IdentityIcon = React.memo(({ color }: { color: string }) => (
   <UserSquare2 size={24} color={color} />
+));
+
+const SettingsIcon = React.memo(({ color }: { color: string }) => (
+  <Settings size={24} color={color} />
 ));
 
 // Memoized tab bar background to prevent unnecessary re-rendering
@@ -116,6 +120,13 @@ export default function TabLayout() {
         options={{
           title: 'Certificates',
           tabBarIcon: ({ color }) => <CertificateIcon color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="Settings"
+        options={{
+          title: 'Settings',
+          tabBarIcon: ({ color }) => <SettingsIcon color={color} />,
         }}
       />
       <Tabs.Screen

@@ -3,8 +3,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
-  TextInput,
-  Image,
   View,
   ScrollView,
   RefreshControl,
@@ -14,18 +12,16 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, User, Pencil, ChevronRight, Fingerprint, Shield } from 'lucide-react-native';
+import { ArrowLeft, ChevronRight, Fingerprint, Shield } from 'lucide-react-native';
 import { Moon, Sun, Smartphone } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useOnboarding } from '@/context/OnboardingContext';
-import { useUserProfile } from '@/context/UserProfileContext';
 import {
   isWalletConnected,
   walletUrlEvents,
   deleteMnemonic,
   getMnemonic,
 } from '@/services/SecureStorageService';
-import * as ImagePicker from 'expo-image-picker';
 import { resetDatabase } from '@/services/database/DatabaseProvider';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { showToast } from '@/utils/Toast';
@@ -34,22 +30,15 @@ import { isAppLockEnabled, setAppLockEnabled, canEnableAppLock } from '@/service
 import { useAppLock } from '@/context/AppLockContext';
 import { useTheme, ThemeMode } from '@/context/ThemeContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { formatAvatarUri } from '@/utils';
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { resetOnboarding } = useOnboarding();
-  const { username, avatarUri, avatarRefreshKey, setUsername, setAvatarUri, setProfile, isProfileEditable, fetchProfile, syncStatus } =
-    useUserProfile();
   const nostrService = useNostrService();
   const { refreshLockStatus } = useAppLock();
   const { themeMode, setThemeMode } = useTheme();
   const [isWalletConnectedState, setIsWalletConnectedState] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [usernameInput, setUsernameInput] = useState('');
-  const [networkUsername, setNetworkUsername] = useState('');
-  const [networkAvatarUri, setNetworkAvatarUri] = useState<string | null>(null);
-  const [profileIsLoading, setProfileIsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [appLockEnabled, setAppLockEnabledState] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
@@ -60,7 +49,6 @@ export default function SettingsScreen() {
   const primaryTextColor = useThemeColor({}, 'textPrimary');
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
   const inputBorderColor = useThemeColor({}, 'inputBorder');
-  const inputPlaceholderColor = useThemeColor({}, 'inputPlaceholder');
   const buttonPrimaryColor = useThemeColor({}, 'buttonPrimary');
   const buttonDangerColor = useThemeColor({}, 'buttonDanger');
   const buttonPrimaryTextColor = useThemeColor({}, 'buttonPrimaryText');
@@ -118,190 +106,6 @@ export default function SettingsScreen() {
       setIsWalletConnectedState(nwcConnectionStatus);
     }
   }, [nwcConnectionStatus]);
-
-  useEffect(() => {
-    if (username) {
-      setUsernameInput(username);
-      // Don't set networkUsername here - only set it when profile is actually loaded from network
-    }
-  }, [username]);
-
-  // Track network state when profile is loaded/refreshed from network
-  useEffect(() => {
-    // Only update network state when syncing is completed (profile loaded from network)
-    if (syncStatus === 'completed') {
-      setNetworkUsername(username);
-      setNetworkAvatarUri(avatarUri);
-      console.log('DEBUG: Updated network state - username:', username, 'avatar:', avatarUri ? 'present' : 'none');
-    }
-  }, [syncStatus]); // Only depend on syncStatus
-
-  const handleAvatarPress = async () => {
-    // Don't allow avatar change during sync
-    if (!isProfileEditable) {
-      Alert.alert(
-        'Profile Sync in Progress',
-        'Please wait for profile synchronization to complete before making changes.'
-      );
-      return;
-    }
-
-    try {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-      if (!permissionResult.granted) {
-        Alert.alert(
-          'Permission Required',
-          'You need to allow access to your photos to change your avatar.'
-        );
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8, // Reduced quality to help with file size
-        allowsMultipleSelection: false,
-      });
-
-      if (!result.canceled) {
-        try {
-          console.log('DEBUG: Selected image:', result.assets[0]);
-          await setAvatarUri(result.assets[0].uri);
-          showToast('Avatar updated successfully', 'success');
-        } catch (error) {
-          console.error('DEBUG: Error setting avatar:', error);
-          const errorMessage = error instanceof Error ? error.message : 'Failed to set avatar';
-          Alert.alert('Error', errorMessage);
-        }
-      } else {
-        console.log('DEBUG: Image selection canceled');
-      }
-    } catch (error) {
-      console.error('Error selecting image:', error);
-      Alert.alert('Error', 'Failed to select image. Please try again.');
-    }
-  };
-
-  const handleRefreshProfile = async () => {
-    try {
-      // Get the current public key from NostrService to refresh profile
-      if (nostrService.publicKey) {
-        console.log('Public key:', nostrService.publicKey);
-        await fetchProfile(nostrService.publicKey);
-        showToast('Profile updated', 'success');
-      } else {
-        showToast('Unable to refresh profile', 'error');
-      }
-    } catch (error) {
-      // Silently handle profile fetch errors
-      showToast('Failed to refresh profile', 'error');
-    }
-  };
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await handleRefreshProfile();
-    setRefreshing(false);
-  };
-
-  const handleSaveProfile = async () => {
-    // Don't allow profile save during sync
-    if (!isProfileEditable) {
-      console.log('Profile not editable - sync in progress');
-      Alert.alert(
-        'Profile Sync in Progress',
-        'Please wait for profile synchronization to complete before making changes.'
-      );
-      return;
-    }
-
-    const newUsername = usernameInput.trim();
-
-    // Check if anything has actually changed (both username and avatar)
-    const usernameChanged = newUsername !== networkUsername;
-    const avatarChanged = avatarUri !== networkAvatarUri;
-
-    console.log('Checking for profile changes - username:', usernameChanged, 'avatar:', avatarChanged);
-
-    if (!usernameChanged && !avatarChanged) {
-      console.log('No changes detected');
-      showToast('No changes to save', 'success');
-      return;
-    }
-
-    try {
-      setProfileIsLoading(true);
-
-      // Use the new setProfile method that handles both username and image
-      await setProfile(newUsername, avatarUri);
-      console.log('Profile saved successfully');
-
-      // Update the network state after successful save
-      setNetworkUsername(newUsername);
-      setNetworkAvatarUri(avatarUri);
-
-      // Provide specific feedback about what was saved
-      if (usernameChanged && avatarChanged) {
-        showToast('Profile and avatar saved successfully', 'success');
-      } else if (usernameChanged) {
-        showToast('Profile saved successfully', 'success');
-      } else if (avatarChanged) {
-        showToast('Avatar saved successfully', 'success');
-      }
-
-      handleRefreshProfile();
-    } catch (error) {
-      console.error('Error saving profile:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to save profile';
-      showToast(errorMessage, 'error');
-
-      // Reset username input to original network username when save fails
-      setUsernameInput(networkUsername);
-    } finally {
-      setProfileIsLoading(false);
-    }
-  };
-
-  const handleClearAppData = () => {
-    Alert.alert(
-      'Reset App',
-      'This will reset all app data and take you back to onboarding. Are you sure?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Clear Data',
-          style: 'destructive',
-          onPress: () => {
-            // Require biometric authentication before proceeding with the destructive action
-            authenticateForSensitiveAction(async () => {
-              try {
-                // Clear user profile data but maintain pubkey format
-                await setUsername('');
-                await setAvatarUri(null);
-
-                // Delete mnemonic first - this triggers database disconnection
-                deleteMnemonic();
-
-                // Reset the database (will work with new connection)
-                await resetDatabase();
-
-                // Reset onboarding state (this navigates to onboarding screen)
-                await resetOnboarding();
-              } catch (error) {
-                console.error('Error clearing app data:', error);
-                Alert.alert('Error', 'Failed to Reset App. Please try again.');
-              }
-            }, 'Authenticate to reset all app data');
-          },
-        },
-      ]
-    );
-  };
 
   const handleWalletCardPress = () => {
     router.push({
@@ -404,6 +208,50 @@ export default function SettingsScreen() {
     );
   };
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      // Refresh connection status for both relays and NWC wallet
+      await nostrService.refreshConnectionStatus();
+      await nostrService.refreshNwcConnectionStatus();
+    } catch (error) {
+      console.error('Error refreshing connection status:', error);
+    }
+    setRefreshing(false);
+  };
+
+  const handleClearAppData = () => {
+    Alert.alert(
+      'Reset App',
+      'This will reset all app data and take you back to onboarding. Are you sure?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Clear Data',
+          style: 'destructive',
+          onPress: () => {
+            authenticateForSensitiveAction(async () => {
+              try {
+                // Delete mnemonic first
+                deleteMnemonic();
+                // Reset the database
+                await resetDatabase();
+                // Reset onboarding state
+                await resetOnboarding();
+              } catch (error) {
+                console.error('Error clearing app data:', error);
+                Alert.alert('Error', 'Failed to Reset App. Please try again.');
+              }
+            }, 'Authenticate to reset all app data');
+          },
+        },
+      ]
+    );
+  };
+
   if (isLoading) {
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor: backgroundColor }]} edges={['top']}>
@@ -453,109 +301,11 @@ export default function SettingsScreen() {
               onRefresh={onRefresh}
               colors={[statusConnectedColor]}
               tintColor={statusConnectedColor}
-              title="Pull to refresh profile"
+              title="Pull to refresh connection"
               titleColor={primaryTextColor}
             />
           }
         >
-          {/* Profile Section */}
-          <ThemedView style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
-                Profile
-              </ThemedText>
-            </View>
-            <ThemedView style={styles.profileSection}>
-              <TouchableOpacity
-                style={[
-                  styles.avatarContainer,
-                  !isProfileEditable && styles.avatarContainerDisabled,
-                ]}
-                onPress={handleAvatarPress}
-                disabled={!isProfileEditable}
-              >
-                {avatarUri ? (
-                  <Image
-                    source={{ uri: formatAvatarUri(avatarUri, avatarRefreshKey) || '' }}
-                    style={[styles.avatar, { borderColor: inputBorderColor }]}
-                  />
-                ) : (
-                  <View
-                    style={[
-                      styles.avatarPlaceholder,
-                      { backgroundColor: cardBackgroundColor, borderColor: inputBorderColor },
-                    ]}
-                  >
-                    <User size={40} color={primaryTextColor} />
-                  </View>
-                )}
-                <View
-                  style={[
-                    styles.avatarEditBadge,
-                    { backgroundColor: cardBackgroundColor, borderColor: inputBorderColor },
-                    !isProfileEditable && styles.avatarEditBadgeDisabled,
-                  ]}
-                >
-                  <Pencil size={12} color={primaryTextColor} />
-                </View>
-              </TouchableOpacity>
-
-              <View style={[styles.usernameContainer, { borderBottomColor: inputBorderColor }]}>
-                <TextInput
-                  style={[
-                    styles.usernameInput,
-                    { color: primaryTextColor },
-                    !isProfileEditable && styles.usernameInputDisabled,
-                  ]}
-                  value={usernameInput}
-                  onChangeText={setUsernameInput}
-                  placeholder="username"
-                  placeholderTextColor={inputPlaceholderColor}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  editable={isProfileEditable}
-                />
-                <ThemedText style={[styles.usernameSuffix, { color: secondaryTextColor }]}>
-                  @getportal.cc
-                </ThemedText>
-              </View>
-
-              <View style={styles.profileButtonsContainer}>
-                <TouchableOpacity
-                  style={[
-                    styles.saveButton,
-                    { backgroundColor: buttonPrimaryColor },
-                    (!isProfileEditable || profileIsLoading) && {
-                      backgroundColor: inputBorderColor,
-                      opacity: 0.5,
-                    },
-                  ]}
-                  onPress={handleSaveProfile}
-                  disabled={!isProfileEditable || profileIsLoading}
-                >
-                  <ThemedText
-                    style={[
-                      styles.saveButtonText,
-                      { color: buttonPrimaryTextColor },
-                      (!isProfileEditable || profileIsLoading) && { color: secondaryTextColor },
-                    ]}
-                  >
-                    {profileIsLoading ? 'Saving...' : (() => {
-                      const usernameChanged = usernameInput.trim() !== networkUsername;
-                      const avatarChanged = avatarUri !== networkAvatarUri;
-                      const hasChanges = usernameChanged || avatarChanged;
-                      
-                      if (hasChanges) {
-                        return 'Save Changes';
-                      }
-                      return 'Save Profile';
-                    })()}
-                  </ThemedText>
-                </TouchableOpacity>
-              </View>
-            </ThemedView>
-          </ThemedView>
-
           {/* Wallet Section */}
           <ThemedView style={styles.section}>
             <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
@@ -800,25 +550,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
-  profileSection: {
-    alignItems: 'center',
-    paddingVertical: 12,
-    width: '100%',
-  },
   walletSection: {
     paddingVertical: 12,
     width: '100%',
   },
   themeSection: {
     paddingVertical: 12,
-    width: '100%',
-  },
-  extraSection: {
-    paddingVertical: 12,
-    width: '100%',
-  },
-  exportSection: {
-    paddingVertical: 6,
     width: '100%',
   },
   card: {
@@ -842,109 +579,9 @@ const styles = StyleSheet.create({
   cardStatus: {
     fontSize: 14,
   },
-  avatarContainer: {
-    position: 'relative',
-    width: 120,
-    height: 120,
-    marginBottom: 24,
-  },
-  avatar: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 2,
-  },
-  avatarPlaceholder: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 2,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarEditBadge: {
-    position: 'absolute',
-    bottom: 8,
-    right: 8,
-    width: 35,
-    height: 35,
-    borderRadius: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-  },
-  usernameContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    marginBottom: 24,
+  exportSection: {
+    paddingVertical: 6,
     width: '100%',
-    maxWidth: 500,
-    alignSelf: 'center',
-  },
-  usernameInput: {
-    fontSize: 16,
-    flex: 1,
-    paddingVertical: 8,
-  },
-  usernameSuffix: {
-    fontSize: 16,
-  },
-  profileButtonsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: '100%',
-    maxWidth: 500,
-    alignSelf: 'center',
-  },
-  saveButton: {
-    padding: 16,
-    borderRadius: 8,
-    width: '100%',
-    maxWidth: 500,
-    alignItems: 'center',
-    alignSelf: 'center',
-  },
-  saveButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  saveButtonDisabled: {
-    opacity: 0.5,
-  },
-  saveButtonTextDisabled: {
-    opacity: 0.5,
-  },
-  clearDataButton: {
-    padding: 16,
-    borderRadius: 8,
-    width: '100%',
-    maxWidth: 500,
-    alignItems: 'center',
-    alignSelf: 'center',
-  },
-  clearDataButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    alignSelf: 'center',
-    justifyContent: 'center',
-    width: '100%',
-    maxWidth: 500,
-    marginRight: 0,
-    paddingRight: 0,
-    paddingLeft: 0,
-    marginLeft: 0,
-  },
-  avatarContainerDisabled: {
-    opacity: 0.5,
-  },
-  avatarEditBadgeDisabled: {
-    opacity: 0.5,
-  },
-  usernameInputDisabled: {
-    opacity: 0.5,
   },
   exportButton: {
     padding: 16,
@@ -960,13 +597,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   exportButtonContent: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: '100%',
-    position: 'relative',
-  },
-  clearDataButtonContent: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1048,5 +678,37 @@ const styles = StyleSheet.create({
   },
   themeCardTouchable: {
     width: '100%',
+  },
+  extraSection: {
+    paddingVertical: 12,
+    width: '100%',
+  },
+  clearDataButton: {
+    padding: 16,
+    borderRadius: 8,
+    width: '100%',
+    maxWidth: 500,
+    alignItems: 'center',
+    alignSelf: 'center',
+  },
+  clearDataButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    alignSelf: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    maxWidth: 500,
+    marginRight: 0,
+    paddingRight: 0,
+    paddingLeft: 0,
+    marginLeft: 0,
+  },
+  clearDataButtonContent: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+    position: 'relative',
   },
 });

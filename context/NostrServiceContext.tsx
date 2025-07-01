@@ -7,7 +7,6 @@ import {
   PaymentResponseContent,
   Profile,
   RecurringPaymentResponseContent,
-  PortalApp,
   Nwc,
   AuthChallengeListener,
   PaymentRequestListener,
