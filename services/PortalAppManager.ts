@@ -13,4 +13,12 @@ export class PortalAppManager {
 
         return this.instance;
     }
+
+    static tryGetInstance() {
+        if (!this.instance) {
+            throw new Error("PortalAppManager not initialized");
+        }
+
+        return this.instance;
+    }
 }

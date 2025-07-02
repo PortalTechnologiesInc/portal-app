@@ -431,8 +431,11 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         class ClosedRecurringPaymentListenerImpl implements ClosedRecurringPaymentListener {
           async onClosedRecurringPayment(event: CloseRecurringPaymentResponse): Promise<void> {
             console.log('Closed subscription received', event);
-            // Handle closed recurring payment event
-            // You can add additional logic here if needed
+            try {
+              await DB.updateSubscriptionStatus(event.content.subscriptionId, 'cancelled');
+            } catch (error) {
+              console.error('Error setting closed recurring payment', error);
+            }
           }
         }
         app.listenClosedRecurringPayment(new ClosedRecurringPaymentListenerImpl());

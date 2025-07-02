@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -19,6 +19,8 @@ import { parseCalendar } from 'portal-app-lib';
 import { useSQLiteContext } from 'expo-sqlite';
 import { DatabaseService, fromUnixSeconds, type SubscriptionWithDates } from '@/services/database';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { PortalAppManager } from '@/app/PortalAppManager';
+import { CircleX, Hourglass } from 'lucide-react-native';
 
 // Mock payment history for a subscription
 interface PaymentHistory {
@@ -31,14 +33,14 @@ interface PaymentHistory {
 
 export default function SubscriptionDetailScreen() {
   const { id } = useLocalSearchParams();
-  const { subscriptions } = useActivities();
+  const { subscriptions, refreshData } = useActivities();
   const [subscription, setSubscription] = useState<SubscriptionWithDates | null>(null);
   const [paymentHistory, setPaymentHistory] = useState<PaymentHistory[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
-  const surfaceSecondaryColor = useThemeColor({}, 'surfaceSecondary');
+  const cardBackgroundColor = useThemeColor({}, 'cardBackground');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
   const buttonDangerColor = useThemeColor({}, 'buttonDanger');
@@ -46,6 +48,7 @@ export default function SubscriptionDetailScreen() {
   const statusConnectedColor = useThemeColor({}, 'statusConnected');
   const statusWarningColor = useThemeColor({}, 'statusWarning');
   const statusErrorColor = useThemeColor({}, 'statusError');
+  const orangeColor = Colors.orange;
 
   const sqliteContext = useSQLiteContext();
 
@@ -93,7 +96,14 @@ export default function SubscriptionDetailScreen() {
         },
         {
           text: 'Yes, Cancel',
-          onPress: () => {
+          onPress: async () => {
+            try {
+              await DB.updateSubscriptionStatus(subscription.id, 'cancelled');
+              refreshData();
+              PortalAppManager.tryGetInstance().closeRecurringPayment(subscription.service_key, subscription.id);
+            } catch (error) {
+              console.error(error);
+            }
             // In a real app, this would call an API to cancel the subscription
             Alert.alert(
               'Subscription Cancelled',
@@ -181,7 +191,7 @@ export default function SubscriptionDetailScreen() {
         </View>
 
         <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-          <View style={[styles.card, { backgroundColor: surfaceSecondaryColor }]}>
+          <View style={[styles.card, { backgroundColor: cardBackgroundColor }]}>
             <View style={styles.serviceHeader}>
               <ThemedText type="subtitle" style={[styles.serviceName, { color: primaryTextColor }]}>
                 {subscription.service_name}
@@ -205,9 +215,27 @@ export default function SubscriptionDetailScreen() {
                 First payment:{' '}
                 {formatDayAndDate(new Date(subscription.recurrence_first_payment_due))}
               </ThemedText>
-              <ThemedText style={[styles.detail, { color: secondaryTextColor }]}>
-                Next payment: {formatDayAndDate(nextPayment)}
-              </ThemedText>
+              {subscription.status === 'active' && (
+                <ThemedText style={[styles.detail, { color: secondaryTextColor }]}>
+                  Next payment: {formatDayAndDate(nextPayment)}
+                </ThemedText>
+              )}
+              {subscription.status === 'cancelled' && (
+                <ThemedText style={[styles.detailOrange, { color: orangeColor }]}>
+                  <View style={[styles.iconContainer]}>
+                    <CircleX size={20} color={orangeColor} />
+                  </View>
+                  Subscription cancelled
+                </ThemedText>
+              )}
+              {subscription.status === 'expired' && (
+                <ThemedText style={[styles.detail, { color: orangeColor }]}>
+                  <View style={[styles.iconContainer]}>
+                  <Hourglass size={20} color={orangeColor} />
+                  </View>
+                  Subscription expired
+                </ThemedText>
+              )}
               {subscription.recurrence_max_payments && (
                 <ThemedText style={[styles.detail, { color: secondaryTextColor }]}>
                   {subscription.recurrence_max_payments - paymentHistory.length} payments left
@@ -221,23 +249,25 @@ export default function SubscriptionDetailScreen() {
             </View>
           </View>
 
-          <TouchableOpacity
-            style={[styles.stopButton, { backgroundColor: buttonDangerColor }]}
-            onPress={handleStopSubscription}
-            activeOpacity={0.7}
-          >
-            <View style={styles.stopButtonContent}>
-              <FontAwesome6
-                name="stop-circle"
-                size={18}
-                color={buttonDangerTextColor}
-                style={styles.stopIcon}
-              />
-              <ThemedText style={[styles.stopButtonText, { color: buttonDangerTextColor }]}>
-                Stop Subscription
-              </ThemedText>
-            </View>
-          </TouchableOpacity>
+          {subscription.status != 'cancelled' && (
+            <TouchableOpacity
+              style={[styles.stopButton, { backgroundColor: buttonDangerColor }]}
+              onPress={handleStopSubscription}
+              activeOpacity={0.7}
+            >
+              <View style={styles.stopButtonContent}>
+                <FontAwesome6
+                  name="stop-circle"
+                  size={18}
+                  color={buttonDangerTextColor}
+                  style={styles.stopIcon}
+                />
+                <ThemedText style={[styles.stopButtonText, { color: buttonDangerTextColor }]}>
+                  Stop Subscription
+                </ThemedText>
+              </View>
+            </TouchableOpacity>
+          )}
 
           <View style={styles.paymentHistoryContainer}>
             <ThemedText type="subtitle" style={[styles.sectionTitle, { color: primaryTextColor }]}>
@@ -248,7 +278,7 @@ export default function SubscriptionDetailScreen() {
               paymentHistory.map(payment => (
                 <View
                   key={payment.id}
-                  style={[styles.paymentItem, { backgroundColor: surfaceSecondaryColor }]}
+                  style={[styles.paymentItem, { backgroundColor: cardBackgroundColor }]}
                 >
                   <View style={styles.paymentInfo}>
                     <ThemedText style={[styles.paymentDate, { color: primaryTextColor }]}>
@@ -314,6 +344,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 20,
     marginTop: 16,
+    marginBottom: 24,
   },
   serviceHeader: {
     flexDirection: 'row',
@@ -342,6 +373,11 @@ const styles = StyleSheet.create({
   },
   detail: {
     marginVertical: 4,
+    // color handled by theme
+  },
+  detailOrange: {
+    marginVertical: 4,
+    fontWeight: 'bold',
     // color handled by theme
   },
   paymentHistoryContainer: {
@@ -387,7 +423,6 @@ const styles = StyleSheet.create({
     // backgroundColor handled by theme
     borderRadius: 12,
     padding: 16,
-    marginTop: 24,
     marginBottom: 24,
     alignItems: 'center',
     shadowColor: '#000',
@@ -411,5 +446,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     // color handled by theme
+  },
+  iconContainer: {
+    width: 30,
   },
 });
