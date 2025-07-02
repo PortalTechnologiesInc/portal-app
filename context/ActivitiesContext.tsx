@@ -19,6 +19,7 @@ import { useDatabaseStatus } from '@/services/database/DatabaseProvider';
 interface ActivitiesContextType {
   activities: ActivityWithDates[];
   subscriptions: SubscriptionWithDates[];
+  activeSubscriptions: SubscriptionWithDates[];
   fetchActivities: (reset?: boolean) => Promise<void>;
   fetchSubscriptions: () => Promise<void>;
   refreshData: () => void;
@@ -39,6 +40,7 @@ const ActivitiesContext = createContext<ActivitiesContextType | undefined>(undef
 export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [activities, setActivities] = useState<ActivityWithDates[]>([]);
   const [subscriptions, setSubscriptions] = useState<SubscriptionWithDates[]>([]);
+  const [activeSubscriptions, setActiveSubscriptions] = useState<SubscriptionWithDates[]>([]);
   const [isDbReady, setIsDbReady] = useState(false);
   const [db, setDb] = useState<DatabaseService | null>(null);
   
@@ -155,6 +157,7 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
     try {
       const fetchedSubscriptions = await db.getSubscriptions();
       setSubscriptions(fetchedSubscriptions);
+      setActiveSubscriptions(fetchedSubscriptions.filter(s => s.status === 'active'));
     } catch (error) {
       console.error('Failed to fetch subscriptions:', error);
       // If database is closed, reset the database state
@@ -314,6 +317,7 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
     () => ({
       activities,
       subscriptions,
+      activeSubscriptions,
       fetchActivities,
       fetchSubscriptions,
       refreshData,
@@ -329,6 +333,7 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
     [
       activities,
       subscriptions,
+      activeSubscriptions,
       fetchActivities,
       fetchSubscriptions,
       refreshData,

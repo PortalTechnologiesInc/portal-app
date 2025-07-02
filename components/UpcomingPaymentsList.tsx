@@ -3,7 +3,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
 import { router } from 'expo-router';
 import { ThemedText } from './ThemedText';
-import { Colors } from '@/constants/Colors';
 import type { UpcomingPayment } from '@/models/UpcomingPayment';
 import { formatRelativeTime } from '@/utils';
 import { useActivities } from '@/context/ActivitiesContext';
@@ -16,7 +15,7 @@ export const UpcomingPaymentsList: React.FC = () => {
   // Initialize with empty array - will be populated with real data later
   const [upcomingPayments, SetUpcomingPayments] = useState<UpcomingPayment[]>([]);
 
-  const { subscriptions } = useActivities();
+  const { activeSubscriptions } = useActivities();
 
   // Theme colors
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');
@@ -33,7 +32,7 @@ export const UpcomingPaymentsList: React.FC = () => {
 
   useEffect(() => {
     SetUpcomingPayments(
-      subscriptions
+      activeSubscriptions
         .map(sub => {
           const parsedCalendar = parseCalendar(sub.recurrence_calendar);
           const nextPayment =
@@ -57,7 +56,7 @@ export const UpcomingPaymentsList: React.FC = () => {
           return sub.dueDate < new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
         })
     );
-  }, [subscriptions]);
+  }, [activeSubscriptions]);
 
   const renderPaymentItem = useCallback(
     ({ item }: { item: UpcomingPayment }) => (
