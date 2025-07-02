@@ -231,6 +231,24 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             });
 
             return;
+          } else if (subscription.status === 'cancelled') {
+            request.result({
+              status: new PaymentStatus.Rejected({
+                reason: 'Subscription cancelled',
+              }),
+              requestId: paymentRequest.content.requestId,
+            });
+
+            return;
+          } else if (subscription.status === 'expired') {
+            request.result({
+              status: new PaymentStatus.Rejected({
+                reason: 'Subscription expired',
+              }),
+              requestId: paymentRequest.content.requestId,
+            });
+
+            return;
           }
           console.log('Subscription found!');
 
@@ -251,6 +269,12 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             }
           } catch (error) {
             console.error('Error paying invoice:', error);
+            request.result({
+              status: new PaymentStatus.Failed({
+                reason: 'Payment failed'
+              }),
+              requestId: paymentRequest.content.requestId,
+            });
             // TODO: save failed payment??
             // TODO: notify user??
             return;
