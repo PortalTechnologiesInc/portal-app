@@ -110,7 +110,7 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
             			recurrence_max_payments INTEGER,
             			recurrence_until INTEGER,
             			recurrence_first_payment_due INTEGER NOT NULL,
-            			status TEXT NOT NULL CHECK (status IN ('active', 'paused', 'cancelled', 'expired')),
+            			status TEXT NOT NULL CHECK (status IN ('active', 'cancelled', 'expired')),
             			last_payment_date INTEGER, -- Unix timestamp of last successful payment
             			next_payment_date INTEGER, -- Unix timestamp of next scheduled payment
             			created_at INTEGER NOT NULL -- Unix timestamp

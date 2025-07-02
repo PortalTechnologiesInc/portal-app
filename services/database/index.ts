@@ -39,7 +39,7 @@ export interface SubscriptionRecord {
   recurrence_max_payments: number | null;
   recurrence_until: number | null; // Unix timestamp in seconds
   recurrence_first_payment_due: number; // Unix timestamp in seconds
-  status: 'active' | 'paused' | 'cancelled' | 'expired';
+  status: 'active' | 'cancelled' | 'expired';
   last_payment_date: number | null; // Unix timestamp in seconds
   next_payment_date: number | null; // Unix timestamp in seconds
   created_at: number; // Unix timestamp in seconds
