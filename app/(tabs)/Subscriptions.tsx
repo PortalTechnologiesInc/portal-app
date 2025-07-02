@@ -1,9 +1,8 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, View, FlatList, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { Colors } from '@/constants/Colors';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { formatDayAndDate } from '@/utils';
 import { useActivities } from '@/context/ActivitiesContext';
@@ -13,12 +12,25 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 
 export default function SubscriptionsScreen() {
   const { subscriptions, isDbReady } = useActivities();
+  const [filter, setFilter] = useState<'archived' | 'active'>('active');
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
-  const surfaceSecondaryColor = useThemeColor({}, 'surfaceSecondary');
+  const cardBackgroungColor = useThemeColor({}, 'cardBackground');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
+  const buttonSecondaryColor = useThemeColor({}, 'buttonSecondary');
+  const buttonPrimaryColor = useThemeColor({}, 'buttonPrimary');
+  const buttonSecondaryTextColor = useThemeColor({}, 'buttonSecondaryText');
+  const buttonPrimaryTextColor = useThemeColor({}, 'buttonPrimaryText');
+
+  const handleFilterActive = useCallback(() => setFilter('active'), []);
+  const handleFilterArchived = useCallback(() => setFilter('archived'), []);
+
+  const filteredSubscriptions = useMemo(
+    () => (filter === 'active' ? subscriptions.filter(item => item.status === 'active') : subscriptions.filter(item => item.status === 'cancelled' || item.status === 'expired')),
+    [filter, subscriptions]
+  );
 
   const handleSubscriptionPress = useCallback((subscriptionId: string) => {
     router.push({
@@ -42,7 +54,7 @@ export default function SubscriptionsScreen() {
 
       return (
         <TouchableOpacity
-          style={[styles.subscriptionCard, { backgroundColor: surfaceSecondaryColor }]}
+          style={[styles.subscriptionCard, { backgroundColor: cardBackgroungColor }]}
           onPress={() => handleSubscriptionPress(item.id)}
           activeOpacity={0.7}
         >
@@ -63,14 +75,20 @@ export default function SubscriptionsScreen() {
               {parsedCalendar.toHumanReadable(false)}
             </ThemedText>
 
-            <ThemedText style={[styles.nextPayment, { color: secondaryTextColor }]}>
-              Next payment: {formatDayAndDate(nextPayment)}
-            </ThemedText>
+            {
+              item.status == 'active' ? 
+                <ThemedText style={[styles.nextPayment, { color: secondaryTextColor }]}>
+                  Next payment: {formatDayAndDate(nextPayment)}
+                </ThemedText> :
+                <ThemedText style={[styles.nextPayment, { color: secondaryTextColor }]}>
+                  Subscription {item.status}
+                </ThemedText>
+            }
           </View>
         </TouchableOpacity>
       );
     },
-    [handleSubscriptionPress, surfaceSecondaryColor, primaryTextColor, secondaryTextColor]
+    [handleSubscriptionPress, cardBackgroungColor, primaryTextColor, secondaryTextColor]
   );
 
   // Show a database initialization message when database isn't ready
@@ -81,7 +99,7 @@ export default function SubscriptionsScreen() {
           <ThemedText type="title" style={{ color: primaryTextColor }}>
             Your subscriptions
           </ThemedText>
-          <View style={[styles.emptyContainer, { backgroundColor: surfaceSecondaryColor }]}>
+          <View style={[styles.emptyContainer, { backgroundColor: cardBackgroungColor }]}>
             <ThemedText style={[styles.emptyText, { color: secondaryTextColor }]}>
               Subscriptions will be available after setup is complete
             </ThemedText>
@@ -97,9 +115,61 @@ export default function SubscriptionsScreen() {
         <ThemedText type="title" style={{ color: primaryTextColor }}>
           Your subscriptions
         </ThemedText>
+        <View style={styles.filterContainer}>
+          <TouchableOpacity
+            style={[
+              styles.filterChip,
+              {
+                backgroundColor:
+                  filter === 'active' ? buttonPrimaryColor : buttonSecondaryColor,
+              },
+            ]}
+            onPress={handleFilterActive}
+          >
+            <ThemedText
+              type="subtitle"
+              style={[
+                styles.filterChipText,
+                {
+                  color:
+                    filter === 'archived'
+                      ? buttonPrimaryTextColor
+                      : buttonSecondaryTextColor,
+                },
+              ]}
+            >
+              Active
+            </ThemedText>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.filterChip,
+              {
+                backgroundColor:
+                  filter === 'archived' ? buttonPrimaryColor : buttonSecondaryColor,
+              },
+            ]}
+            onPress={handleFilterArchived}
+          >
+            <ThemedText
+              type="subtitle"
+              style={[
+                styles.filterChipText,
+                {
+                  color:
+                    filter === 'archived'
+                      ? buttonPrimaryTextColor
+                      : buttonSecondaryTextColor,
+                },
+              ]}
+            >
+              Archived
+            </ThemedText>
+          </TouchableOpacity>
+        </View>
 
-        {subscriptions.length === 0 ? (
-          <View style={[styles.emptyContainer, { backgroundColor: surfaceSecondaryColor }]}>
+        {filteredSubscriptions.length === 0 ? (
+          <View style={[styles.emptyContainer, { backgroundColor: cardBackgroungColor }]}>
             <ThemedText style={[styles.emptyText, { color: secondaryTextColor }]}>
               No subscriptions found
             </ThemedText>
@@ -109,7 +179,7 @@ export default function SubscriptionsScreen() {
             showsVerticalScrollIndicator={false}
             style={styles.list}
             contentContainerStyle={styles.listContent}
-            data={subscriptions}
+            data={filteredSubscriptions}
             renderItem={renderItem}
             keyExtractor={item => item.id}
           />
@@ -152,8 +222,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   amount: {
-    fontSize: 20,
-    fontWeight: '300',
+    fontSize: 16,
+    fontWeight: '600',
     // color handled by theme
   },
   container: {
@@ -182,5 +252,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     // color handled by theme
+  },
+  filterContainer: {
+    paddingVertical: 16,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  filterChip: {
+    // backgroundColor handled by theme
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    marginEnd: 8,
+    borderRadius: 20,
+  },
+  filterChipText: {
+    // color handled by theme
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
