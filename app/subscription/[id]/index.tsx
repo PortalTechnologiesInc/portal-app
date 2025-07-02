@@ -49,7 +49,7 @@ export default function SubscriptionDetailScreen() {
 
   const sqliteContext = useSQLiteContext();
 
-  const DB = new DatabaseService(sqliteContext);
+  const DB = useMemo(() => new DatabaseService(sqliteContext), [sqliteContext]);
 
   useEffect(() => {
     if (id) {
