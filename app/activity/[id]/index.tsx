@@ -32,6 +32,7 @@ import { getActivityStatus } from '@/utils/activityHelpers';
 import { ActivityHeader } from '@/components/ActivityDetail/ActivityHeader';
 import { ActivityMainCard } from '@/components/ActivityDetail/ActivityMainCard';
 import { ActivityDetailRow } from '@/components/ActivityDetail/ActivityDetailRow';
+import { PaymentStatusProgress, PaymentStep } from '@/components/ActivityDetail/PaymentStatusProgress';
 import * as Clipboard from 'expo-clipboard';
 
 export default function ActivityDetailScreen() {
@@ -39,6 +40,20 @@ export default function ActivityDetailScreen() {
   const [activity, setActivity] = useState<ActivityWithDates | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [paymentSteps, setPaymentSteps] = useState<PaymentStep[]>([
+    {
+      id: '1',
+      status: 'completed',
+      title: 'Payment initiated',
+      subtitle: 'Your payment has been created',
+    },
+    {
+      id: '2',
+      status: 'pending',
+      title: 'Pending...',
+      subtitle: 'Processing your payment',
+    },
+  ]);
   const db = useSQLiteContext();
 
   // Theme colors
@@ -49,6 +64,7 @@ export default function ActivityDetailScreen() {
   const buttonSecondaryColor = useThemeColor({}, 'buttonSecondary');
   const buttonSecondaryTextColor = useThemeColor({}, 'buttonSecondaryText');
   const statusErrorColor = useThemeColor({}, 'statusError');
+  const statusConnectedColor = useThemeColor({}, 'statusConnected');
 
   useEffect(() => {
     const fetchActivity = async () => {
@@ -107,6 +123,46 @@ export default function ActivityDetailScreen() {
     Clipboard.setStringAsync(activity.request_id as string);
   };
 
+  // Mock functions for testing payment status updates
+  const simulatePaymentSuccess = () => {
+    setPaymentSteps(prevSteps => 
+      prevSteps.map((step, index) => 
+        index === prevSteps.length - 1 && step.status === 'pending'
+          ? { ...step, status: 'success', title: 'Done', subtitle: 'Payment completed successfully' }
+          : step
+      )
+    );
+  };
+
+  const simulatePaymentError = (errorType: 'insufficient_funds' | 'network_error' | 'payment_declined' = 'insufficient_funds') => {
+    setPaymentSteps(prevSteps => 
+      prevSteps.map((step, index) => 
+        index === prevSteps.length - 1 && step.status === 'pending'
+          ? { 
+              ...step, 
+              status: 'error', 
+              title: 'Failed', 
+              subtitle: 'Payment could not be completed',
+              errorType 
+            }
+          : step
+      )
+    );
+  };
+
+  const handleRetryPayment = () => {
+    const newAttemptId = `attempt-${Date.now()}`;
+    setPaymentSteps(prevSteps => [
+      ...prevSteps,
+      {
+        id: newAttemptId,
+        status: 'pending',
+        title: 'Retrying...',
+        subtitle: 'Attempting payment again',
+      }
+    ]);
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor }]}>
@@ -162,6 +218,50 @@ export default function ActivityDetailScreen() {
             detail={activity.detail}
             amount={activity.amount}
           />
+
+          {/* Payment Status Progress - Only for payment activities */}
+          {isPayment && (
+            <View style={styles.sectionContainer}>
+              <ThemedText type="subtitle" style={[styles.sectionTitle, { color: primaryTextColor }]}>
+                Payment Status
+              </ThemedText>
+                             <View style={[styles.statusCard, { backgroundColor: surfaceSecondaryColor }]}>
+                <PaymentStatusProgress 
+                  steps={paymentSteps}
+                  onRetry={handleRetryPayment}
+                />
+              </View>
+            </View>
+          )}
+
+          {/* Temporary Test Controls - Remove when real logic is implemented */}
+          {isPayment && (
+            <View style={styles.sectionContainer}>
+              <ThemedText type="subtitle" style={[styles.sectionTitle, { color: primaryTextColor }]}>
+                Test Controls (Temporary)
+              </ThemedText>
+              <View style={[styles.testControlsCard, { backgroundColor: surfaceSecondaryColor }]}>
+                <View style={styles.testButtonRow}>
+                  <TouchableOpacity
+                    onPress={simulatePaymentSuccess}
+                    style={[styles.testButton, { backgroundColor: statusConnectedColor }]}
+                  >
+                    <ThemedText style={[styles.testButtonText, { color: 'white' }]}>
+                      Simulate Success
+                    </ThemedText>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => simulatePaymentError('insufficient_funds')}
+                    style={[styles.testButton, { backgroundColor: statusErrorColor }]}
+                  >
+                    <ThemedText style={[styles.testButtonText, { color: 'white' }]}>
+                      Simulate Error
+                    </ThemedText>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          )}
 
           {/* Details Section */}
           <View style={styles.sectionContainer}>
@@ -277,8 +377,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   sectionContainer: {
-    marginTop: 24,
-    marginBottom: 32,
+    marginTop: 8,
+    marginBottom: 16,
   },
   sectionTitle: {
     fontSize: 18,
@@ -286,6 +386,10 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   detailCard: {
+    borderRadius: 20,
+    padding: 20,
+  },
+  statusCard: {
     borderRadius: 20,
     padding: 20,
   },
@@ -340,5 +444,24 @@ const styles = StyleSheet.create({
   infoText: {
     fontSize: 16,
     lineHeight: 22,
+  },
+  testControlsCard: {
+    borderRadius: 20,
+    padding: 20,
+  },
+  testButtonRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  testButton: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  testButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
