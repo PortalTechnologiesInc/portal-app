@@ -19,7 +19,7 @@
     "ios": {
       "supportsTablet": true,
       "userInterfaceStyle": "dark",
-      "bundleIdentifier": "com.portaltechnologiesinc.portal",
+      "bundleIdentifier": "cc.getportal.portal",
       "associatedDomains": [
         "applinks:portal.app"
       ]
@@ -29,7 +29,7 @@
         "foregroundImage": "./assets/images/appLogo.png",
         "backgroundColor": "#000000"
       },
-      "package": "com.portaltechnologiesinc.portal",
+      "package": "cc.getportal.portal",
       "userInterfaceStyle": "dark",
       "intentFilters": [
         {
