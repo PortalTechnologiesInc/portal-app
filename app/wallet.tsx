@@ -5,7 +5,6 @@ import {
   Alert,
   TextInput,
   View,
-  Modal,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { ThemedText } from '@/components/ThemedText';
@@ -98,8 +97,7 @@ export default function WalletManagementScreen() {
   const [walletUrl, setWalletUrlState] = useState('');
   const [inputValue, setInputValue] = useState('');
   const [isEditing, setIsEditing] = useState(false);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [scannedUrl, setScannedUrl] = useState('');
+
   const [isLoading, setIsLoading] = useState(true);
   const [isValidating, setIsValidating] = useState(false);
   const hasChanged = inputValue !== walletUrl;
@@ -193,21 +191,6 @@ export default function WalletManagementScreen() {
     }
   }, [nwcConnectionStatus, isValidating]);
 
-  // Scanned URL handling effect
-  useEffect(() => {
-    const scannedUrlParam = params.scannedUrl as string | undefined;
-    if (scannedUrlParam && scannedUrlParam !== handledUrlRef.current) {
-      setScannedUrl(scannedUrlParam);
-      setShowConfirmModal(true);
-      handledUrlRef.current = scannedUrlParam;
-
-      if (params.scannedUrl) {
-        const { ...restParams } = params;
-        router.setParams(restParams);
-      }
-    }
-  }, [params, router]);
-
   // Optimized clear input handler with better async handling
   const handleClearInput = useCallback(async () => {
     setInputValue('');
@@ -242,7 +225,6 @@ export default function WalletManagementScreen() {
         await saveWalletUrl(urlToSave);
         setWalletUrlState(urlToSave);
         setIsEditing(false);
-        setShowConfirmModal(false);
 
         handledUrlRef.current = null;
         router.setParams({});
@@ -274,11 +256,26 @@ export default function WalletManagementScreen() {
     [inputValue, isValidating, router]
   );
 
+  // Scanned URL handling effect - automatically process valid URLs from QR scanner
+  useEffect(() => {
+    const scannedUrlParam = params.scannedUrl as string | undefined;
+    if (scannedUrlParam && scannedUrlParam !== handledUrlRef.current) {
+      // URLs are already validated at QR scanner level, so directly process them
+      validateAndSaveWalletUrl(scannedUrlParam);
+      handledUrlRef.current = scannedUrlParam;
+
+      // Clear the scanned URL parameter
+      const { scannedUrl, ...restParams } = params;
+      router.setParams(restParams);
+    }
+  }, [params, router, validateAndSaveWalletUrl]);
+
   const handleScanQrCode = () => {
-    // Navigate to wallet QR scanner with returnToWallet parameter
+    // Navigate to unified QR scanner with wallet mode
     router.push({
-      pathname: '/qr/wallet',
+      pathname: '/qr',
       params: {
+        mode: 'wallet',
         source: 'wallet',
         returnToWallet: 'true',
       },
@@ -313,33 +310,7 @@ export default function WalletManagementScreen() {
     }
   }, [walletUrl, refreshNwcConnectionStatus]);
 
-  const handleCloseModal = () => {
-    setShowConfirmModal(false);
-    setScannedUrl('');
 
-    // Get navigation parameters
-    const sourceParam = params.source as string | undefined;
-    const returnToWalletParam = params.returnToWallet as string | undefined;
-
-    // Clear the handled URL ref to prevent duplicate processing
-    handledUrlRef.current = null;
-
-    // Clear all params first to prevent infinite loops
-    router.setParams({});
-
-    // Check if we should return to wallet management (from QR scan inside wallet management)
-    if (returnToWalletParam === 'true') {
-      // Already cleared params, so no need to navigate
-      return;
-    }
-
-    // Otherwise, navigate back to the source screen if specified
-    if (sourceParam === 'settings') {
-      setTimeout(() => {
-        router.replace('/(tabs)/Settings');
-      }, 100);
-    }
-  };
 
   if (isLoading) {
     return (
@@ -592,40 +563,7 @@ export default function WalletManagementScreen() {
           </View>
         </ThemedView>
 
-        {/* Confirmation Modal for scanned URL */}
-        <Modal
-          visible={showConfirmModal}
-          transparent={true}
-          animationType="fade"
-          onRequestClose={handleCloseModal}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <ThemedText style={styles.modalTitle}>Confirm Wallet URL</ThemedText>
 
-              <ThemedText style={styles.modalText}>
-                Do you want to connect to this wallet?
-              </ThemedText>
-
-              <ThemedText style={styles.modalUrl}>{scannedUrl}</ThemedText>
-
-              <View style={styles.modalButtons}>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.modalButtonCancel]}
-                  onPress={handleCloseModal}
-                >
-                  <ThemedText style={styles.modalButtonText}>Cancel</ThemedText>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.modalButtonConfirm]}
-                  onPress={() => handleSaveWalletUrl(scannedUrl)}
-                >
-                  <ThemedText style={styles.modalButtonText}>Connect</ThemedText>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
       </ThemedView>
     </SafeAreaView>
   );
@@ -822,65 +760,7 @@ const styles = StyleSheet.create({
     marginTop: -2,
     fontWeight: 'bold',
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: '#121212',
-    borderRadius: 12,
-    padding: 24,
-    width: '85%',
-    maxWidth: 400,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: Colors.almostWhite,
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  modalText: {
-    fontSize: 16,
-    color: Colors.almostWhite,
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  modalUrl: {
-    fontSize: 14,
-    color: Colors.light.tint,
-    marginBottom: 24,
-    textAlign: 'center',
-    padding: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 6,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  modalButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    minWidth: 100,
-    alignItems: 'center',
-  },
-  modalButtonCancel: {
-    backgroundColor: Colors.darkGray,
-    marginRight: 8,
-  },
-  modalButtonConfirm: {
-    backgroundColor: Colors.light.tint,
-    marginLeft: 8,
-  },
-  modalButtonText: {
-    color: Colors.almostWhite,
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
+
 
   walletInfoLoading: {
     fontSize: 14,

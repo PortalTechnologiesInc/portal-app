@@ -206,10 +206,10 @@ export default function Home() {
   // Memoize handlers to prevent recreation on every render
   const handleScan = useCallback((scanType: 'nfc' | 'qr') => {
     // Determine the navigation path based on scan type
-    const pathname = scanType === 'nfc' ? '/qr' : '/qr'; // For now both go to qr, you can change this later
+    const pathname = scanType === 'nfc' ? '/nfc' : '/qr';
     
     // Using 'modal' navigation to ensure cleaner navigation history
-    router.replace({
+    router.push({
       pathname,
       params: {
         source: 'homepage',
@@ -319,13 +319,6 @@ export default function Home() {
                       {truncatedPublicKey}
                     </ThemedText>
                   </View>
-                  {/* hidden for new edit */}
-                  {/* <TouchableOpacity
-                    style={[styles.qrButton, { backgroundColor: buttonPrimaryColor }]}
-                    onPress={handleQrScan}
-                  >
-                    <QrCode size={40} color={buttonPrimaryTextColor} />
-                  </TouchableOpacity> */}
                 </View>
               </TouchableOpacity>
               <View style={styles.headerButtonsContainer}>

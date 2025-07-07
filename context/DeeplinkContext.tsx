@@ -32,11 +32,6 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
   // Handle deeplink URLs
   const handleDeepLink = useCallback(
     (url: string) => {
-      // Skip if this URL has already been processed
-      if (processedUrls.current.has(url)) {
-        console.log('URL already processed, skipping:', url);
-        return;
-      }
 
       // Implement a cooldown period (3 seconds) to prevent multiple rapid processing
       const now = Date.now();
@@ -52,21 +47,14 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
       lastProcessTime.current[url] = now;
 
       try {
-        // Check if this is a basic scheme URL without authentication parameters
-        // Handle the case where URL might be just "portal://" or similar basic scheme
-        const isBasicSchemeUrl =
-          url === 'portal://' ||
-          url.match(/^portal:\/\/\/?$/) ||
-          (!url.includes('?') &&
-            !url.includes('#') &&
-            url.replace('portal://', '').replace('/', '') === '');
-
-        if (isBasicSchemeUrl) {
-          console.log('Basic scheme URL detected, skipping authentication parsing:', url);
+        const validUrl = url.startsWith('portal://');
+        if (!validUrl) {
+          console.log('Invalid URL, skipping:', url);
           return;
         }
 
         // Parse the URL only if it contains actual authentication parameters
+        console.log('--------------------------Parsing deeplink URL:', url);
         const parsedUrl = parseKeyHandshakeUrl(url);
         console.log('Parsed deeplink URL:', parsedUrl);
 
@@ -75,8 +63,8 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
 
         // Send auth init request
         nostrService.sendKeyHandshake(parsedUrl);
-      } catch (error) {
-        console.error('Failed to handle deeplink URL:', error);
+      } catch (error ) {
+        console.error('Failed to handle deeplink URL:', error.inner);
       }
     },
     [showSkeletonLoader, nostrService]
