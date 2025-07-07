@@ -25,6 +25,14 @@
       ]
     },
     "android": {
+      "signing": {
+        "debug": {
+          "storeFile": "./debug.keystore",
+          "storePassword": "password",
+          "keyAlias": "portal-debug",
+          "keyPassword": "password"
+        }
+      },
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/appLogo.png",
         "backgroundColor": "#141416"

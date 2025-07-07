@@ -20,7 +20,7 @@ import { ConnectionStatusIndicator } from '@/components/ConnectionStatusIndicato
 import { useOnboarding } from '@/context/OnboardingContext';
 import { useUserProfile } from '@/context/UserProfileContext';
 import { useNostrService } from '@/context/NostrServiceContext';
-import { QrCode, ArrowRight, User } from 'lucide-react-native';
+import { QrCode, ArrowRight, User, Nfc } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
@@ -204,21 +204,30 @@ export default function Home() {
   }, [displayName, username]);
 
   // Memoize handlers to prevent recreation on every render
-  const handleQrScan = useCallback(() => {
+  const handleScan = useCallback((scanType: 'nfc' | 'qr') => {
+    // Determine the navigation path based on scan type
+    const pathname = scanType === 'nfc' ? '/qr' : '/qr'; // For now both go to qr, you can change this later
+    
     // Using 'modal' navigation to ensure cleaner navigation history
     router.replace({
-      pathname: '/qr',
+      pathname,
       params: {
         source: 'homepage',
+        scanType, // Pass the scan type to the destination
         timestamp: Date.now(), // Prevent caching issues
       },
     });
 
-    // Mark welcome as viewed when user scans QR code
+    // Mark welcome as viewed when user interacts with scan buttons
     if (isFirstLaunch) {
       markWelcomeAsViewed();
     }
   }, [isFirstLaunch, markWelcomeAsViewed]);
+
+  // Legacy handler for backward compatibility
+  const handleQrScan = useCallback(() => {
+    handleScan('qr');
+  }, [handleScan]);
 
   const handleSettingsNavigate = useCallback(() => {
     router.push('/(tabs)/IdentityList');
@@ -310,14 +319,35 @@ export default function Home() {
                       {truncatedPublicKey}
                     </ThemedText>
                   </View>
-                  <TouchableOpacity
+                  {/* hidden for new edit */}
+                  {/* <TouchableOpacity
                     style={[styles.qrButton, { backgroundColor: buttonPrimaryColor }]}
                     onPress={handleQrScan}
                   >
                     <QrCode size={40} color={buttonPrimaryTextColor} />
-                  </TouchableOpacity>
+                  </TouchableOpacity> */}
                 </View>
               </TouchableOpacity>
+              <View style={styles.headerButtonsContainer}>
+                <View style={styles.buttonContainer}>
+                  <TouchableOpacity
+                    style={[styles.nfcButton, { backgroundColor: buttonPrimaryColor }]}
+                    onPress={() => handleScan('nfc')}
+                  >
+                    <Nfc size={24} color={buttonPrimaryTextColor} />
+                    <ThemedText style={[styles.nfcText, { color: buttonPrimaryTextColor }]}>Contactless</ThemedText>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.buttonContainer}>
+                  <TouchableOpacity
+                    style={[styles.qrButton, { backgroundColor: buttonPrimaryColor }]}
+                    onPress={() => handleScan('qr')}
+                  >
+                    <QrCode size={24} color={buttonPrimaryTextColor} />
+                    <ThemedText style={[styles.qrText, { color: buttonPrimaryTextColor }]}>Scan QR</ThemedText>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
           </ThemedView>
 
@@ -415,6 +445,13 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
   },
+  headerButtonsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+    marginTop: 20,
+  },
   welcomeRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -467,13 +504,37 @@ const styles = StyleSheet.create({
     fontWeight: '400',
   },
   qrButton: {
-    width: 72,
-    height: 72,
-    borderRadius: 50,
+    width: '100%',
+    height: 48,
+    borderRadius: 12,
     // backgroundColor handled by theme (buttonPrimary)
+    flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 12,
+    paddingHorizontal: 8,
+  },
+  buttonContainer: {
+    flex: 1,
+  },
+  nfcButton: {
+    width: '100%',
+    height: 48,
+    borderRadius: 12,
+    // backgroundColor handled by theme (buttonPrimary)
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  nfcText: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  qrText: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 6,
   },
 
   welcomeContainer: {
