@@ -65,32 +65,14 @@ const LoadingScreenContent = () => {
 
 // AuthenticatedAppContent renders the actual app content after authentication checks
 const AuthenticatedAppContent = () => {
-  const router = useRouter();
   const { isOnboardingComplete, isLoading: onboardingLoading } = useOnboarding();
   const { mnemonic, walletUrl, isLoading: mnemonicLoading } = useMnemonic();
 
-  useEffect(() => {
-    const checkAuthStatus = async () => {
-      // Wait for both contexts to finish loading before making navigation decisions
-      if (onboardingLoading || mnemonicLoading) {
-        return;
-      }
-
-      // If user hasn't completed onboarding, redirect to onboarding
-      if (!isOnboardingComplete) {
-        router.replace('/onboarding');
-        return;
-      }
-
-      // If user completed onboarding but has no mnemonic, redirect to onboarding
-      if (!mnemonic) {
-        router.replace('/onboarding');
-        return;
-      }
-    };
-
-    checkAuthStatus();
-  }, [isOnboardingComplete, mnemonic, onboardingLoading, mnemonicLoading, router]);
+  // Don't render anything until both contexts are loaded
+  // Let app/index.tsx handle the navigation logic
+  if (onboardingLoading || mnemonicLoading) {
+    return null; // Show nothing while loading - app/index.tsx will show loading indicator
+  }
 
   return (
     <NostrServiceProvider mnemonic={mnemonic || ''} walletUrl={walletUrl}>
@@ -116,11 +98,13 @@ export default function RootLayout() {
         // Preload required assets
         await preloadImages();
 
-        // Add a shorter delay to ensure initialization is complete
-        await new Promise(resolve => setTimeout(resolve, 300));
+        // Increase delay to ensure all SecureStore operations complete on first launch
+        await new Promise(resolve => setTimeout(resolve, 500));
         setIsReady(true);
       } catch (error) {
         console.error('Error preparing app:', error);
+        // Set ready to true even on error to prevent infinite loading
+        setIsReady(true);
       } finally {
         await SplashScreen.hideAsync();
       }

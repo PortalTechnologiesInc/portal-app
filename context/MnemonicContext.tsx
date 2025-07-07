@@ -47,6 +47,9 @@ export const MnemonicProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setWalletUrlState(savedWalletUrl || null);
       } catch (e) {
         console.error('Failed to load secure data:', e);
+        // On error, set default values to prevent app from hanging
+        setMnemonicState(null);
+        setWalletUrlState(null);
       } finally {
         setIsLoading(false);
       }

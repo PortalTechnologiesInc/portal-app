@@ -5,11 +5,13 @@ import { useOnboarding } from '@/context/OnboardingContext';
 import { Colors } from '@/constants/Colors';
 import * as Linking from 'expo-linking';
 
-type RouteType = '/(tabs)' | '/onboarding' | null;
+const isDevelopmentDeeplink = (url: string): boolean => {
+  // Check if it's an Expo development client deeplink
+  return url.includes('expo-development-client') || url.includes('exps://');
+};
 
 export default function Index() {
   const { isOnboardingComplete, isLoading } = useOnboarding();
-  const [initialRoute, setInitialRoute] = useState<RouteType>(null);
   const [isCheckingDeeplink, setIsCheckingDeeplink] = useState(true);
   const [hasDeeplink, setHasDeeplink] = useState(false);
 
@@ -19,33 +21,30 @@ export default function Index() {
         // Check if app was opened with a deeplink
         const initialUrl = await Linking.getInitialURL();
         
-        if (initialUrl) {
-          // App was opened with a deeplink, let the deeplink handler manage navigation completely
+        if (initialUrl && !isDevelopmentDeeplink(initialUrl)) {
+          // App was opened with a real deeplink (not development), let the deeplink handler manage navigation
           console.log('App opened with deeplink, preventing index redirect:', initialUrl);
           setHasDeeplink(true);
-          setIsCheckingDeeplink(false);
           return;
         }
         
-        // No deeplink, proceed with normal navigation logic
-        if (!isLoading) {
-          setInitialRoute(isOnboardingComplete ? '/(tabs)' : '/onboarding');
+        if (initialUrl) {
+          console.log('Development deeplink detected, ignoring:', initialUrl);
         }
+        
+        setHasDeeplink(false);
       } catch (error) {
         console.error('Error checking for deeplink:', error);
-        // On error, proceed with normal navigation
-        if (!isLoading) {
-          setInitialRoute(isOnboardingComplete ? '/(tabs)' : '/onboarding');
-        }
+        setHasDeeplink(false);
       } finally {
         setIsCheckingDeeplink(false);
       }
     };
 
     checkForDeeplink();
-  }, [isLoading, isOnboardingComplete]);
+  }, []);
 
-  // Show loading while checking for deeplink or determining route
+  // Show loading while checking for deeplink or onboarding state
   if (isLoading || isCheckingDeeplink) {
     return (
       <View
@@ -61,27 +60,11 @@ export default function Index() {
     );
   }
 
-  // If app was opened with deeplink, don't render any redirect - let deeplink handler take over
+  // If app was opened with a real deeplink (not development), don't render any redirect - let deeplink handler take over
   if (hasDeeplink) {
     return null;
   }
 
-  // Only redirect if we determined a route and no deeplink
-  if (initialRoute) {
-    return <Redirect href={initialRoute} />;
-  }
-
-  // Fallback loading state
-  return (
-    <View
-      style={{
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: '#000000',
-      }}
-    >
-      <ActivityIndicator size="large" color={Colors.almostWhite} />
-    </View>
-  );
+  // Simple navigation decision based on onboarding completion
+  return <Redirect href={isOnboardingComplete ? '/(tabs)' : '/onboarding'} />;
 }

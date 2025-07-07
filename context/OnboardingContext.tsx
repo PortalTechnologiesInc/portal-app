@@ -27,6 +27,8 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setIsOnboardingComplete(value === 'true');
       } catch (e) {
         console.error('Failed to load onboarding state:', e);
+        // On error, assume onboarding not complete for safety
+        setIsOnboardingComplete(false);
       } finally {
         setIsLoading(false);
       }
@@ -36,20 +38,43 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   }, []);
 
   const completeOnboarding = async () => {
-    // Mark onboarding as complete
-    await SecureStore.setItemAsync(ONBOARDING_KEY, 'true');
+    try {
+      // Update local state FIRST to prevent flash
+      setIsOnboardingComplete(true);
+      
+      // Then update SecureStore
+      await SecureStore.setItemAsync(ONBOARDING_KEY, 'true');
 
-    // Reset first launch flag to ensure welcome card appears
-    await SecureStore.deleteItemAsync(FIRST_LAUNCH_KEY);
+      // Reset first launch flag to ensure welcome card appears
+      await SecureStore.deleteItemAsync(FIRST_LAUNCH_KEY);
 
-    setIsOnboardingComplete(true);
-    router.replace('/');
+      // Small delay to ensure state propagation
+      await new Promise(resolve => setTimeout(resolve, 50));
+      
+      // Navigate to home
+      router.replace('/');
+    } catch (e) {
+      console.error('Failed to complete onboarding:', e);
+      // Revert state on error
+      setIsOnboardingComplete(false);
+      throw e;
+    }
   };
 
   const resetOnboarding = async () => {
-    await SecureStore.setItemAsync(ONBOARDING_KEY, 'false');
-    setIsOnboardingComplete(false);
-    router.replace('/onboarding');
+    try {
+      // Update local state first
+      setIsOnboardingComplete(false);
+      
+      // Then update SecureStore
+      await SecureStore.setItemAsync(ONBOARDING_KEY, 'false');
+      
+      // Navigate to onboarding
+      router.replace('/onboarding');
+    } catch (e) {
+      console.error('Failed to reset onboarding:', e);
+      throw e;
+    }
   };
 
   return (
