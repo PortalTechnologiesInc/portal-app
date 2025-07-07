@@ -27,9 +27,36 @@ export default function NFCScanScreen() {
   const [isCheckingNFC, setIsCheckingNFC] = useState(false);
   const [scanState, setScanState] = useState<'ready' | 'scanning' | 'success' | 'error'>('ready');
   const [isPageFocused, setIsPageFocused] = useState(false);
+  // Use ref for immediate synchronous access to focus state
+  const isPageFocusedRef = useRef(false);
 
   // Animation for glowing NFC icon
   const glowAnimation = useRef(new Animated.Value(1)).current;
+  
+  // Timeout ID tracking to ensure proper cleanup
+  const scanTimeouts = useRef<number[]>([]);
+
+  // Helper function to manage timeouts
+  const addTimeout = (callback: () => void, delay: number) => {
+    const timeoutId = setTimeout(() => {
+      // Remove this timeout from tracking array when it executes
+      scanTimeouts.current = scanTimeouts.current.filter(id => id !== timeoutId);
+      // Double-check page is still focused before executing callback
+      if (isPageFocusedRef.current) {
+        callback();
+      }
+    }, delay) as unknown as number;
+    
+    // Track the timeout ID for cleanup
+    scanTimeouts.current.push(timeoutId);
+    return timeoutId;
+  };
+
+  // Helper function to clear all timeouts
+  const clearAllTimeouts = () => {
+    scanTimeouts.current.forEach(timeoutId => clearTimeout(timeoutId as any));
+    scanTimeouts.current = [];
+  };
 
   const scanMessage = isNFCEnabled === null
     ? 'Checking NFC status...'
@@ -160,7 +187,7 @@ export default function NFCScanScreen() {
         showToast('NFC enabled! Starting scan...', 'success');
         setScanState('ready');
         // Auto-start scanning when NFC becomes enabled
-        setTimeout(() => {
+        addTimeout(() => {
           startScan();
         }, 1000);
       } else {
@@ -192,7 +219,7 @@ export default function NFCScanScreen() {
           // Auto-start scanning if NFC is already enabled
           if (enabled) {
             scanningActive = true;
-            setTimeout(() => {
+            addTimeout(() => {
               startScan();
             }, 1500);
           }
@@ -214,7 +241,7 @@ export default function NFCScanScreen() {
           // Auto-start scanning if NFC is already enabled (fallback)
           if (enabled) {
             scanningActive = true;
-            setTimeout(() => {
+            addTimeout(() => {
               startScan();
             }, 1500);
           }
@@ -225,7 +252,7 @@ export default function NFCScanScreen() {
       const handleAppStateChange = (nextAppState: string) => {
         if (nextAppState === 'active') {
           // Check NFC status when returning to app (e.g., from settings)
-          setTimeout(() => handleNFCStatusChange(), 300);
+          addTimeout(() => handleNFCStatusChange(), 300);
         }
       };
 
@@ -234,6 +261,7 @@ export default function NFCScanScreen() {
       // Set page as focused and initialize NFC
       console.log('NFC page focused - starting NFC operations');
       setIsPageFocused(true);
+      isPageFocusedRef.current = true;  // Set ref immediately for synchronous access
       initializeNFC();
 
       // Cleanup when page loses focus
@@ -265,6 +293,10 @@ export default function NFCScanScreen() {
         setScanState('ready');
         setIsCheckingNFC(false);
         setIsPageFocused(false);
+        isPageFocusedRef.current = false;  // Reset ref immediately
+
+        // Clear all timeouts
+        clearAllTimeouts();
 
         console.log('NFC cleanup completed');
       };
@@ -354,9 +386,9 @@ export default function NFCScanScreen() {
     }
   };
 
-  // Real NFC scanning using react-native-nfc-manager
+  // NFC scanning using requestTechnology - Android manifest handles system chooser prevention
   const startScan = async () => {
-    if (!isNFCEnabled || !isPageFocused) {
+    if (!isNFCEnabled || !isPageFocusedRef.current) {
       console.log('Skipping scan - NFC disabled or page not focused');
       return;
     }
@@ -408,9 +440,9 @@ export default function NFCScanScreen() {
         handleDeepLink(validation.portalUrl);
 
         // Navigate to homepage immediately so user sees the skeleton loader
-        setTimeout(() => {
+        addTimeout(() => {
           router.replace('/(tabs)');
-        }, 500); // Short delay to ensure handleDeepLink is processed
+        }, 500);
       } else {
         setScanState('error');
         stopGlowAnimation();
