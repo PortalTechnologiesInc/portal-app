@@ -295,13 +295,11 @@ export default function NFCScanScreen() {
   // Validate NDEF records for portal protocol
   const validatePortalProtocol = (ndefRecords: any[]): { isValid: boolean; portalUrl?: string } => {
     try {
-      const decoder = new TextDecoder('utf-8');
-      
       for (const record of ndefRecords) {
         if (record.tnf === Ndef.TNF_WELL_KNOWN && record.type) {
           // Check if it's a URI record
           const typeArray = new Uint8Array(record.type);
-          const typeString = decoder.decode(typeArray);
+          const typeString = String.fromCharCode.apply(null, Array.from(typeArray));
 
           if (typeString === 'U') { // URI record type
             const payload = new Uint8Array(record.payload);
@@ -311,10 +309,10 @@ export default function NFCScanScreen() {
             let uri = '';
             if (identifierCode === 0x00) {
               // No prepending - full URI in payload
-              uri = decoder.decode(payload.slice(1));
+              uri = String.fromCharCode.apply(null, Array.from(payload.slice(1)));
             } else {
               // Other identifier codes would need different handling
-              uri = decoder.decode(payload.slice(1));
+              uri = String.fromCharCode.apply(null, Array.from(payload.slice(1)));
             }
 
             console.log('Found URI record:', uri);
@@ -329,12 +327,12 @@ export default function NFCScanScreen() {
         // Also check for text records that might contain portal URLs
         if (record.tnf === Ndef.TNF_WELL_KNOWN && record.type) {
           const typeArray = new Uint8Array(record.type);
-          const typeString = decoder.decode(typeArray);
+          const typeString = String.fromCharCode.apply(null, Array.from(typeArray));
 
           if (typeString === 'T') { // Text record type
             const payload = new Uint8Array(record.payload);
             const languageCodeLength = payload[0] & 0x3F;
-            const text = decoder.decode(payload.slice(1 + languageCodeLength));
+            const text = String.fromCharCode.apply(null, Array.from(payload.slice(1 + languageCodeLength)));
 
             console.log('Found text record:', text);
 

@@ -53,8 +53,6 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
           return;
         }
 
-        // Parse the URL only if it contains actual authentication parameters
-        console.log('--------------------------Parsing deeplink URL:', url);
         const parsedUrl = parseKeyHandshakeUrl(url);
         console.log('Parsed deeplink URL:', parsedUrl);
 
@@ -63,7 +61,7 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
 
         // Send auth init request
         nostrService.sendKeyHandshake(parsedUrl);
-      } catch (error ) {
+      } catch (error: any) {
         console.error('Failed to handle deeplink URL:', error.inner);
       }
     },
