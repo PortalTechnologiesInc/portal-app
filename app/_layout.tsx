@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { Text, View, SafeAreaView } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import React, { useEffect, useState, useRef } from 'react';
+import { Text, View, SafeAreaView, Button, Platform } from 'react-native';
+import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { OnboardingProvider, useOnboarding } from '@/context/OnboardingContext';
@@ -10,16 +10,45 @@ import { DeeplinkProvider } from '@/context/DeeplinkContext';
 import { ActivitiesProvider } from '@/context/ActivitiesContext';
 import { DatabaseProvider } from '@/services/database/DatabaseProvider';
 import { MnemonicProvider, useMnemonic } from '@/context/MnemonicContext';
-import NostrServiceProvider from '@/context/NostrServiceContext';
+import NostrServiceProvider, { useNostrService } from '@/context/NostrServiceContext';
 import { StatusBar } from 'expo-status-bar';
 import { Colors } from '@/constants/Colors';
 import { Asset } from 'expo-asset';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 import { CurrencyProvider } from '@/context/CurrencyContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import * as Notifications from 'expo-notifications';
+import registerPubkeysForPushNotificationsAsync from '@/services/NotificationService'
 
 // Prevent splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
+
+const NotificationHandler = () => {
+  const { publicKey } = useNostrService();
+
+  useEffect(() => {
+    if (publicKey) {
+      registerPubkeysForPushNotificationsAsync([publicKey]).catch((error: any) => {
+        console.error('Error registering for push notifications:', error);
+      });
+    }
+
+    const notificationListener = Notifications.addNotificationReceivedListener(notification => {
+      console.log('Notification received:', notification);
+    });
+
+    const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
+      console.log('Notification response received:', response);
+    });
+
+    return () => {
+      notificationListener.remove();
+      responseListener.remove();
+    };
+  }, [publicKey]);
+
+  return null;
+};
 
 // Function to preload images for performance
 const preloadImages = async () => {
@@ -81,6 +110,7 @@ const AuthenticatedAppContent = () => {
         <ActivitiesProvider>
           <PendingRequestsProvider>
             <DeeplinkProvider>
+              <NotificationHandler />
               <Stack screenOptions={{ headerShown: false }} />
             </DeeplinkProvider>
           </PendingRequestsProvider>

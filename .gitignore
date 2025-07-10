@@ -40,6 +40,7 @@ debug.keystore
 # nixOS
 .direnv
 .envrc
+result
 
 # local env files
 .env*
@@ -55,5 +56,9 @@ app-example
 # portal lib
 portalBuild/portal*
 
-# Firebase
-portal-84760-firebase-adminsdk-fbsvc-20dd568e20.json
+# firebase stuff
+portal-*.json
+google-services.json
+
+# vscode
+.vscode
