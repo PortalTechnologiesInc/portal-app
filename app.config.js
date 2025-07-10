@@ -1,25 +1,25 @@
-{
+export default {
   "expo": {
     "name": "Portal",
     "slug": "Portal",
-    "version": "1.0.1",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/appLogo.png",
     "scheme": "portal",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/appSplash.png",
+      "image": "./assets/images/appLogo.png",
       "resizeMode": "contain",
-      "backgroundColor": "#141416"
+      "backgroundColor": "#000000"
     },
     "androidNavigationBar": {
-      "backgroundColor": "#141416"
+      "backgroundColor": "#000000"
     },
     "ios": {
       "supportsTablet": true,
       "userInterfaceStyle": "dark",
-      "bundleIdentifier": "cc.getportal.portal",
+      "bundleIdentifier": "com.portaltechnologiesinc.portal",
       "associatedDomains": [
         "applinks:portal.app"
       ],
@@ -33,20 +33,12 @@
       }
     },
     "android": {
-      "versionCode": 2,
-      "signing": {
-        "debug": {
-          "storeFile": "./debug.keystore",
-          "storePassword": "password",
-          "keyAlias": "portal-debug",
-          "keyPassword": "password"
-        }
-      },
+      "googleServicesFile": process.env.GOOGLE_SERVICES_JSON ?? './google-services.json',
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/appLogo.png",
-        "backgroundColor": "#141416"
+        "backgroundColor": "#000000"
       },
-      "package": "cc.getportal.portal",
+      "package": "com.portaltechnologiesinc.portal",
       "userInterfaceStyle": "dark",
       "intentFilters": [
         {
@@ -77,15 +69,22 @@
           "image": "./assets/images/appLogo.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#141416"
+          "backgroundColor": "#000000"
         }
       ],
       "expo-secure-store",
       "expo-sqlite",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "15f4dbf1-f91d-421a-86f4-f29fd3a8e5a1"
+      }
     }
   }
-}
+};
