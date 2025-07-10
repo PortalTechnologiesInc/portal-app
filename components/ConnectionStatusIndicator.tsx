@@ -6,7 +6,6 @@ import {
   StyleSheet,
   ScrollView,
   Animated,
-  Dimensions,
   AppState,
 } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
@@ -62,9 +61,6 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
   // Refs for managing timers and previous status
   const expandTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevStatus = useRef<ConnectionStatus | null>(null);
-
-  // Get screen dimensions for modal height constraint
-  const screenHeight = Dimensions.get('window').height;
 
   const {
     isWalletConnected: isWalletConnectedState,
@@ -160,16 +156,12 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
   };
 
   // Theme colors
-  const backgroundColor = useThemeColor({}, 'background');
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');
   const surfaceSecondaryColor = useThemeColor({}, 'surfaceSecondary');
   const surfaceTertiaryColor = useThemeColor({}, 'surfaceTertiary');
   const textPrimaryColor = useThemeColor({}, 'textPrimary');
   const textSecondaryColor = useThemeColor({}, 'textSecondary');
-  const modalBackgroundColor = useThemeColor({}, 'modalBackground');
   const overlayBackgroundColor = useThemeColor({}, 'overlayBackground');
-  const shadowColor = useThemeColor({}, 'shadowColor');
-  const borderColor = useThemeColor({}, 'borderPrimary');
   const statusConnectedColor = useThemeColor({}, 'statusConnected');
   const statusConnectingColor = useThemeColor({}, 'statusConnecting');
   const statusDisconnectedColor = useThemeColor({}, 'statusDisconnected');

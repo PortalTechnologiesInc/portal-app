@@ -190,6 +190,43 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
     }
   }, [db, isDbReady]); // Remove fetchActivities and fetchSubscriptions from dependencies
 
+  // Listen for subscription status changes from NostrService
+  useEffect(() => {
+    if (!isDbReady) return;
+
+    const handleSubscriptionStatusChange = async (data: { subscriptionId: string; status: string }) => {
+      console.log('ActivitiesProvider: Received subscription status change event', data);
+      // Refresh subscriptions to reflect the status change
+      await fetchSubscriptions();
+    };
+
+    // Import and setup event listener
+    const setupEventListener = async () => {
+      try {
+        const { globalEvents } = await import('@/utils/index');
+        globalEvents.on('subscriptionStatusChanged', handleSubscriptionStatusChange);
+        
+        return () => {
+          globalEvents.off('subscriptionStatusChanged', handleSubscriptionStatusChange);
+        };
+      } catch (error) {
+        console.error('Error setting up subscription status change listener:', error);
+        return () => {};
+      }
+    };
+
+    let cleanup: (() => void) | undefined;
+    setupEventListener().then(cleanupFn => {
+      cleanup = cleanupFn;
+    });
+
+    return () => {
+      if (cleanup) {
+        cleanup();
+      }
+    };
+  }, [isDbReady, fetchSubscriptions]);
+
   // Create a refresh function that can be called from outside components
   const refreshData = useCallback(() => {
     if (db && isDbReady) {

@@ -21,14 +21,15 @@ import {
 import { DatabaseService } from '@/services/database';
 import { useSQLiteContext } from 'expo-sqlite';
 import { PortalAppManager } from '@/services/PortalAppManager';
-import type { 
-  PendingRequest, 
-  RelayConnectionStatus, 
-  RelayInfo, 
-  ConnectionSummary, 
-  WalletInfo, 
-  WalletInfoState 
+import type {
+  PendingRequest,
+  RelayConnectionStatus,
+  RelayInfo,
+  ConnectionSummary,
+  WalletInfo,
+  WalletInfoState
 } from '@/utils/types';
+import { useActivities } from './ActivitiesContext';
 
 // Constants and helper classes from original NostrService
 const DEFAULT_RELAYS = [
@@ -388,6 +389,15 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
             console.log('Closed subscription received', event);
             try {
               await DB.updateSubscriptionStatus(event.content.subscriptionId, 'cancelled');
+
+              // Refresh UI to reflect the subscription status change
+              console.log('Refreshing subscriptions UI after subscription closure');
+              // Import the global event emitter to notify ActivitiesProvider
+              const { globalEvents } = await import('@/utils/index');
+              globalEvents.emit('subscriptionStatusChanged', {
+                subscriptionId: event.content.subscriptionId,
+                status: 'cancelled'
+              });
             } catch (error) {
               console.error('Error setting closed recurring payment', error);
             }
@@ -599,7 +609,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
         // Step 4: Extract service name from profile
         const serviceName = getServiceNameFromProfile(profile);
-        
+
         if (serviceName) {
           // Step 5: Cache the result
           await DB.setCachedServiceName(pubKey, serviceName);
@@ -869,7 +879,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   // Stable AppState listener - runs only once, never recreated
   useEffect(() => {
     console.log('🔄 Setting up STABLE AppState listener (runs once)');
-    
+
     const handleAppStateChange = async (nextAppState: string) => {
       console.log('AppState changed to:', nextAppState);
 

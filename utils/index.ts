@@ -325,6 +325,51 @@ export function formatAvatarUri(avatarUri: string | null, cacheKey?: number): st
 }
 
 // =============================================================================
+// EVENT EMITTER FOR CROSS-CONTEXT COMMUNICATION
+// =============================================================================
+
+type EventCallback = (data?: any) => void;
+
+class EventEmitter {
+  private events: Map<string, EventCallback[]> = new Map();
+
+  on(eventName: string, callback: EventCallback): void {
+    if (!this.events.has(eventName)) {
+      this.events.set(eventName, []);
+    }
+    this.events.get(eventName)!.push(callback);
+  }
+
+  off(eventName: string, callback: EventCallback): void {
+    const callbacks = this.events.get(eventName);
+    if (callbacks) {
+      const index = callbacks.indexOf(callback);
+      if (index > -1) {
+        callbacks.splice(index, 1);
+      }
+    }
+  }
+
+  emit(eventName: string, data?: any): void {
+    const callbacks = this.events.get(eventName);
+    if (callbacks) {
+      callbacks.forEach(callback => callback(data));
+    }
+  }
+
+  removeAllListeners(eventName?: string): void {
+    if (eventName) {
+      this.events.delete(eventName);
+    } else {
+      this.events.clear();
+    }
+  }
+}
+
+// Global event emitter instance for cross-context communication
+export const globalEvents = new EventEmitter();
+
+// =============================================================================
 // TYPE EXPORTS
 // =============================================================================
 
