@@ -28,7 +28,7 @@
     "expo-camera": "~16.1.10",
     "expo-clipboard": "~7.1.5",
     "expo-constants": "~17.1.6",
-    "expo-dev-client": "~5.2.3",
+    "expo-dev-client": "~5.2.4",
     "expo-file-system": "~18.1.10",
     "expo-font": "~13.3.1",
     "expo-haptics": "~14.1.4",
@@ -59,9 +59,12 @@
     "react-native-svg": "15.11.2",
     "react-native-uuid": "^2.0.3",
     "react-native-web": "^0.20.0",
-    "react-native-webview": "13.13.5"
+    "react-native-webview": "13.13.5",
+    "expo-notifications": "~0.31.3",
+    "expo-device": "~7.1.4"
   },
   "devDependencies": {
+    "@react-native-community/cli": "latest",
     "@babel/core": "^7.26.0",
     "@types/jest": "~29.5.12",
     "@types/react": "~19.0.10",
