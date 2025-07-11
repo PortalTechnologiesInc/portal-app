@@ -19,12 +19,18 @@ import { CurrencyProvider } from '@/context/CurrencyContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import registerPubkeysForPushNotificationsAsync from '@/services/NotificationService'
 import * as TaskManager from 'expo-task-manager';
+import { keyToHex } from 'portal-app-lib';
 import * as Notifications from 'expo-notifications';
+
+
+// Prevent splash screen from auto-hiding
+SplashScreen.preventAutoHideAsync();
 
 const BACKGROUND_NOTIFICATION_TASK = 'BACKGROUND-NOTIFICATION-TASK';
 
 TaskManager.defineTask<Notifications.NotificationTaskPayload>(BACKGROUND_NOTIFICATION_TASK, async ({ data, error, executionInfo }) => {
   console.log('Received a notification task payload!');
+  console.error('error: ', error);
   const isNotificationResponse = 'actionIdentifier' in data;
   if (isNotificationResponse) {
     // Do something with the notification response from user
@@ -33,20 +39,17 @@ TaskManager.defineTask<Notifications.NotificationTaskPayload>(BACKGROUND_NOTIFIC
   }
 });
 
-Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
-
-
-// Prevent splash screen from auto-hiding
-SplashScreen.preventAutoHideAsync();
 
 const NotificationHandler = () => {
   const { publicKey } = useNostrService();
 
   useEffect(() => {
     if (publicKey) {
-      registerPubkeysForPushNotificationsAsync([publicKey]).catch((error: any) => {
+      console.log('sto per registrarmi');
+      registerPubkeysForPushNotificationsAsync([keyToHex(publicKey)]).catch((error: any) => {
         console.error('Error registering for push notifications:', error);
       });
+      Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
     }
 
     const notificationListener = Notifications.addNotificationReceivedListener(notification => {
