@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { AppState } from 'react-native';
-import * as Notifications from 'expo-notifications';
 import {
   AuthChallengeEvent,
   KeyHandshakeUrl,
@@ -45,52 +44,6 @@ const DEFAULT_RELAYS = [
 // Helper function to extract service name from profile (nip05 only)
 const getServiceNameFromProfile = (profile: any): string | null => {
   return profile?.nip05 || null;
-};
-
-// Helper function to trigger local notifications for pending requests
-const triggerPendingRequestNotification = async (request: PendingRequest) => {
-  try {
-    console.log('🔔 Triggering local notification for pending request:', request.type, request.id);
-    
-    let title = '';
-    let body = '';
-    
-    switch (request.type) {
-      case 'login':
-        title = 'Login Request';
-        body = 'A service is requesting to authenticate with your Portal wallet';
-        break;
-      case 'payment':
-        title = 'Payment Request';
-        body = 'A service is requesting a payment from your Portal wallet';
-        break;
-      case 'subscription':
-        title = 'Subscription Request';
-        body = 'A service is requesting to set up a recurring payment';
-        break;
-      default:
-        title = 'Portal Request';
-        body = 'You have a new request requiring your attention';
-    }
-
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title,
-        body,
-        data: {
-          requestId: request.id,
-          requestType: request.type,
-          timestamp: request.timestamp.toISOString(),
-        },
-        sound: true,
-      },
-      trigger: null, // Show immediately
-    });
-    
-    console.log('✅ Local notification scheduled successfully for request:', request.id);
-  } catch (error) {
-    console.error('❌ Failed to trigger local notification for pending request:', error);
-  }
 };
 
 // Note: RelayConnectionStatus, RelayInfo, and ConnectionSummary are now imported from centralized types
@@ -379,9 +332,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                   console.log('Updated pending requests map:', newPendingRequests);
                   return newPendingRequests;
                 });
-
-                // Trigger notification for the new request
-                triggerPendingRequestNotification(newRequest);
               });
             })
           )
@@ -412,9 +362,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                     newPendingRequests[id] = newRequest;
                     return newPendingRequests;
                   });
-
-                  // Trigger notification for the new request
-                  triggerPendingRequestNotification(newRequest);
                 });
               },
               (event: RecurringPaymentRequest) => {
@@ -436,9 +383,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                     newPendingRequests[id] = newRequest;
                     return newPendingRequests;
                   });
-
-                  // Trigger notification for the new request
-                  triggerPendingRequestNotification(newRequest);
                 });
               }
             )
