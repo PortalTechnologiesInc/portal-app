@@ -1,9 +1,10 @@
 export default {
   "expo": {
     "name": "Portal",
-    "slug": "Portal",
+    "slug": "portal",
     "version": "1.0.0",
     "orientation": "portrait",
+    "owner": "portaltechnologiesinc",
     "icon": "./assets/images/appLogo.png",
     "scheme": "portal",
     "userInterfaceStyle": "dark",
@@ -19,7 +20,7 @@ export default {
     "ios": {
       "supportsTablet": true,
       "userInterfaceStyle": "dark",
-      "bundleIdentifier": "com.portaltechnologiesinc.portal",
+      "bundleIdentifier": "cc.getportal.portal",
       "associatedDomains": [
         "applinks:portal.app"
       ],
@@ -38,7 +39,7 @@ export default {
         "foregroundImage": "./assets/images/appLogo.png",
         "backgroundColor": "#000000"
       },
-      "package": "com.portaltechnologiesinc.portal",
+      "package": "cc.getportal.portal",
       "userInterfaceStyle": "dark",
       "intentFilters": [
         {
@@ -87,7 +88,7 @@ export default {
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "15f4dbf1-f91d-421a-86f4-f29fd3a8e5a1"
+        "projectId": "8aa33e4a-b2db-43ab-832b-709fb7f2ec0d"
       }
     }
   }
