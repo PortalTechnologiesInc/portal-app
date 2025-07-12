@@ -22,7 +22,15 @@
       "bundleIdentifier": "cc.getportal.portal",
       "associatedDomains": [
         "applinks:portal.app"
-      ]
+      ],
+      "infoPlist": {
+        "NSCameraUsageDescription": "Portal uses your camera to scan for QR codes"
+      },
+      "icon": {
+        "dark": "./assets/images/iosDark.png",
+        "light": "./assets/images/iosLight.png",
+        "tinted": "./assets/images/iosTinted.png"
+      }
     },
     "android": {
       "versionCode": 2,

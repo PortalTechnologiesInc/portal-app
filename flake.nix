@@ -33,6 +33,12 @@
           ndkVersion = android.ndkVersion;
           cmakeVersions = [ android.cmakeVersion ];
         };
+
+        xcodeenv = import "${nixpkgs}/pkgs/development/mobile/xcodeenv" { inherit (pkgs) callPackage; };
+        xcodewrapper = (xcodeenv.composeXcodeWrapper {
+          versions = [ ];
+          xcodeBaseDir = "/Applications/Xcode.app";
+        });
         
         # Read package.json to get version
         packageJson = builtins.fromJSON (builtins.readFile ./package.json);
@@ -210,6 +216,25 @@
         };
 
         devShells = {
+          ios = pkgs.mkShell {
+            buildInputs = with pkgs; [ nodejs ];
+
+            shellHook = ''
+              export PATH="$HOME/.npm-global/bin:$PATH"
+              export PATH="./node_modules/.bin:$PATH"
+              npm config set prefix "$HOME/.npm-global"
+
+              if ! command -v npx expo &> /dev/null; then
+                echo "installing expo..."
+                npm install -g @expo/cli
+              fi
+
+              # This is set somewhere by nix
+              unset DEVELOPER_DIR
+              # We want to use stuff from the xcode wrapper over nixpkgs
+              export PATH=${xcodewrapper}/bin:$PATH
+            '';
+          };
           default = pkgs.mkShell rec {
             name = "rn-shell";
             # Packages included in the environment
