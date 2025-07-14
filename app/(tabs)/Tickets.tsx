@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, Image, ScrollView } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Image, ScrollView, ImageBackground } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,6 +7,9 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 import { Ticket } from '@/utils/types';
 import { formatDayAndDate } from '@/utils';
 import { Colors } from '@/constants/Colors';
+import { useFocusEffect } from '@react-navigation/native';
+import { Nfc } from 'lucide-react-native';
+
 
 // Mock data for tickets
 const getMockedTickets = (): Ticket[] => [
@@ -150,7 +153,9 @@ const TicketCard: React.FC<{
     if (isFocused) {
       return { translateY: 0, scale: 1.05 };
     }
-    return { translateY: index * 130, scale: 1 };
+    // Use different squash values based on whether a card is focused
+    const squashValue = focusedCardId ? 100 : 130;
+    return { translateY: index * squashValue, scale: 1 };
   };
 
   // If focused, position absolutely outside the list flow
@@ -159,97 +164,53 @@ const TicketCard: React.FC<{
       <View style={styles.focusedCardContainer}>
         <TouchableOpacity
           style={[
-            styles.ticketCard,
+            styles.focusedTicketCard,
             {
               backgroundColor: cardBackgroundColor,
               borderColor,
               zIndex: 999,
-              transform: [{ scale: 1.05 }],
             },
-            isFlipped ? {} : styles.ticketCardCover,
+            styles.ticketCardCover,
           ]}
           activeOpacity={0.8}
           onPress={onPress}
         >
-          {isFlipped ? (
-            // Show ticket details
-            <View style={styles.cardContent}>
-              <View style={styles.leftSection}>
-                <View style={styles.titleRow}>
-                  <ThemedText type="subtitle" style={{ color: primaryTextColor, flex: 1 }}>
-                    {ticket.title}
-                  </ThemedText>
-                  <ThemedText style={styles.ticketTypeIcon}>
-                    {getTicketTypeIcon(ticket.ticketType)}
-                  </ThemedText>
-                </View>
-                <ThemedText style={[styles.serviceName, { color: secondaryTextColor }]}>
-                  {ticket.serviceName}
+          {/* Always show details for focused card */}
+          <View style={[styles.cardContent, { backgroundColor: '#0c0c0f' }]}>
+            <View style={styles.leftSection}>
+              <View style={styles.titleRow}>
+                <ThemedText type="subtitle" style={{ color: primaryTextColor, flex: 1 }}>
+                  {ticket.title}
                 </ThemedText>
-                <ThemedText style={[styles.description, { color: secondaryTextColor }]}>
-                  {ticket.description}
+                <ThemedText style={styles.ticketTypeIcon}>
+                  {getTicketTypeIcon(ticket.ticketType)}
                 </ThemedText>
               </View>
-
-              <View style={styles.rightSection}>
-                <View style={styles.detailsColumn}>
-                  <View style={styles.detailItem}>
-                    <ThemedText style={[styles.detailLabel, { color: secondaryTextColor }]}>
-                      Event Date
-                    </ThemedText>
-                    <ThemedText style={[styles.detailValue, { color: primaryTextColor }]}>
-                      {formatDayAndDate(ticket.eventDate)}
-                    </ThemedText>
-                  </View>
-
-                  {ticket.location && (
-                    <View style={styles.detailItem}>
-                      <ThemedText style={[styles.detailLabel, { color: secondaryTextColor }]}>
-                        Location
-                      </ThemedText>
-                      <ThemedText style={[styles.detailValue, { color: primaryTextColor }]}>
-                        {ticket.location}
-                      </ThemedText>
-                    </View>
-                  )}
-                </View>
-
-                <View style={styles.footerColumn}>
-                  <View style={styles.priceContainer}>
-                    {ticket.price !== undefined && (
-                      <ThemedText style={[styles.price, { color: primaryTextColor }]}>
-                        {ticket.price === 0 ? 'Free' : `${ticket.price} ${ticket.currency}`}
-                      </ThemedText>
-                    )}
-                  </View>
-                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(ticket.status) }]}>
-                    <ThemedText style={styles.statusText}>
-                      {getStatusText(ticket.status)}
-                    </ThemedText>
-                  </View>
-                </View>
-              </View>
-            </View>
-          ) : (
-            // Show cover image
-            <View style={styles.coverContainer}>
-              <Image
-                source={ticket.imageUrl || require('@/assets/images/ticketCoverMockup.png')}
-                style={styles.coverImage}
-                resizeMode="cover"
-              />
-              <View style={styles.cardNumberOverlay}>
-                <ThemedText style={styles.cardNumberText}>
-                  {originalTickets.findIndex(t => t.id === ticket.id) + 1}
-                </ThemedText>
-                {isFocused && (
-                  <ThemedText style={[styles.cardNumberText, { fontSize: 16, marginTop: 8 }]}>
-                    FOCUSED
+              <ThemedText style={[styles.serviceName, { color: secondaryTextColor }]}>
+                {ticket.serviceName}
+              </ThemedText>
+              <ThemedText style={[styles.description, { color: secondaryTextColor }]}>
+                {ticket.description}
+              </ThemedText>
+              
+              <View style={styles.dateLocationRow}>
+                <View style={styles.dateLocationItem}>
+                  <ThemedText style={[styles.dateLocationLabel, { color: secondaryTextColor }]}>
+                    {formatDayAndDate(ticket.eventDate)}
                   </ThemedText>
+                </View>
+                {ticket.location && (
+                  <View style={styles.dateLocationItem}>
+                    <ThemedText style={[styles.dateLocationLabel, { color: secondaryTextColor }]}>
+                    📍 {ticket.location}
+                  </ThemedText>
+                </View>
                 )}
               </View>
             </View>
-          )}
+
+
+          </View>
         </TouchableOpacity>
       </View>
     );
@@ -273,8 +234,8 @@ const TicketCard: React.FC<{
       onPress={onPress}
     >
       {isFlipped ? (
-        // Show ticket details
-        <View style={styles.cardContent}>
+        // Show ticket details with background
+        <View style={[styles.cardContent, { backgroundColor: '#202022' }]}>
           <View style={styles.leftSection}>
             <View style={styles.titleRow}>
               <ThemedText type="subtitle" style={{ color: primaryTextColor, flex: 1 }}>
@@ -290,46 +251,24 @@ const TicketCard: React.FC<{
             <ThemedText style={[styles.description, { color: secondaryTextColor }]}>
               {ticket.description}
             </ThemedText>
-          </View>
-
-          <View style={styles.rightSection}>
-            <View style={styles.detailsColumn}>
-              <View style={styles.detailItem}>
-                <ThemedText style={[styles.detailLabel, { color: secondaryTextColor }]}>
-                  Event Date
-                </ThemedText>
-                <ThemedText style={[styles.detailValue, { color: primaryTextColor }]}>
+            
+            <View style={styles.dateLocationRow}>
+              <View style={styles.dateLocationItem}>
+                <ThemedText style={[styles.dateLocationLabel, { color: secondaryTextColor }]}>
                   {formatDayAndDate(ticket.eventDate)}
                 </ThemedText>
               </View>
-
               {ticket.location && (
-                <View style={styles.detailItem}>
-                  <ThemedText style={[styles.detailLabel, { color: secondaryTextColor }]}>
-                    Location
-                  </ThemedText>
-                  <ThemedText style={[styles.detailValue, { color: primaryTextColor }]}>
-                    {ticket.location}
-                  </ThemedText>
-                </View>
-              )}
-            </View>
-
-            <View style={styles.footerColumn}>
-              <View style={styles.priceContainer}>
-                {ticket.price !== undefined && (
-                  <ThemedText style={[styles.price, { color: primaryTextColor }]}>
-                    {ticket.price === 0 ? 'Free' : `${ticket.price} ${ticket.currency}`}
-                  </ThemedText>
-                )}
-              </View>
-              <View style={[styles.statusBadge, { backgroundColor: getStatusColor(ticket.status) }]}>
-                <ThemedText style={styles.statusText}>
-                  {getStatusText(ticket.status)}
+                <View style={styles.dateLocationItem}>
+                  <ThemedText style={[styles.dateLocationLabel, { color: secondaryTextColor }]}>
+                  📍 {ticket.location}
                 </ThemedText>
               </View>
+              )}
             </View>
-          </View>
+                      </View>
+
+
         </View>
       ) : (
         // Show cover image
@@ -366,6 +305,16 @@ export default function TicketsScreen() {
   const buttonPrimaryColor = useThemeColor({}, 'buttonPrimary');
   const buttonSecondaryTextColor = useThemeColor({}, 'buttonSecondaryText');
   const buttonPrimaryTextColor = useThemeColor({}, 'buttonPrimaryText');
+  const cardBackgroundColor = useThemeColor({}, 'cardBackground');
+  const surfaceSecondaryColor = useThemeColor({}, 'surfaceSecondary');
+
+  // Reset states when page is focused (user reenters)
+  useFocusEffect(
+    useCallback(() => {
+      setFocusedCardId(null);
+      setFlippedCardId(null);
+    }, [])
+  );
 
   // Filter handlers
   const handleFilterAll = useCallback(() => setFilter('all'), []);
@@ -388,8 +337,9 @@ export default function TicketsScreen() {
   // Card interaction handler
   const handleCardPress = useCallback((ticketId: string) => {
     if (focusedCardId === ticketId) {
-      // If already focused, toggle flip state
-      setFlippedCardId(prevId => prevId === ticketId ? null : ticketId);
+      // If already focused, unfocus it
+      setFocusedCardId(null);
+      setFlippedCardId(null);
     } else {
       // Focus this card and clear any flipped state
       setFocusedCardId(ticketId);
@@ -403,7 +353,7 @@ export default function TicketsScreen() {
         <ThemedText type="title" style={{ color: primaryTextColor }}>
           Your tickets
         </ThemedText>
-        
+
         <View style={styles.filterContainer}>
           <TouchableOpacity
             style={[
@@ -476,54 +426,66 @@ export default function TicketsScreen() {
         </View>
 
         {filteredTickets.length === 0 ? (
-          <View style={[styles.emptyContainer, { backgroundColor: useThemeColor({}, 'cardBackground') }]}>
+          <View style={[styles.emptyContainer, { backgroundColor: cardBackgroundColor }]}>
             <ThemedText style={[styles.emptyText, { color: secondaryTextColor }]}>
               No tickets found
             </ThemedText>
           </View>
-        ) : (
-          <View style={styles.scrollContainer}>
-            {/* Render focused card separately if exists */}
+                ) : (
+          <ScrollView
+            style={styles.scrollView}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+          >
+            {/* Render focused card and NFC section as separate units */}
             {focusedCardId && (
-              <TicketCard
-                ticket={filteredTickets.find(t => t.id === focusedCardId)!}
-                index={filteredTickets.findIndex(t => t.id === focusedCardId)}
-                isFocused={true}
-                isFlipped={flippedCardId === focusedCardId}
-                onPress={() => handleCardPress(focusedCardId)}
-                focusedCardId={focusedCardId}
-                filteredTickets={filteredTickets}
-                originalTickets={tickets}
-              />
+              <>
+                <TicketCard
+                  ticket={filteredTickets.find(t => t.id === focusedCardId)!}
+                  index={filteredTickets.findIndex(t => t.id === focusedCardId)}
+                  isFocused={true}
+                  isFlipped={flippedCardId === focusedCardId}
+                  onPress={() => handleCardPress(focusedCardId)}
+                  focusedCardId={focusedCardId}
+                  filteredTickets={filteredTickets}
+                  originalTickets={tickets}
+                />
+                
+                <View style={[styles.nfcSection, { backgroundColor: surfaceSecondaryColor }]}>
+                  <View style={styles.nfcIconContainer}>
+                    <Nfc size={48} color={buttonPrimaryColor} />
+                  </View>
+                  <ThemedText type="subtitle" style={[styles.nfcTitle, { color: primaryTextColor }]}>
+                    Validate Ticket
+                  </ThemedText>
+                  <ThemedText style={[styles.nfcDescription, { color: secondaryTextColor }]}>
+                    Hold your device near the NFC reader to validate your ticket
+                  </ThemedText>
+                </View>
+              </>
             )}
-            
-            <ScrollView
-              style={styles.scrollView}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.scrollContent}
-            >
-              <View style={[
-                styles.cardsContainer,
-                focusedCardId && { marginTop: 250 }
-              ]}>
-                {filteredTickets
-                  .filter(ticket => ticket.id !== focusedCardId)
-                  .map((ticket, listIndex) => (
-                  <TicketCard
-                    key={ticket.id}
-                    ticket={ticket}
-                    index={listIndex}
-                    isFocused={false} // Never focused in the list
-                    isFlipped={flippedCardId === ticket.id}
-                    onPress={() => handleCardPress(ticket.id)}
-                    focusedCardId={focusedCardId}
-                    filteredTickets={filteredTickets}
-                    originalTickets={tickets}
-                  />
-                ))}
-              </View>
-            </ScrollView>
-          </View>
+
+            <View style={[
+              styles.cardsContainer,
+              focusedCardId && { minHeight: 500 }
+            ]}>
+              {filteredTickets
+                .filter(ticket => ticket.id !== focusedCardId)
+                .map((ticket, listIndex) => (
+                <TicketCard
+                  key={ticket.id}
+                  ticket={ticket}
+                  index={listIndex}
+                  isFocused={false} // Never focused in the list
+                  isFlipped={flippedCardId === ticket.id}
+                  onPress={() => handleCardPress(ticket.id)}
+                  focusedCardId={focusedCardId}
+                  filteredTickets={filteredTickets}
+                  originalTickets={tickets}
+                />
+              ))}
+            </View>
+          </ScrollView>
         )}
       </ThemedView>
     </SafeAreaView>
@@ -565,7 +527,7 @@ const styles = StyleSheet.create({
   cardsContainer: {
     position: 'relative',
     width: '100%',
-    minHeight: 800, // Ensure enough space for stacked cards and scrolling
+    minHeight: 800, // Default height when no card is focused
   },
   ticketCard: {
     position: 'absolute',
@@ -575,6 +537,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: 'hidden',
     top: 0,
+  },
+  focusedTicketCard: {
+    position: 'relative',
+    width: '100%',
+    aspectRatio: 1.586,
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
   },
   ticketCardCover: {
     padding: 0,
@@ -684,13 +654,103 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   focusedCardContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
+    position: 'relative',
     zIndex: 999,
+    marginBottom: 16,
   },
   scrollContainer: {
     flex: 1,
+  },
+  detailBackgroundImage: {
+    borderRadius: 12,
+  },
+  nfcSection: {
+    marginTop: 0,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 20,
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  nfcContainer: {
+    padding: 20,
+    alignItems: 'center',
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'transparent',
+  },
+  nfcIconContainer: {
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  nfcHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 8,
+  },
+  nfcIconWrapper: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(10, 126, 164, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  nfcTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  nfcDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 8,
+  },
+  nfcStatusContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  nfcStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  nfcStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  nfcStatusText: {
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  dateLocationRow: {
+    flexDirection: 'row',
+    marginTop: 8,
+    gap: 12,
+  },
+  dateLocationItem: {
+    flex: 1,
+  },
+  dateLocationLabel: {
+    fontSize: 11,
+    fontWeight: '500',
   },
 }); 
