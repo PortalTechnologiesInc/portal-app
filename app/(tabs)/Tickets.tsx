@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, Image, ScrollView, ImageBackground } from 'react-native';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { View, StyleSheet, TouchableOpacity, Image, ScrollView, ImageBackground, Animated } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -132,6 +132,8 @@ const getTicketTypeIcon = (type: Ticket['ticketType']) => {
   }
 };
 
+
+
 // Ticket Card Component
 const TicketCard: React.FC<{
   ticket: Ticket;
@@ -148,35 +150,188 @@ const TicketCard: React.FC<{
   const primaryTextColor = useThemeColor({}, 'textPrimary');
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
 
-  // Calculate card position - simple stacking
-  const getCardPosition = () => {
-    if (isFocused) {
-      return { translateY: 0, scale: 1.05 };
+  // Animation refs - only flip animation
+  const flipAnim = useRef(new Animated.Value(0)).current;
+
+  // Animate flip based on flipped state
+  useEffect(() => {
+    if (isFlipped) {
+      // Flip to reveal details
+      Animated.timing(flipAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      // Flip back to show cover
+      Animated.timing(flipAnim, {
+        toValue: 0,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
     }
-    // Use different squash values based on whether a card is focused
-    const squashValue = focusedCardId ? 100 : 130;
-    return { translateY: index * squashValue, scale: 1 };
-  };
+  }, [isFlipped]);
+
+  // Show details when flipped (for the literal card flip effect)
+  const shouldShowDetails = isFlipped;
+
+
+
+  // Calculate flip rotation - start with cover, flip to show details
+  const flipRotation = flipAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '180deg'],
+  });
+
+  // Create separate animated values for front and back faces
+  const frontOpacity = flipAnim.interpolate({
+    inputRange: [0, 0.5, 0.5, 1],
+    outputRange: [1, 1, 0, 0],
+  });
+
+  const backOpacity = flipAnim.interpolate({
+    inputRange: [0, 0.5, 0.5, 1],
+    outputRange: [0, 0, 1, 1],
+  });
+
+  // Use animated opacity values for smooth transitions
+  const frontFaceOpacity = frontOpacity;
+  const backFaceOpacity = backOpacity;
 
   // If focused, position absolutely outside the list flow
   if (isFocused) {
     return (
       <View style={styles.focusedCardContainer}>
-        <TouchableOpacity
+        <Animated.View
           style={[
             styles.focusedTicketCard,
             {
               backgroundColor: cardBackgroundColor,
               borderColor,
               zIndex: 999,
+              transform: [
+                { rotateY: flipRotation },
+              ],
             },
             styles.ticketCardCover,
           ]}
-          activeOpacity={0.8}
-          onPress={onPress}
         >
-          {/* Always show details for focused card */}
-          <View style={[styles.cardContent, { backgroundColor: '#0c0c0f' }]}>
+          <TouchableOpacity
+            style={styles.touchableArea}
+            activeOpacity={0.8}
+            onPress={onPress}
+          >
+            {/* Front face - Cover image */}
+            <Animated.View style={[styles.cardFace, { opacity: frontFaceOpacity }]}>
+              <View style={styles.coverContainer}>
+                <Image
+                  source={ticket.imageUrl || require('@/assets/images/ticketCoverMockup.png')}
+                  style={styles.coverImage}
+                  resizeMode="cover"
+                />
+                <View style={styles.titleOverlay}>
+                  <ThemedText style={styles.titleOverlayText}>
+                    {ticket.title}
+                  </ThemedText>
+                </View>
+              </View>
+            </Animated.View>
+
+            {/* Back face - Details */}
+            <Animated.View style={[styles.cardFace, styles.cardFaceBack, { opacity: backFaceOpacity }]}>
+              <View style={[styles.cardContent, { backgroundColor: '#0c0c0f', flex: 1, padding: 16 }]}>
+                <View style={styles.leftSection}>
+                  <View style={styles.titleRow}>
+                    <ThemedText type="subtitle" style={{ color: primaryTextColor, flex: 1 }}>
+                      {ticket.title}
+                    </ThemedText>
+                    <ThemedText style={styles.ticketTypeIcon}>
+                      {getTicketTypeIcon(ticket.ticketType)}
+                    </ThemedText>
+                  </View>
+                  <ThemedText style={[styles.serviceName, { color: secondaryTextColor }]}>
+                    {ticket.serviceName}
+                  </ThemedText>
+                  <ThemedText style={[styles.description, { color: secondaryTextColor }]}>
+                    {ticket.description}
+                  </ThemedText>
+                  
+                  <View style={styles.dateLocationRow}>
+                    <View style={styles.dateLocationItem}>
+                      <ThemedText style={[styles.dateLocationLabel, { color: secondaryTextColor }]}>
+                        {formatDayAndDate(ticket.eventDate)}
+                      </ThemedText>
+                    </View>
+                    {ticket.location && (
+                      <View style={styles.dateLocationItem}>
+                        <ThemedText style={[styles.dateLocationLabel, { color: secondaryTextColor }]}>
+                        📍 {ticket.location}
+                      </ThemedText>
+                    </View>
+                    )}
+                  </View>
+                </View>
+              </View>
+            </Animated.View>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    );
+  }
+
+  // Calculate card position - simple stacking
+  const getCardPosition = () => {
+    if (isFocused) {
+      return { translateY: 0, scale: 1.05 };
+    }
+    // Use different squash values based on whether a card is focused
+    const squashValue = focusedCardId ? 90 : 130;
+    return { translateY: index * squashValue, scale: 1 };
+  };
+
+  const { translateY, scale } = getCardPosition();
+
+  return (
+    <Animated.View
+      style={[
+        styles.ticketCard,
+        {
+          backgroundColor: cardBackgroundColor,
+          borderColor,
+          zIndex: isFocused ? 999 : index,
+          top: translateY, // Position cards in stack
+          transform: [
+            { scale },
+            { rotateY: flipRotation },
+          ],
+        },
+        styles.ticketCardCover,
+      ]}
+    >
+      <TouchableOpacity
+        style={styles.touchableArea}
+        activeOpacity={0.8}
+        onPress={onPress}
+      >
+        {/* Front face - Cover image */}
+        <Animated.View style={[styles.cardFace, { opacity: frontFaceOpacity }]}>
+          <View style={styles.coverContainer}>
+            <Image
+              source={ticket.imageUrl || require('@/assets/images/ticketCoverMockup.png')}
+              style={styles.coverImage}
+              resizeMode="cover"
+            />
+            <View style={styles.titleOverlay}>
+              <ThemedText style={styles.titleOverlayText}>
+                {ticket.title}
+              </ThemedText>
+            </View>
+          </View>
+        </Animated.View>
+
+        {/* Back face - Details */}
+        <Animated.View style={[styles.cardFace, styles.cardFaceBack, { opacity: backFaceOpacity }]}>
+          <View style={[styles.cardContent, { backgroundColor: '#0c0c0f', flex: 1, padding: 16 }]}>
             <View style={styles.leftSection}>
               <View style={styles.titleRow}>
                 <ThemedText type="subtitle" style={{ color: primaryTextColor, flex: 1 }}>
@@ -208,84 +363,10 @@ const TicketCard: React.FC<{
                 )}
               </View>
             </View>
-
-
           </View>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  const { translateY, scale } = getCardPosition();
-
-  return (
-    <TouchableOpacity
-      style={[
-        styles.ticketCard,
-        {
-          backgroundColor: cardBackgroundColor,
-          borderColor,
-          zIndex: isFocused ? 999 : index,
-          transform: [{ translateY }, { scale }],
-        },
-        isFlipped ? {} : styles.ticketCardCover,
-      ]}
-      activeOpacity={0.8}
-      onPress={onPress}
-    >
-      {isFlipped ? (
-        // Show ticket details with background
-        <View style={[styles.cardContent, { backgroundColor: '#202022' }]}>
-          <View style={styles.leftSection}>
-            <View style={styles.titleRow}>
-              <ThemedText type="subtitle" style={{ color: primaryTextColor, flex: 1 }}>
-                {ticket.title}
-              </ThemedText>
-              <ThemedText style={styles.ticketTypeIcon}>
-                {getTicketTypeIcon(ticket.ticketType)}
-              </ThemedText>
-            </View>
-            <ThemedText style={[styles.serviceName, { color: secondaryTextColor }]}>
-              {ticket.serviceName}
-            </ThemedText>
-            <ThemedText style={[styles.description, { color: secondaryTextColor }]}>
-              {ticket.description}
-            </ThemedText>
-            
-            <View style={styles.dateLocationRow}>
-              <View style={styles.dateLocationItem}>
-                <ThemedText style={[styles.dateLocationLabel, { color: secondaryTextColor }]}>
-                  {formatDayAndDate(ticket.eventDate)}
-                </ThemedText>
-              </View>
-              {ticket.location && (
-                <View style={styles.dateLocationItem}>
-                  <ThemedText style={[styles.dateLocationLabel, { color: secondaryTextColor }]}>
-                  📍 {ticket.location}
-                </ThemedText>
-              </View>
-              )}
-            </View>
-                      </View>
-
-
-        </View>
-      ) : (
-        // Show cover image
-        <View style={styles.coverContainer}>
-          <Image
-            source={ticket.imageUrl || require('@/assets/images/ticketCoverMockup.png')}
-            style={styles.coverImage}
-            resizeMode="cover"
-          />
-          <View style={styles.cardNumberOverlay}>
-            <ThemedText style={styles.cardNumberText}>
-              {originalTickets.findIndex(t => t.id === ticket.id) + 1}
-            </ThemedText>
-          </View>
-        </View>
-      )}
-    </TouchableOpacity>
+        </Animated.View>
+      </TouchableOpacity>
+    </Animated.View>
   );
 };
 
@@ -294,6 +375,8 @@ export default function TicketsScreen() {
   const [filter, setFilter] = useState<'all' | 'active' | 'used' | 'expired'>('all');
   const [focusedCardId, setFocusedCardId] = useState<string | null>(null);
   const [flippedCardId, setFlippedCardId] = useState<string | null>(null);
+
+
 
   const tickets = getMockedTickets();
 
@@ -317,10 +400,9 @@ export default function TicketsScreen() {
   );
 
   // Filter handlers
-  const handleFilterAll = useCallback(() => setFilter('all'), []);
-  const handleFilterActive = useCallback(() => setFilter('active'), []);
-  const handleFilterUsed = useCallback(() => setFilter('used'), []);
-  const handleFilterExpired = useCallback(() => setFilter('expired'), []);
+  const handleFilterPress = useCallback((filterType: 'all' | 'active' | 'used' | 'expired') => {
+    setFilter(filterType);
+  }, []);
 
   // Filtered tickets
   const filteredTickets = useMemo(
@@ -341,9 +423,9 @@ export default function TicketsScreen() {
       setFocusedCardId(null);
       setFlippedCardId(null);
     } else {
-      // Focus this card and clear any flipped state
+      // Focus this card and flip it to show details
       setFocusedCardId(ticketId);
-      setFlippedCardId(null);
+      setFlippedCardId(ticketId);
     }
   }, [focusedCardId]);
 
@@ -360,7 +442,7 @@ export default function TicketsScreen() {
               styles.filterChip,
               { backgroundColor: filter === 'all' ? buttonPrimaryColor : buttonSecondaryColor },
             ]}
-            onPress={handleFilterAll}
+            onPress={() => handleFilterPress('all')}
           >
             <ThemedText
               type="subtitle"
@@ -377,7 +459,7 @@ export default function TicketsScreen() {
               styles.filterChip,
               { backgroundColor: filter === 'active' ? buttonPrimaryColor : buttonSecondaryColor },
             ]}
-            onPress={handleFilterActive}
+            onPress={() => handleFilterPress('active')}
           >
             <ThemedText
               type="subtitle"
@@ -394,7 +476,7 @@ export default function TicketsScreen() {
               styles.filterChip,
               { backgroundColor: filter === 'used' ? buttonPrimaryColor : buttonSecondaryColor },
             ]}
-            onPress={handleFilterUsed}
+            onPress={() => handleFilterPress('used')}
           >
             <ThemedText
               type="subtitle"
@@ -411,7 +493,7 @@ export default function TicketsScreen() {
               styles.filterChip,
               { backgroundColor: filter === 'expired' ? buttonPrimaryColor : buttonSecondaryColor },
             ]}
-            onPress={handleFilterExpired}
+            onPress={() => handleFilterPress('expired')}
           >
             <ThemedText
               type="subtitle"
@@ -638,20 +720,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
   },
-  cardNumberOverlay: {
+  titleOverlay: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    top: 12,
+    left: 12,
+    right: 12,
   },
-  cardNumberText: {
-    fontSize: 48,
+  titleOverlayText: {
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#FFFFFF',
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3,
   },
   focusedCardContainer: {
     position: 'relative',
@@ -752,5 +833,19 @@ const styles = StyleSheet.create({
   dateLocationLabel: {
     fontSize: 11,
     fontWeight: '500',
+  },
+  touchableArea: {
+    flex: 1,
+  },
+  cardFace: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  cardFaceBack: {
+    transform: [{ rotateY: '180deg' }],
+    backgroundColor: '#0c0c0f',
   },
 }); 
