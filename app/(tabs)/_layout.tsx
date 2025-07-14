@@ -124,6 +124,14 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="Certificates"
+        options={{
+          title: 'Certificates',
+          tabBarIcon: ({ color }) => <IdentityIcon color={color} />,
+          href: null, // This hides the tab from the tab bar
+        }}
+      />
+      <Tabs.Screen
         name="IdentityList"
         options={{
           title: 'Identities',
