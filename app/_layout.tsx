@@ -40,7 +40,7 @@ TaskManager.defineTask<Notifications.NotificationTaskPayload>(BACKGROUND_NOTIFIC
 });
 
 
-const NotificationHandler = () => {
+const NotificationConfigurator = () => {
   const { publicKey } = useNostrService();
 
   useEffect(() => {
@@ -129,7 +129,7 @@ const AuthenticatedAppContent = () => {
         <ActivitiesProvider>
           <PendingRequestsProvider>
             <DeeplinkProvider>
-              <NotificationHandler />
+              <NotificationConfigurator />
               <Stack screenOptions={{ headerShown: false }} />
             </DeeplinkProvider>
           </PendingRequestsProvider>
