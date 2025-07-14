@@ -140,6 +140,7 @@ export interface Ticket {
   location?: string;
   qrCode?: string;
   createdAt: Date;
+  imageUrl?: any; // React Native ImageSourcePropType
 }
 
 /**

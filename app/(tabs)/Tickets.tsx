@@ -1,12 +1,11 @@
-import React, { useState, useMemo, useCallback } from 'react';
-import { View, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { View, StyleSheet, TouchableOpacity, Image, ScrollView } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { Ticket } from '@/utils/types';
 import { formatDayAndDate } from '@/utils';
-import { router } from 'expo-router';
 import { Colors } from '@/constants/Colors';
 
 // Mock data for tickets
@@ -24,6 +23,7 @@ const getMockedTickets = (): Ticket[] => [
     location: 'Miami, FL',
     qrCode: 'bitcoin-conf-2024-001',
     createdAt: new Date('2024-11-01T08:00:00Z'),
+    imageUrl: require('@/assets/images/ticketCoverMockup.png'),
   },
   {
     id: '2',
@@ -38,6 +38,7 @@ const getMockedTickets = (): Ticket[] => [
     location: 'San Francisco, CA',
     qrCode: 'lightning-workshop-002',
     createdAt: new Date('2024-11-05T10:30:00Z'),
+    imageUrl: require('@/assets/images/ticketCoverMockup.png'),
   },
   {
     id: '3',
@@ -51,6 +52,7 @@ const getMockedTickets = (): Ticket[] => [
     currency: 'USD',
     qrCode: 'premium-support-003',
     createdAt: new Date('2024-10-15T09:00:00Z'),
+    imageUrl: require('@/assets/images/ticketCoverMockup.png'),
   },
   {
     id: '4',
@@ -64,6 +66,7 @@ const getMockedTickets = (): Ticket[] => [
     location: 'Austin, TX',
     qrCode: 'nostr-meetup-004',
     createdAt: new Date('2024-11-20T16:00:00Z'),
+    imageUrl: require('@/assets/images/ticketCoverMockup.png'),
   },
   {
     id: '5',
@@ -78,134 +81,281 @@ const getMockedTickets = (): Ticket[] => [
     location: 'Las Vegas, NV',
     qrCode: 'vip-lounge-005',
     createdAt: new Date('2024-11-10T12:00:00Z'),
+    imageUrl: require('@/assets/images/ticketCoverMockup.png'),
   },
 ];
 
-const TicketCard: React.FC<{ ticket: Ticket }> = ({ ticket }) => {
+// Helper functions
+const getStatusColor = (status: Ticket['status']) => {
+  switch (status) {
+    case 'active':
+      return Colors.success;
+    case 'used':
+      return '#666';
+    case 'expired':
+      return Colors.error;
+    case 'cancelled':
+      return Colors.error;
+    default:
+      return '#666';
+  }
+};
+
+const getStatusText = (status: Ticket['status']) => {
+  switch (status) {
+    case 'active':
+      return 'Active';
+    case 'used':
+      return 'Used';
+    case 'expired':
+      return 'Expired';
+    case 'cancelled':
+      return 'Cancelled';
+    default:
+      return status;
+  }
+};
+
+const getTicketTypeIcon = (type: Ticket['ticketType']) => {
+  switch (type) {
+    case 'event':
+      return '🎫';
+    case 'service':
+      return '🔧';
+    case 'access':
+      return '🔓';
+    default:
+      return '🎫';
+  }
+};
+
+// Ticket Card Component
+const TicketCard: React.FC<{
+  ticket: Ticket;
+  index: number;
+  isFocused: boolean;
+  isFlipped: boolean;
+  onPress: () => void;
+  focusedCardId: string | null;
+  filteredTickets: Ticket[];
+  originalTickets: Ticket[];
+}> = ({ ticket, index, isFocused, isFlipped, onPress, focusedCardId, filteredTickets, originalTickets }) => {
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');
+  const borderColor = useThemeColor({}, 'borderPrimary');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
-  const successColor = Colors.success;
-  const warningColor = Colors.warning;
-  const errorColor = Colors.error;
 
-  const getStatusColor = (status: Ticket['status']) => {
-    switch (status) {
-      case 'active':
-        return successColor;
-      case 'used':
-        return secondaryTextColor;
-      case 'expired':
-        return errorColor;
-      case 'cancelled':
-        return errorColor;
-      default:
-        return secondaryTextColor;
+  // Calculate card position - simple stacking
+  const getCardPosition = () => {
+    if (isFocused) {
+      return { translateY: 0, scale: 1.05 };
     }
+    return { translateY: index * 130, scale: 1 };
   };
 
-  const getStatusText = (status: Ticket['status']) => {
-    switch (status) {
-      case 'active':
-        return 'Active';
-      case 'used':
-        return 'Used';
-      case 'expired':
-        return 'Expired';
-      case 'cancelled':
-        return 'Cancelled';
-      default:
-        return status;
-    }
-  };
+  // If focused, position absolutely outside the list flow
+  if (isFocused) {
+    return (
+      <View style={styles.focusedCardContainer}>
+        <TouchableOpacity
+          style={[
+            styles.ticketCard,
+            {
+              backgroundColor: cardBackgroundColor,
+              borderColor,
+              zIndex: 999,
+              transform: [{ scale: 1.05 }],
+            },
+            isFlipped ? {} : styles.ticketCardCover,
+          ]}
+          activeOpacity={0.8}
+          onPress={onPress}
+        >
+          {isFlipped ? (
+            // Show ticket details
+            <View style={styles.cardContent}>
+              <View style={styles.leftSection}>
+                <View style={styles.titleRow}>
+                  <ThemedText type="subtitle" style={{ color: primaryTextColor, flex: 1 }}>
+                    {ticket.title}
+                  </ThemedText>
+                  <ThemedText style={styles.ticketTypeIcon}>
+                    {getTicketTypeIcon(ticket.ticketType)}
+                  </ThemedText>
+                </View>
+                <ThemedText style={[styles.serviceName, { color: secondaryTextColor }]}>
+                  {ticket.serviceName}
+                </ThemedText>
+                <ThemedText style={[styles.description, { color: secondaryTextColor }]}>
+                  {ticket.description}
+                </ThemedText>
+              </View>
 
-  const getTicketTypeIcon = (type: Ticket['ticketType']) => {
-    switch (type) {
-      case 'event':
-        return '🎫';
-      case 'service':
-        return '🔧';
-      case 'access':
-        return '🔓';
-      default:
-        return '🎫';
-    }
-  };
+              <View style={styles.rightSection}>
+                <View style={styles.detailsColumn}>
+                  <View style={styles.detailItem}>
+                    <ThemedText style={[styles.detailLabel, { color: secondaryTextColor }]}>
+                      Event Date
+                    </ThemedText>
+                    <ThemedText style={[styles.detailValue, { color: primaryTextColor }]}>
+                      {formatDayAndDate(ticket.eventDate)}
+                    </ThemedText>
+                  </View>
+
+                  {ticket.location && (
+                    <View style={styles.detailItem}>
+                      <ThemedText style={[styles.detailLabel, { color: secondaryTextColor }]}>
+                        Location
+                      </ThemedText>
+                      <ThemedText style={[styles.detailValue, { color: primaryTextColor }]}>
+                        {ticket.location}
+                      </ThemedText>
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.footerColumn}>
+                  <View style={styles.priceContainer}>
+                    {ticket.price !== undefined && (
+                      <ThemedText style={[styles.price, { color: primaryTextColor }]}>
+                        {ticket.price === 0 ? 'Free' : `${ticket.price} ${ticket.currency}`}
+                      </ThemedText>
+                    )}
+                  </View>
+                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(ticket.status) }]}>
+                    <ThemedText style={styles.statusText}>
+                      {getStatusText(ticket.status)}
+                    </ThemedText>
+                  </View>
+                </View>
+              </View>
+            </View>
+          ) : (
+            // Show cover image
+            <View style={styles.coverContainer}>
+              <Image
+                source={ticket.imageUrl || require('@/assets/images/ticketCoverMockup.png')}
+                style={styles.coverImage}
+                resizeMode="cover"
+              />
+              <View style={styles.cardNumberOverlay}>
+                <ThemedText style={styles.cardNumberText}>
+                  {originalTickets.findIndex(t => t.id === ticket.id) + 1}
+                </ThemedText>
+                {isFocused && (
+                  <ThemedText style={[styles.cardNumberText, { fontSize: 16, marginTop: 8 }]}>
+                    FOCUSED
+                  </ThemedText>
+                )}
+              </View>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const { translateY, scale } = getCardPosition();
 
   return (
     <TouchableOpacity
-      style={[styles.ticketCard, { backgroundColor: cardBackgroundColor }]}
-      activeOpacity={0.7}
-      onPress={() => {
-        // TODO: Navigate to ticket detail page when implemented
-        // router.push({
-        //   pathname: '/ticket/[id]',
-        //   params: { id: ticket.id },
-        // });
-      }}
+      style={[
+        styles.ticketCard,
+        {
+          backgroundColor: cardBackgroundColor,
+          borderColor,
+          zIndex: isFocused ? 999 : index,
+          transform: [{ translateY }, { scale }],
+        },
+        isFlipped ? {} : styles.ticketCardCover,
+      ]}
+      activeOpacity={0.8}
+      onPress={onPress}
     >
-      <View style={styles.cardHeader}>
-        <View style={styles.titleRow}>
-          <ThemedText type="subtitle" style={{ color: primaryTextColor, flex: 1 }}>
-            {ticket.title}
-          </ThemedText>
-          <ThemedText style={styles.ticketTypeIcon}>
-            {getTicketTypeIcon(ticket.ticketType)}
-          </ThemedText>
-        </View>
-        <ThemedText style={[styles.serviceName, { color: secondaryTextColor }]}>
-          {ticket.serviceName}
-        </ThemedText>
-      </View>
-
-      <View style={styles.cardContent}>
-        <ThemedText style={[styles.description, { color: secondaryTextColor }]}>
-          {ticket.description}
-        </ThemedText>
-
-        <View style={styles.detailsRow}>
-          <View style={styles.detailItem}>
-            <ThemedText style={[styles.detailLabel, { color: secondaryTextColor }]}>
-              Event Date
-            </ThemedText>
-            <ThemedText style={[styles.detailValue, { color: primaryTextColor }]}>
-              {formatDayAndDate(ticket.eventDate)}
-            </ThemedText>
-          </View>
-
-          {ticket.location && (
-            <View style={styles.detailItem}>
-              <ThemedText style={[styles.detailLabel, { color: secondaryTextColor }]}>
-                Location
+      {isFlipped ? (
+        // Show ticket details
+        <View style={styles.cardContent}>
+          <View style={styles.leftSection}>
+            <View style={styles.titleRow}>
+              <ThemedText type="subtitle" style={{ color: primaryTextColor, flex: 1 }}>
+                {ticket.title}
               </ThemedText>
-              <ThemedText style={[styles.detailValue, { color: primaryTextColor }]}>
-                {ticket.location}
+              <ThemedText style={styles.ticketTypeIcon}>
+                {getTicketTypeIcon(ticket.ticketType)}
               </ThemedText>
             </View>
-          )}
-        </View>
-
-        <View style={styles.footerRow}>
-          <View style={styles.priceContainer}>
-            {ticket.price !== undefined && (
-              <ThemedText style={[styles.price, { color: primaryTextColor }]}>
-                {ticket.price === 0 ? 'Free' : `${ticket.price} ${ticket.currency}`}
-              </ThemedText>
-            )}
+            <ThemedText style={[styles.serviceName, { color: secondaryTextColor }]}>
+              {ticket.serviceName}
+            </ThemedText>
+            <ThemedText style={[styles.description, { color: secondaryTextColor }]}>
+              {ticket.description}
+            </ThemedText>
           </View>
-          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(ticket.status) }]}>
-            <ThemedText style={styles.statusText}>
-              {getStatusText(ticket.status)}
+
+          <View style={styles.rightSection}>
+            <View style={styles.detailsColumn}>
+              <View style={styles.detailItem}>
+                <ThemedText style={[styles.detailLabel, { color: secondaryTextColor }]}>
+                  Event Date
+                </ThemedText>
+                <ThemedText style={[styles.detailValue, { color: primaryTextColor }]}>
+                  {formatDayAndDate(ticket.eventDate)}
+                </ThemedText>
+              </View>
+
+              {ticket.location && (
+                <View style={styles.detailItem}>
+                  <ThemedText style={[styles.detailLabel, { color: secondaryTextColor }]}>
+                    Location
+                  </ThemedText>
+                  <ThemedText style={[styles.detailValue, { color: primaryTextColor }]}>
+                    {ticket.location}
+                  </ThemedText>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.footerColumn}>
+              <View style={styles.priceContainer}>
+                {ticket.price !== undefined && (
+                  <ThemedText style={[styles.price, { color: primaryTextColor }]}>
+                    {ticket.price === 0 ? 'Free' : `${ticket.price} ${ticket.currency}`}
+                  </ThemedText>
+                )}
+              </View>
+              <View style={[styles.statusBadge, { backgroundColor: getStatusColor(ticket.status) }]}>
+                <ThemedText style={styles.statusText}>
+                  {getStatusText(ticket.status)}
+                </ThemedText>
+              </View>
+            </View>
+          </View>
+        </View>
+      ) : (
+        // Show cover image
+        <View style={styles.coverContainer}>
+          <Image
+            source={ticket.imageUrl || require('@/assets/images/ticketCoverMockup.png')}
+            style={styles.coverImage}
+            resizeMode="cover"
+          />
+          <View style={styles.cardNumberOverlay}>
+            <ThemedText style={styles.cardNumberText}>
+              {originalTickets.findIndex(t => t.id === ticket.id) + 1}
             </ThemedText>
           </View>
         </View>
-      </View>
+      )}
     </TouchableOpacity>
   );
 };
 
+// Main Component
 export default function TicketsScreen() {
   const [filter, setFilter] = useState<'all' | 'active' | 'used' | 'expired'>('all');
+  const [focusedCardId, setFocusedCardId] = useState<string | null>(null);
+  const [flippedCardId, setFlippedCardId] = useState<string | null>(null);
+
   const tickets = getMockedTickets();
 
   // Theme colors
@@ -217,20 +367,35 @@ export default function TicketsScreen() {
   const buttonSecondaryTextColor = useThemeColor({}, 'buttonSecondaryText');
   const buttonPrimaryTextColor = useThemeColor({}, 'buttonPrimaryText');
 
+  // Filter handlers
   const handleFilterAll = useCallback(() => setFilter('all'), []);
   const handleFilterActive = useCallback(() => setFilter('active'), []);
   const handleFilterUsed = useCallback(() => setFilter('used'), []);
   const handleFilterExpired = useCallback(() => setFilter('expired'), []);
 
+  // Filtered tickets
   const filteredTickets = useMemo(
     () => (filter === 'all' ? tickets : tickets.filter(ticket => ticket.status === filter)),
     [filter, tickets]
   );
 
-  const renderItem = useCallback(
-    ({ item }: { item: Ticket }) => <TicketCard ticket={item} />,
-    []
-  );
+  // Reset states when filter changes
+  useEffect(() => {
+    setFocusedCardId(null);
+    setFlippedCardId(null);
+  }, [filter]);
+
+  // Card interaction handler
+  const handleCardPress = useCallback((ticketId: string) => {
+    if (focusedCardId === ticketId) {
+      // If already focused, toggle flip state
+      setFlippedCardId(prevId => prevId === ticketId ? null : ticketId);
+    } else {
+      // Focus this card and clear any flipped state
+      setFocusedCardId(ticketId);
+      setFlippedCardId(null);
+    }
+  }, [focusedCardId]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
@@ -317,14 +482,48 @@ export default function TicketsScreen() {
             </ThemedText>
           </View>
         ) : (
-          <FlatList
-            showsVerticalScrollIndicator={false}
-            style={styles.list}
-            contentContainerStyle={styles.listContent}
-            data={filteredTickets}
-            renderItem={renderItem}
-            keyExtractor={item => item.id}
-          />
+          <View style={styles.scrollContainer}>
+            {/* Render focused card separately if exists */}
+            {focusedCardId && (
+              <TicketCard
+                ticket={filteredTickets.find(t => t.id === focusedCardId)!}
+                index={filteredTickets.findIndex(t => t.id === focusedCardId)}
+                isFocused={true}
+                isFlipped={flippedCardId === focusedCardId}
+                onPress={() => handleCardPress(focusedCardId)}
+                focusedCardId={focusedCardId}
+                filteredTickets={filteredTickets}
+                originalTickets={tickets}
+              />
+            )}
+            
+            <ScrollView
+              style={styles.scrollView}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scrollContent}
+            >
+              <View style={[
+                styles.cardsContainer,
+                focusedCardId && { marginTop: 250 }
+              ]}>
+                {filteredTickets
+                  .filter(ticket => ticket.id !== focusedCardId)
+                  .map((ticket, listIndex) => (
+                  <TicketCard
+                    key={ticket.id}
+                    ticket={ticket}
+                    index={listIndex}
+                    isFocused={false} // Never focused in the list
+                    isFlipped={flippedCardId === ticket.id}
+                    onPress={() => handleCardPress(ticket.id)}
+                    focusedCardId={focusedCardId}
+                    filteredTickets={filteredTickets}
+                    originalTickets={tickets}
+                  />
+                ))}
+              </View>
+            </ScrollView>
+          </View>
         )}
       </ThemedView>
     </SafeAreaView>
@@ -357,78 +556,103 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  list: {
-    marginTop: 8,
+  scrollView: {
     flex: 1,
   },
-  listContent: {
-    paddingVertical: 8,
+  scrollContent: {
+    paddingBottom: 20,
+  },
+  cardsContainer: {
+    position: 'relative',
+    width: '100%',
+    minHeight: 800, // Ensure enough space for stacked cards and scrolling
   },
   ticketCard: {
-    borderRadius: 20,
-    padding: 18,
-    marginBottom: 12,
+    position: 'absolute',
+    width: '100%',
+    aspectRatio: 1.586,
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
+    top: 0,
   },
-  cardHeader: {
-    marginBottom: 12,
+  ticketCardCover: {
+    padding: 0,
+  },
+  cardContent: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 16,
+  },
+  leftSection: {
+    flex: 1,
+    marginRight: 12,
+  },
+  rightSection: {
+    width: '35%',
+    justifyContent: 'space-between',
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  ticketTypeIcon: {
-    fontSize: 20,
-  },
-  serviceName: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  cardContent: {
-    flex: 1,
-  },
-  description: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 16,
-  },
-  detailsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  detailItem: {
-    flex: 1,
-  },
-  detailLabel: {
-    fontSize: 12,
-    fontWeight: '500',
     marginBottom: 2,
   },
+  ticketTypeIcon: {
+    fontSize: 16,
+  },
+  serviceName: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  description: {
+    fontSize: 11,
+    lineHeight: 14,
+    marginBottom: 6,
+  },
+  detailsColumn: {
+    marginBottom: 8,
+  },
+  detailItem: {
+    marginBottom: 4,
+  },
+  detailLabel: {
+    fontSize: 10,
+    fontWeight: '500',
+    marginBottom: 1,
+  },
   detailValue: {
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: '600',
   },
-  footerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  footerColumn: {
+    alignItems: 'flex-end',
+  },
+  coverContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
+  },
+  coverImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 12,
   },
   priceContainer: {
     flex: 1,
   },
   price: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '600',
   },
   statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
   },
   statusText: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '600',
     color: '#FFFFFF',
   },
@@ -443,5 +667,30 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     textAlign: 'center',
+  },
+  cardNumberOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  cardNumberText: {
+    fontSize: 48,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  focusedCardContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 999,
+  },
+  scrollContainer: {
+    flex: 1,
   },
 }); 
