@@ -144,7 +144,8 @@ const TicketCard: React.FC<{
   focusedCardId: string | null;
   filteredTickets: Ticket[];
   originalTickets: Ticket[];
-}> = ({ ticket, index, isFocused, isFlipped, onPress, focusedCardId, filteredTickets, originalTickets }) => {
+  cardSwapAnim?: Animated.Value;
+}> = ({ ticket, index, isFocused, isFlipped, onPress, focusedCardId, filteredTickets, originalTickets, cardSwapAnim }) => {
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');
   const borderColor = useThemeColor({}, 'borderPrimary');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
@@ -290,6 +291,12 @@ const TicketCard: React.FC<{
   };
 
   const { translateY, scale } = getCardPosition();
+  
+  // Add swap animation if provided
+  const swapTranslateY = cardSwapAnim ? cardSwapAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [translateY, isFocused ? 0 : translateY],
+  }) : translateY;
 
   return (
     <Animated.View
@@ -299,8 +306,8 @@ const TicketCard: React.FC<{
           backgroundColor: cardBackgroundColor,
           borderColor,
           zIndex: isFocused ? 999 : index,
-          top: translateY, // Position cards in stack
           transform: [
+            { translateY: swapTranslateY },
             { scale },
             { rotateY: flipRotation },
           ],
@@ -378,6 +385,9 @@ export default function TicketsScreen() {
   
   // Animation for focus zone
   const focusZoneAnim = useRef(new Animated.Value(0)).current;
+  
+  // Animation for card position swapping
+  const cardSwapAnim = useRef(new Animated.Value(0)).current;
 
 
 
@@ -435,12 +445,27 @@ export default function TicketsScreen() {
           setFocusedCardId(null);
         }, 200); // Wait for slide out animation to complete
       }, 300); // Wait for flip animation to complete
+    } else if (focusedCardId) {
+      // If another card is focused, animate the position swap
+      setFlippedCardId(null);
+      // Animate the card swap
+      Animated.timing(cardSwapAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start(() => {
+        // After swap animation completes, update the focused card
+        setFocusedCardId(ticketId);
+        setFlippedCardId(ticketId);
+        // Reset the swap animation
+        cardSwapAnim.setValue(0);
+      });
     } else {
       // Focus this card and flip it to show details
       setFocusedCardId(ticketId);
       setFlippedCardId(ticketId);
     }
-  }, [focusedCardId, focusZoneAnim]);
+  }, [focusedCardId, focusZoneAnim, cardSwapAnim]);
 
   // Animate focus zone when focused card changes (only for focusing)
   useEffect(() => {
@@ -560,16 +585,17 @@ export default function TicketsScreen() {
             >
               {focusedCardId && (
                 <>
-                  <TicketCard
-                    ticket={filteredTickets.find(t => t.id === focusedCardId)!}
-                    index={filteredTickets.findIndex(t => t.id === focusedCardId)}
-                    isFocused={true}
-                    isFlipped={flippedCardId === focusedCardId}
-                    onPress={() => handleCardPress(focusedCardId)}
-                    focusedCardId={focusedCardId}
-                    filteredTickets={filteredTickets}
-                    originalTickets={tickets}
-                  />
+                                  <TicketCard
+                  ticket={filteredTickets.find(t => t.id === focusedCardId)!}
+                  index={filteredTickets.findIndex(t => t.id === focusedCardId)}
+                  isFocused={true}
+                  isFlipped={flippedCardId === focusedCardId}
+                  onPress={() => handleCardPress(focusedCardId)}
+                  focusedCardId={focusedCardId}
+                  filteredTickets={filteredTickets}
+                  originalTickets={tickets}
+                  cardSwapAnim={cardSwapAnim}
+                />
                   
                   <View style={[styles.nfcSection, { backgroundColor: surfaceSecondaryColor }]}>
                     <View style={styles.nfcIconContainer}>
@@ -603,6 +629,7 @@ export default function TicketsScreen() {
                   focusedCardId={focusedCardId}
                   filteredTickets={filteredTickets}
                   originalTickets={tickets}
+                  cardSwapAnim={cardSwapAnim}
                 />
               ))}
             </View>
