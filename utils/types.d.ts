@@ -125,6 +125,24 @@ export interface UpcomingPayment {
 }
 
 /**
+ * Ticket information for events and services
+ */
+export interface Ticket {
+  id: string;
+  title: string;
+  description: string;
+  serviceName: string;
+  eventDate: Date;
+  status: 'active' | 'used' | 'expired' | 'cancelled';
+  ticketType: 'event' | 'service' | 'access';
+  price?: number;
+  currency?: string;
+  location?: string;
+  qrCode?: string;
+  createdAt: Date;
+}
+
+/**
  * Pending request for user approval
  */
 export interface PendingRequest {
