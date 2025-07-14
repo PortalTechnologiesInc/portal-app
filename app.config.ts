@@ -76,7 +76,19 @@ export default {
       "expo-secure-store",
       "expo-sqlite",
       "expo-web-browser",
-      "expo-notifications"
+      [
+        "expo-notifications",
+        {
+          "icon": "./local/assets/appNotificationLogo.png",
+          "color": "#ffffff",
+          "defaultChannel": "default",
+          // "sounds": [
+          //   "./local/assets/notification_sound.wav",
+          //   "./local/assets/notification_sound_other.wav"
+          // ],
+          "enableBackgroundRemoteNotifications": true
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
