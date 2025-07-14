@@ -375,6 +375,9 @@ export default function TicketsScreen() {
   const [filter, setFilter] = useState<'all' | 'active' | 'used' | 'expired'>('all');
   const [focusedCardId, setFocusedCardId] = useState<string | null>(null);
   const [flippedCardId, setFlippedCardId] = useState<string | null>(null);
+  
+  // Animation for focus zone
+  const focusZoneAnim = useRef(new Animated.Value(0)).current;
 
 
 
@@ -419,15 +422,37 @@ export default function TicketsScreen() {
   // Card interaction handler
   const handleCardPress = useCallback((ticketId: string) => {
     if (focusedCardId === ticketId) {
-      // If already focused, unfocus it
-      setFocusedCardId(null);
+      // If already focused, first flip back, then unfocus after animation
       setFlippedCardId(null);
+      // Wait for card flip to complete, then slide out focus zone
+      setTimeout(() => {
+        Animated.timing(focusZoneAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }).start();
+        setTimeout(() => {
+          setFocusedCardId(null);
+        }, 200); // Wait for slide out animation to complete
+      }, 300); // Wait for flip animation to complete
     } else {
       // Focus this card and flip it to show details
       setFocusedCardId(ticketId);
       setFlippedCardId(ticketId);
     }
-  }, [focusedCardId]);
+  }, [focusedCardId, focusZoneAnim]);
+
+  // Animate focus zone when focused card changes (only for focusing)
+  useEffect(() => {
+    if (focusedCardId) {
+      // Slide in focus zone
+      Animated.timing(focusZoneAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [focusedCardId, focusZoneAnim]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
@@ -520,32 +545,46 @@ export default function TicketsScreen() {
             contentContainerStyle={styles.scrollContent}
           >
             {/* Render focused card and NFC section as separate units */}
-            {focusedCardId && (
-              <>
-                <TicketCard
-                  ticket={filteredTickets.find(t => t.id === focusedCardId)!}
-                  index={filteredTickets.findIndex(t => t.id === focusedCardId)}
-                  isFocused={true}
-                  isFlipped={flippedCardId === focusedCardId}
-                  onPress={() => handleCardPress(focusedCardId)}
-                  focusedCardId={focusedCardId}
-                  filteredTickets={filteredTickets}
-                  originalTickets={tickets}
-                />
-                
-                <View style={[styles.nfcSection, { backgroundColor: surfaceSecondaryColor }]}>
-                  <View style={styles.nfcIconContainer}>
-                    <Nfc size={48} color={buttonPrimaryColor} />
+            <Animated.View
+              style={{
+                opacity: focusZoneAnim,
+                transform: [
+                  {
+                    translateY: focusZoneAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [50, 0],
+                    }),
+                  },
+                ],
+              }}
+            >
+              {focusedCardId && (
+                <>
+                  <TicketCard
+                    ticket={filteredTickets.find(t => t.id === focusedCardId)!}
+                    index={filteredTickets.findIndex(t => t.id === focusedCardId)}
+                    isFocused={true}
+                    isFlipped={flippedCardId === focusedCardId}
+                    onPress={() => handleCardPress(focusedCardId)}
+                    focusedCardId={focusedCardId}
+                    filteredTickets={filteredTickets}
+                    originalTickets={tickets}
+                  />
+                  
+                  <View style={[styles.nfcSection, { backgroundColor: surfaceSecondaryColor }]}>
+                    <View style={styles.nfcIconContainer}>
+                      <Nfc size={48} color={buttonPrimaryColor} />
+                    </View>
+                    <ThemedText type="subtitle" style={[styles.nfcTitle, { color: primaryTextColor }]}>
+                      Validate Ticket
+                    </ThemedText>
+                    <ThemedText style={[styles.nfcDescription, { color: secondaryTextColor }]}>
+                      Hold your device near the NFC reader to validate your ticket
+                    </ThemedText>
                   </View>
-                  <ThemedText type="subtitle" style={[styles.nfcTitle, { color: primaryTextColor }]}>
-                    Validate Ticket
-                  </ThemedText>
-                  <ThemedText style={[styles.nfcDescription, { color: secondaryTextColor }]}>
-                    Hold your device near the NFC reader to validate your ticket
-                  </ThemedText>
-                </View>
-              </>
-            )}
+                </>
+              )}
+            </Animated.View>
 
             <View style={[
               styles.cardsContainer,
