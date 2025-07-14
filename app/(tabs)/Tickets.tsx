@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { View, StyleSheet, TouchableOpacity, Image, ScrollView, ImageBackground, Animated } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Image, ScrollView, ImageBackground, Animated, Easing } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -145,7 +145,8 @@ const TicketCard: React.FC<{
   filteredTickets: Ticket[];
   originalTickets: Ticket[];
   cardSwapAnim?: Animated.Value;
-}> = ({ ticket, index, isFocused, isFlipped, onPress, focusedCardId, filteredTickets, originalTickets, cardSwapAnim }) => {
+  listSlideAnim?: Animated.Value;
+}> = ({ ticket, index, isFocused, isFlipped, onPress, focusedCardId, filteredTickets, originalTickets, cardSwapAnim, listSlideAnim }) => {
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');
   const borderColor = useThemeColor({}, 'borderPrimary');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
@@ -297,6 +298,9 @@ const TicketCard: React.FC<{
     inputRange: [0, 1],
     outputRange: [translateY, isFocused ? 0 : translateY],
   }) : translateY;
+  
+  // Use swap animation for position, list slide is handled by the container
+  const finalTranslateY = swapTranslateY;
 
   return (
     <Animated.View
@@ -388,6 +392,9 @@ export default function TicketsScreen() {
   
   // Animation for card position swapping
   const cardSwapAnim = useRef(new Animated.Value(0)).current;
+  
+  // Animation for list sliding up when focus zone unmounts
+  const listSlideAnim = useRef(new Animated.Value(0)).current;
 
 
 
@@ -434,17 +441,26 @@ export default function TicketsScreen() {
     if (focusedCardId === ticketId) {
       // If already focused, first flip back, then unfocus after animation
       setFlippedCardId(null);
-      // Wait for card flip to complete, then slide out focus zone
+      // Wait for card flip to complete, then slide out focus zone and slide up list
       setTimeout(() => {
-        Animated.timing(focusZoneAnim, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }).start();
-        setTimeout(() => {
+        Animated.parallel([
+          Animated.timing(focusZoneAnim, {
+            toValue: 0,
+            duration: 250,
+            easing: Easing.in(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.timing(listSlideAnim, {
+            toValue: 0,
+            duration: 250,
+            easing: Easing.in(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          // After all animations complete, then change the state
           setFocusedCardId(null);
-        }, 200); // Wait for slide out animation to complete
-      }, 300); // Wait for flip animation to complete
+        });
+      }, 400); // Wait for flip animation to complete
     } else if (focusedCardId) {
       // If another card is focused, animate the position swap
       setFlippedCardId(null);
@@ -452,6 +468,7 @@ export default function TicketsScreen() {
       Animated.timing(cardSwapAnim, {
         toValue: 1,
         duration: 400,
+        easing: Easing.inOut(Easing.cubic),
         useNativeDriver: true,
       }).start(() => {
         // After swap animation completes, update the focused card
@@ -465,19 +482,36 @@ export default function TicketsScreen() {
       setFocusedCardId(ticketId);
       setFlippedCardId(ticketId);
     }
-  }, [focusedCardId, focusZoneAnim, cardSwapAnim]);
+  }, [focusedCardId, focusZoneAnim, cardSwapAnim, listSlideAnim]);
 
   // Animate focus zone when focused card changes (only for focusing)
   useEffect(() => {
     if (focusedCardId) {
-      // Slide in focus zone
-      Animated.timing(focusZoneAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
+      // Slide in focus zone and slide down list
+      Animated.parallel([
+        Animated.timing(focusZoneAnim, {
+          toValue: 1,
+          duration: 300,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(listSlideAnim, {
+          toValue: 1,
+          duration: 300,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start();
     }
-  }, [focusedCardId, focusZoneAnim]);
+  }, [focusedCardId, focusZoneAnim, listSlideAnim]);
+
+  // Reset animations when no card is focused
+  useEffect(() => {
+    if (!focusedCardId) {
+      focusZoneAnim.setValue(0);
+      listSlideAnim.setValue(0);
+    }
+  }, [focusedCardId, focusZoneAnim, listSlideAnim]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
@@ -595,6 +629,7 @@ export default function TicketsScreen() {
                   filteredTickets={filteredTickets}
                   originalTickets={tickets}
                   cardSwapAnim={cardSwapAnim}
+                  listSlideAnim={listSlideAnim}
                 />
                   
                   <View style={[styles.nfcSection, { backgroundColor: surfaceSecondaryColor }]}>
@@ -612,9 +647,19 @@ export default function TicketsScreen() {
               )}
             </Animated.View>
 
-            <View style={[
+            <Animated.View style={[
               styles.cardsContainer,
-              focusedCardId && { minHeight: 500 }
+              focusedCardId && { minHeight: 500 },
+              {
+                transform: [
+                  {
+                    translateY: listSlideAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, 2], // Slide down less when focused for better spacing
+                    }),
+                  },
+                ],
+              },
             ]}>
               {filteredTickets
                 .filter(ticket => ticket.id !== focusedCardId)
@@ -630,9 +675,10 @@ export default function TicketsScreen() {
                   filteredTickets={filteredTickets}
                   originalTickets={tickets}
                   cardSwapAnim={cardSwapAnim}
+                  listSlideAnim={listSlideAnim}
                 />
               ))}
-            </View>
+            </Animated.View>
           </ScrollView>
         )}
       </ThemedView>
