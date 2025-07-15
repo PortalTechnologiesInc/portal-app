@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { View, StyleSheet, TouchableOpacity, Image, ScrollView, ImageBackground, Animated, Easing } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Image, ScrollView, ImageBackground, Animated, Easing, Alert, Platform } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,7 +8,10 @@ import { Ticket } from '@/utils/types';
 import { formatDayAndDate } from '@/utils';
 import { Colors } from '@/constants/Colors';
 import { useFocusEffect } from '@react-navigation/native';
-import { Nfc } from 'lucide-react-native';
+import { Nfc, CheckCircle, XCircle } from 'lucide-react-native';
+import NfcManager, { NfcEvents } from 'react-native-nfc-manager';
+import * as Linking from 'expo-linking';
+import TicketCard from '@/components/TicketCard';
 
 
 // Mock data for tickets
@@ -88,304 +91,23 @@ const getMockedTickets = (): Ticket[] => [
   },
 ];
 
-// Helper functions
-const getStatusColor = (status: Ticket['status']) => {
-  switch (status) {
-    case 'active':
-      return Colors.success;
-    case 'used':
-      return '#666';
-    case 'expired':
-      return Colors.error;
-    case 'cancelled':
-      return Colors.error;
-    default:
-      return '#666';
-  }
-};
-
-const getStatusText = (status: Ticket['status']) => {
-  switch (status) {
-    case 'active':
-      return 'Active';
-    case 'used':
-      return 'Used';
-    case 'expired':
-      return 'Expired';
-    case 'cancelled':
-      return 'Cancelled';
-    default:
-      return status;
-  }
-};
-
-const getTicketTypeIcon = (type: Ticket['ticketType']) => {
-  switch (type) {
-    case 'event':
-      return '🎫';
-    case 'service':
-      return '🔧';
-    case 'access':
-      return '🔓';
-    default:
-      return '🎫';
-  }
-};
 
 
 
-// Ticket Card Component
-const TicketCard: React.FC<{
-  ticket: Ticket;
-  index: number;
-  isFocused: boolean;
-  isFlipped: boolean;
-  onPress: () => void;
-  focusedCardId: string | null;
-  filteredTickets: Ticket[];
-  originalTickets: Ticket[];
-  cardSwapAnim?: Animated.Value;
-  listSlideAnim?: Animated.Value;
-}> = ({ ticket, index, isFocused, isFlipped, onPress, focusedCardId, filteredTickets, originalTickets, cardSwapAnim, listSlideAnim }) => {
-  const cardBackgroundColor = useThemeColor({}, 'cardBackground');
-  const borderColor = useThemeColor({}, 'borderPrimary');
-  const primaryTextColor = useThemeColor({}, 'textPrimary');
-  const secondaryTextColor = useThemeColor({}, 'textSecondary');
-
-  // Animation refs - only flip animation
-  const flipAnim = useRef(new Animated.Value(0)).current;
-
-  // Animate flip based on flipped state
-  useEffect(() => {
-    if (isFlipped) {
-      // Flip to reveal details
-      Animated.timing(flipAnim, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-      }).start();
-    } else {
-      // Flip back to show cover
-      Animated.timing(flipAnim, {
-        toValue: 0,
-        duration: 400,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [isFlipped]);
-
-  // Show details when flipped (for the literal card flip effect)
-  const shouldShowDetails = isFlipped;
 
 
-
-  // Calculate flip rotation - start with cover, flip to show details
-  const flipRotation = flipAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '180deg'],
-  });
-
-  // Create separate animated values for front and back faces
-  const frontOpacity = flipAnim.interpolate({
-    inputRange: [0, 0.5, 0.5, 1],
-    outputRange: [1, 1, 0, 0],
-  });
-
-  const backOpacity = flipAnim.interpolate({
-    inputRange: [0, 0.5, 0.5, 1],
-    outputRange: [0, 0, 1, 1],
-  });
-
-  // Use animated opacity values for smooth transitions
-  const frontFaceOpacity = frontOpacity;
-  const backFaceOpacity = backOpacity;
-
-  // If focused, position absolutely outside the list flow
-  if (isFocused) {
-    return (
-      <View style={styles.focusedCardContainer}>
-        <Animated.View
-          style={[
-            styles.focusedTicketCard,
-            {
-              backgroundColor: cardBackgroundColor,
-              borderColor,
-              zIndex: 999,
-              transform: [
-                { rotateY: flipRotation },
-              ],
-            },
-            styles.ticketCardCover,
-          ]}
-        >
-          <TouchableOpacity
-            style={styles.touchableArea}
-            activeOpacity={0.8}
-            onPress={onPress}
-          >
-            {/* Front face - Cover image */}
-            <Animated.View style={[styles.cardFace, { opacity: frontFaceOpacity }]}>
-              <View style={styles.coverContainer}>
-                <Image
-                  source={ticket.imageUrl || require('@/assets/images/ticketCoverMockup.png')}
-                  style={styles.coverImage}
-                  resizeMode="cover"
-                />
-                <View style={styles.titleOverlay}>
-                  <ThemedText style={styles.titleOverlayText}>
-                    {ticket.title}
-                  </ThemedText>
-                </View>
-              </View>
-            </Animated.View>
-
-            {/* Back face - Details */}
-            <Animated.View style={[styles.cardFace, styles.cardFaceBack, { opacity: backFaceOpacity }]}>
-              <View style={[styles.cardContent, { backgroundColor: '#0c0c0f', flex: 1, padding: 16 }]}>
-                <View style={styles.leftSection}>
-                  <View style={styles.titleRow}>
-                    <ThemedText type="subtitle" style={{ color: primaryTextColor, flex: 1 }}>
-                      {ticket.title}
-                    </ThemedText>
-                    <ThemedText style={styles.ticketTypeIcon}>
-                      {getTicketTypeIcon(ticket.ticketType)}
-                    </ThemedText>
-                  </View>
-                  <ThemedText style={[styles.serviceName, { color: secondaryTextColor }]}>
-                    {ticket.serviceName}
-                  </ThemedText>
-                  <ThemedText style={[styles.description, { color: secondaryTextColor }]}>
-                    {ticket.description}
-                  </ThemedText>
-                  
-                  <View style={styles.dateLocationRow}>
-                    <View style={styles.dateLocationItem}>
-                      <ThemedText style={[styles.dateLocationLabel, { color: secondaryTextColor }]}>
-                        {formatDayAndDate(ticket.eventDate)}
-                      </ThemedText>
-                    </View>
-                    {ticket.location && (
-                      <View style={styles.dateLocationItem}>
-                        <ThemedText style={[styles.dateLocationLabel, { color: secondaryTextColor }]}>
-                        📍 {ticket.location}
-                      </ThemedText>
-                    </View>
-                    )}
-                  </View>
-                </View>
-              </View>
-            </Animated.View>
-          </TouchableOpacity>
-        </Animated.View>
-      </View>
-    );
-  }
-
-  // Calculate card position - simple stacking
-  const getCardPosition = () => {
-    if (isFocused) {
-      return { translateY: 0, scale: 1.05 };
-    }
-    // Use different squash values based on whether a card is focused
-    const squashValue = focusedCardId ? 90 : 130;
-    return { translateY: index * squashValue, scale: 1 };
-  };
-
-  const { translateY, scale } = getCardPosition();
-  
-  // Add swap animation if provided
-  const swapTranslateY = cardSwapAnim ? cardSwapAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [translateY, isFocused ? 0 : translateY],
-  }) : translateY;
-  
-  // Use swap animation for position, list slide is handled by the container
-  const finalTranslateY = swapTranslateY;
-
-  return (
-    <Animated.View
-      style={[
-        styles.ticketCard,
-        {
-          backgroundColor: cardBackgroundColor,
-          borderColor,
-          zIndex: isFocused ? 999 : index,
-          transform: [
-            { translateY: swapTranslateY },
-            { scale },
-            { rotateY: flipRotation },
-          ],
-        },
-        styles.ticketCardCover,
-      ]}
-    >
-      <TouchableOpacity
-        style={styles.touchableArea}
-        activeOpacity={0.8}
-        onPress={onPress}
-      >
-        {/* Front face - Cover image */}
-        <Animated.View style={[styles.cardFace, { opacity: frontFaceOpacity }]}>
-          <View style={styles.coverContainer}>
-            <Image
-              source={ticket.imageUrl || require('@/assets/images/ticketCoverMockup.png')}
-              style={styles.coverImage}
-              resizeMode="cover"
-            />
-            <View style={styles.titleOverlay}>
-              <ThemedText style={styles.titleOverlayText}>
-                {ticket.title}
-              </ThemedText>
-            </View>
-          </View>
-        </Animated.View>
-
-        {/* Back face - Details */}
-        <Animated.View style={[styles.cardFace, styles.cardFaceBack, { opacity: backFaceOpacity }]}>
-          <View style={[styles.cardContent, { backgroundColor: '#0c0c0f', flex: 1, padding: 16 }]}>
-            <View style={styles.leftSection}>
-              <View style={styles.titleRow}>
-                <ThemedText type="subtitle" style={{ color: primaryTextColor, flex: 1 }}>
-                  {ticket.title}
-                </ThemedText>
-                <ThemedText style={styles.ticketTypeIcon}>
-                  {getTicketTypeIcon(ticket.ticketType)}
-                </ThemedText>
-              </View>
-              <ThemedText style={[styles.serviceName, { color: secondaryTextColor }]}>
-                {ticket.serviceName}
-              </ThemedText>
-              <ThemedText style={[styles.description, { color: secondaryTextColor }]}>
-                {ticket.description}
-              </ThemedText>
-              
-              <View style={styles.dateLocationRow}>
-                <View style={styles.dateLocationItem}>
-                  <ThemedText style={[styles.dateLocationLabel, { color: secondaryTextColor }]}>
-                    {formatDayAndDate(ticket.eventDate)}
-                  </ThemedText>
-                </View>
-                {ticket.location && (
-                  <View style={styles.dateLocationItem}>
-                    <ThemedText style={[styles.dateLocationLabel, { color: secondaryTextColor }]}>
-                    📍 {ticket.location}
-                  </ThemedText>
-                </View>
-                )}
-              </View>
-            </View>
-          </View>
-        </Animated.View>
-      </TouchableOpacity>
-    </Animated.View>
-  );
-};
 
 // Main Component
 export default function TicketsScreen() {
   const [filter, setFilter] = useState<'all' | 'active' | 'used' | 'expired'>('all');
   const [focusedCardId, setFocusedCardId] = useState<string | null>(null);
   const [flippedCardId, setFlippedCardId] = useState<string | null>(null);
+  const [closingCardId, setClosingCardId] = useState<string | null>(null);
+  const [closingCardOriginalIndex, setClosingCardOriginalIndex] = useState<number>(0);
+  
+  // NFC state management
+  const [isNFCEnabled, setIsNFCEnabled] = useState<boolean | null>(null);
+  const [isCheckingNFC, setIsCheckingNFC] = useState(false);
   
   // Animation for focus zone
   const focusZoneAnim = useRef(new Animated.Value(0)).current;
@@ -396,9 +118,82 @@ export default function TicketsScreen() {
   // Animation for list sliding up when focus zone unmounts
   const listSlideAnim = useRef(new Animated.Value(0)).current;
 
-
+  // New animation for smooth transitions
+  const transitionAnim = useRef(new Animated.Value(0)).current;
+  
+  // New animation for progressive squash value changes
+  const squashAnim = useRef(new Animated.Value(0)).current;
+  
+  // Animation for closing card transition
+  const closeAnim = useRef(new Animated.Value(0)).current;
+  
+  // Animation for list sliding up during closing
+  const listSlideUpAnim = useRef(new Animated.Value(0)).current;
+  
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  
+  // ScrollView ref for scrolling to top
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const tickets = getMockedTickets();
+
+  // NFC Status Checking
+  const checkNFCStatus = async (): Promise<boolean> => {
+    try {
+      // Initialize NFC Manager if not already done
+      const isStarted = await NfcManager.isSupported();
+      if (!isStarted) {
+        console.log('NFC not supported on this device');
+        return false;
+      }
+
+      // Check if NFC is enabled
+      const isEnabled = await NfcManager.isEnabled();
+      return isEnabled;
+    } catch (error) {
+      console.log('NFC check error:', error);
+      return false;
+    }
+  };
+
+  const openNFCSettings = async () => {
+    try {
+      if (Platform.OS === 'android') {
+        // Try to open NFC settings directly
+        const nfcSettingsUrl = 'android.settings.NFC_SETTINGS';
+        const canOpen = await Linking.canOpenURL(nfcSettingsUrl);
+
+        if (canOpen) {
+          await Linking.openURL(nfcSettingsUrl);
+        } else {
+          // Fallback to general wireless settings
+          await Linking.openSettings();
+        }
+      } else {
+        // For iOS, open general settings (NFC can't be controlled by user)
+        await Linking.openSettings();
+      }
+    } catch (error) {
+      console.error('Error opening settings:', error);
+    }
+  };
+
+  const showNFCEnableDialog = () => {
+    Alert.alert(
+      'Enable NFC',
+      Platform.OS === 'android'
+        ? 'NFC is required for contactless ticket validation. Would you like to open settings to enable it?'
+        : 'NFC may be required for this feature. Would you like to open settings?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Open Settings',
+          onPress: openNFCSettings,
+          style: 'default'
+        },
+      ]
+    );
+  };
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -416,6 +211,16 @@ export default function TicketsScreen() {
     useCallback(() => {
       setFocusedCardId(null);
       setFlippedCardId(null);
+      setClosingCardId(null);
+      setIsTransitioning(false);
+      setIsNFCEnabled(null);
+      setIsCheckingNFC(false);
+      transitionAnim.setValue(0);
+      focusZoneAnim.setValue(0);
+      listSlideAnim.setValue(0);
+      squashAnim.setValue(0);
+      closeAnim.setValue(0);
+      listSlideUpAnim.setValue(0);
     }, [])
   );
 
@@ -434,36 +239,83 @@ export default function TicketsScreen() {
   useEffect(() => {
     setFocusedCardId(null);
     setFlippedCardId(null);
+    setClosingCardId(null);
+    setIsTransitioning(false);
+    transitionAnim.setValue(0);
+    focusZoneAnim.setValue(0);
+    listSlideAnim.setValue(0);
+    squashAnim.setValue(0);
+    closeAnim.setValue(0);
+    listSlideUpAnim.setValue(0);
   }, [filter]);
 
-  // Card interaction handler
+  // Card interaction handler with improved animation timing
   const handleCardPress = useCallback((ticketId: string) => {
     if (focusedCardId === ticketId) {
-      // If already focused, first flip back, then unfocus after animation
+      // If already focused, start closing animation
+      setIsTransitioning(true);
       setFlippedCardId(null);
-      // Wait for card flip to complete, then slide out focus zone and slide up list
-      setTimeout(() => {
-        Animated.parallel([
-          Animated.timing(focusZoneAnim, {
-            toValue: 0,
-            duration: 250,
-            easing: Easing.in(Easing.cubic),
-            useNativeDriver: true,
-          }),
-          Animated.timing(listSlideAnim, {
-            toValue: 0,
-            duration: 250,
-            easing: Easing.in(Easing.cubic),
-            useNativeDriver: true,
-          }),
-        ]).start(() => {
-          // After all animations complete, then change the state
-          setFocusedCardId(null);
-        });
-      }, 400); // Wait for flip animation to complete
+      
+      // Set closing card state for smooth transition
+      setClosingCardId(ticketId);
+      setClosingCardOriginalIndex(filteredTickets.findIndex(t => t.id === ticketId));
+      
+      console.log('Starting closing animation with list slide up');
+      
+      // Animate closing transition with list slide up effect
+      Animated.parallel([
+        Animated.timing(closeAnim, {
+          toValue: 1,
+          duration: 600,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(listSlideUpAnim, {
+          toValue: 1,
+          duration: 600,
+          easing: Easing.out(Easing.back(1.2)), // More dramatic easing
+          useNativeDriver: true,
+        }),
+        Animated.timing(transitionAnim, {
+          toValue: 0,
+          duration: 600,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(focusZoneAnim, {
+          toValue: 0,
+          duration: 600,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(listSlideAnim, {
+          toValue: 0,
+          duration: 600,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(squashAnim, {
+          toValue: 0,
+          duration: 600,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        // After closing animation completes, update state
+        setFocusedCardId(null);
+        setClosingCardId(null);
+        setIsTransitioning(false);
+        closeAnim.setValue(0);
+        listSlideUpAnim.setValue(0);
+      });
     } else if (focusedCardId) {
       // If another card is focused, animate the position swap
+      setIsTransitioning(true);
       setFlippedCardId(null);
+      
+      // Scroll to top when clicking a card in the list
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      
       // Animate the card swap
       Animated.timing(cardSwapAnim, {
         toValue: 1,
@@ -474,44 +326,77 @@ export default function TicketsScreen() {
         // After swap animation completes, update the focused card
         setFocusedCardId(ticketId);
         setFlippedCardId(ticketId);
+        setIsTransitioning(false);
         // Reset the swap animation
         cardSwapAnim.setValue(0);
       });
     } else {
       // Focus this card and flip it to show details
+      setIsTransitioning(true);
+      
+      // Set the focused card immediately for proper positioning
       setFocusedCardId(ticketId);
       setFlippedCardId(ticketId);
-    }
-  }, [focusedCardId, focusZoneAnim, cardSwapAnim, listSlideAnim]);
-
-  // Animate focus zone when focused card changes (only for focusing)
-  useEffect(() => {
-    if (focusedCardId) {
-      // Slide in focus zone and slide down list
+      
+      // Check NFC status when card is focused
+      const checkNFCOnFocus = async () => {
+        setIsCheckingNFC(true);
+        try {
+          const enabled = await checkNFCStatus();
+          setIsNFCEnabled(enabled);
+        } catch (error) {
+          console.log('Error checking NFC status:', error);
+          setIsNFCEnabled(false);
+        } finally {
+          setIsCheckingNFC(false);
+        }
+      };
+      
+      checkNFCOnFocus();
+      
+      // Animate transition in
       Animated.parallel([
+        Animated.timing(transitionAnim, {
+          toValue: 1,
+          duration: 300,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }),
         Animated.timing(focusZoneAnim, {
           toValue: 1,
           duration: 300,
-          easing: Easing.out(Easing.cubic),
+          easing: Easing.inOut(Easing.cubic),
           useNativeDriver: true,
         }),
         Animated.timing(listSlideAnim, {
           toValue: 1,
           duration: 300,
-          easing: Easing.out(Easing.cubic),
+          easing: Easing.inOut(Easing.cubic),
           useNativeDriver: true,
         }),
-      ]).start();
+        Animated.timing(squashAnim, {
+          toValue: 1,
+          duration: 300,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        setIsTransitioning(false);
+      });
     }
-  }, [focusedCardId, focusZoneAnim, listSlideAnim]);
+  }, [focusedCardId, transitionAnim, cardSwapAnim, focusZoneAnim, listSlideAnim, squashAnim, closeAnim, listSlideUpAnim, filteredTickets]);
 
   // Reset animations when no card is focused
   useEffect(() => {
-    if (!focusedCardId) {
+    if (!focusedCardId && !isTransitioning && !closingCardId) {
       focusZoneAnim.setValue(0);
       listSlideAnim.setValue(0);
+      transitionAnim.setValue(0);
+      squashAnim.setValue(0);
+      closeAnim.setValue(0);
+      listSlideUpAnim.setValue(0);
     }
-  }, [focusedCardId, focusZoneAnim, listSlideAnim]);
+  }, [focusedCardId, focusZoneAnim, listSlideAnim, isTransitioning, transitionAnim, squashAnim, closeAnim, listSlideUpAnim, closingCardId]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
@@ -597,19 +482,20 @@ export default function TicketsScreen() {
               No tickets found
             </ThemedText>
           </View>
-                ) : (
+        ) : (
           <ScrollView
+            ref={scrollViewRef}
             style={styles.scrollView}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
           >
-            {/* Render focused card and NFC section as separate units */}
+            {/* Focus Zone - Always rendered but animated */}
             <Animated.View
               style={{
-                opacity: focusZoneAnim,
+                opacity: transitionAnim,
                 transform: [
                   {
-                    translateY: focusZoneAnim.interpolate({
+                    translateY: transitionAnim.interpolate({
                       inputRange: [0, 1],
                       outputRange: [50, 0],
                     }),
@@ -619,34 +505,108 @@ export default function TicketsScreen() {
             >
               {focusedCardId && (
                 <>
-                                  <TicketCard
-                  ticket={filteredTickets.find(t => t.id === focusedCardId)!}
-                  index={filteredTickets.findIndex(t => t.id === focusedCardId)}
-                  isFocused={true}
-                  isFlipped={flippedCardId === focusedCardId}
-                  onPress={() => handleCardPress(focusedCardId)}
-                  focusedCardId={focusedCardId}
-                  filteredTickets={filteredTickets}
-                  originalTickets={tickets}
-                  cardSwapAnim={cardSwapAnim}
-                  listSlideAnim={listSlideAnim}
-                />
+                  <TicketCard
+                    ticket={filteredTickets.find(t => t.id === focusedCardId)!}
+                    index={filteredTickets.findIndex(t => t.id === focusedCardId)}
+                    isFocused={true}
+                    isFlipped={flippedCardId === focusedCardId}
+                    onPress={() => handleCardPress(focusedCardId)}
+                    focusedCardId={focusedCardId}
+                    filteredTickets={filteredTickets}
+                    originalTickets={tickets}
+                    cardSwapAnim={cardSwapAnim}
+                    listSlideAnim={listSlideAnim}
+                    squashAnim={squashAnim}
+                  />
                   
                   <View style={[styles.nfcSection, { backgroundColor: surfaceSecondaryColor }]}>
                     <View style={styles.nfcIconContainer}>
-                      <Nfc size={48} color={buttonPrimaryColor} />
+                      {isCheckingNFC ? (
+                        <View style={styles.nfcStatusContainer}>
+                          <ThemedText style={[styles.nfcStatusText, { color: secondaryTextColor }]}>
+                            Checking NFC...
+                          </ThemedText>
+                        </View>
+                      ) : isNFCEnabled === null ? (
+                        <Nfc size={48} color={buttonPrimaryColor} />
+                      ) : isNFCEnabled ? (
+                        <CheckCircle size={48} color={Colors.success} />
+                      ) : (
+                        <XCircle size={48} color={Colors.error} />
+                      )}
                     </View>
                     <ThemedText type="subtitle" style={[styles.nfcTitle, { color: primaryTextColor }]}>
-                      Validate Ticket
+                      {isCheckingNFC 
+                        ? 'Checking NFC...'
+                        : isNFCEnabled === null
+                        ? 'Validate Ticket'
+                        : isNFCEnabled
+                        ? 'NFC Ready'
+                        : 'NFC Required'
+                      }
                     </ThemedText>
                     <ThemedText style={[styles.nfcDescription, { color: secondaryTextColor }]}>
-                      Hold your device near the NFC reader to validate your ticket
+                      {isCheckingNFC
+                        ? 'Checking if NFC is available on your device'
+                        : isNFCEnabled === null
+                        ? 'Hold your device near the NFC reader to validate your ticket'
+                        : isNFCEnabled
+                        ? 'NFC is enabled. Hold your device near the NFC reader to validate your ticket'
+                        : 'NFC is disabled. Enable NFC in your device settings to validate tickets'
+                      }
                     </ThemedText>
+
                   </View>
                 </>
               )}
             </Animated.View>
 
+            {/* Closing Card - Animates from focused position back to list position */}
+            {closingCardId && (
+              <Animated.View
+                style={[
+                  styles.closingCardContainer,
+                  {
+                    transform: [
+                      {
+                        translateY: closeAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, closingCardOriginalIndex * 90], // Animate to list position
+                        }),
+                      },
+                      {
+                        scale: closeAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [1, 1], // Maintain size
+                        }),
+                      },
+                      // The closing card should go to its original list position, not slide up
+                      // Remove the list slide up coordination for the closing card
+                    ],
+                    opacity: closeAnim.interpolate({
+                      inputRange: [0, 0.8, 1],
+                      outputRange: [1, 1, 0], // Fade out at the end
+                    }),
+                  },
+                ]}
+              >
+                <TicketCard
+                  ticket={filteredTickets.find(t => t.id === closingCardId)!}
+                  index={closingCardOriginalIndex}
+                  isFocused={false}
+                  isFlipped={false}
+                  onPress={() => {}} // No interaction during closing
+                  focusedCardId={null}
+                  filteredTickets={filteredTickets}
+                  originalTickets={tickets}
+                  cardSwapAnim={cardSwapAnim}
+                  listSlideAnim={listSlideAnim}
+                  squashAnim={squashAnim}
+                />
+              </Animated.View>
+            )}
+
+            {/* List Cards - Always render all cards, use animated transitions */}
             <Animated.View style={[
               styles.cardsContainer,
               focusedCardId && { minHeight: 500 },
@@ -655,29 +615,81 @@ export default function TicketsScreen() {
                   {
                     translateY: listSlideAnim.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [0, 2], // Slide down less when focused for better spacing
+                      outputRange: [0, 2],
                     }),
                   },
                 ],
+                // Add visual indicator during animation
+                backgroundColor: listSlideUpAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: ['transparent', 'rgba(255, 0, 0, 0.1)'], // Red tint during animation
+                }),
               },
             ]}>
-              {filteredTickets
-                .filter(ticket => ticket.id !== focusedCardId)
-                .map((ticket, listIndex) => (
-                <TicketCard
-                  key={ticket.id}
-                  ticket={ticket}
-                  index={listIndex}
-                  isFocused={false} // Never focused in the list
-                  isFlipped={flippedCardId === ticket.id}
-                  onPress={() => handleCardPress(ticket.id)}
-                  focusedCardId={focusedCardId}
-                  filteredTickets={filteredTickets}
-                  originalTickets={tickets}
-                  cardSwapAnim={cardSwapAnim}
-                  listSlideAnim={listSlideAnim}
-                />
-              ))}
+              {filteredTickets.map((ticket, listIndex) => {
+                const isFocusedInList = ticket.id === focusedCardId;
+                const isClosingInList = ticket.id === closingCardId;
+                const shouldShowInList = !isFocusedInList && !isClosingInList; // Remove when focused or closing
+                
+                // Calculate adjusted index for proper positioning when focused card is removed
+                const focusedIndex = filteredTickets.findIndex(t => t.id === focusedCardId);
+                const adjustedIndex = focusedCardId && focusedIndex !== -1
+                  ? (listIndex > focusedIndex ? listIndex - 1 : listIndex)
+                  : listIndex;
+                
+                // Use smooth transitions for list card visibility
+                const listCardOpacity = shouldShowInList ? 1 : 0;
+                const listCardTranslateY = shouldShowInList ? 0 : -20;
+                
+                // Add smooth transition for list cards during closing
+                const finalOpacity = closingCardId && isClosingInList 
+                  ? closeAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [1, 0], // Fade out during closing
+                    })
+                  : listCardOpacity;
+                
+                // Make list cards slide up to fill NFC section space during closing
+                const finalTranslateY = closingCardId 
+                  ? listSlideUpAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, -150], // Slide up to fill NFC section space
+                    })
+                  : (isClosingInList 
+                    ? closeAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, -20], // Slide out during closing
+                      })
+                    : listCardTranslateY);
+                
+                                  return (
+                    <Animated.View
+                      key={ticket.id}
+                      style={{
+                        opacity: finalOpacity,
+                        transform: [
+                          {
+                            translateY: finalTranslateY,
+                          },
+                        ],
+                      }}
+                    >
+                    <TicketCard
+                      ticket={ticket}
+                      index={adjustedIndex}
+                      isFocused={false}
+                      isFlipped={false} // List cards should never flip
+                      onPress={() => handleCardPress(ticket.id)}
+                      focusedCardId={focusedCardId}
+                      filteredTickets={filteredTickets}
+                      originalTickets={tickets}
+                      cardSwapAnim={cardSwapAnim}
+                      listSlideAnim={listSlideAnim}
+                      squashAnim={squashAnim}
+                    />
+                  </Animated.View>
+                );
+              })}
             </Animated.View>
           </ScrollView>
         )}
@@ -717,64 +729,15 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 20,
+    paddingTop: 16
   },
   cardsContainer: {
     position: 'relative',
     width: '100%',
     minHeight: 800, // Default height when no card is focused
   },
-  ticketCard: {
-    position: 'absolute',
-    width: '100%',
-    aspectRatio: 1.586,
-    borderRadius: 12,
-    borderWidth: 1,
-    overflow: 'hidden',
-    top: 0,
-  },
-  focusedTicketCard: {
-    position: 'relative',
-    width: '100%',
-    aspectRatio: 1.586,
-    borderRadius: 12,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  ticketCardCover: {
-    padding: 0,
-  },
-  cardContent: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: 16,
-  },
-  leftSection: {
-    flex: 1,
-    marginRight: 12,
-  },
-  rightSection: {
-    width: '35%',
-    justifyContent: 'space-between',
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 2,
-  },
-  ticketTypeIcon: {
-    fontSize: 16,
-  },
-  serviceName: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  description: {
-    fontSize: 11,
-    lineHeight: 14,
-    marginBottom: 6,
-  },
+
+
   detailsColumn: {
     marginBottom: 8,
   },
@@ -959,5 +922,18 @@ const styles = StyleSheet.create({
   cardFaceBack: {
     transform: [{ rotateY: '180deg' }],
     backgroundColor: '#0c0c0f',
+  },
+  // New styles for improved animation system
+  transitionContainer: {
+    position: 'relative',
+  },
+  listCardWrapper: {
+    position: 'relative',
+  },
+  closingCardContainer: {
+    position: 'absolute',
+    width: '100%',
+    zIndex: 998, // Below focused card but above list
+    top: 0,
   },
 }); 
