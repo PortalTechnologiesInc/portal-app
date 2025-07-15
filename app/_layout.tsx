@@ -17,6 +17,7 @@ import { Asset } from 'expo-asset';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 import { CurrencyProvider } from '@/context/CurrencyContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { ECashProvider } from '@/context/ECashContext';
 
 // Prevent splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -77,15 +78,17 @@ const AuthenticatedAppContent = () => {
 
   return (
     <NostrServiceProvider mnemonic={mnemonic || ''} walletUrl={walletUrl}>
-      <UserProfileProvider>
-        <ActivitiesProvider>
-          <PendingRequestsProvider>
-            <DeeplinkProvider>
-              <Stack screenOptions={{ headerShown: false }} />
-            </DeeplinkProvider>
-          </PendingRequestsProvider>
-        </ActivitiesProvider>
-      </UserProfileProvider>
+      <ECashProvider mnemonic={mnemonic || ''}>
+        <UserProfileProvider>
+          <ActivitiesProvider>
+            <PendingRequestsProvider>
+              <DeeplinkProvider>
+                <Stack screenOptions={{ headerShown: false }} />
+              </DeeplinkProvider>
+            </PendingRequestsProvider>
+          </ActivitiesProvider>
+        </UserProfileProvider>
+      </ECashProvider>
     </NostrServiceProvider>
   );
 };
