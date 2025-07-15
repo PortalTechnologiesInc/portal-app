@@ -22,6 +22,7 @@ import * as TaskManager from 'expo-task-manager';
 import { keyToHex } from 'portal-app-lib';
 import * as Notifications from 'expo-notifications';
 
+import { ECashProvider } from '@/context/ECashContext';
 
 // Prevent splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -125,16 +126,18 @@ const AuthenticatedAppContent = () => {
 
   return (
     <NostrServiceProvider mnemonic={mnemonic || ''} walletUrl={walletUrl}>
-      <UserProfileProvider>
-        <ActivitiesProvider>
-          <PendingRequestsProvider>
-            <DeeplinkProvider>
-              <NotificationConfigurator />
-              <Stack screenOptions={{ headerShown: false }} />
-            </DeeplinkProvider>
-          </PendingRequestsProvider>
-        </ActivitiesProvider>
-      </UserProfileProvider>
+      <ECashProvider mnemonic={mnemonic || ''}>
+        <UserProfileProvider>
+          <ActivitiesProvider>
+            <PendingRequestsProvider>
+              <DeeplinkProvider>
+                <NotificationConfigurator />
+                <Stack screenOptions={{ headerShown: false }} />
+              </DeeplinkProvider>
+            </PendingRequestsProvider>
+          </ActivitiesProvider>
+        </UserProfileProvider>
+      </ECashProvider>
     </NostrServiceProvider>
   );
 };

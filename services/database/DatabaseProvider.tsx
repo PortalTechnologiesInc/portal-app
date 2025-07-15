@@ -59,7 +59,7 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
   const migrateDbIfNeeded = useCallback(async (db: SQLiteDatabase) => {
     console.log('Database initialization started');
     setIsDbInitializing(true);
-    const DATABASE_VERSION = 6;
+    const DATABASE_VERSION = 7;
 
     try {
       let { user_version: currentDbVersion } = (await db.getFirstAsync<{
@@ -174,6 +174,95 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
                 );
         		`);
         currentDbVersion = 6;
+      }
+
+      if (currentDbVersion <= 6) {
+        await db.execAsync(`
+          -- CashuStorage tables for eCash wallet functionality
+          
+          -- Proofs table
+          CREATE TABLE IF NOT EXISTS cashu_proofs (
+            y BLOB PRIMARY KEY,
+            mint_url TEXT NOT NULL,
+            state TEXT CHECK (state IN ('SPENT', 'UNSPENT', 'PENDING', 'RESERVED', 'PENDINGSPENT')) NOT NULL,
+            spending_condition TEXT,
+            unit TEXT NOT NULL,
+            amount INTEGER NOT NULL,
+            keyset_id TEXT NOT NULL,
+            secret TEXT NOT NULL,
+            c BLOB NOT NULL,
+            witness TEXT,
+            dleq_e BLOB,
+            dleq_s BLOB,
+            dleq_r BLOB
+          );
+          
+          CREATE INDEX IF NOT EXISTS cashu_proofs_state_index ON cashu_proofs(state);
+          CREATE INDEX IF NOT EXISTS cashu_proofs_secret_index ON cashu_proofs(secret);
+          CREATE INDEX IF NOT EXISTS cashu_proofs_spending_condition_index ON cashu_proofs(spending_condition);
+          CREATE INDEX IF NOT EXISTS cashu_proofs_unit_index ON cashu_proofs(unit);
+          CREATE INDEX IF NOT EXISTS cashu_proofs_amount_index ON cashu_proofs(amount);
+          
+          -- Blind signatures table
+          CREATE TABLE IF NOT EXISTS cashu_blind_signatures (
+            y BLOB PRIMARY KEY,
+            amount INTEGER NOT NULL,
+            keyset_id TEXT NOT NULL,
+            c BLOB NOT NULL
+          );
+          
+          CREATE INDEX IF NOT EXISTS cashu_blind_signatures_keyset_id_index ON cashu_blind_signatures(keyset_id);
+          
+          -- Transactions table
+          CREATE TABLE IF NOT EXISTS cashu_transactions (
+            id BLOB PRIMARY KEY,
+            mint_url TEXT NOT NULL,
+            direction TEXT CHECK (direction IN ('Incoming', 'Outgoing')) NOT NULL,
+            amount INTEGER NOT NULL,
+            fee INTEGER NOT NULL,
+            unit TEXT NOT NULL,
+            ys BLOB NOT NULL,
+            timestamp INTEGER NOT NULL,
+            memo TEXT,
+            metadata TEXT
+          );
+          
+          CREATE INDEX IF NOT EXISTS cashu_transactions_mint_url_index ON cashu_transactions(mint_url);
+          CREATE INDEX IF NOT EXISTS cashu_transactions_direction_index ON cashu_transactions(direction);
+          CREATE INDEX IF NOT EXISTS cashu_transactions_unit_index ON cashu_transactions(unit);
+          CREATE INDEX IF NOT EXISTS cashu_transactions_timestamp_index ON cashu_transactions(timestamp);
+          
+          -- Keys table
+          CREATE TABLE IF NOT EXISTS cashu_keys (
+            id TEXT PRIMARY KEY,
+            keys TEXT NOT NULL
+          );
+          
+          -- Keyset counters table
+          CREATE TABLE IF NOT EXISTS cashu_keyset_counters (
+            keyset_id TEXT PRIMARY KEY,
+            counter INTEGER NOT NULL DEFAULT 0
+          );
+          
+          -- Mints table
+          CREATE TABLE IF NOT EXISTS cashu_mints (
+            mint_url TEXT PRIMARY KEY,
+            mint_info TEXT
+          );
+          
+          -- Mint keysets table
+          CREATE TABLE IF NOT EXISTS cashu_mint_keysets (
+            mint_url TEXT NOT NULL,
+            keyset_id TEXT NOT NULL,
+            keyset TEXT NOT NULL,
+            PRIMARY KEY (mint_url, keyset_id),
+            FOREIGN KEY (mint_url) REFERENCES cashu_mints(mint_url) ON DELETE CASCADE
+          );
+          
+          CREATE INDEX IF NOT EXISTS cashu_mint_keysets_mint_url_index ON cashu_mint_keysets(mint_url);
+          CREATE INDEX IF NOT EXISTS cashu_mint_keysets_keyset_id_index ON cashu_mint_keysets(keyset_id);
+        `);
+        currentDbVersion = 7;
       }
 
       await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
