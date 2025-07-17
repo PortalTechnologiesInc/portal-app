@@ -21,4 +21,9 @@ export class PortalAppManager {
 
         return this.instance;
     }
+
+    static getTemporaryInstance(keypair: KeypairInterface, relays: string[]) {
+        return PortalApp.create(keypair, relays);
+    }
+
 }
