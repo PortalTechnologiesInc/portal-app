@@ -258,6 +258,11 @@
               export PATH="./node_modules/.bin:$PATH"
               npm config set prefix "$HOME/.npm-global"
 
+              if ! command -v eas &> /dev/null; then
+                echo "installing eas-cli..."      
+                npm install -g eas-cli
+              fi
+
               if ! command -v npx expo &> /dev/null; then
                 echo "installing expo..."
                 npm install -g @expo/cli
