@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { usePendingRequests } from '../context/PendingRequestsContext';
 import { useNostrService } from '@/context/NostrServiceContext';
-import type { SinglePaymentRequest, RecurringPaymentRequest } from 'portal-app-lib';
+import { type SinglePaymentRequest, type RecurringPaymentRequest, Currency_Tags } from 'portal-app-lib';
 import type { PendingRequest } from '@/utils/types';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { Layout } from '@/constants/Layout';
@@ -65,11 +65,11 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = ({ request }) => 
   useEffect(() => {
     const fetchServiceName = async () => {
       if (!isMounted.current) return;
-      
+
       try {
         setIsLoading(true);
         const name = await nostrService.getServiceName((metadata as SinglePaymentRequest).serviceKey);
-        
+
         if (isMounted.current) {
           setServiceName(name);
           setIsLoading(false);
@@ -97,9 +97,9 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = ({ request }) => 
   const isPaymentRequest = type === 'payment';
   const isSubscriptionRequest = type === 'subscription';
 
-  const amount =
-    (metadata as SinglePaymentRequest)?.content?.amount ||
-    (metadata as RecurringPaymentRequest)?.content?.amount;
+  const content =
+    (metadata as SinglePaymentRequest)?.content ||
+    (metadata as RecurringPaymentRequest)?.content;
 
   return (
     <View style={[styles.card, { backgroundColor: cardBackgroundColor, shadowColor }]}>
@@ -107,9 +107,9 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = ({ request }) => 
         {getRequestTypeText(type)}
       </Text>
 
-      <Text 
+      <Text
         style={[
-          styles.serviceName, 
+          styles.serviceName,
           { color: primaryTextColor },
           !serviceName && styles.unknownService
         ]}
@@ -121,12 +121,12 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = ({ request }) => 
         {truncatePubkey(recipientPubkey)}
       </Text>
 
-      {(isPaymentRequest || isSubscriptionRequest) && amount !== null && (
+      {(isPaymentRequest || isSubscriptionRequest) && content.amount !== null && (
         <View style={[styles.amountContainer, { borderColor }]}>
           {isSubscriptionRequest ? (
             <View style={styles.amountRow}>
               <Text style={[styles.amountText, { color: primaryTextColor }]}>
-                {Number(amount) / 1000} sats
+                {content.currency.tag === Currency_Tags.Fiat ? `${Number(content.amount)} ${content.currency.inner}` : `${Number(content.amount) / 1000} sats`}
               </Text>
               <Text style={[styles.recurranceText, { color: primaryTextColor }]}>
                 {recurrence?.toLowerCase()}
@@ -134,7 +134,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = ({ request }) => 
             </View>
           ) : (
             <Text style={[styles.amountText, { color: primaryTextColor }]}>
-              {Number(amount) / 1000} sats
+              {content.currency.tag === Currency_Tags.Fiat ? `${Number(content.amount)} ${content.currency.inner}` : `${Number(content.amount) / 1000} sats`}
             </Text>
           )}
         </View>
