@@ -65,11 +65,12 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
   const {
     isWalletConnected: isWalletConnectedState,
     nwcWallet,
-    getConnectionSummary,
     nwcConnectionStatus,
     nwcConnectionError,
-    refreshConnectionStatus,
     refreshNwcConnectionStatus,
+    relayStatuses,
+    allRelaysConnected,
+    connectedCount,
   } = useNostrService();
 
   // Network connectivity detection
@@ -84,16 +85,14 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
   useEffect(() => {
     const handleAppStateChange = (nextAppState: string) => {
       if (nextAppState === 'active') {
-        console.log('🔄 ConnectionStatusIndicator: App became active - refreshing status');
+        console.log('🔄 ConnectionStatusIndicator: App became active - refreshing status (nwc)');
         // Trigger immediate refresh when app becomes active
-        refreshConnectionStatus();
         refreshNwcConnectionStatus();
       }
     };
 
     // Initial immediate refresh on mount
-    console.log('🔄 ConnectionStatusIndicator: Component mounted - refreshing status');
-    refreshConnectionStatus();
+    console.log('🔄 ConnectionStatusIndicator: Component mounted - refreshing status (nwc)');
     refreshNwcConnectionStatus();
 
     // Listen for app state changes
@@ -102,21 +101,15 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
     return () => {
       subscription?.remove();
     };
-  }, [refreshConnectionStatus, refreshNwcConnectionStatus]);
+  }, [refreshNwcConnectionStatus]);
 
   // Handle external refresh triggers (e.g., from homepage focus)
   useEffect(() => {
     if (triggerRefresh !== undefined) {
-      console.log('🔄 ConnectionStatusIndicator: External refresh triggered');
-      refreshConnectionStatus();
+      console.log('🔄 ConnectionStatusIndicator: External refresh triggered (nwc)');
       refreshNwcConnectionStatus();
     }
-  }, [triggerRefresh, refreshConnectionStatus, refreshNwcConnectionStatus]);
-
-  // Memoized relay details from context
-  const relayDetails: ConnectionSummary = useMemo(() => {
-    return getConnectionSummary();
-  }, [getConnectionSummary]);
+  }, [triggerRefresh, refreshNwcConnectionStatus]);
 
   // Memoized wallet status - eliminates redundant effect and state
   const walletStatus = useMemo(() => {
@@ -127,7 +120,7 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
   const overallConnectionStatus: ConnectionStatus = useMemo(() => {
     if (!isOnline) return 'disconnected';
 
-    const statusChecks = [relayDetails.allRelaysConnected];
+    const statusChecks = [allRelaysConnected];
 
     // Only include wallet status if a wallet is actually configured
     if (walletStatus.configured) {
@@ -139,7 +132,7 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
 
     if (connectedCount === totalChecks && totalChecks > 0) return 'connected';
     return 'partial';
-  }, [isOnline, relayDetails.allRelaysConnected, walletStatus]);
+  }, [isOnline, allRelaysConnected, walletStatus]);
 
   // Get status text for pill expansion
   const getStatusDisplayText = (status: ConnectionStatus): string => {
@@ -404,16 +397,13 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
         animationType="fade"
         onRequestClose={() => setModalVisible(false)}
       >
-        <TouchableOpacity
-          style={[styles.modalOverlay, { backgroundColor: overlayBackgroundColor }]}
-          activeOpacity={1}
-          onPress={() => setModalVisible(false)}
-        >
+        <View style={[styles.modalOverlay, { backgroundColor: overlayBackgroundColor }]}>
+          {/* Transparent overlay to close modal when tapping outside content */}
           <TouchableOpacity
-            style={[styles.modalContent, { backgroundColor: cardBackgroundColor }]}
-            activeOpacity={1}
-            onPress={e => e.stopPropagation()}
-          >
+            style={StyleSheet.absoluteFill}
+            onPress={() => setModalVisible(false)}
+          />
+          <View style={[styles.modalContent, { backgroundColor: cardBackgroundColor }]}>
             <View style={styles.modalHeader}>
               <ThemedText style={[styles.modalTitle, { color: textPrimaryColor }]}>
                 Connection Status
@@ -468,11 +458,7 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
                       <View style={[styles.detailIcon, { backgroundColor: surfaceTertiaryColor }]}>
                         <Wifi
                           size={20}
-                          color={
-                            relayDetails.allRelaysConnected
-                              ? statusConnectedColor
-                              : statusConnectingColor
-                          }
+                          color={allRelaysConnected ? statusConnectedColor : statusConnectingColor}
                         />
                       </View>
                       <View style={styles.detailContent}>
@@ -480,24 +466,22 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
                           Relay Connections
                         </ThemedText>
                         <ThemedText style={[styles.detailValue, { color: textPrimaryColor }]}>
-                          {relayDetails.allRelaysConnected ? 'All Connected' : 'Partial'}
+                          {allRelaysConnected ? 'All Connected' : 'Partial'}
                         </ThemedText>
                         <ThemedText
                           style={[styles.detailDescription, { color: textSecondaryColor }]}
                         >
-                          {relayDetails.relays.length > 0
+                          {relayStatuses.length > 0
                             ? (() => {
-                                const connected = relayDetails.relays.filter(
-                                  r => r.connected
-                                ).length;
-                                const total = relayDetails.relays.length;
+                                const connected = relayStatuses.filter(r => r.connected).length;
+                                const total = relayStatuses.length;
                                 return `${connected}/${total} relays connected`;
                               })()
                             : 'Nostr relay connections for messaging'}
                         </ThemedText>
 
                         {/* More Info Toggle */}
-                        {relayDetails.relays.length > 0 && (
+                        {relayStatuses.length > 0 && (
                           <TouchableOpacity
                             style={styles.moreInfoButton}
                             onPress={e => {
@@ -523,15 +507,15 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
                         )}
                       </View>
                       <View style={styles.detailRight}>
-                        {getConnectionIcon(relayDetails.allRelaysConnected)}
+                        {getConnectionIcon(allRelaysConnected)}
                       </View>
                     </TouchableOpacity>
 
                     {/* Expandable Relay Details */}
-                    {showRelayDetails && relayDetails.relays.length > 0 && (
+                    {showRelayDetails && relayStatuses.length > 0 && (
                       <View style={styles.expandedRelayDetails}>
                         <View style={styles.compactRelayGrid}>
-                          {relayDetails.relays
+                          {relayStatuses
                             .slice() // Create a copy to avoid mutating original array
                             .sort((a, b) => a.url.localeCompare(b.url)) // Sort by URL for consistent order
                             .map((relay: RelayInfo) => {
@@ -653,8 +637,8 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
                 </>
               )}
             </ScrollView>
-          </TouchableOpacity>
-        </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
     </>
   );

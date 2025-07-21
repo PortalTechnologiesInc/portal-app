@@ -14,7 +14,16 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, ChevronRight, Fingerprint, Shield, X, Check, Wallet, Wifi } from 'lucide-react-native';
+import {
+  ArrowLeft,
+  ChevronRight,
+  Fingerprint,
+  Shield,
+  X,
+  Check,
+  Wallet,
+  Wifi,
+} from 'lucide-react-native';
 import { Moon, Sun, Smartphone } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useOnboarding } from '@/context/OnboardingContext';
@@ -23,6 +32,7 @@ import {
   walletUrlEvents,
   deleteMnemonic,
   getMnemonic,
+  getWalletUrl,
 } from '@/services/SecureStorageService';
 import { resetDatabase } from '@/services/database/DatabaseProvider';
 import { useNostrService } from '@/context/NostrServiceContext';
@@ -38,16 +48,17 @@ export default function SettingsScreen() {
   const { resetOnboarding } = useOnboarding();
   const nostrService = useNostrService();
   const { themeMode, setThemeMode } = useTheme();
-  const { 
-    preferredCurrency, 
-    setPreferredCurrency, 
+  const {
+    preferredCurrency,
+    setPreferredCurrency,
     getCurrentCurrencyDisplayName,
-    getCurrentCurrencySymbol 
+    getCurrentCurrencySymbol,
   } = useCurrency();
   const [isWalletConnectedState, setIsWalletConnectedState] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isCurrencyModalVisible, setIsCurrencyModalVisible] = useState(false);
+  const [walletUrl, setWalletUrl] = useState('');
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -62,12 +73,14 @@ export default function SettingsScreen() {
   const statusConnectedColor = useThemeColor({}, 'statusConnected');
 
   // Get real NWC connection status
-  const { nwcConnectionStatus } = nostrService;
+  const { nwcConnectionStatus, nwcConnectionError } = nostrService;
 
   // Initialize wallet connection status
   useEffect(() => {
     const checkWalletConnection = async () => {
       try {
+        const url = await getWalletUrl();
+        setWalletUrl(url);
         const walletConnected = await isWalletConnected();
         // Use real NWC connection status if available, otherwise fall back to URL existence
         const realConnectionStatus =
@@ -87,6 +100,7 @@ export default function SettingsScreen() {
 
     // Subscribe to wallet URL changes
     const subscription = walletUrlEvents.addListener('walletUrlChanged', async newUrl => {
+      setWalletUrl(newUrl || '');
       setIsWalletConnectedState(Boolean(newUrl?.trim()));
     });
 
@@ -169,7 +183,6 @@ export default function SettingsScreen() {
     setRefreshing(true);
     try {
       // Refresh connection status for both relays and NWC wallet
-      await nostrService.refreshConnectionStatus();
       await nostrService.refreshNwcConnectionStatus();
     } catch (error) {
       console.error('Error refreshing connection status:', error);
@@ -208,6 +221,18 @@ export default function SettingsScreen() {
       ]
     );
   };
+
+  function getWalletStatusText() {
+    if (!walletUrl || !walletUrl.trim()) return 'Not configured';
+    if (nwcConnectionStatus === true) return 'Connected';
+    if (nwcConnectionStatus === false) {
+      return nostrService.nwcConnectionError
+        ? `Error: ${nostrService.nwcConnectionError}`
+        : 'Disconnected';
+    }
+    if (nwcConnectionStatus === null) return 'Connecting...';
+    return 'Unknown';
+  }
 
   if (isLoading) {
     return (
@@ -255,9 +280,7 @@ export default function SettingsScreen() {
             </ThemedText>
           </View>
         </View>
-        {preferredCurrency === item && (
-          <Check size={20} color={statusConnectedColor} />
-        )}
+        {preferredCurrency === item && <Check size={20} color={statusConnectedColor} />}
       </View>
     </TouchableOpacity>
   );
@@ -315,12 +338,18 @@ export default function SettingsScreen() {
                         </ThemedText>
                         <View style={styles.cardStatusRow}>
                           <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
-                            {isWalletConnectedState ? 'Connected' : 'Not connected'}
+                            {getWalletStatusText()}
                           </ThemedText>
-                          <View style={[
-                            styles.statusIndicator, 
-                            { backgroundColor: isWalletConnectedState ? statusConnectedColor : secondaryTextColor }
-                          ]} />
+                          <View
+                            style={[
+                              styles.statusIndicator,
+                              {
+                                backgroundColor: isWalletConnectedState
+                                  ? statusConnectedColor
+                                  : secondaryTextColor,
+                              },
+                            ]}
+                          />
                         </View>
                       </View>
                     </View>
@@ -548,7 +577,7 @@ export default function SettingsScreen() {
           <TouchableOpacity
             style={[styles.modalContent, { backgroundColor: backgroundColor }]}
             activeOpacity={1}
-            onPress={(e) => e.stopPropagation()}
+            onPress={e => e.stopPropagation()}
           >
             <View style={styles.modalHeader}>
               <ThemedText style={[styles.modalTitle, { color: primaryTextColor }]}>
@@ -565,7 +594,7 @@ export default function SettingsScreen() {
               <FlatList
                 data={currencies}
                 renderItem={renderCurrencyItem}
-                keyExtractor={(item) => item}
+                keyExtractor={item => item}
                 style={styles.currencyList}
                 showsVerticalScrollIndicator={false}
               />

@@ -38,7 +38,6 @@ function isWebsocketUri(uri: string): boolean {
 
 export default function NostrRelayManagementScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams();
   const [everyPopularRelayList, setEveryRelayList] = useState<string[]>([]);
   const [selectedRelays, setSelectedRelays] = useState<string[]>([]);
   const [customRelayTextFieldValue, setCustomRelayTextFieldValue] = useState<string>('');
@@ -138,9 +137,7 @@ export default function NostrRelayManagementScreen() {
 
     try {
       await Promise.all([...promises, DB.updateRelays(newlySelectedRelays)]);
-
-      // Refresh connection status to show updated relays
-      await nostrService.refreshConnectionStatus();
+      setActiveRelaysList(newlySelectedRelays);
     } catch (error) {
       console.error(error);
     }

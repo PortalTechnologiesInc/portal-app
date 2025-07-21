@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
 import {
   StyleSheet,
   View,
@@ -31,7 +30,15 @@ const FIRST_LAUNCH_KEY = 'portal_first_launch_completed';
 
 export default function Home() {
   const { isLoading } = useOnboarding();
-  const { username, displayName, avatarUri, avatarRefreshKey, fetchProfile, syncStatus, setUsername } = useUserProfile();
+  const {
+    username,
+    displayName,
+    avatarUri,
+    avatarRefreshKey,
+    fetchProfile,
+    syncStatus,
+    setUsername,
+  } = useUserProfile();
   const nostrService = useNostrService();
   const [isFirstLaunch, setIsFirstLaunch] = useState<boolean | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -41,10 +48,7 @@ export default function Home() {
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');
-  const primaryTextColor = useThemeColor({}, 'textPrimary');
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
-  const iconColor = useThemeColor({}, 'icon');
-  const statusConnectedColor = useThemeColor({}, 'statusConnected');
   const surfaceSecondaryColor = useThemeColor({}, 'surfaceSecondary');
   const buttonPrimaryColor = useThemeColor({}, 'buttonPrimary');
   const buttonPrimaryTextColor = useThemeColor({}, 'buttonPrimaryText');
@@ -73,41 +77,6 @@ export default function Home() {
     };
   }, []);
 
-  // Periodic connection status monitoring (only when homepage is focused)
-  useFocusEffect(
-    useCallback(() => {
-      console.log('🏠 Entered Homepage: Starting connection monitoring');
-
-      // Trigger immediate ConnectionStatusIndicator update
-      setRefreshTrigger(prev => prev + 1);
-
-      // Stable reference to the service
-      const { refreshConnectionStatus } = nostrService;
-
-      // Initial fetch when entering homepage - trigger immediately with shorter delay
-      const initialCheck = () => {
-        refreshConnectionStatus();
-        // Remove NWC polling from homepage - let context handle it
-      };
-
-      // Immediate check
-      initialCheck();
-
-      // Set up periodic refresh for relay connection status only
-      const interval = setInterval(() => {
-        if (isMounted.current) {
-          refreshConnectionStatus();
-          // Remove NWC polling from homepage - let context handle it
-        }
-      }, 5000); // Only relay status polling
-
-      return () => {
-        console.log('🏠 Left Homepage: Stopping connection monitoring');
-        clearInterval(interval);
-      };
-    }, []) // Empty dependency array - only run on focus/blur
-  );
-
   useEffect(() => {
     setUserPublicKey(nostrService.publicKey || '');
 
@@ -133,9 +102,8 @@ export default function Home() {
     setRefreshing(true);
     try {
       // Refresh connection status for both relays and NWC wallet
-      await nostrService.refreshConnectionStatus();
       await nostrService.refreshNwcConnectionStatus();
-      
+
       // Trigger ConnectionStatusIndicator update
       setRefreshTrigger(prev => prev + 1);
     } catch (error) {
@@ -211,25 +179,28 @@ export default function Home() {
   }, [displayName, username]);
 
   // Memoize handlers to prevent recreation on every render
-  const handleScan = useCallback((scanType: 'nfc' | 'qr') => {
-    // Determine the navigation path based on scan type
-    const pathname = scanType === 'nfc' ? '/nfc' : '/qr';
-    
-    // Using 'modal' navigation to ensure cleaner navigation history
-    router.push({
-      pathname,
-      params: {
-        source: 'homepage',
-        scanType, // Pass the scan type to the destination
-        timestamp: Date.now(), // Prevent caching issues
-      },
-    });
+  const handleScan = useCallback(
+    (scanType: 'nfc' | 'qr') => {
+      // Determine the navigation path based on scan type
+      const pathname = scanType === 'nfc' ? '/nfc' : '/qr';
 
-    // Mark welcome as viewed when user interacts with scan buttons
-    if (isFirstLaunch) {
-      markWelcomeAsViewed();
-    }
-  }, [isFirstLaunch, markWelcomeAsViewed]);
+      // Using 'modal' navigation to ensure cleaner navigation history
+      router.push({
+        pathname,
+        params: {
+          source: 'homepage',
+          scanType, // Pass the scan type to the destination
+          timestamp: Date.now(), // Prevent caching issues
+        },
+      });
+
+      // Mark welcome as viewed when user interacts with scan buttons
+      if (isFirstLaunch) {
+        markWelcomeAsViewed();
+      }
+    },
+    [isFirstLaunch, markWelcomeAsViewed]
+  );
 
   // Legacy handler for backward compatibility
   const handleQrScan = useCallback(() => {
@@ -278,7 +249,9 @@ export default function Home() {
                   >
                     {username ? (
                       <>
-                        Welcome back, <ThemedText style={styles.welcomeNameBold}>{welcomeDisplayName}</ThemedText> 👋
+                        Welcome back,{' '}
+                        <ThemedText style={styles.welcomeNameBold}>{welcomeDisplayName}</ThemedText>{' '}
+                        👋
                       </>
                     ) : (
                       'Welcome back 👋'
@@ -292,8 +265,8 @@ export default function Home() {
                     style={[styles.avatarContainer, { backgroundColor: surfaceSecondaryColor }]}
                   >
                     {avatarUri ? (
-                      <Image 
-                        source={{ uri: formatAvatarUri(avatarUri, avatarRefreshKey) || '' }} 
+                      <Image
+                        source={{ uri: formatAvatarUri(avatarUri, avatarRefreshKey) || '' }}
                         style={styles.avatar}
                       />
                     ) : (
@@ -335,7 +308,9 @@ export default function Home() {
                     onPress={() => handleScan('nfc')}
                   >
                     <Nfc size={24} color={buttonPrimaryTextColor} />
-                    <ThemedText style={[styles.nfcText, { color: buttonPrimaryTextColor }]}>Contactless</ThemedText>
+                    <ThemedText style={[styles.nfcText, { color: buttonPrimaryTextColor }]}>
+                      Contactless
+                    </ThemedText>
                   </TouchableOpacity>
                 </View>
                 <View style={styles.buttonContainer}>
@@ -344,7 +319,9 @@ export default function Home() {
                     onPress={() => handleScan('qr')}
                   >
                     <QrCode size={24} color={buttonPrimaryTextColor} />
-                    <ThemedText style={[styles.qrText, { color: buttonPrimaryTextColor }]}>Scan QR</ThemedText>
+                    <ThemedText style={[styles.qrText, { color: buttonPrimaryTextColor }]}>
+                      Scan QR
+                    </ThemedText>
                   </TouchableOpacity>
                 </View>
               </View>
