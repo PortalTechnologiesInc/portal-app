@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { CashuWallet, CashuLocalStore, ProofInfo, CashuWalletInterface, Mnemonic } from 'portal-app-lib';
 import { useSQLiteContext } from 'expo-sqlite';
 import { DatabaseService } from '@/services/database';
@@ -15,11 +15,11 @@ interface ECashContextType {
   // Wallet management
   wallets: { [key: string]: CashuWalletInterface };
   isLoading: boolean;
-  
+
   // Wallet operations
   addWallet: (mintUrl: string, unit: string) => Promise<CashuWalletInterface>;
   removeWallet: (mintUrl: string, unit: string) => Promise<void>;
-  
+
   // Utility functions
   getWallet: (mintUrl: string, unit: string) => CashuWalletInterface | null;
 }
@@ -32,6 +32,25 @@ export function ECashProvider({ children, mnemonic }: { children: ReactNode, mne
 
   const sqliteContext = useSQLiteContext();
   const DB = new DatabaseService(sqliteContext);
+
+  useEffect(() => {
+    const fetchWallets = async () => {
+      setIsLoading(true);
+      try {
+        const pairList = await DB.getMintUnitPairs();
+        pairList.forEach(
+          ([mintUrl, unit]) => {
+            addWallet(mintUrl, unit);
+          }
+        )
+      } catch (e) {
+        console.error(e);
+      }
+      setIsLoading(false);
+    }
+
+    fetchWallets();
+  }, []);
 
   // Add a new wallet
   const addWallet = async (mintUrl: string, unit: string): Promise<CashuWalletInterface> => {
@@ -96,7 +115,7 @@ export function useECash() {
     throw new Error('useECash must be used within an ECashProvider');
   }
   return context;
-} 
+}
 
 class CashuStorage implements CashuLocalStore {
     constructor(private db: DatabaseService) {}

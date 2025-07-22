@@ -19,6 +19,7 @@ import {
   ClosedRecurringPaymentListener,
   RelayStatusListener,
   RelayStatusListenerImpl,
+  parseCashuToken,
 } from 'portal-app-lib';
 import { DatabaseService } from '@/services/database';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -32,6 +33,7 @@ import type {
   WalletInfoState
 } from '@/utils/types';
 import { useActivities } from './ActivitiesContext';
+import { useECash } from './ECashContext';
 
 // Constants and helper classes from original NostrService
 const DEFAULT_RELAYS = [
@@ -267,6 +269,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   const refreshConnectionStatusRef = useRef<(() => Promise<void>) | null>(null);
   const refreshNwcConnectionStatusRef = useRef<(() => Promise<void>) | null>(null);
 
+  const eCashContext = useECash();
   const sqliteContext = useSQLiteContext();
   const DB = new DatabaseService(sqliteContext);
 
@@ -309,6 +312,36 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         // Start listening and give it a moment to establish connections
         app.listen({ signal: abortController.signal });
         console.log('PortalApp listening started...');
+
+        // app
+        //   .listenForCashuToken((
+        //     token: string
+        //   ) => {
+
+        //     const x = await parseCashuToken(token);
+        //     const wallet = eCashContext.getWallet(x.mintUrl, x.unit)
+        //     wallet.receive(token);
+
+        //   }).catch(e) {
+
+        //   }
+        // );
+
+        /**
+         * these logic go inside the new listeners that will be implemented
+         */
+        const tokenStr = 'cashuBo2FteBlodHRwczovL21pbnQuZ2V0cG9ydGFsLmNjYXVlbXVsdGlhdIGiYWlIAH58JaybAGdhcIGkYWEEYXN4QGE3OGEyMDAwZjI3OTg2ZTQ3MmFiNDk2MmZmNzdjZmQ5NzZhMmRjYjhkNmQ1YWQ3ZGQ1NmY1YTdjYzRkNTg2OWFhY1ghAkx6L9jPV_5_YUoaMwoKvdC9b0sw7QiRmvAdv5t0K6IVYWSjYWVYID0EkhIa1M_VW1IJfBoHB2rFOI2GH3PWwvABfEo5kvw_YXNYIMPmgJtkTra0p_-aB6uwEpfIMBvS9Us-5piWyM1RtE57YXJYIGZrKzJ2dFHxdTXtwFPc5gdpkUXTSJXy_332eW-MVauK';
+        const tokenInfo = await parseCashuToken(tokenStr);
+        const wallet = await eCashContext.addWallet(tokenInfo.mintUrl, tokenInfo.unit);
+        try {
+          await wallet.receiveToken(tokenStr);
+        } catch(e: any) {
+          console.error(e.inner);
+        }
+        // end
+
+
+
 
         app
           .listenForAuthChallenge(
@@ -825,15 +858,15 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
       return;
     }
 
-          console.log('Force reconnecting to relays...');
+    console.log('Force reconnecting to relays...');
 
     try {
       // Only refresh connection status, don't trigger recursive calls
       await refreshConnectionStatus();
 
-              console.log('Force reconnect initiated');
+      console.log('Force reconnect initiated');
     } catch (error: any) {
-              console.error('Error during force reconnect:', error.inner);
+      console.error('Error during force reconnect:', error.inner);
     }
   }, [portalApp, refreshConnectionStatus]);
 

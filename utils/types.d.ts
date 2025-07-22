@@ -127,21 +127,15 @@ export interface UpcomingPayment {
 /**
  * Ticket information for events and services
  */
-export interface Ticket {
+type Ticket = {
   id: string;
   title: string;
-  description: string;
-  serviceName: string;
-  eventDate: Date;
-  status: 'active' | 'used' | 'expired' | 'cancelled';
-  ticketType: 'event' | 'service' | 'access';
-  price?: number;
-  currency?: string;
-  location?: string;
-  qrCode?: string;
-  createdAt: Date;
-  imageUrl?: any; // React Native ImageSourcePropType
-}
+  description?: string;
+  isNonFungible?: boolean | undefined;
+  mintUrl: string;
+  balance: bigint;
+};
+
 
 /**
  * Pending request for user approval

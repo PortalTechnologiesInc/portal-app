@@ -125,8 +125,8 @@ const AuthenticatedAppContent = () => {
   }
 
   return (
-    <NostrServiceProvider mnemonic={mnemonic || ''} walletUrl={walletUrl}>
-      <ECashProvider mnemonic={mnemonic || ''}>
+    <ECashProvider mnemonic={mnemonic || ''}>
+      <NostrServiceProvider mnemonic={mnemonic || ''} walletUrl={walletUrl}>
         <UserProfileProvider>
           <ActivitiesProvider>
             <PendingRequestsProvider>
@@ -137,8 +137,8 @@ const AuthenticatedAppContent = () => {
             </PendingRequestsProvider>
           </ActivitiesProvider>
         </UserProfileProvider>
-      </ECashProvider>
-    </NostrServiceProvider>
+      </NostrServiceProvider>
+    </ECashProvider>
   );
 };
 

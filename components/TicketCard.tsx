@@ -2,21 +2,20 @@ import React from 'react';
 import { View, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { Ticket } from '@/utils/types';
-import { formatDayAndDate } from '@/utils';
+import { formatDayAndDate, Ticket } from '@/utils';
 
-const getTicketTypeIcon = (type: Ticket['ticketType']) => {
-  switch (type) {
-    case 'event':
-      return '🎫';
-    case 'service':
-      return '🔧';
-    case 'access':
-      return '🔓';
-    default:
-      return '🎫';
-  }
-};
+// const getTicketTypeIcon = (type: Ticket['ticketType']) => {
+//   switch (type) {
+//     case 'event':
+//       return '🎫';
+//     case 'service':
+//       return '🔧';
+//     case 'access':
+//       return '🔓';
+//     default:
+//       return '🎫';
+//   }
+// };
 
 const TicketCard: React.FC<{
   ticket: Ticket;
@@ -38,7 +37,8 @@ const TicketCard: React.FC<{
         <TouchableOpacity style={styles.touchableArea} activeOpacity={0.8} onPress={onPress}>
           <View style={styles.detailBackgroundImage}>
             <Image
-              source={ticket.imageUrl || require('@/assets/images/ticketCoverMockup.png')}
+              // source={ticket.imageUrl || require('@/assets/images/ticketCoverMockup.png')}
+              source={require('@/assets/images/ticketCoverMockup.png')}
               style={styles.coverImage}
               resizeMode="cover"
             />
@@ -53,28 +53,28 @@ const TicketCard: React.FC<{
                   {ticket.title}
                 </ThemedText>
                 <ThemedText style={styles.ticketTypeIcon}>
-                  {getTicketTypeIcon(ticket.ticketType)}
+                  {/* {getTicketTypeIcon(ticket.ticketType)} */}
                 </ThemedText>
               </View>
-              <ThemedText style={[styles.serviceName, { color: secondaryTextColor }]}>
+              {/* <ThemedText style={[styles.serviceName, { color: secondaryTextColor }]}>
                 {ticket.serviceName}
-              </ThemedText>
+              </ThemedText> */}
               <ThemedText style={[styles.description, { color: secondaryTextColor }]}>
                 {ticket.description}
               </ThemedText>
               <View style={styles.dateLocationRow}>
                 <View style={styles.dateLocationItem}>
                   <ThemedText style={[styles.dateLocationLabel, { color: secondaryTextColor }]}>
-                    {formatDayAndDate(ticket.eventDate)}
+                    {/* {formatDayAndDate(ticket.eventDate)} */}
                   </ThemedText>
                 </View>
-                {ticket.location && (
+                {/* {ticket.location && (
                   <View style={styles.dateLocationItem}>
                     <ThemedText style={[styles.dateLocationLabel, { color: secondaryTextColor }]}>
                       📍 {ticket.location}
                     </ThemedText>
                   </View>
-                )}
+                )} */}
               </View>
             </View>
           </View>
@@ -99,7 +99,8 @@ const TicketCard: React.FC<{
       <TouchableOpacity style={styles.touchableArea} activeOpacity={0.8} onPress={onPress}>
         <View style={styles.coverContainer}>
           <Image
-            source={ticket.imageUrl || require('@/assets/images/ticketCoverMockup.png')}
+            // source={ticket.imageUrl || require('@/assets/images/ticketCoverMockup.png')}
+            source={require('@/assets/images/ticketCoverMockup.png')}
             style={styles.coverImage}
             resizeMode="cover"
           />

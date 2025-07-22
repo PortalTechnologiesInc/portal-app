@@ -2,7 +2,6 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import type { ActivityType, UpcomingPayment } from '@/utils/types';
 import type { Currency } from '@/utils/currency';
 import uuid from 'react-native-uuid';
-import { State } from 'react-native-gesture-handler';
 
 // Timestamp utilities
 export const toUnixSeconds = (date: Date | number): number => {
@@ -830,5 +829,11 @@ export class DatabaseService {
       console.error('[DatabaseService] Error getting mint keysets:', error);
       return undefined;
     }
+  }
+
+  async getMintUnitPairs(): Promise<[string, string][]> {
+    const query = 'SELECT DISTINCT mint_url, unit FROM cashu_proofs';
+    const rows = await this.db.getAllAsync<{ mint_url: string; unit: string }>(query);
+    return rows.map(row => [row.mint_url, row.unit]);
   }
 }
