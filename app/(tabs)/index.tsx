@@ -385,7 +385,7 @@ export default function Home() {
 
                 <View style={styles.scanQrContainer}>
                   <TouchableOpacity
-                    style={[styles.scanQrButton, { backgroundColor: buttonSuccessColor }]}
+                    style={[styles.scanQrButton, { backgroundColor: buttonPrimaryColor }]}
                     onPress={handleQrScan}
                   >
                     <QrCode size={24} color={buttonSuccessTextColor} style={styles.qrIcon} />
