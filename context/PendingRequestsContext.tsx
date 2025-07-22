@@ -20,12 +20,13 @@ import type { ActivityWithDates, SubscriptionWithDates } from '@/services/databa
 import { useDatabaseStatus } from '@/services/database/DatabaseProvider';
 import { useActivities } from '@/context/ActivitiesContext';
 import { useNostrService } from '@/context/NostrServiceContext';
-import type { 
-  PendingRequest, 
-  PendingRequestType, 
-  PendingActivity, 
-  PendingSubscription 
+import type {
+  PendingRequest,
+  PendingRequestType,
+  PendingActivity,
+  PendingSubscription,
 } from '@/utils/types';
+import { Keypair } from 'portal-app-lib';
 
 // Helper function to get service name with fallback
 const getServiceNameWithFallback = async (
@@ -274,7 +275,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             console.error('Error paying invoice:', error);
             request.result({
               status: new PaymentStatus.Failed({
-                reason: 'Payment failed'
+                reason: 'Payment failed',
               }),
               requestId: paymentRequest.content.requestId,
             });
@@ -325,31 +326,37 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
       }
 
       nostrService.dismissPendingRequest(id);
-      db?.storePendingRequest(id, true)
+      db?.storePendingRequest(id, true);
 
       switch (request.type) {
         case 'login':
           // Create AuthResponseStatus for approved login using type assertion
           const approvedAuthResponse = new AuthResponseStatus.Approved({
             grantedPermissions: [],
-            sessionToken: 'randomsessiontoken', // TODO: generate a real session token
+            sessionToken: nostrService.issueJWT!(
+              (request.metadata as SinglePaymentRequest).serviceKey,
+              168n
+            ),
           });
           request.result(approvedAuthResponse);
 
           // Add an activity record directly via the database service
-          getServiceNameWithFallback(nostrService, (request.metadata as SinglePaymentRequest).serviceKey).then(serviceName => {
-              addActivityWithFallback({
-                type: 'auth',
-                service_key: (request.metadata as SinglePaymentRequest).serviceKey,
-                detail: 'User approved login',
-                date: new Date(),
-                service_name: serviceName,
-                amount: null,
-                currency: null,
-                request_id: id,
-                subscription_id: null,
-              });
+          getServiceNameWithFallback(
+            nostrService,
+            (request.metadata as SinglePaymentRequest).serviceKey
+          ).then(serviceName => {
+            addActivityWithFallback({
+              type: 'auth',
+              service_key: (request.metadata as SinglePaymentRequest).serviceKey,
+              detail: 'User approved login',
+              date: new Date(),
+              service_name: serviceName,
+              amount: null,
+              currency: null,
+              request_id: id,
+              subscription_id: null,
             });
+          });
           break;
         case 'payment':
           request.result({
@@ -376,7 +383,10 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               }
             }
 
-            getServiceNameWithFallback(nostrService, (request.metadata as SinglePaymentRequest).serviceKey).then(serviceName => {
+            getServiceNameWithFallback(
+              nostrService,
+              (request.metadata as SinglePaymentRequest).serviceKey
+            ).then(serviceName => {
               addActivityWithFallback({
                 type: 'pay',
                 service_key: (request.metadata as SinglePaymentRequest).serviceKey,
@@ -407,7 +417,10 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             // Extract currency symbol from the Currency object
             const currencyObj = req.content.currency;
 
-            getServiceNameWithFallback(nostrService, (request.metadata as RecurringPaymentRequest).serviceKey)
+            getServiceNameWithFallback(
+              nostrService,
+              (request.metadata as RecurringPaymentRequest).serviceKey
+            )
               .then(serviceName => {
                 return addSubscriptionWithFallback({
                   request_id: id,
@@ -460,7 +473,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
       }
 
       nostrService.dismissPendingRequest(id);
-      db?.storePendingRequest(id, false)
+      db?.storePendingRequest(id, false);
 
       switch (request?.type) {
         case 'login':
@@ -471,7 +484,10 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           request.result(deniedAuthResponse);
 
           // Add denied login activity to database
-          getServiceNameWithFallback(nostrService, (request.metadata as SinglePaymentRequest).serviceKey).then(serviceName => {
+          getServiceNameWithFallback(
+            nostrService,
+            (request.metadata as SinglePaymentRequest).serviceKey
+          ).then(serviceName => {
             addActivityWithFallback({
               type: 'auth',
               service_key: (request.metadata as SinglePaymentRequest).serviceKey,
@@ -511,7 +527,10 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               }
             }
 
-            getServiceNameWithFallback(nostrService, (request.metadata as SinglePaymentRequest).serviceKey).then(serviceName => {
+            getServiceNameWithFallback(
+              nostrService,
+              (request.metadata as SinglePaymentRequest).serviceKey
+            ).then(serviceName => {
               addActivityWithFallback({
                 type: 'pay',
                 service_key: (request.metadata as SinglePaymentRequest).serviceKey,
@@ -556,7 +575,10 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               }
             }
 
-            getServiceNameWithFallback(nostrService, (request.metadata as RecurringPaymentRequest).serviceKey).then(serviceName => {
+            getServiceNameWithFallback(
+              nostrService,
+              (request.metadata as RecurringPaymentRequest).serviceKey
+            ).then(serviceName => {
               addActivityWithFallback({
                 type: 'pay',
                 service_key: (request.metadata as RecurringPaymentRequest).serviceKey,
@@ -609,8 +631,6 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
     setIsLoadingRequest(false);
     setRequestFailed(false);
   }, [timeoutId]);
-
-
 
   // Check for expected pending requests and clear skeleton loader
   useEffect(() => {

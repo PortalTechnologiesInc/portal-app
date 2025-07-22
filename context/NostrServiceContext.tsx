@@ -18,6 +18,8 @@ import {
   CloseRecurringPaymentResponse,
   ClosedRecurringPaymentListener,
   RelayStatusListener,
+  Keypair,
+  KeypairInterface,
 } from 'portal-app-lib';
 import { DatabaseService } from '@/services/database';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -127,6 +129,7 @@ interface NostrServiceContextType {
   closeRecurringPayment: (pubkey: string, subscriptionId: string) => Promise<void>;
   allRelaysConnected: boolean;
   connectedCount: number;
+  issueJWT: ((targetKey: string, expiresInHours: bigint) => string) | undefined;
 
   // Connection management functions
   startPeriodicMonitoring: () => void;
@@ -250,6 +253,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     lastUpdated: null,
   });
   const [relayStatuses, setRelayStatuses] = useState<RelayInfo[]>([]);
+  const [keypair, setKeypair] = useState<KeypairInterface | null>(null);
 
   class LocalRelayStatusListener implements RelayStatusListener {
     onRelayStatusChange(relay_url: string, status: number): Promise<void> {
@@ -312,6 +316,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         // Create Mnemonic object
         const mnemonicObj = new Mnemonic(mnemonic);
         const keypair = mnemonicObj.getKeypair();
+        setKeypair(keypair);
         const publicKeyStr = keypair.publicKey().toString();
 
         // Set public key
@@ -953,6 +958,10 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     }
   }, [nwcWallet, nwcConnectionStatus, refreshWalletInfo]);
 
+  const issueJWT = (targetKey: string, expiresInHours: bigint) => {
+    return keypair!.issueJwt(targetKey, expiresInHours);
+  };
+
   /* useEffect(() => {
     class Logger implements LogCallback {
       log(entry: LogEntry) {
@@ -1013,6 +1022,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     relayStatuses,
     allRelaysConnected,
     connectedCount,
+    issueJWT,
   };
 
   return (
