@@ -288,8 +288,8 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   const [keypair, setKeypair] = useState<KeypairInterface | null>(null);
   const [reinitKey, setReinitKey] = useState(0);
 
-  // Dedup system for Cashu direct tokens
-  const processedCashuTokens = useRef<Set<string>>(new Set());
+  // Remove the in-memory deduplication system
+  // const processedCashuTokens = useRef<Set<string>>(new Set());
 
   class LocalRelayStatusListener implements RelayStatusListener {
     onRelayStatusChange(relay_url: string, status: number): Promise<void> {
@@ -394,17 +394,23 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                 const token = event.inner.token;
 
                 // Check if we've already processed this token
-                if (processedCashuTokens.current.has(token)) {
+                const isProcessed = await DB.isCashuTokenProcessed(token);
+                if (isProcessed) {
                   console.log('Cashu token already processed, skipping');
                   return;
                 }
 
-                // Add token to processed set
-                processedCashuTokens.current.add(token);
-
                 const tokenInfo = await parseCashuToken(token);
                 const wallet = await eCashContext.addWallet(tokenInfo.mintUrl, tokenInfo.unit);
                 await wallet.receiveToken(token);
+
+                // Mark token as processed after successful processing
+                await DB.markCashuTokenAsProcessed(
+                  token,
+                  tokenInfo.mintUrl,
+                  tokenInfo.unit,
+                  tokenInfo.amount ? Number(tokenInfo.amount) : 0
+                );
 
                 console.log('Cashu token processed successfully');
 

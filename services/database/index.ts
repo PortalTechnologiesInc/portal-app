@@ -881,4 +881,140 @@ export class DatabaseService {
     const rows = await this.db.getAllAsync<{ mint_url: string; unit: string }>(query);
     return rows.map(row => [row.mint_url, row.unit]);
   }
+
+  // Cashu token deduplication methods
+  async isCashuTokenProcessed(tokenHash: string): Promise<boolean> {
+    try {
+      // Check if table exists first
+      const tableExists = await this.db.getFirstAsync<{ name: string }>(
+        `SELECT name FROM sqlite_master WHERE type='table' AND name='processed_cashu_tokens'`
+      );
+
+      if (!tableExists) {
+        // Table doesn't exist, create it
+        await this.db.execAsync(`
+          CREATE TABLE processed_cashu_tokens (
+            token_hash TEXT PRIMARY KEY NOT NULL,
+            mint_url TEXT NOT NULL,
+            unit TEXT NOT NULL,
+            amount INTEGER NOT NULL,
+            processed_at INTEGER NOT NULL -- Unix timestamp
+          );
+          
+          -- Create index for faster lookups
+          CREATE INDEX idx_processed_cashu_tokens_hash ON processed_cashu_tokens(token_hash);
+          CREATE INDEX idx_processed_cashu_tokens_mint ON processed_cashu_tokens(mint_url);
+        `);
+      } else {
+        // Table exists, check if it has the right schema
+        const tableInfo = await this.db.getAllAsync<{ name: string; type: string }>(
+          `PRAGMA table_info(processed_cashu_tokens)`
+        );
+
+        // If table doesn't have the right columns, recreate it
+        const hasMintUrl = tableInfo.some(col => col.name === 'mint_url');
+        const hasUnit = tableInfo.some(col => col.name === 'unit');
+        const hasAmount = tableInfo.some(col => col.name === 'amount');
+        const hasProcessedAt = tableInfo.some(col => col.name === 'processed_at');
+
+        if (!hasMintUrl || !hasUnit || !hasAmount || !hasProcessedAt) {
+          // Drop and recreate table with correct schema
+          await this.db.execAsync(`DROP TABLE IF EXISTS processed_cashu_tokens`);
+          await this.db.execAsync(`
+            CREATE TABLE processed_cashu_tokens (
+              token_hash TEXT PRIMARY KEY NOT NULL,
+              mint_url TEXT NOT NULL,
+              unit TEXT NOT NULL,
+              amount INTEGER NOT NULL,
+              processed_at INTEGER NOT NULL -- Unix timestamp
+            );
+            
+            -- Create index for faster lookups
+            CREATE INDEX idx_processed_cashu_tokens_hash ON processed_cashu_tokens(token_hash);
+            CREATE INDEX idx_processed_cashu_tokens_mint ON processed_cashu_tokens(mint_url);
+          `);
+        }
+      }
+
+      const record = await this.db.getFirstAsync<{ token_hash: string }>(
+        `SELECT token_hash FROM processed_cashu_tokens WHERE token_hash = ?`,
+        [tokenHash]
+      );
+      return record ? true : false;
+    } catch (error) {
+      console.error('Error checking if Cashu token is processed:', error);
+      return false; // Assume not processed if we can't check
+    }
+  }
+
+  async markCashuTokenAsProcessed(
+    tokenHash: string,
+    mintUrl: string,
+    unit: string,
+    amount: number
+  ): Promise<void> {
+    try {
+      // Check if table exists first
+      const tableExists = await this.db.getFirstAsync<{ name: string }>(
+        `SELECT name FROM sqlite_master WHERE type='table' AND name='processed_cashu_tokens'`
+      );
+
+      if (!tableExists) {
+        // Table doesn't exist, create it
+        await this.db.execAsync(`
+          CREATE TABLE processed_cashu_tokens (
+            token_hash TEXT PRIMARY KEY NOT NULL,
+            mint_url TEXT NOT NULL,
+            unit TEXT NOT NULL,
+            amount INTEGER NOT NULL,
+            processed_at INTEGER NOT NULL -- Unix timestamp
+          );
+          
+          -- Create index for faster lookups
+          CREATE INDEX idx_processed_cashu_tokens_hash ON processed_cashu_tokens(token_hash);
+          CREATE INDEX idx_processed_cashu_tokens_mint ON processed_cashu_tokens(mint_url);
+        `);
+      } else {
+        // Table exists, check if it has the right schema
+        const tableInfo = await this.db.getAllAsync<{ name: string; type: string }>(
+          `PRAGMA table_info(processed_cashu_tokens)`
+        );
+
+        // If table doesn't have the right columns, recreate it
+        const hasMintUrl = tableInfo.some(col => col.name === 'mint_url');
+        const hasUnit = tableInfo.some(col => col.name === 'unit');
+        const hasAmount = tableInfo.some(col => col.name === 'amount');
+        const hasProcessedAt = tableInfo.some(col => col.name === 'processed_at');
+
+        if (!hasMintUrl || !hasUnit || !hasAmount || !hasProcessedAt) {
+          // Drop and recreate table with correct schema
+          await this.db.execAsync(`DROP TABLE IF EXISTS processed_cashu_tokens`);
+          await this.db.execAsync(`
+            CREATE TABLE processed_cashu_tokens (
+              token_hash TEXT PRIMARY KEY NOT NULL,
+              mint_url TEXT NOT NULL,
+              unit TEXT NOT NULL,
+              amount INTEGER NOT NULL,
+              processed_at INTEGER NOT NULL -- Unix timestamp
+            );
+            
+            -- Create index for faster lookups
+            CREATE INDEX idx_processed_cashu_tokens_hash ON processed_cashu_tokens(token_hash);
+            CREATE INDEX idx_processed_cashu_tokens_mint ON processed_cashu_tokens(mint_url);
+          `);
+        }
+      }
+
+      const now = toUnixSeconds(Date.now());
+      await this.db.runAsync(
+        `INSERT OR IGNORE INTO processed_cashu_tokens (
+          token_hash, mint_url, unit, amount, processed_at
+        ) VALUES (?, ?, ?, ?, ?)`,
+        [tokenHash, mintUrl, unit, amount, now]
+      );
+    } catch (error) {
+      console.error('Error marking Cashu token as processed:', error);
+      // Don't throw - this is not critical for the app to function
+    }
+  }
 }

@@ -59,7 +59,7 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
   const migrateDbIfNeeded = useCallback(async (db: SQLiteDatabase) => {
     console.log('Database initialization started');
     setIsDbInitializing(true);
-    const DATABASE_VERSION = 10;
+    const DATABASE_VERSION = 11;
 
     try {
       let { user_version: currentDbVersion } = (await db.getFirstAsync<{
@@ -367,6 +367,15 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
         `);
         currentDbVersion = 10;
         console.log('Updated activities table to support ticket_received type - now at version 10');
+      }
+
+      if (currentDbVersion <= 10) {
+        // The processed_cashu_tokens table is now created dynamically when needed
+        // This prevents migration issues and allows for better error handling
+        currentDbVersion = 11;
+        console.log(
+          'Updated to version 11 - processed_cashu_tokens table will be created dynamically'
+        );
       }
 
       await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
