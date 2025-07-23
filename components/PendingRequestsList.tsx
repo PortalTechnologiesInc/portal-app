@@ -21,17 +21,12 @@ const createSkeletonRequest = (): PendingRequest => ({
   metadata: {} as AuthChallengeEvent,
   type: 'login',
   timestamp: new Date(),
-  result: () => { },
+  result: () => {},
 });
 
 export const PendingRequestsList: React.FC = () => {
-  const {
-    isLoadingRequest,
-    requestFailed,
-    pendingUrl,
-    showSkeletonLoader,
-    setRequestFailed,
-  } = usePendingRequests();
+  const { isLoadingRequest, requestFailed, pendingUrl, showSkeletonLoader, setRequestFailed } =
+    usePendingRequests();
   const nostrService = useNostrService();
   const [data, setData] = useState<PendingRequest[]>([]);
 
@@ -53,7 +48,6 @@ export const PendingRequestsList: React.FC = () => {
   // Get database initialization status
   const dbStatus = useDatabaseStatus();
 
-
   // Theme colors
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
@@ -65,37 +59,52 @@ export const PendingRequestsList: React.FC = () => {
     (async () => {
       // Get sorted requests
       const sortedRequests = Object.values(nostrService.pendingRequests)
-      .filter(request => {
+        .filter(request => {
+          if (
+            request.type === 'payment' &&
+            (request.metadata as SinglePaymentRequest).content.subscriptionId
+          ) {
+            return false;
+          }
+          return true;
+        })
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-        if (
-          request.type === 'payment' &&
-          (request.metadata as SinglePaymentRequest).content.subscriptionId
-        ) {
-          return false;
-        }
-        return true;
-      })
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      const filteredRequests = await Promise.all(
+        sortedRequests.map(async request => {
+          // Handle different request types
+          if (request.type === 'cashu') {
+            // Cashu requests don't have eventId, so we can't check if they're stored
+            // For now, always show them
+            return request;
+          }
 
-      const filteredRequests = await Promise.all(sortedRequests.map(async request => {
-        if (await db.isPendingRequestStored((request.metadata as SinglePaymentRequest).eventId)) {
-          return null; // Request is stored, so filter it out
-        }
-        return request; // Request is not stored, so keep it
-      }));
+          // For other request types, check if they're stored
+          if (await db.isPendingRequestStored((request.metadata as SinglePaymentRequest).eventId)) {
+            return null; // Request is stored, so filter it out
+          }
+          return request; // Request is not stored, so keep it
+        })
+      );
 
       // Remove null values (filtered out requests)
       const nonStoredRequests = filteredRequests.filter(request => request !== null);
 
-    // Add skeleton if needed
-    const finalData = requestFailed || isLoadingRequest
-      ? [createSkeletonRequest(), ...nonStoredRequests]
-      : nonStoredRequests;
+      // Add skeleton if needed
+      const finalData =
+        requestFailed || isLoadingRequest
+          ? [createSkeletonRequest(), ...nonStoredRequests]
+          : nonStoredRequests;
 
-    setData(finalData);
+      setData(finalData);
     })();
-
-  }, [nostrService.pendingRequests, isLoadingRequest, requestFailed, sqliteContext, dbStatus.isDbInitialized]);
+  }, [
+    nostrService.pendingRequests,
+    isLoadingRequest,
+    requestFailed,
+    sqliteContext,
+    dbStatus.isDbInitialized,
+  ]);
 
   const handleRetry = () => {
     setRequestFailed(false);
@@ -138,9 +147,19 @@ export const PendingRequestsList: React.FC = () => {
           data={data}
           horizontal
           showsHorizontalScrollIndicator={false}
-          keyExtractor={item =>
-            item.id === 'skeleton' ? 'skeleton' : `${(item.metadata as SinglePaymentRequest).serviceKey}-${item.id}`
-          }
+          keyExtractor={item => {
+            if (item.id === 'skeleton') return 'skeleton';
+
+            // Handle different request types for service key extraction
+            let serviceKey = '';
+            if (item.type === 'cashu') {
+              serviceKey = (item.metadata as any)?.serviceKey || 'unknown';
+            } else {
+              serviceKey = (item.metadata as SinglePaymentRequest).serviceKey;
+            }
+
+            return `${serviceKey}-${item.id}`;
+          }}
           renderItem={({ item, index }) => (
             <View style={styles.cardWrapper}>{renderCard(item)}</View>
           )}

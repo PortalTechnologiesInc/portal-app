@@ -98,15 +98,50 @@ export default function TicketsScreen() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const scrollViewRef = useRef<ScrollView>(null);
   const { wallets } = useECash();
+  const [walletUpdateTrigger, setWalletUpdateTrigger] = useState(0);
+
+  // Listen for wallet balance changes
+  useEffect(() => {
+    const setupWalletBalanceListener = async () => {
+      try {
+        const { globalEvents } = await import('@/utils/index');
+        const handleWalletBalancesChanged = () => {
+          console.log('Tickets: wallet balances changed, triggering re-render');
+          setWalletUpdateTrigger(prev => prev + 1);
+        };
+
+        globalEvents.on('walletBalancesChanged', handleWalletBalancesChanged);
+
+        return () => {
+          globalEvents.off('walletBalancesChanged', handleWalletBalancesChanged);
+        };
+      } catch (error) {
+        console.error('Error setting up wallet balance listener:', error);
+        return () => {};
+      }
+    };
+
+    let cleanup: (() => void) | undefined;
+    setupWalletBalanceListener().then(cleanupFn => {
+      cleanup = cleanupFn;
+    });
+
+    return () => {
+      if (cleanup) {
+        cleanup();
+      }
+    };
+  }, []);
 
   useEffect(() => {
     async function mapWallets() {
+      console.log('Tickets: mapping wallets, count:', Object.keys(wallets).length);
       const allTickets: Ticket[] = [];
 
       for (const [_, wallet] of Object.entries(wallets)) {
         const unitInfo = await wallet.getUnitInfo();
         const balance = await wallet.getBalance();
-        console.log('balance', balance);
+        console.log('Tickets: wallet balance', balance, 'unit:', wallet.unit());
 
         if (unitInfo?.showIndividually) {
           // Create separate tickets for each unit when showIndividually is true
@@ -135,11 +170,12 @@ export default function TicketsScreen() {
         }
       }
 
+      console.log('Tickets: setting tickets, count:', allTickets.length);
       setTickets(allTickets);
       console.log('tickets', allTickets);
     }
     mapWallets();
-  }, []);
+  }, [wallets, walletUpdateTrigger]); // Add walletUpdateTrigger to trigger re-render when wallet balances change
 
   // NFC Status Checking
   const checkNFCStatus = async (): Promise<boolean> => {
@@ -237,7 +273,8 @@ export default function TicketsScreen() {
         <ThemedText type="title" style={{ color: primaryTextColor }}>
           Your tickets
         </ThemedText>
-        <View style={styles.filterContainer}>
+        {/* We don't need filters for now */}
+        {/* <View style={styles.filterContainer}>
           <TouchableOpacity
             style={[
               styles.filterChip,
@@ -306,7 +343,7 @@ export default function TicketsScreen() {
               Expired
             </ThemedText>
           </TouchableOpacity>
-        </View>
+        </View> */}
         {tickets.length === 0 ? (
           <View style={[styles.emptyContainer, { backgroundColor: cardBackgroundColor }]}>
             <ThemedText style={[styles.emptyText, { color: secondaryTextColor }]}>
@@ -427,6 +464,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     width: '100%',
     minHeight: 800,
+    marginTop: 16,
   },
   emptyContainer: {
     flex: 1,

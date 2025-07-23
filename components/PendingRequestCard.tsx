@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { usePendingRequests } from '../context/PendingRequestsContext';
 import { useNostrService } from '@/context/NostrServiceContext';
+import { useECash } from '@/context/ECashContext';
 import type { SinglePaymentRequest, RecurringPaymentRequest } from 'portal-app-lib';
 import type { PendingRequest } from '@/utils/types';
 import { useThemeColor } from '@/hooks/useThemeColor';
@@ -26,6 +27,8 @@ const getRequestTypeText = (type: string) => {
       return 'Certificate Request';
     case 'identity':
       return 'Identity Request';
+    case 'ticket':
+      return 'Ticket Request';
     default:
       return 'Unknown Request';
   }
@@ -41,6 +44,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = ({ request }) => 
   const { approve, deny } = usePendingRequests();
   const { id, metadata, type } = request;
   const nostrService = useNostrService();
+  const { wallets } = useECash();
   const [serviceName, setServiceName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const isMounted = useRef(true);
@@ -53,7 +57,9 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = ({ request }) => 
   const shadowColor = useThemeColor({}, 'shadowColor');
 
   // Add debug logging when a card is rendered
-  console.log(`Rendering card ${id} of type ${type} with service key ${(metadata as SinglePaymentRequest).serviceKey}`);
+  console.log(
+    `Rendering card ${id} of type ${type} with service key ${(metadata as SinglePaymentRequest).serviceKey}`
+  );
 
   const calendarObj =
     type === 'subscription'
@@ -62,14 +68,56 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = ({ request }) => 
 
   const recurrence = calendarObj?.inner.toHumanReadable(false);
 
+  // Extract service key based on request type
+  const getServiceKey = () => {
+    if (type === 'ticket') {
+      return (metadata as any)?.title || 'Unknown Ticket';
+    }
+    return (metadata as SinglePaymentRequest).serviceKey;
+  };
+
+  const serviceKey = getServiceKey();
+
   useEffect(() => {
     const fetchServiceName = async () => {
       if (!isMounted.current) return;
-      
+
+      // For ticket requests, get ticket title from wallet unit
+      if (type === 'ticket') {
+        try {
+          const cashuEvent = metadata as any;
+          console.log('Ticket request metadata:', cashuEvent);
+          console.log('Available wallets:', Object.keys(wallets));
+
+          if (cashuEvent.inner?.mintUrl && cashuEvent.inner?.unit) {
+            console.log('Looking for wallet with mintUrl:', cashuEvent.inner.mintUrl);
+            // Get the wallet to get the unit name (ticket title)
+            const wallet = wallets[cashuEvent.inner.mintUrl];
+            if (wallet) {
+              const ticketTitle = wallet.unit();
+              console.log('Found wallet, ticket title:', ticketTitle);
+              setServiceName(ticketTitle);
+            } else {
+              console.log('Wallet not found, using unit:', cashuEvent.inner.unit);
+              setServiceName(cashuEvent.inner.unit || 'Unknown Ticket');
+            }
+          } else {
+            console.log('Missing mintUrl or unit in cashuEvent');
+            setServiceName('Unknown Ticket');
+          }
+          setIsLoading(false);
+        } catch (error) {
+          console.error('Error getting ticket title:', error);
+          setServiceName('Unknown Ticket');
+          setIsLoading(false);
+        }
+        return;
+      }
+
       try {
         setIsLoading(true);
-        const name = await nostrService.getServiceName((metadata as SinglePaymentRequest).serviceKey);
-        
+        const name = await nostrService.getServiceName(serviceKey);
+
         if (isMounted.current) {
           setServiceName(name);
           setIsLoading(false);
@@ -89,17 +137,23 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = ({ request }) => 
     return () => {
       isMounted.current = false;
     };
-  }, [(metadata as SinglePaymentRequest).serviceKey, nostrService]);
+  }, [serviceKey, nostrService, type, metadata, wallets]);
 
   const recipientPubkey = (metadata as SinglePaymentRequest).recipient;
 
   // Extract payment information if this is a payment request
   const isPaymentRequest = type === 'payment';
   const isSubscriptionRequest = type === 'subscription';
+  const isTicketRequest = type === 'ticket';
 
   const amount =
     (metadata as SinglePaymentRequest)?.content?.amount ||
-    (metadata as RecurringPaymentRequest)?.content?.amount;
+    (metadata as RecurringPaymentRequest)?.content?.amount ||
+    (isTicketRequest ? (metadata as any)?.inner?.amount : null);
+
+  // For Ticket requests, only show sending tokens (not receiving)
+  const isTicketSending =
+    isTicketRequest && (metadata as any)?.inner?.mintUrl && (metadata as any)?.inner?.amount;
 
   return (
     <View style={[styles.card, { backgroundColor: cardBackgroundColor, shadowColor }]}>
@@ -107,11 +161,11 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = ({ request }) => 
         {getRequestTypeText(type)}
       </Text>
 
-      <Text 
+      <Text
         style={[
-          styles.serviceName, 
+          styles.serviceName,
           { color: primaryTextColor },
-          !serviceName && styles.unknownService
+          !serviceName && styles.unknownService,
         ]}
       >
         {serviceName || 'Unknown Service'}

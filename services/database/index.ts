@@ -16,7 +16,7 @@ export const fromUnixSeconds = (seconds: number | bigint): Date => {
 // Database record types (as stored in SQLite)
 export interface ActivityRecord {
   id: string;
-  type: 'auth' | 'pay';
+  type: 'auth' | 'pay' | 'ticket' | 'ticket_approved' | 'ticket_denied' | 'ticket_received';
   service_name: string;
   service_key: string;
   detail: string;
@@ -524,11 +524,16 @@ export class DatabaseService {
   }
 
   // Proof methods
-  async getCashuProofs(mintUrl: string | undefined, unit: string | undefined, state: string | undefined, spendingCondition: string | undefined): Promise<Array<string>> {
+  async getCashuProofs(
+    mintUrl: string | undefined,
+    unit: string | undefined,
+    state: string | undefined,
+    spendingCondition: string | undefined
+  ): Promise<Array<string>> {
     try {
       let query = 'SELECT * FROM cashu_proofs WHERE 1=1';
       const params: any[] = [];
-      
+
       if (mintUrl) {
         query += ' AND mint_url = ?';
         params.push(mintUrl);
@@ -546,23 +551,25 @@ export class DatabaseService {
         query += ' AND spending_condition = ?';
         params.push(spendingCondition);
       }
-      
+
       const proofs = await this.db.getAllAsync(query, params);
-      
-      return proofs.map((proof: any) => JSON.stringify({ 
-        proof: {
-          amount: proof.amount,
-          id: proof.keyset_id,
-          secret: proof.secret,
-          C: proof.c,
-          dleq: proof.dleq_e ? { e: proof.dleq_e, s: proof.dleq_s, r: proof.dleq_r } : undefined,
-        },
-        y: proof.y,
-        mint_url: proof.mint_url,
-        state: proof.state,
-        spending_condition: proof.spending_condition,
-        unit: proof.unit
-      }));
+
+      return proofs.map((proof: any) =>
+        JSON.stringify({
+          proof: {
+            amount: proof.amount,
+            id: proof.keyset_id,
+            secret: proof.secret,
+            C: proof.c,
+            dleq: proof.dleq_e ? { e: proof.dleq_e, s: proof.dleq_s, r: proof.dleq_r } : undefined,
+          },
+          y: proof.y,
+          mint_url: proof.mint_url,
+          state: proof.state,
+          spending_condition: proof.spending_condition,
+          unit: proof.unit,
+        })
+      );
     } catch (error) {
       console.error('[DatabaseService] Error getting proofs:', error);
       return [];
@@ -575,7 +582,7 @@ export class DatabaseService {
       for (const y of removedYs) {
         await this.db.runAsync('DELETE FROM cashu_proofs WHERE y = ?', [y]);
       }
-      
+
       // Add proofs (assuming added contains serialized proof data)
       for (const proofData of added) {
         const proof = JSON.parse(proofData);
@@ -585,19 +592,19 @@ export class DatabaseService {
            (y, mint_url, state, spending_condition, unit, amount, keyset_id, secret, c, witness, dleq_e, dleq_s, dleq_r) 
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            proof.y, 
+            proof.y,
             proof.mint_url,
             proof.state,
-            proof.spending_condition, 
-            proof.unit, 
-            proof.proof.amount, 
-            proof.proof.id, 
-            proof.proof.secret, 
-            proof.proof.C, 
+            proof.spending_condition,
+            proof.unit,
+            proof.proof.amount,
+            proof.proof.id,
+            proof.proof.secret,
+            proof.proof.C,
             proof.proof.witness || null,
             dleq?.e || null,
             dleq?.s || null,
-            dleq?.r || null
+            dleq?.r || null,
           ]
         );
       }
@@ -610,7 +617,10 @@ export class DatabaseService {
   async updateCashuProofsState(ys: Array<string>, state: string): Promise<void> {
     try {
       for (const y of ys) {
-        await this.db.runAsync('UPDATE cashu_proofs SET state = ? WHERE y = ?', [state.replaceAll('"', ''), y]);
+        await this.db.runAsync('UPDATE cashu_proofs SET state = ? WHERE y = ?', [
+          state.replaceAll('"', ''),
+          y,
+        ]);
       }
     } catch (error) {
       console.error('[DatabaseService] Error updating proof states:', error);
@@ -624,7 +634,18 @@ export class DatabaseService {
       const txData = JSON.parse(transaction);
       await this.db.runAsync(
         'INSERT OR REPLACE INTO cashu_transactions (id, mint_url, direction, amount, fee, unit, ys, timestamp, memo, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [txData.id, txData.mint_url, txData.direction, txData.amount, txData.fee, txData.unit, txData.ys, txData.timestamp, txData.memo, txData.metadata]
+        [
+          txData.id,
+          txData.mint_url,
+          txData.direction,
+          txData.amount,
+          txData.fee,
+          txData.unit,
+          txData.ys,
+          txData.timestamp,
+          txData.memo,
+          txData.metadata,
+        ]
       );
     } catch (error) {
       console.error('[DatabaseService] Error adding transaction:', error);
@@ -646,7 +667,7 @@ export class DatabaseService {
         memo: string | null;
         metadata: string | null;
       }>('SELECT * FROM cashu_transactions WHERE id = ?', [transactionId]);
-      
+
       return tx ? JSON.stringify(tx) : undefined;
     } catch (error) {
       console.error('[DatabaseService] Error getting transaction:', error);
@@ -654,11 +675,15 @@ export class DatabaseService {
     }
   }
 
-  async listCashuTransactions(mintUrl?: string, direction?: string, unit?: string): Promise<Array<string>> {
+  async listCashuTransactions(
+    mintUrl?: string,
+    direction?: string,
+    unit?: string
+  ): Promise<Array<string>> {
     try {
       let query = 'SELECT * FROM cashu_transactions WHERE 1=1';
       const params: any[] = [];
-      
+
       if (mintUrl) {
         query += ' AND mint_url = ?';
         params.push(mintUrl);
@@ -671,7 +696,7 @@ export class DatabaseService {
         query += ' AND unit = ?';
         params.push(unit);
       }
-      
+
       const transactions = await this.db.getAllAsync(query, params);
       return transactions.map(tx => JSON.stringify(tx));
     } catch (error) {
@@ -692,7 +717,10 @@ export class DatabaseService {
   // Keyset methods
   async getCashuKeysetById(keysetId: string): Promise<string | undefined> {
     try {
-      const keyset = await this.db.getFirstAsync<{ keyset: string }>('SELECT keyset FROM cashu_mint_keysets WHERE keyset_id = ?', [keysetId]);
+      const keyset = await this.db.getFirstAsync<{ keyset: string }>(
+        'SELECT keyset FROM cashu_mint_keysets WHERE keyset_id = ?',
+        [keysetId]
+      );
       return keyset ? keyset.keyset : undefined;
     } catch (error) {
       console.error('[DatabaseService] Error getting keyset by ID:', error);
@@ -703,10 +731,10 @@ export class DatabaseService {
   async addCashuKeys(keyset: string): Promise<void> {
     try {
       const keysData = JSON.parse(keyset);
-      await this.db.runAsync(
-        'INSERT OR REPLACE INTO cashu_keys (id, keys) VALUES (?, ?)',
-        [keysData.id, JSON.stringify(keysData.keys)]
-      );
+      await this.db.runAsync('INSERT OR REPLACE INTO cashu_keys (id, keys) VALUES (?, ?)', [
+        keysData.id,
+        JSON.stringify(keysData.keys),
+      ]);
     } catch (error) {
       console.error('[DatabaseService] Error adding keys:', error);
       throw error;
@@ -715,7 +743,10 @@ export class DatabaseService {
 
   async getCashuKeys(id: string): Promise<string | undefined> {
     try {
-      const keys = await this.db.getFirstAsync<{ keys: string }>('SELECT keys FROM cashu_keys WHERE id = ?', [id]);
+      const keys = await this.db.getFirstAsync<{ keys: string }>(
+        'SELECT keys FROM cashu_keys WHERE id = ?',
+        [id]
+      );
       return keys ? keys.keys : undefined;
     } catch (error) {
       console.error('[DatabaseService] Error getting keys:', error);
@@ -747,7 +778,10 @@ export class DatabaseService {
 
   async getCashuKeysetCounter(keysetId: string): Promise<number | undefined> {
     try {
-      const result = await this.db.getFirstAsync<{ counter: number }>('SELECT counter FROM cashu_keyset_counters WHERE keyset_id = ?', [keysetId]);
+      const result = await this.db.getFirstAsync<{ counter: number }>(
+        'SELECT counter FROM cashu_keyset_counters WHERE keyset_id = ?',
+        [keysetId]
+      );
       return result?.counter;
     } catch (error) {
       console.error('[DatabaseService] Error getting keyset counter:', error);
@@ -779,7 +813,10 @@ export class DatabaseService {
 
   async getCashuMint(mintUrl: string): Promise<string | undefined> {
     try {
-      const mint = await this.db.getFirstAsync<{ mint_info: string }>('SELECT mint_info FROM cashu_mints WHERE mint_url = ?', [mintUrl]);
+      const mint = await this.db.getFirstAsync<{ mint_info: string }>(
+        'SELECT mint_info FROM cashu_mints WHERE mint_url = ?',
+        [mintUrl]
+      );
       return mint?.mint_info;
     } catch (error) {
       console.error('[DatabaseService] Error getting mint:', error);
@@ -789,7 +826,9 @@ export class DatabaseService {
 
   async getCashuMints(): Promise<Array<string>> {
     try {
-      const mints = await this.db.getAllAsync<{ mint_url: string }>('SELECT mint_url FROM cashu_mints');
+      const mints = await this.db.getAllAsync<{ mint_url: string }>(
+        'SELECT mint_url FROM cashu_mints'
+      );
       return mints.map(mint => mint.mint_url);
     } catch (error) {
       console.error('[DatabaseService] Error getting mints:', error);
@@ -799,7 +838,10 @@ export class DatabaseService {
 
   async updateCashuMintUrl(oldMintUrl: string, newMintUrl: string): Promise<void> {
     try {
-      await this.db.runAsync('UPDATE cashu_mints SET mint_url = ? WHERE mint_url = ?', [newMintUrl, oldMintUrl]);
+      await this.db.runAsync('UPDATE cashu_mints SET mint_url = ? WHERE mint_url = ?', [
+        newMintUrl,
+        oldMintUrl,
+      ]);
     } catch (error) {
       console.error('[DatabaseService] Error updating mint URL:', error);
       throw error;
@@ -823,7 +865,10 @@ export class DatabaseService {
 
   async getCashuMintKeysets(mintUrl: string): Promise<Array<string> | undefined> {
     try {
-      const keysets = await this.db.getAllAsync<{ keyset: string }>('SELECT keyset FROM cashu_mint_keysets WHERE mint_url = ?', [mintUrl]);
+      const keysets = await this.db.getAllAsync<{ keyset: string }>(
+        'SELECT keyset FROM cashu_mint_keysets WHERE mint_url = ?',
+        [mintUrl]
+      );
       return keysets.length > 0 ? keysets.map(ks => ks.keyset) : undefined;
     } catch (error) {
       console.error('[DatabaseService] Error getting mint keysets:', error);

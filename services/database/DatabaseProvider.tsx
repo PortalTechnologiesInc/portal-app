@@ -59,7 +59,7 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
   const migrateDbIfNeeded = useCallback(async (db: SQLiteDatabase) => {
     console.log('Database initialization started');
     setIsDbInitializing(true);
-    const DATABASE_VERSION = 7;
+    const DATABASE_VERSION = 10;
 
     try {
       let { user_version: currentDbVersion } = (await db.getFirstAsync<{
@@ -263,6 +263,110 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
           CREATE INDEX IF NOT EXISTS cashu_mint_keysets_keyset_id_index ON cashu_mint_keysets(keyset_id);
         `);
         currentDbVersion = 7;
+      }
+
+      if (currentDbVersion <= 7) {
+        await db.execAsync(`
+          -- Update activities table to allow 'ticket' type
+          -- First, create a new table with the updated constraint
+          CREATE TABLE activities_new (
+            id TEXT PRIMARY KEY NOT NULL,
+            type TEXT NOT NULL CHECK (type IN ('auth', 'pay', 'ticket')),
+            service_name TEXT NOT NULL,
+            service_key TEXT NOT NULL,
+            detail TEXT NOT NULL,
+            date INTEGER NOT NULL,
+            amount INTEGER,
+            currency TEXT,
+            request_id TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            subscription_id TEXT REFERENCES subscriptions(id) ON DELETE SET NULL
+          );
+          
+          -- Copy data from old table to new table
+          INSERT INTO activities_new SELECT * FROM activities;
+          
+          -- Drop old table and rename new table
+          DROP TABLE activities;
+          ALTER TABLE activities_new RENAME TO activities;
+          
+          -- Recreate indexes
+          CREATE INDEX IF NOT EXISTS idx_activities_date ON activities(date);
+          CREATE INDEX IF NOT EXISTS idx_activities_type ON activities(type);
+          CREATE INDEX IF NOT EXISTS idx_activities_subscription ON activities(subscription_id);
+        `);
+        currentDbVersion = 8;
+        console.log('Updated activities table to support ticket type - now at version 8');
+      }
+
+      if (currentDbVersion <= 8) {
+        await db.execAsync(`
+          -- Update activities table to allow ticket_approved and ticket_denied types
+          -- First, create a new table with the updated constraint
+          CREATE TABLE activities_new (
+            id TEXT PRIMARY KEY NOT NULL,
+            type TEXT NOT NULL CHECK (type IN ('auth', 'pay', 'ticket', 'ticket_approved', 'ticket_denied')),
+            service_name TEXT NOT NULL,
+            service_key TEXT NOT NULL,
+            detail TEXT NOT NULL,
+            date INTEGER NOT NULL,
+            amount INTEGER,
+            currency TEXT,
+            request_id TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            subscription_id TEXT REFERENCES subscriptions(id) ON DELETE SET NULL
+          );
+          
+          -- Copy data from old table to new table
+          INSERT INTO activities_new SELECT * FROM activities;
+          
+          -- Drop old table and rename new table
+          DROP TABLE activities;
+          ALTER TABLE activities_new RENAME TO activities;
+          
+          -- Recreate indexes
+          CREATE INDEX IF NOT EXISTS idx_activities_date ON activities(date);
+          CREATE INDEX IF NOT EXISTS idx_activities_type ON activities(type);
+          CREATE INDEX IF NOT EXISTS idx_activities_subscription ON activities(subscription_id);
+        `);
+        currentDbVersion = 9;
+        console.log(
+          'Updated activities table to support ticket_approved and ticket_denied types - now at version 9'
+        );
+      }
+
+      if (currentDbVersion <= 9) {
+        await db.execAsync(`
+          -- Update activities table to allow ticket_received type
+          -- First, create a new table with the updated constraint
+          CREATE TABLE activities_new (
+            id TEXT PRIMARY KEY NOT NULL,
+            type TEXT NOT NULL CHECK (type IN ('auth', 'pay', 'ticket', 'ticket_approved', 'ticket_denied', 'ticket_received')),
+            service_name TEXT NOT NULL,
+            service_key TEXT NOT NULL,
+            detail TEXT NOT NULL,
+            date INTEGER NOT NULL,
+            amount INTEGER,
+            currency TEXT,
+            request_id TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            subscription_id TEXT REFERENCES subscriptions(id) ON DELETE SET NULL
+          );
+          
+          -- Copy data from old table to new table
+          INSERT INTO activities_new SELECT * FROM activities;
+          
+          -- Drop old table and rename new table
+          DROP TABLE activities;
+          ALTER TABLE activities_new RENAME TO activities;
+          
+          -- Recreate indexes
+          CREATE INDEX IF NOT EXISTS idx_activities_date ON activities(date);
+          CREATE INDEX IF NOT EXISTS idx_activities_type ON activities(type);
+          CREATE INDEX IF NOT EXISTS idx_activities_subscription ON activities(subscription_id);
+        `);
+        currentDbVersion = 10;
+        console.log('Updated activities table to support ticket_received type - now at version 10');
       }
 
       await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);

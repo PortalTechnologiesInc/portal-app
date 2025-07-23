@@ -13,12 +13,19 @@ import type {
   RecurringPaymentRequest,
   SinglePaymentRequest,
 } from 'portal-app-lib';
-import { PaymentStatus, RecurringPaymentStatus, AuthResponseStatus } from 'portal-app-lib';
+import {
+  PaymentStatus,
+  RecurringPaymentStatus,
+  AuthResponseStatus,
+  CashuResponseStatus,
+  parseCashuToken,
+} from 'portal-app-lib';
 import { useSQLiteContext } from 'expo-sqlite';
 import { DatabaseService, fromUnixSeconds } from '@/services/database';
 import { useDatabaseStatus } from '@/services/database/DatabaseProvider';
 import { useActivities } from '@/context/ActivitiesContext';
 import { useNostrService } from '@/context/NostrServiceContext';
+import { useECash } from '@/context/ECashContext';
 import type {
   PendingRequest,
   PendingRequestType,
@@ -71,6 +78,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
   // Get database initialization status
   const dbStatus = useDatabaseStatus();
   const nostrService = useNostrService();
+  const eCashContext = useECash();
 
   // Get SQLite context - this is now safe because we've reordered the providers in _layout.tsx
   let sqliteContext = null;
@@ -314,7 +322,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
   }, [nostrService.pendingRequests, addActivityWithFallback, db, nostrService]);
 
   const approve = useCallback(
-    (id: string) => {
+    async (id: string) => {
       console.log('Approve', id);
 
       const request = getById(id);
@@ -439,12 +447,28 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                   recurrence_max_payments: req.content.recurrence.maxPayments || null,
                 });
               })
-              .then(id => {
+              .then(subscriptionId => {
+                if (subscriptionId) {
+                  addActivityWithFallback({
+                    type: 'pay',
+                    service_key: (request.metadata as RecurringPaymentRequest).serviceKey,
+                    service_name: 'Unknown Service', // Will be updated by the promise above
+                    detail: 'Subscription approved',
+                    date: new Date(),
+                    amount: Number(amount) / 1000,
+                    currency: 'sats',
+                    request_id: id,
+                    subscription_id: subscriptionId,
+                  });
+                }
+
+                // Return the result with the subscriptionId
                 request.result({
                   status: new RecurringPaymentStatus.Confirmed({
-                    subscriptionId: id || 'randomsubscriptionid',
-                    authorizedAmount: (request.metadata as SinglePaymentRequest).content.amount,
-                    authorizedCurrency: (request.metadata as SinglePaymentRequest).content.currency,
+                    subscriptionId: subscriptionId || 'randomsubscriptionid',
+                    authorizedAmount: (request.metadata as RecurringPaymentRequest).content.amount,
+                    authorizedCurrency: (request.metadata as RecurringPaymentRequest).content
+                      .currency,
                     authorizedRecurrence: (request.metadata as RecurringPaymentRequest).content
                       .recurrence,
                   }),
@@ -455,9 +479,104 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             console.log('Error adding subscription activity:', err);
           }
           break;
+        case 'ticket':
+          // Handle Cashu requests (sending tokens only)
+          try {
+            const cashuEvent = request.metadata as any;
+
+            // Only handle Cashu request events (sending tokens)
+            if (cashuEvent.inner?.mintUrl && cashuEvent.inner?.amount) {
+              console.log('Processing Cashu request approval');
+
+              // Get the wallet from ECash context
+              const wallet = await eCashContext.getWallet(
+                cashuEvent.inner.mintUrl,
+                cashuEvent.inner.unit
+              );
+              if (!wallet) {
+                console.error('No wallet available for Cashu request');
+                request.result(new CashuResponseStatus.Rejected({ reason: 'No wallet available' }));
+                return;
+              }
+
+              // Get the amount from the request
+              const amount = cashuEvent.inner.amount;
+              const walletBalance = await wallet.getBalance();
+              if (walletBalance < amount) {
+                request.result(new CashuResponseStatus.InsufficientFunds());
+                return;
+              }
+
+              // Send tokens from the wallet
+              const token = await wallet.sendAmount(amount);
+
+              // Emit event to notify that wallet balances have changed
+              const { globalEvents } = await import('@/utils/index');
+              globalEvents.emit('walletBalancesChanged', {
+                mintUrl: cashuEvent.inner.mintUrl,
+                unit: cashuEvent.inner.unit,
+              });
+              console.log('walletBalancesChanged event emitted for Cashu send');
+
+              // Add activity for token send
+              console.log(
+                'Approved ticket - available wallets:',
+                Object.keys(eCashContext.wallets)
+              );
+              console.log('Looking for wallet with mintUrl:', cashuEvent.inner.mintUrl);
+
+              // Try to find the wallet by mintUrl
+              let ticketWallet = eCashContext.wallets[cashuEvent.inner.mintUrl];
+              if (!ticketWallet) {
+                // Try to find by any wallet that matches the unit
+                const walletEntries = Object.entries(eCashContext.wallets);
+                const matchingWallet = walletEntries.find(
+                  ([_, wallet]) => wallet.unit() === cashuEvent.inner.unit
+                );
+                if (matchingWallet) {
+                  ticketWallet = matchingWallet[1];
+                  console.log('Found wallet by unit match:', matchingWallet[0]);
+                }
+              }
+
+              console.log('Found wallet:', !!ticketWallet);
+              const ticketTitle = ticketWallet
+                ? ticketWallet.unit()
+                : cashuEvent.inner.unit || 'Unknown Ticket';
+              console.log('Ticket title for approved:', ticketTitle);
+
+              addActivityWithFallback({
+                type: 'ticket_approved',
+                service_key: cashuEvent.serviceKey || 'Unknown Service',
+                service_name: ticketTitle, // Use ticket title as service name
+                detail: ticketTitle, // Use ticket title as detail
+                date: new Date(),
+                amount: Number(amount) / 1000,
+                currency: 'sats',
+                request_id: id,
+                subscription_id: null,
+              });
+
+              console.log('Cashu token sent successfully');
+              request.result(new CashuResponseStatus.Success({ token }));
+            } else {
+              console.error('Invalid Cashu request event type');
+              request.result(
+                new CashuResponseStatus.Rejected({ reason: 'Invalid Cashu request type' })
+              );
+            }
+          } catch (error: any) {
+            console.error('Error processing Cashu request:', error);
+            request.result(
+              new CashuResponseStatus.Rejected({
+                reason: error.message || 'Failed to process Cashu request',
+              })
+            );
+          }
+          break;
       }
     },
-    [getById, addActivityWithFallback, addSubscriptionWithFallback, nostrService]
+    [getById, addActivityWithFallback, addSubscriptionWithFallback, nostrService, eCashContext]
   );
 
   const deny = useCallback(
@@ -591,6 +710,67 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             });
           } catch (err) {
             console.log('Error adding denied subscription activity:', err);
+          }
+          break;
+        case 'ticket':
+          // Handle Cashu request denial (sending tokens only)
+          try {
+            const cashuEvent = request.metadata as any;
+
+            // Only handle Cashu request events (sending tokens)
+            if (cashuEvent.inner?.mintUrl && cashuEvent.inner?.amount) {
+              console.log('Cashu request denied by user');
+
+              // Add activity for denied token send
+              console.log('Denied ticket - available wallets:', Object.keys(eCashContext.wallets));
+              console.log('Looking for wallet with mintUrl:', cashuEvent.inner.mintUrl);
+
+              // Try to find the wallet by mintUrl
+              let ticketWallet = eCashContext.wallets[cashuEvent.inner.mintUrl];
+              if (!ticketWallet) {
+                // Try to find by any wallet that matches the unit
+                const walletEntries = Object.entries(eCashContext.wallets);
+                const matchingWallet = walletEntries.find(
+                  ([_, wallet]) => wallet.unit() === cashuEvent.inner.unit
+                );
+                if (matchingWallet) {
+                  ticketWallet = matchingWallet[1];
+                  console.log('Found wallet by unit match:', matchingWallet[0]);
+                }
+              }
+
+              console.log('Found wallet:', !!ticketWallet);
+              const ticketTitle = ticketWallet
+                ? ticketWallet.unit()
+                : cashuEvent.inner.unit || 'Unknown Ticket';
+              console.log('Ticket title for denied:', ticketTitle);
+
+              addActivityWithFallback({
+                type: 'ticket_denied',
+                service_key: cashuEvent.serviceKey || 'Unknown Service',
+                service_name: ticketTitle, // Use ticket title as service name
+                detail: ticketTitle, // Use ticket title as detail
+                date: new Date(),
+                amount: Number(cashuEvent.inner.amount) / 1000,
+                currency: 'sats',
+                request_id: id,
+                subscription_id: null,
+              });
+
+              request.result(new CashuResponseStatus.Rejected({ reason: 'User denied request' }));
+            } else {
+              console.error('Invalid Cashu request event type for denial');
+              request.result(
+                new CashuResponseStatus.Rejected({ reason: 'Invalid Cashu request type' })
+              );
+            }
+          } catch (error: any) {
+            console.error('Error processing Cashu denial:', error);
+            request.result(
+              new CashuResponseStatus.Rejected({
+                reason: error.message || 'Failed to process Cashu denial',
+              })
+            );
           }
           break;
       }

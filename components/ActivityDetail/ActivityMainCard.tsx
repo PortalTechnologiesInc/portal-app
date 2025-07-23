@@ -1,10 +1,17 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Key, BanknoteIcon } from 'lucide-react-native';
+import { Key, BanknoteIcon, Ticket } from 'lucide-react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { ActivityType } from '@/utils';
-import { getStatusIcon, getStatusColor, getStatusText, getActivityDescription, formatSatsToUSD, type ActivityStatus } from '@/utils/activityHelpers';
+import {
+  getStatusIcon,
+  getStatusColor,
+  getStatusText,
+  getActivityDescription,
+  formatSatsToUSD,
+  type ActivityStatus,
+} from '@/utils/activityHelpers';
 
 interface ActivityMainCardProps {
   serviceName: string;
@@ -31,6 +38,11 @@ export const ActivityMainCard: React.FC<ActivityMainCardProps> = ({
 
   const isAuth = activityType === ActivityType.Auth;
   const isPayment = activityType === ActivityType.Pay;
+  const isTicket =
+    activityType === ActivityType.Ticket ||
+    activityType === 'ticket_approved' ||
+    activityType === 'ticket_denied' ||
+    activityType === 'ticket_received';
 
   const statusColors = {
     statusConnected: statusConnectedColor,
@@ -52,26 +64,25 @@ export const ActivityMainCard: React.FC<ActivityMainCardProps> = ({
 
   return (
     <View style={[styles.mainCard, { backgroundColor: surfaceSecondaryColor }]}>
-      <View
-        style={[
-          styles.activityIconContainer,
-          { backgroundColor: getIconBackgroundColor() },
-        ]}
-      >
+      <View style={[styles.activityIconContainer, { backgroundColor: getIconBackgroundColor() }]}>
         {isAuth ? (
           <Key size={32} color={primaryTextColor} />
+        ) : isTicket ? (
+          <Ticket size={32} color={primaryTextColor} />
         ) : (
           <BanknoteIcon size={32} color={primaryTextColor} />
         )}
       </View>
 
       <ThemedText type="title" style={[styles.serviceName, { color: primaryTextColor }]}>
-        {serviceName}
+        {isTicket ? detail : serviceName}
       </ThemedText>
 
       <View style={[styles.statusContainer, { backgroundColor: surfaceSecondaryColor }]}>
         {getStatusIcon(activityStatus, statusColors)}
-        <ThemedText style={[styles.statusText, { color: getStatusColor(activityStatus, statusColors) }]}>
+        <ThemedText
+          style={[styles.statusText, { color: getStatusColor(activityStatus, statusColors) }]}
+        >
           {getStatusText(activityStatus)}
         </ThemedText>
       </View>
@@ -151,4 +162,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
   },
-}); 
+});

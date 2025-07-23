@@ -43,13 +43,13 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
   const [activeSubscriptions, setActiveSubscriptions] = useState<SubscriptionWithDates[]>([]);
   const [isDbReady, setIsDbReady] = useState(false);
   const [db, setDb] = useState<DatabaseService | null>(null);
-  
+
   // Pagination state
   const [hasMoreActivities, setHasMoreActivities] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [currentOffset, setCurrentOffset] = useState(0);
   const [totalActivities, setTotalActivities] = useState(0);
-  
+
   const ACTIVITIES_PER_PAGE = 20;
 
   // Get database initialization status
@@ -108,48 +108,59 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
     };
   }, [dbStatus.isDbInitialized, sqliteContext]);
 
-  const fetchActivities = useCallback(async (reset = false) => {
-    if (!db || !isDbReady) return;
+  const fetchActivities = useCallback(
+    async (reset = false) => {
+      if (!db || !isDbReady) {
+        console.log('fetchActivities: db not ready', { db: !!db, isDbReady });
+        return;
+      }
 
-    try {
-      const offset = reset ? 0 : currentOffsetRef.current;
-      const fetchedActivities = await db.getActivities({
-        limit: ACTIVITIES_PER_PAGE,
-        offset: offset,
-      });
-      
-      if (reset) {
-        setActivities(fetchedActivities);
-        setCurrentOffset(ACTIVITIES_PER_PAGE);
-        currentOffsetRef.current = ACTIVITIES_PER_PAGE;
-      } else {
-        // Deduplicate activities based on ID to prevent duplicate keys
-        setActivities(prev => {
-          const existingIds = new Set(prev.map(activity => activity.id));
-          const newActivities = fetchedActivities.filter(activity => !existingIds.has(activity.id));
-          return [...prev, ...newActivities];
+      try {
+        const offset = reset ? 0 : currentOffsetRef.current;
+        console.log('fetchActivities: fetching with offset', offset);
+        const fetchedActivities = await db.getActivities({
+          limit: ACTIVITIES_PER_PAGE,
+          offset: offset,
         });
-        setCurrentOffset(prev => prev + ACTIVITIES_PER_PAGE);
+        console.log('fetchActivities: fetched activities count', fetchedActivities.length);
+
+        if (reset) {
+          setActivities(fetchedActivities);
+          setCurrentOffset(ACTIVITIES_PER_PAGE);
+          currentOffsetRef.current = ACTIVITIES_PER_PAGE;
+        } else {
+          // Deduplicate activities based on ID to prevent duplicate keys
+          setActivities(prev => {
+            const existingIds = new Set(prev.map(activity => activity.id));
+            const newActivities = fetchedActivities.filter(
+              activity => !existingIds.has(activity.id)
+            );
+            return [...prev, ...newActivities];
+          });
+          setCurrentOffset(prev => prev + ACTIVITIES_PER_PAGE);
+        }
+
+        // Update hasMore based on whether we got a full page
+        setHasMoreActivities(fetchedActivities.length === ACTIVITIES_PER_PAGE);
+
+        // Get total count for reference (optional)
+        const allActivities = await db.getActivities();
+        setTotalActivities(allActivities.length);
+        console.log('fetchActivities: total activities count', allActivities.length);
+      } catch (error) {
+        console.error('Failed to fetch activities:', error);
+        // If database is closed, reset the database state
+        if (
+          error instanceof Error &&
+          (error.message.includes('closed resource') || error.message.includes('has been rejected'))
+        ) {
+          setIsDbReady(false);
+          setDb(null);
+        }
       }
-      
-      // Update hasMore based on whether we got a full page
-      setHasMoreActivities(fetchedActivities.length === ACTIVITIES_PER_PAGE);
-      
-      // Get total count for reference (optional)
-      const allActivities = await db.getActivities();
-      setTotalActivities(allActivities.length);
-    } catch (error) {
-      console.error('Failed to fetch activities:', error);
-      // If database is closed, reset the database state
-      if (
-        error instanceof Error &&
-        (error.message.includes('closed resource') || error.message.includes('has been rejected'))
-      ) {
-        setIsDbReady(false);
-        setDb(null);
-      }
-    }
-  }, [db, isDbReady, ACTIVITIES_PER_PAGE]);
+    },
+    [db, isDbReady, ACTIVITIES_PER_PAGE]
+  );
 
   const fetchSubscriptions = useCallback(async () => {
     if (!db || !isDbReady) return;
@@ -194,23 +205,37 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
   useEffect(() => {
     if (!isDbReady) return;
 
-    const handleSubscriptionStatusChange = async (data: { subscriptionId: string; status: string }) => {
-      console.log('ActivitiesProvider: Received subscription status change event', data);
-      // Refresh subscriptions to reflect the status change
+    const handleSubscriptionStatusChange = async (data: {
+      subscriptionId: string;
+      status: string;
+    }) => {
+      console.log('Subscription status changed:', data);
       await fetchSubscriptions();
+    };
+
+    const handleActivityAdded = async (activity: any) => {
+      console.log('Activity added event received:', activity);
+      console.log('Current db state:', { db: !!db, isDbReady });
+      await fetchActivities(true); // Reset and refresh activities list
+      console.log('Fetch activities completed');
     };
 
     // Import and setup event listener
     const setupEventListener = async () => {
       try {
         const { globalEvents } = await import('@/utils/index');
+        console.log('Setting up event listeners...');
         globalEvents.on('subscriptionStatusChanged', handleSubscriptionStatusChange);
-        
+        globalEvents.on('activityAdded', handleActivityAdded);
+        console.log('Event listeners set up successfully');
+
         return () => {
+          console.log('Cleaning up event listeners...');
           globalEvents.off('subscriptionStatusChanged', handleSubscriptionStatusChange);
+          globalEvents.off('activityAdded', handleActivityAdded);
         };
       } catch (error) {
-        console.error('Error setting up subscription status change listener:', error);
+        console.error('Error setting up event listeners:', error);
         return () => {};
       }
     };
@@ -218,6 +243,7 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
     let cleanup: (() => void) | undefined;
     setupEventListener().then(cleanupFn => {
       cleanup = cleanupFn;
+      console.log('Event listener setup completed');
     });
 
     return () => {
@@ -225,7 +251,7 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
         cleanup();
       }
     };
-  }, [isDbReady, fetchSubscriptions]);
+  }, [isDbReady, fetchSubscriptions, fetchActivities]);
 
   // Create a refresh function that can be called from outside components
   const refreshData = useCallback(() => {
@@ -278,7 +304,7 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
         limit: ACTIVITIES_PER_PAGE,
         offset: currentOffsetRef.current,
       });
-      
+
       // Deduplicate activities based on ID to prevent duplicate keys
       setActivities(prev => {
         const existingIds = new Set(prev.map(activity => activity.id));
@@ -286,7 +312,7 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
         return [...prev, ...newActivities];
       });
       setCurrentOffset(prev => prev + ACTIVITIES_PER_PAGE);
-      
+
       // Update hasMore based on whether we got a full page
       setHasMoreActivities(fetchedActivities.length === ACTIVITIES_PER_PAGE);
     } catch (error) {
@@ -312,7 +338,7 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
         limit: ACTIVITIES_PER_PAGE,
         offset: 0,
       });
-      
+
       setActivities(fetchedActivities);
       setCurrentOffset(ACTIVITIES_PER_PAGE);
       currentOffsetRef.current = ACTIVITIES_PER_PAGE;

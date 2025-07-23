@@ -288,6 +288,9 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   const [keypair, setKeypair] = useState<KeypairInterface | null>(null);
   const [reinitKey, setReinitKey] = useState(0);
 
+  // Dedup system for Cashu direct tokens
+  const processedCashuTokens = useRef<Set<string>>(new Set());
+
   class LocalRelayStatusListener implements RelayStatusListener {
     onRelayStatusChange(relay_url: string, status: number): Promise<void> {
       setRelayStatuses(prev => {
@@ -384,23 +387,73 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         app
           .listenCashuDirect(
             new LocalCashuDirectListener(async (event: CashuDirectContentWithKey) => {
-              const token = event.inner.token;
+              console.log('Cashu direct token received', event);
 
-              console.log(`Cashu direct with token ${token} received`, event);
-
-              // Handle the Cashu direct event
               try {
-                // Process the Cashu token
+                // Auto-process the Cashu token (receiving tokens)
+                const token = event.inner.token;
+
+                // Check if we've already processed this token
+                if (processedCashuTokens.current.has(token)) {
+                  console.log('Cashu token already processed, skipping');
+                  return;
+                }
+
+                // Add token to processed set
+                processedCashuTokens.current.add(token);
+
                 const tokenInfo = await parseCashuToken(token);
                 const wallet = await eCashContext.addWallet(tokenInfo.mintUrl, tokenInfo.unit);
                 await wallet.receiveToken(token);
 
                 console.log('Cashu token processed successfully');
+
+                // Emit event to notify that wallet balances have changed
+                const { globalEvents } = await import('@/utils/index');
+                globalEvents.emit('walletBalancesChanged', {
+                  mintUrl: tokenInfo.mintUrl,
+                  unit: tokenInfo.unit,
+                });
+                console.log('walletBalancesChanged event emitted');
+
+                // Record activity for token receipt
+                try {
+                  // For Cashu direct, use mint URL as service identifier
+                  const serviceKey = tokenInfo.mintUrl;
+                  const ticketTitle = wallet.unit(); // Use the wallet unit as ticket title
+
+                  // Add activity to database using ActivitiesContext directly
+                  const activity = {
+                    type: 'ticket_received' as const,
+                    service_key: serviceKey,
+                    service_name: ticketTitle, // Use ticket title as service name
+                    detail: ticketTitle, // Use ticket title as detail
+                    date: new Date(),
+                    amount: tokenInfo.amount ? Number(tokenInfo.amount) / 1000 : null,
+                    currency: 'sats' as const,
+                    request_id: `cashu-direct-${Date.now()}`,
+                    subscription_id: null,
+                  };
+
+                  // Import and use ActivitiesContext directly
+                  const { useActivities } = await import('@/context/ActivitiesContext');
+                  // Note: We can't use hooks inside event listeners, so we'll use the database directly
+                  // but also emit the event for UI updates
+                  const activityId = await DB.addActivity(activity);
+                  console.log('Activity added to database with ID:', activityId);
+
+                  // Emit event for UI updates
+                  globalEvents.emit('activityAdded', activity);
+                  console.log('activityAdded event emitted');
+                  console.log('Cashu direct activity recorded successfully');
+                } catch (activityError) {
+                  console.error('Error recording Cashu direct activity:', activityError);
+                }
               } catch (error: any) {
                 console.error('Error processing Cashu token:', error.inner);
               }
 
-              // Explicitly return void to satisfy the Promise<void> return type
+              // Return void for direct processing
               return;
             })
           )
@@ -414,34 +467,26 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
         app.listenCashuRequests(
           new LocalCashuRequestListener(async (event: CashuRequestContentWithKey) => {
-            console.log('Cashu request received', event);
+            const id = `cashu-request-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-            try {
-              // Get the wallet from ECash context
-              const wallet = await eCashContext.getWallet(event.inner.mintUrl, event.inner.unit);
-              if (!wallet) {
-                console.error('No wallet available for Cashu request');
-                return new CashuResponseStatus.Rejected({ reason: 'No wallet available' });
-              }
+            console.log(`Cashu request with id ${id} received`, event);
 
-              // Get the amount from the request
-              const amount = event.inner.amount;
-              const walletBalance = await wallet.getBalance();
-              if (walletBalance < amount) {
-                return new CashuResponseStatus.InsufficientFunds();
-              }
+            return new Promise<CashuResponseStatus>(resolve => {
+              const newRequest: PendingRequest = {
+                id,
+                metadata: event,
+                timestamp: new Date(),
+                type: 'ticket',
+                result: resolve,
+              };
 
-              // Send tokens from the wallet
-              const token = await wallet.sendAmount(amount);
-
-              console.log('Cashu token sent successfully');
-              return new CashuResponseStatus.Success({ token });
-            } catch (error: any) {
-              console.error('Error processing Cashu request:', error);
-              return new CashuResponseStatus.Rejected({
-                reason: error.message || 'Failed to send token',
+              setPendingRequests(prev => {
+                const newPendingRequests = { ...prev };
+                newPendingRequests[id] = newRequest;
+                console.log('Updated pending requests map:', newPendingRequests);
+                return newPendingRequests;
               });
-            }
+            });
           })
         );
 

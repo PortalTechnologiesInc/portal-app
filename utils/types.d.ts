@@ -69,6 +69,10 @@ export interface WalletInfoState {
 export enum ActivityType {
   Auth = 'auth',
   Pay = 'pay',
+  Ticket = 'ticket',
+  TicketApproved = 'ticket_approved',
+  TicketDenied = 'ticket_denied',
+  TicketReceived = 'ticket_received',
 }
 
 /**
@@ -85,7 +89,7 @@ export type PendingRequestType =
   | 'certificate'
   | 'identity'
   | 'subscription'
-  | 'cashu';
+  | 'ticket';
 
 // =============================================================================
 // CORE ENTITY INTERFACES

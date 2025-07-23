@@ -7,16 +7,24 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 
 interface ActivityHeaderProps {
   isAuth: boolean;
+  isTicket?: boolean;
   onBackPress: () => void;
   onShare: () => void;
 }
 
 export const ActivityHeader: React.FC<ActivityHeaderProps> = ({
   isAuth,
+  isTicket,
   onBackPress,
   onShare,
 }) => {
   const primaryTextColor = useThemeColor({}, 'textPrimary');
+
+  const getTitle = () => {
+    if (isAuth) return 'Login Details';
+    if (isTicket) return 'Ticket Details';
+    return 'Payment Details';
+  };
 
   return (
     <View style={styles.header}>
@@ -24,7 +32,7 @@ export const ActivityHeader: React.FC<ActivityHeaderProps> = ({
         <FontAwesome6 name="arrow-left" size={20} color={primaryTextColor} />
       </TouchableOpacity>
       <ThemedText type="title" style={[styles.title, { color: primaryTextColor }]}>
-        {isAuth ? 'Login Details' : 'Payment Details'}
+        {getTitle()}
       </ThemedText>
       <View style={styles.headerActions}>
         <TouchableOpacity onPress={onShare} style={styles.headerButton}>
@@ -59,4 +67,4 @@ const styles = StyleSheet.create({
   headerButton: {
     padding: 8,
   },
-}); 
+});
