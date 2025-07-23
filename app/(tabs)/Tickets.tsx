@@ -13,83 +13,6 @@ import TicketCard from '@/components/TicketCard';
 import { useECash } from '@/context/ECashContext';
 import uuid from 'react-native-uuid';
 
-// Mock data for tickets
-// const getMockedTickets = (): Ticket[] => [
-//   {
-//     id: '1',
-//     title: 'Bitcoin Conference 2024',
-//     description: 'Annual Bitcoin conference featuring top speakers and networking opportunities',
-//     serviceName: 'Bitcoin Events',
-//     eventDate: new Date('2024-12-15T10:00:00Z'),
-//     status: 'active',
-//     ticketType: 'event',
-//     price: 299,
-//     currency: 'USD',
-//     location: 'Miami, FL',
-//     qrCode: 'bitcoin-conf-2024-001',
-//     createdAt: new Date('2024-11-01T08:00:00Z'),
-//     imageUrl: require('@/assets/images/ticketCoverMockup.png'),
-//   },
-//   {
-//     id: '2',
-//     title: 'Lightning Network Workshop',
-//     description: 'Hands-on workshop to learn Lightning Network development',
-//     serviceName: 'Lightning Labs',
-//     eventDate: new Date('2024-12-20T14:00:00Z'),
-//     status: 'active',
-//     ticketType: 'event',
-//     price: 150,
-//     currency: 'USD',
-//     location: 'San Francisco, CA',
-//     qrCode: 'lightning-workshop-002',
-//     createdAt: new Date('2024-11-05T10:30:00Z'),
-//     imageUrl: require('@/assets/images/ticketCoverMockup.png'),
-//   },
-//   {
-//     id: '3',
-//     title: 'Premium Support Access',
-//     description: '24/7 premium customer support for Portal services',
-//     serviceName: 'Portal Technologies',
-//     eventDate: new Date('2024-12-31T23:59:59Z'),
-//     status: 'active',
-//     ticketType: 'service',
-//     price: 99,
-//     currency: 'USD',
-//     qrCode: 'premium-support-003',
-//     createdAt: new Date('2024-10-15T09:00:00Z'),
-//     imageUrl: require('@/assets/images/ticketCoverMockup.png'),
-//   },
-//   {
-//     id: '4',
-//     title: 'Nostr Developer Meetup',
-//     description: 'Monthly meetup for Nostr protocol developers',
-//     serviceName: 'Nostr Community',
-//     eventDate: new Date('2024-12-10T18:00:00Z'),
-//     status: 'used',
-//     ticketType: 'event',
-//     price: 0,
-//     location: 'Austin, TX',
-//     qrCode: 'nostr-meetup-004',
-//     createdAt: new Date('2024-11-20T16:00:00Z'),
-//     imageUrl: require('@/assets/images/ticketCoverMockup.png'),
-//   },
-//   {
-//     id: '5',
-//     title: 'VIP Lounge Access',
-//     description: 'Exclusive VIP lounge access at major crypto events',
-//     serviceName: 'Crypto Events Pro',
-//     eventDate: new Date('2024-12-25T20:00:00Z'),
-//     status: 'active',
-//     ticketType: 'access',
-//     price: 500,
-//     currency: 'USD',
-//     location: 'Las Vegas, NV',
-//     qrCode: 'vip-lounge-005',
-//     createdAt: new Date('2024-11-10T12:00:00Z'),
-//     imageUrl: require('@/assets/images/ticketCoverMockup.png'),
-//   },
-// ];
-
 export default function TicketsScreen() {
   const [filter, setFilter] = useState<'all' | 'active' | 'used' | 'expired'>('all');
   const [focusedCardId, setFocusedCardId] = useState<string | null>(null);
@@ -142,17 +65,24 @@ export default function TicketsScreen() {
         const unitInfo = await wallet.getUnitInfo();
         const balance = await wallet.getBalance();
         console.log('Tickets: wallet balance', balance, 'unit:', wallet.unit());
+        console.log('Tickets: full unitInfo:', JSON.stringify(unitInfo, null, 2));
 
         if (unitInfo?.showIndividually) {
           // Create separate tickets for each unit when showIndividually is true
           for (let i = 0; i < balance; i++) {
             allTickets.push({
               id: uuid.v4(),
-              title: wallet.unit(),
+              title: unitInfo?.title || wallet.unit(),
               description: unitInfo?.description,
-              isNonFungible: unitInfo?.showIndividually,
+              isNonFungible: unitInfo?.showIndividually || false,
               mintUrl: wallet.getMintUrl(),
               balance: BigInt(1), // Each ticket represents 1 unit
+              // Rich metadata
+              frontCardBackground: unitInfo?.frontCardBackground,
+              backCardBackground: unitInfo?.backCardBackground,
+              location: unitInfo?.kind?.tag === 'Event' ? unitInfo.kind.inner.location : undefined,
+              date: unitInfo?.kind?.tag === 'Event' ? unitInfo.kind.inner.date : undefined,
+              kind: unitInfo?.kind?.tag || 'Other',
             });
           }
         } else {
@@ -160,11 +90,17 @@ export default function TicketsScreen() {
           if (balance > 0) {
             allTickets.push({
               id: uuid.v4(),
-              title: wallet.unit(),
+              title: unitInfo?.title || wallet.unit(),
               description: unitInfo?.description,
-              isNonFungible: unitInfo?.showIndividually,
+              isNonFungible: unitInfo?.showIndividually || false,
               mintUrl: wallet.getMintUrl(),
               balance: balance, // balance is already bigint from wallet.getBalance()
+              // Rich metadata
+              frontCardBackground: unitInfo?.frontCardBackground,
+              backCardBackground: unitInfo?.backCardBackground,
+              location: unitInfo?.kind?.tag === 'Event' ? unitInfo.kind.inner.location : undefined,
+              date: unitInfo?.kind?.tag === 'Event' ? unitInfo.kind.inner.date : undefined,
+              kind: unitInfo?.kind?.tag || 'Other',
             });
           }
         }

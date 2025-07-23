@@ -4,19 +4,6 @@ import { ThemedText } from '@/components/ThemedText';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { formatDayAndDate, Ticket } from '@/utils';
 
-// const getTicketTypeIcon = (type: Ticket['ticketType']) => {
-//   switch (type) {
-//     case 'event':
-//       return '🎫';
-//     case 'service':
-//       return '🔧';
-//     case 'access':
-//       return '🔓';
-//     default:
-//       return '🎫';
-//   }
-// };
-
 const TicketCard: React.FC<{
   ticket: Ticket;
   index: number;
@@ -28,53 +15,50 @@ const TicketCard: React.FC<{
   const primaryTextColor = useThemeColor({}, 'textPrimary');
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
 
+  // Use card background if available, otherwise fallback to mockup
+  const cardImageSource = ticket.frontCardBackground
+    ? { uri: ticket.frontCardBackground }
+    : require('@/assets/images/ticketCoverMockup.png');
+
   if (isFocused) {
-    // Detailed card view
+    // Focused card with info overlay
     return (
       <View
         style={[styles.focusedCardContainer, { backgroundColor: cardBackgroundColor, borderColor }]}
       >
         <TouchableOpacity style={styles.touchableArea} activeOpacity={0.8} onPress={onPress}>
-          <View style={styles.detailBackgroundImage}>
-            <Image
-              // source={ticket.imageUrl || require('@/assets/images/ticketCoverMockup.png')}
-              source={require('@/assets/images/ticketCoverMockup.png')}
-              style={styles.coverImage}
-              resizeMode="cover"
-            />
-            <View style={styles.titleOverlay}>
-              <ThemedText style={styles.titleOverlayText}>{ticket.title}</ThemedText>
-            </View>
-          </View>
-          <View style={styles.cardContent}>
-            <View style={styles.leftSection}>
-              <View style={styles.titleRow}>
-                <ThemedText type="subtitle" style={{ color: primaryTextColor, flex: 1 }}>
-                  {ticket.title}
-                </ThemedText>
-                <ThemedText style={styles.ticketTypeIcon}>
-                  {/* {getTicketTypeIcon(ticket.ticketType)} */}
-                </ThemedText>
-              </View>
-              {/* <ThemedText style={[styles.serviceName, { color: secondaryTextColor }]}>
-                {ticket.serviceName}
-              </ThemedText> */}
-              <ThemedText style={[styles.description, { color: secondaryTextColor }]}>
-                {ticket.description}
-              </ThemedText>
-              <View style={styles.dateLocationRow}>
-                <View style={styles.dateLocationItem}>
-                  <ThemedText style={[styles.dateLocationLabel, { color: secondaryTextColor }]}>
-                    {/* {formatDayAndDate(ticket.eventDate)} */}
-                  </ThemedText>
+          <View style={styles.focusedContainer}>
+            <Image source={cardImageSource} style={styles.focusedCoverImage} resizeMode="cover" />
+            <View style={styles.focusedContent}>
+              {/* Title and description at top */}
+              <View style={styles.focusedTopSection}>
+                {/* Title at top like front card */}
+                <View style={styles.focusedTitleContainer}>
+                  <ThemedText style={styles.focusedTitleText}>{ticket.title}</ThemedText>
                 </View>
-                {/* {ticket.location && (
-                  <View style={styles.dateLocationItem}>
-                    <ThemedText style={[styles.dateLocationLabel, { color: secondaryTextColor }]}>
-                      📍 {ticket.location}
+
+                {/* Description right under title */}
+                {ticket.description && (
+                  <View style={styles.focusedDescriptionContainer}>
+                    <ThemedText style={styles.focusedDescriptionText}>
+                      {ticket.description}
                     </ThemedText>
                   </View>
-                )} */}
+                )}
+              </View>
+
+              {/* Date and Location at bottom */}
+              <View style={styles.focusedBottomRow}>
+                {ticket.date && (
+                  <View style={styles.focusedDateContainer}>
+                    <ThemedText style={styles.focusedDateText}>📅 {ticket.date}</ThemedText>
+                  </View>
+                )}
+                {ticket.location && (
+                  <View style={styles.focusedLocationContainer}>
+                    <ThemedText style={styles.focusedLocationText}>📍 {ticket.location}</ThemedText>
+                  </View>
+                )}
               </View>
             </View>
           </View>
@@ -98,12 +82,7 @@ const TicketCard: React.FC<{
     >
       <TouchableOpacity style={styles.touchableArea} activeOpacity={0.8} onPress={onPress}>
         <View style={styles.coverContainer}>
-          <Image
-            // source={ticket.imageUrl || require('@/assets/images/ticketCoverMockup.png')}
-            source={require('@/assets/images/ticketCoverMockup.png')}
-            style={styles.coverImage}
-            resizeMode="cover"
-          />
+          <Image source={cardImageSource} style={styles.coverImage} resizeMode="cover" />
           <View style={styles.titleOverlay}>
             <ThemedText style={styles.titleOverlayText}>{ticket.title}</ThemedText>
           </View>
@@ -204,6 +183,139 @@ const styles = StyleSheet.create({
   },
   touchableArea: {
     flex: 1,
+  },
+  balanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  balanceText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  nftBadge: {
+    fontSize: 12,
+    fontWeight: '600',
+    backgroundColor: '#E0E0E0',
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginLeft: 8,
+  },
+  mintInfo: {
+    marginTop: 8,
+  },
+  mintLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  overlayBalance: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  overlayBalanceText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  overlayNftBadge: {
+    fontSize: 12,
+    fontWeight: '600',
+    backgroundColor: '#E0E0E0',
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginLeft: 8,
+  },
+  focusedContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  focusedCoverImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 12,
+  },
+  focusedContent: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    padding: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    justifyContent: 'space-between',
+  },
+  focusedTopSection: {
+    flex: 1,
+  },
+  focusedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  focusedTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  focusedDescription: {
+    fontSize: 13,
+    lineHeight: 16,
+    marginBottom: 8,
+  },
+  focusedDateLocationRow: {
+    flexDirection: 'row',
+    marginTop: 8,
+    gap: 12,
+  },
+  focusedDateLocationItem: {
+    flex: 1,
+  },
+  focusedDateLocationLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  focusedTitleContainer: {
+    marginBottom: 2,
+  },
+  focusedTitleText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  focusedDescriptionContainer: {
+    marginBottom: 2,
+  },
+  focusedDescriptionText: {
+    fontSize: 13,
+    lineHeight: 16,
+    color: '#FFFFFF',
+  },
+  focusedBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginTop: 8,
+  },
+  focusedDateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  focusedDateText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#FFFFFF',
+  },
+  focusedLocationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  focusedLocationText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#FFFFFF',
   },
 });
 

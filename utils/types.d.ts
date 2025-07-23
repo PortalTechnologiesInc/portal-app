@@ -134,17 +134,20 @@ export interface UpcomingPayment {
   dueDate: Date;
 }
 
-/**
- * Ticket information for events and services
- */
-type Ticket = {
+export interface Ticket {
   id: string;
   title: string;
   description?: string;
-  isNonFungible?: boolean | undefined;
   mintUrl: string;
   balance: bigint;
-};
+  isNonFungible: boolean;
+  // Rich metadata from UnitInfo
+  frontCardBackground?: string;
+  backCardBackground?: string;
+  location?: string;
+  date?: string;
+  kind: 'Event' | 'Other';
+}
 
 /**
  * Pending request for user approval
