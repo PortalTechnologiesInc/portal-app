@@ -88,6 +88,14 @@ export function ECashProvider({ children, mnemonic }: { children: ReactNode; mne
     const storage = new CashuStorage(DB);
     const wallet = await CashuWallet.create(mintUrl, unit, seed, storage);
 
+    // This connects to the mint and makes sure the wallet is up to date
+    // We run this only if we don't have any proofs for this (mint_url, unit) pair yet
+    const isPairPresent = (await DB.getMintUnitPairs()).filter(pair => pair[0] === mintUrl && pair[1] === unit).length > 0;
+    if (!isPairPresent) {
+      console.log(`Restoring proofs for ${mintUrl}-${unit}`);
+      await wallet.restoreProofs();
+    }
+
     try {
       setWallets(prev => {
         const newMap = { ...prev };
