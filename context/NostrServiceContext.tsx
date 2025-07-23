@@ -20,6 +20,12 @@ import {
   RelayStatusListener,
   KeypairInterface,
   parseCashuToken,
+  CashuDirectContentWithKey,
+  CashuDirectListener,
+  CashuRequestListener,
+  CashuRequestContent,
+  CashuRequestContentWithKey,
+  CashuResponseStatus,
 } from 'portal-app-lib';
 import { DatabaseService } from '@/services/database';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -71,6 +77,30 @@ function mapNumericStatusToString(numericStatus: number): RelayConnectionStatus 
     default:
       console.warn(`🔍 NostrService: Unknown numeric RelayStatus: ${numericStatus}`);
       return 'Unknown';
+  }
+}
+
+export class LocalCashuDirectListener implements CashuDirectListener {
+  private callback: (event: CashuDirectContentWithKey) => Promise<void>;
+
+  constructor(callback: (event: CashuDirectContentWithKey) => Promise<void>) {
+    this.callback = callback;
+  }
+
+  onCashuDirect(event: CashuDirectContentWithKey): Promise<void> {
+    return this.callback(event);
+  }
+}
+
+export class LocalCashuRequestListener implements CashuRequestListener {
+  private callback: (event: CashuRequestContentWithKey) => Promise<CashuResponseStatus>;
+
+  constructor(callback: (event: CashuRequestContentWithKey) => Promise<CashuResponseStatus>) {
+    this.callback = callback;
+  }
+
+  onCashuRequest(event: CashuRequestContentWithKey): Promise<CashuResponseStatus> {
+    return this.callback(event);
   }
 }
 
@@ -351,35 +381,74 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         app.listen({ signal: abortController.signal });
         console.log('PortalApp listening started...');
 
-        // app
-        //   .listenForCashuToken((
-        //     token: string
-        //   ) => {
+        app
+          .listenCashuDirect(
+            new LocalCashuDirectListener(async (event: CashuDirectContentWithKey) => {
+              const token = event.inner.token;
 
-        //     const x = await parseCashuToken(token);
-        //     const wallet = eCashContext.getWallet(x.mintUrl, x.unit)
-        //     wallet.receive(token);
+              console.log(`Cashu direct with token ${token} received`, event);
 
-        //   }).catch(e) {
+              // Handle the Cashu direct event
+              try {
+                // Process the Cashu token
+                const tokenInfo = await parseCashuToken(token);
+                const wallet = await eCashContext.addWallet(tokenInfo.mintUrl, tokenInfo.unit);
+                await wallet.receiveToken(token);
 
-        //   }
-        // );
+                console.log('Cashu token processed successfully');
+              } catch (error: any) {
+                console.error('Error processing Cashu token:', error.inner);
+              }
+
+              // Explicitly return void to satisfy the Promise<void> return type
+              return;
+            })
+          )
+          .catch(e => {
+            console.error('Error listening for Cashu direct', e);
+            handleErrorWithToastAndReinit(
+              'Failed to listen for Cashu direct. Retrying...',
+              triggerReinit
+            );
+          });
+
+        app.listenCashuRequests(
+          new LocalCashuRequestListener(async (event: CashuRequestContentWithKey) => {
+            console.log('Cashu request received', event);
+
+            try {
+              // Get the wallet from ECash context
+              const wallet = await eCashContext.getWallet(event.inner.mintUrl, event.inner.unit);
+              if (!wallet) {
+                console.error('No wallet available for Cashu request');
+                return new CashuResponseStatus.Rejected({ reason: 'No wallet available' });
+              }
+
+              // Get the amount from the request
+              const amount = event.inner.amount;
+              const walletBalance = await wallet.getBalance();
+              if (walletBalance < amount) {
+                return new CashuResponseStatus.InsufficientFunds();
+              }
+
+              // Send tokens from the wallet
+              const token = await wallet.sendAmount(amount);
+
+              console.log('Cashu token sent successfully');
+              return new CashuResponseStatus.Success({ token });
+            } catch (error: any) {
+              console.error('Error processing Cashu request:', error);
+              return new CashuResponseStatus.Rejected({
+                reason: error.message || 'Failed to send token',
+              });
+            }
+          })
+        );
 
         /**
          * these logic go inside the new listeners that will be implemented
          */
-        const tokenStr = 'cashuBo2FteBlodHRwczovL21pbnQuZ2V0cG9ydGFsLmNjYXVlbXVsdGlhdIGiYWlIAH58JaybAGdhcIGkYWEEYXN4QGE3OGEyMDAwZjI3OTg2ZTQ3MmFiNDk2MmZmNzdjZmQ5NzZhMmRjYjhkNmQ1YWQ3ZGQ1NmY1YTdjYzRkNTg2OWFhY1ghAkx6L9jPV_5_YUoaMwoKvdC9b0sw7QiRmvAdv5t0K6IVYWSjYWVYID0EkhIa1M_VW1IJfBoHB2rFOI2GH3PWwvABfEo5kvw_YXNYIMPmgJtkTra0p_-aB6uwEpfIMBvS9Us-5piWyM1RtE57YXJYIGZrKzJ2dFHxdTXtwFPc5gdpkUXTSJXy_332eW-MVauK';
-        const tokenInfo = await parseCashuToken(tokenStr);
-        const wallet = await eCashContext.addWallet(tokenInfo.mintUrl, tokenInfo.unit);
-        try {
-          await wallet.receiveToken(tokenStr);
-        } catch(e: any) {
-          console.error(e.inner);
-        }
         // end
-
-
-
 
         app
           .listenForAuthChallenge(
@@ -839,25 +908,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
       }
     }
   }, [nwcWallet]); // Only depend on nwcWallet to prevent infinite recreation
-
-  // Force reconnect function to trigger immediate reconnection
-  const forceReconnect = useCallback(async () => {
-    if (!portalApp) {
-      console.warn('PortalApp not initialized, cannot force reconnect');
-      return;
-    }
-
-    console.log('Force reconnecting to relays...');
-
-    try {
-      // Only refresh connection status, don't trigger recursive calls
-      await refreshConnectionStatus();
-
-      console.log('Force reconnect initiated');
-    } catch (error: any) {
-      console.error('Error during force reconnect:', error.inner);
-    }
-  }, [portalApp, refreshConnectionStatus]);
 
   // Centralized NWC polling - only when wallet is configured
   useEffect(() => {

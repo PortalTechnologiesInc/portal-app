@@ -1,5 +1,11 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { CashuWallet, CashuLocalStore, ProofInfo, CashuWalletInterface, Mnemonic } from 'portal-app-lib';
+import {
+  CashuWallet,
+  CashuLocalStore,
+  ProofInfo,
+  CashuWalletInterface,
+  Mnemonic,
+} from 'portal-app-lib';
 import { useSQLiteContext } from 'expo-sqlite';
 import { DatabaseService } from '@/services/database';
 
@@ -26,7 +32,7 @@ interface ECashContextType {
 
 const ECashContext = createContext<ECashContextType | undefined>(undefined);
 
-export function ECashProvider({ children, mnemonic }: { children: ReactNode, mnemonic: string }) {
+export function ECashProvider({ children, mnemonic }: { children: ReactNode; mnemonic: string }) {
   const [wallets, setWallets] = useState<{ [key: string]: CashuWalletInterface }>({});
   const [isLoading, setIsLoading] = useState(false);
 
@@ -38,16 +44,14 @@ export function ECashProvider({ children, mnemonic }: { children: ReactNode, mne
       setIsLoading(true);
       try {
         const pairList = await DB.getMintUnitPairs();
-        pairList.forEach(
-          ([mintUrl, unit]) => {
-            addWallet(mintUrl, unit);
-          }
-        )
+        pairList.forEach(([mintUrl, unit]) => {
+          addWallet(mintUrl, unit);
+        });
       } catch (e) {
         console.error(e);
       }
       setIsLoading(false);
-    }
+    };
 
     fetchWallets();
   }, []);
@@ -118,206 +122,195 @@ export function useECash() {
 }
 
 class CashuStorage implements CashuLocalStore {
-    constructor(private db: DatabaseService) {}
+  constructor(private db: DatabaseService) {}
 
-    async getProofs(mintUrl: string | undefined, unit: string | undefined, state: string | undefined, spendingCondition: string | undefined): Promise<Array<string>> {
-        console.log('[CashuStorage] getProofs() called');
-        try {
-            const proofs = await this.db.getCashuProofs(mintUrl, unit, state, spendingCondition);
-            return proofs;
-        } catch (error) {
-            console.error('[CashuStorage] Error getting proofs:', error);
-            return [];
-        }
+  async getProofs(
+    mintUrl: string | undefined,
+    unit: string | undefined,
+    state: string | undefined,
+    spendingCondition: string | undefined
+  ): Promise<Array<string>> {
+    try {
+      const proofs = await this.db.getCashuProofs(mintUrl, unit, state, spendingCondition);
+      return proofs;
+    } catch (error) {
+      console.error('[CashuStorage] Error getting proofs:', error);
+      return [];
     }
-    
-    async updateProofs(added: Array<string>, removedYs: Array<string>): Promise<void> {
-        console.log('[CashuStorage] updateProofs() called', { added, removedYs });
-        try {
-            await this.db.updateCashuProofs(added, removedYs);
-        } catch (error) {
-            console.error('[CashuStorage] Error updating proofs:', error);
-            throw error;
-        }
+  }
+
+  async updateProofs(added: Array<string>, removedYs: Array<string>): Promise<void> {
+    try {
+      await this.db.updateCashuProofs(added, removedYs);
+    } catch (error) {
+      console.error('[CashuStorage] Error updating proofs:', error);
+      throw error;
     }
-    
-    async updateProofsState(ys: Array<string>, state: string): Promise<void> {
-        console.log('[CashuStorage] updateProofsState() called', { ys, state });
-        try {
-            await this.db.updateCashuProofsState(ys, state);
-        } catch (error) {
-            console.error('[CashuStorage] Error updating proof states:', error);
-            throw error;
-        }
+  }
+
+  async updateProofsState(ys: Array<string>, state: string): Promise<void> {
+    try {
+      await this.db.updateCashuProofsState(ys, state);
+    } catch (error) {
+      console.error('[CashuStorage] Error updating proof states:', error);
+      throw error;
     }
-    
-    async addTransaction(transaction: string): Promise<void> {
-        console.log('[CashuStorage] addTransaction() called', { transaction });
-        try {
-            await this.db.addCashuTransaction(transaction);
-        } catch (error) {
-            console.error('[CashuStorage] Error adding transaction:', error);
-            throw error;
-        }
+  }
+
+  async addTransaction(transaction: string): Promise<void> {
+    try {
+      await this.db.addCashuTransaction(transaction);
+    } catch (error) {
+      console.error('[CashuStorage] Error adding transaction:', error);
+      throw error;
     }
-    
-    async getTransaction(transactionId: string): Promise<string | undefined> {
-        console.log('[CashuStorage] getTransaction() called', { transactionId });
-        try {
-            return await this.db.getCashuTransaction(transactionId);
-        } catch (error) {
-            console.error('[CashuStorage] Error getting transaction:', error);
-            return undefined;
-        }
+  }
+
+  async getTransaction(transactionId: string): Promise<string | undefined> {
+    try {
+      return await this.db.getCashuTransaction(transactionId);
+    } catch (error) {
+      console.error('[CashuStorage] Error getting transaction:', error);
+      return undefined;
     }
-    
-    async listTransactions(mintUrl: string | undefined, direction: string | undefined, unit: string | undefined): Promise<Array<string>> {
-        console.log('[CashuStorage] listTransactions() called', { mintUrl, direction, unit });
-        try {
-            return await this.db.listCashuTransactions(mintUrl, direction, unit);
-        } catch (error) {
-            console.error('[CashuStorage] Error listing transactions:', error);
-            return [];
-        }
+  }
+
+  async listTransactions(
+    mintUrl: string | undefined,
+    direction: string | undefined,
+    unit: string | undefined
+  ): Promise<Array<string>> {
+    try {
+      return await this.db.listCashuTransactions(mintUrl, direction, unit);
+    } catch (error) {
+      console.error('[CashuStorage] Error listing transactions:', error);
+      return [];
     }
-    
-    async removeTransaction(transactionId: string): Promise<void> {
-        console.log('[CashuStorage] removeTransaction() called', { transactionId });
-        try {
-            await this.db.removeCashuTransaction(transactionId);
-        } catch (error) {
-            console.error('[CashuStorage] Error removing transaction:', error);
-            throw error;
-        }
+  }
+
+  async removeTransaction(transactionId: string): Promise<void> {
+    try {
+      await this.db.removeCashuTransaction(transactionId);
+    } catch (error) {
+      console.error('[CashuStorage] Error removing transaction:', error);
+      throw error;
     }
-    
-    async addMint(mintUrl: string, mintInfo: string | undefined): Promise<void> {
-        console.log('[CashuStorage] addMint() called', { mintUrl, mintInfo });
-        try {
-            await this.db.addCashuMint(mintUrl, mintInfo);
-        } catch (error) {
-            console.error('[CashuStorage] Error adding mint:', error);
-            throw error;
-        }
+  }
+
+  async addMint(mintUrl: string, mintInfo: string | undefined): Promise<void> {
+    try {
+      await this.db.addCashuMint(mintUrl, mintInfo);
+    } catch (error) {
+      console.error('[CashuStorage] Error adding mint:', error);
+      throw error;
     }
-    
-    async removeMint(mintUrl: string): Promise<void> {
-        console.log('[CashuStorage] removeMint() called', { mintUrl });
-        try {
-            await this.db.removeCashuMint(mintUrl);
-        } catch (error) {
-            console.error('[CashuStorage] Error removing mint:', error);
-            throw error;
-        }
+  }
+
+  async removeMint(mintUrl: string): Promise<void> {
+    try {
+      await this.db.removeCashuMint(mintUrl);
+    } catch (error) {
+      console.error('[CashuStorage] Error removing mint:', error);
+      throw error;
     }
-    
-    async getMint(mintUrl: string): Promise<string | undefined> {
-        console.log('[CashuStorage] getMint() called', { mintUrl });
-        try {
-            return await this.db.getCashuMint(mintUrl);
-        } catch (error) {
-            console.error('[CashuStorage] Error getting mint:', error);
-            return undefined;
-        }
+  }
+
+  async getMint(mintUrl: string): Promise<string | undefined> {
+    try {
+      return await this.db.getCashuMint(mintUrl);
+    } catch (error) {
+      console.error('[CashuStorage] Error getting mint:', error);
+      return undefined;
     }
-    
-    async getMints(): Promise<Array<string>> {
-        console.log('[CashuStorage] getMints() called');
-        try {
-            return await this.db.getCashuMints();
-        } catch (error) {
-            console.error('[CashuStorage] Error getting mints:', error);
-            return [];
-        }
+  }
+
+  async getMints(): Promise<Array<string>> {
+    try {
+      return await this.db.getCashuMints();
+    } catch (error) {
+      console.error('[CashuStorage] Error getting mints:', error);
+      return [];
     }
-    
-    async updateMintUrl(oldMintUrl: string, newMintUrl: string): Promise<void> {
-        console.log('[CashuStorage] updateMintUrl() called', { oldMintUrl, newMintUrl });
-        try {
-            await this.db.updateCashuMintUrl(oldMintUrl, newMintUrl);
-        } catch (error) {
-            console.error('[CashuStorage] Error updating mint URL:', error);
-            throw error;
-        }
+  }
+
+  async updateMintUrl(oldMintUrl: string, newMintUrl: string): Promise<void> {
+    try {
+      await this.db.updateCashuMintUrl(oldMintUrl, newMintUrl);
+    } catch (error) {
+      console.error('[CashuStorage] Error updating mint URL:', error);
+      throw error;
     }
-    
-    async addMintKeysets(mintUrl: string, keysets: Array<string>): Promise<void> {
-        console.log('[CashuStorage] addMintKeysets() called', { mintUrl, keysets });
-        try {
-            await this.db.addCashuMintKeysets(mintUrl, keysets);
-        } catch (error) {
-            console.error('[CashuStorage] Error adding mint keysets:', error);
-            throw error;
-        }
+  }
+
+  async addMintKeysets(mintUrl: string, keysets: Array<string>): Promise<void> {
+    try {
+      await this.db.addCashuMintKeysets(mintUrl, keysets);
+    } catch (error) {
+      console.error('[CashuStorage] Error adding mint keysets:', error);
+      throw error;
     }
-    
-    async getMintKeysets(mintUrl: string): Promise<Array<string> | undefined> {
-        console.log('[CashuStorage] getMintKeysets() called', { mintUrl });
-        try {
-            return await this.db.getCashuMintKeysets(mintUrl);
-        } catch (error) {
-            console.error('[CashuStorage] Error getting mint keysets:', error);
-            return undefined;
-        }
+  }
+
+  async getMintKeysets(mintUrl: string): Promise<Array<string> | undefined> {
+    try {
+      return await this.db.getCashuMintKeysets(mintUrl);
+    } catch (error) {
+      console.error('[CashuStorage] Error getting mint keysets:', error);
+      return undefined;
     }
-    
-    async getKeysetById(keysetId: string): Promise<string | undefined> {
-        console.log('[CashuStorage] getKeysetById() called', { keysetId });
-        try {
-            return await this.db.getCashuKeysetById(keysetId);
-        } catch (error) {
-            console.error('[CashuStorage] Error getting keyset by ID:', error);
-            return undefined;
-        }
+  }
+
+  async getKeysetById(keysetId: string): Promise<string | undefined> {
+    try {
+      return await this.db.getCashuKeysetById(keysetId);
+    } catch (error) {
+      console.error('[CashuStorage] Error getting keyset by ID:', error);
+      return undefined;
     }
-    
-    async addKeys(keyset: string): Promise<void> {
-        console.log('[CashuStorage] addKeys() called', { keyset });
-        try {
-            await this.db.addCashuKeys(keyset);
-        } catch (error) {
-            console.error('[CashuStorage] Error adding keys:', error);
-            throw error;
-        }
+  }
+
+  async addKeys(keyset: string): Promise<void> {
+    try {
+      await this.db.addCashuKeys(keyset);
+    } catch (error) {
+      console.error('[CashuStorage] Error adding keys:', error);
+      throw error;
     }
-    
-    async getKeys(id: string): Promise<string | undefined> {
-        console.log('[CashuStorage] getKeys() called', { id });
-        try {
-            return await this.db.getCashuKeys(id);
-        } catch (error) {
-            console.error('[CashuStorage] Error getting keys:', error);
-            return undefined;
-        }
+  }
+
+  async getKeys(id: string): Promise<string | undefined> {
+    try {
+      return await this.db.getCashuKeys(id);
+    } catch (error) {
+      console.error('[CashuStorage] Error getting keys:', error);
+      return undefined;
     }
-    
-    async removeKeys(id: string): Promise<void> {
-        console.log('[CashuStorage] removeKeys() called', { id });
-        try {
-            await this.db.removeCashuKeys(id);
-        } catch (error) {
-            console.error('[CashuStorage] Error removing keys:', error);
-            throw error;
-        }
+  }
+
+  async removeKeys(id: string): Promise<void> {
+    try {
+      await this.db.removeCashuKeys(id);
+    } catch (error) {
+      console.error('[CashuStorage] Error removing keys:', error);
+      throw error;
     }
-    
-    async incrementKeysetCounter(keysetId: string, count: number): Promise<void> {
-        console.log('[CashuStorage] incrementKeysetCounter() called', { keysetId, count });
-        try {
-            await this.db.incrementCashuKeysetCounter(keysetId, count);
-        } catch (error) {
-            console.error('[CashuStorage] Error incrementing keyset counter:', error);
-            throw error;
-        }
+  }
+
+  async incrementKeysetCounter(keysetId: string, count: number): Promise<void> {
+    try {
+      await this.db.incrementCashuKeysetCounter(keysetId, count);
+    } catch (error) {
+      console.error('[CashuStorage] Error incrementing keyset counter:', error);
+      throw error;
     }
-    
-    async getKeysetCounter(keysetId: string): Promise<number | undefined> {
-        console.log('[CashuStorage] getKeysetCounter() called', { keysetId });
-        try {
-            return await this.db.getCashuKeysetCounter(keysetId);
-        } catch (error) {
-            console.error('[CashuStorage] Error getting keyset counter:', error);
-            return undefined;
-        }
+  }
+
+  async getKeysetCounter(keysetId: string): Promise<number | undefined> {
+    try {
+      return await this.db.getCashuKeysetCounter(keysetId);
+    } catch (error) {
+      console.error('[CashuStorage] Error getting keyset counter:', error);
+      return undefined;
     }
+  }
 }

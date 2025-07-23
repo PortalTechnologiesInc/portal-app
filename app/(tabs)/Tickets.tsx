@@ -11,7 +11,7 @@ import NfcManager from 'react-native-nfc-manager';
 import * as Linking from 'expo-linking';
 import TicketCard from '@/components/TicketCard';
 import { useECash } from '@/context/ECashContext';
-import uuid from 'react-native-uuid'
+import uuid from 'react-native-uuid';
 
 // Mock data for tickets
 // const getMockedTickets = (): Ticket[] => [
@@ -99,29 +99,47 @@ export default function TicketsScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const { wallets } = useECash();
 
-  useEffect(
-    () => {
-      async function mapWallets() {
-        const tickets: Ticket[] = await Promise.all(
-          Object.entries(wallets).map(
-            async ([_, wallet]) => {
-              const unitInfo = await wallet.getUnitInfo();
-              return {
-                id: uuid.v4(),
-                title: wallet.unit(),
-                description: unitInfo?.description,
-                isNonFungible: unitInfo?.isNonFungible,
-                mintUrl: wallet.getMintUrl(),
-                balance: await wallet.getBalance(),
-              }
-            }
-          )
-        )
-        setTickets(tickets);
+  useEffect(() => {
+    async function mapWallets() {
+      const allTickets: Ticket[] = [];
+
+      for (const [_, wallet] of Object.entries(wallets)) {
+        const unitInfo = await wallet.getUnitInfo();
+        const balance = await wallet.getBalance();
+        console.log('balance', balance);
+
+        if (unitInfo?.showIndividually) {
+          // Create separate tickets for each unit when showIndividually is true
+          for (let i = 0; i < balance; i++) {
+            allTickets.push({
+              id: uuid.v4(),
+              title: wallet.unit(),
+              description: unitInfo?.description,
+              isNonFungible: unitInfo?.showIndividually,
+              mintUrl: wallet.getMintUrl(),
+              balance: BigInt(1), // Each ticket represents 1 unit
+            });
+          }
+        } else {
+          // Create a single aggregated ticket when showIndividually is false
+          if (balance > 0) {
+            allTickets.push({
+              id: uuid.v4(),
+              title: wallet.unit(),
+              description: unitInfo?.description,
+              isNonFungible: unitInfo?.showIndividually,
+              mintUrl: wallet.getMintUrl(),
+              balance: balance, // balance is already bigint from wallet.getBalance()
+            });
+          }
+        }
       }
-      mapWallets();
+
+      setTickets(allTickets);
+      console.log('tickets', allTickets);
     }
-    , [wallets]);
+    mapWallets();
+  }, []);
 
   // NFC Status Checking
   const checkNFCStatus = async (): Promise<boolean> => {
@@ -150,7 +168,7 @@ export default function TicketsScreen() {
       } else {
         await Linking.openSettings();
       }
-    } catch { }
+    } catch {}
   };
 
   const showNFCEnableDialog = () => {

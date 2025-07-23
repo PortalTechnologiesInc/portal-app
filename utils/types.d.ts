@@ -79,7 +79,13 @@ export type Frequency = 'daily' | 'weekly' | 'monthly' | 'annually';
 /**
  * Types of pending requests
  */
-export type PendingRequestType = 'login' | 'payment' | 'certificate' | 'identity' | 'subscription';
+export type PendingRequestType =
+  | 'login'
+  | 'payment'
+  | 'certificate'
+  | 'identity'
+  | 'subscription'
+  | 'cashu';
 
 // =============================================================================
 // CORE ENTITY INTERFACES
@@ -135,7 +141,6 @@ type Ticket = {
   mintUrl: string;
   balance: bigint;
 };
-
 
 /**
  * Pending request for user approval
