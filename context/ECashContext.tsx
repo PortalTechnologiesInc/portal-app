@@ -41,14 +41,31 @@ export function ECashProvider({ children, mnemonic }: { children: ReactNode; mne
 
   useEffect(() => {
     const fetchWallets = async () => {
+      console.log('ECashContext: Starting wallet fetch...');
       setIsLoading(true);
       try {
         const pairList = await DB.getMintUnitPairs();
-        pairList.forEach(([mintUrl, unit]) => {
-          addWallet(mintUrl, unit);
-        });
+        console.log('ECashContext: Loading wallets from pairs:', pairList);
+
+        if (pairList.length === 0) {
+          console.log('ECashContext: No wallet pairs found in database');
+        }
+
+        // Use Promise.all to properly await all wallet additions
+        await Promise.all(
+          pairList.map(async ([mintUrl, unit]) => {
+            try {
+              await addWallet(mintUrl, unit);
+              console.log(`ECashContext: Added wallet for ${mintUrl}-${unit}`);
+            } catch (error) {
+              console.error(`ECashContext: Error adding wallet for ${mintUrl}-${unit}:`, error);
+            }
+          })
+        );
+
+        console.log('ECashContext: Wallets loaded:', Object.keys(wallets));
       } catch (e) {
-        console.error(e);
+        console.error('ECashContext: Error fetching wallets:', e);
       }
       setIsLoading(false);
     };
@@ -58,11 +75,15 @@ export function ECashProvider({ children, mnemonic }: { children: ReactNode; mne
 
   // Add a new wallet
   const addWallet = async (mintUrl: string, unit: string): Promise<CashuWalletInterface> => {
+    console.log(`Adding wallet for ${mintUrl}-${unit}`);
+
     const walletInMap = wallets[`${mintUrl}-${unit}`];
     if (walletInMap) {
+      console.log(`Wallet already exists for ${mintUrl}-${unit}`);
       return walletInMap;
     }
 
+    console.log(`Creating new wallet for ${mintUrl}-${unit}`);
     const seed = new Mnemonic(mnemonic).deriveCashu();
     const storage = new CashuStorage(DB);
     const wallet = await CashuWallet.create(mintUrl, unit, seed, storage);
@@ -71,6 +92,7 @@ export function ECashProvider({ children, mnemonic }: { children: ReactNode; mne
       setWallets(prev => {
         const newMap = { ...prev };
         newMap[`${mintUrl}-${unit}`] = wallet;
+        console.log(`Wallet added to state: ${mintUrl}-${unit}`);
         return newMap;
       });
 

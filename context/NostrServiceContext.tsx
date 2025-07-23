@@ -477,6 +477,60 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
             console.log(`Cashu request with id ${id} received`, event);
 
+            // Check if we have the required unit before creating pending request
+            try {
+              const requiredMintUrl = event.inner.mintUrl;
+              const requiredUnit = event.inner.unit;
+              const requiredAmount = event.inner.amount;
+
+              console.log(
+                `Checking if we have unit: ${requiredUnit} from mint: ${requiredMintUrl} with amount: ${requiredAmount}`
+              );
+              console.log(`Available wallets:`, Object.keys(eCashContext.wallets));
+              console.log(`Looking for wallet key: ${requiredMintUrl}-${requiredUnit}`);
+
+              // Check if we have a wallet for this mint and unit
+              let wallet = await eCashContext.getWallet(requiredMintUrl, requiredUnit);
+              console.log(`Wallet found in ECashContext:`, !!wallet);
+
+              // If wallet not found in ECashContext, try to create it
+              if (!wallet) {
+                console.log(`Wallet not found in ECashContext, trying to create it...`);
+                try {
+                  wallet = await eCashContext.addWallet(requiredMintUrl, requiredUnit);
+                  console.log(`Successfully created wallet for ${requiredMintUrl}-${requiredUnit}`);
+                } catch (error) {
+                  console.error(
+                    `Error creating wallet for ${requiredMintUrl}-${requiredUnit}:`,
+                    error
+                  );
+                }
+              }
+
+              if (!wallet) {
+                console.log(
+                  `No wallet found for mint: ${requiredMintUrl}, unit: ${requiredUnit} - auto-rejecting`
+                );
+                return new CashuResponseStatus.InsufficientFunds();
+              }
+
+              // Check if we have sufficient balance
+              const balance = await wallet.getBalance();
+              if (balance < requiredAmount) {
+                console.log(
+                  `Insufficient balance: ${balance} < ${requiredAmount} - auto-rejecting`
+                );
+                return new CashuResponseStatus.InsufficientFunds();
+              }
+
+              console.log(
+                `Wallet found with sufficient balance: ${balance} >= ${requiredAmount} - creating pending request`
+              );
+            } catch (error) {
+              console.error('Error checking wallet availability:', error);
+              return new CashuResponseStatus.InsufficientFunds();
+            }
+
             return new Promise<CashuResponseStatus>(resolve => {
               const newRequest: PendingRequest = {
                 id,

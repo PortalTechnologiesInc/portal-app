@@ -877,9 +877,18 @@ export class DatabaseService {
   }
 
   async getMintUnitPairs(): Promise<[string, string][]> {
-    const query = 'SELECT DISTINCT mint_url, unit FROM cashu_proofs';
-    const rows = await this.db.getAllAsync<{ mint_url: string; unit: string }>(query);
-    return rows.map(row => [row.mint_url, row.unit]);
+    try {
+      const query = 'SELECT DISTINCT mint_url, unit FROM cashu_proofs';
+      console.log('Database: Executing query:', query);
+      const rows = await this.db.getAllAsync<{ mint_url: string; unit: string }>(query);
+      console.log('Database: Found rows:', rows);
+      const result: [string, string][] = rows.map(row => [row.mint_url, row.unit]);
+      console.log('Database: Returning mint-unit pairs:', result);
+      return result;
+    } catch (error) {
+      console.error('Database: Error getting mint-unit pairs:', error);
+      return [];
+    }
   }
 
   // Cashu token deduplication methods
