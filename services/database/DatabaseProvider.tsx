@@ -370,12 +370,19 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
       }
 
       if (currentDbVersion <= 10) {
-        // The processed_cashu_tokens table is now created dynamically when needed
-        // This prevents migration issues and allows for better error handling
+        await db.execAsync(`
+          CREATE TABLE IF NOT EXISTS processed_cashu_tokens (
+            token_hash TEXT PRIMARY KEY NOT NULL,
+            mint_url TEXT NOT NULL,
+            unit TEXT NOT NULL,
+            amount INTEGER NOT NULL,
+            processed_at INTEGER NOT NULL -- Unix timestamp
+          );
+          CREATE INDEX IF NOT EXISTS idx_processed_cashu_tokens_hash ON processed_cashu_tokens(token_hash);
+          CREATE INDEX IF NOT EXISTS idx_processed_cashu_tokens_mint ON processed_cashu_tokens(mint_url);
+        `);
         currentDbVersion = 11;
-        console.log(
-          'Updated to version 11 - processed_cashu_tokens table will be created dynamically'
-        );
+        console.log('Created processed_cashu_tokens table - now at version 11');
       }
 
       await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);

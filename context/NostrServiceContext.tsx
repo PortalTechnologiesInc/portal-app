@@ -394,23 +394,20 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                 const token = event.inner.token;
 
                 // Check if we've already processed this token
-                const isProcessed = await DB.isCashuTokenProcessed(token);
-                if (isProcessed) {
-                  console.log('Cashu token already processed, skipping');
-                  return;
-                }
-
                 const tokenInfo = await parseCashuToken(token);
-                const wallet = await eCashContext.addWallet(tokenInfo.mintUrl, tokenInfo.unit);
-                await wallet.receiveToken(token);
-
-                // Mark token as processed after successful processing
-                await DB.markCashuTokenAsProcessed(
+                const isProcessed = await DB.markCashuTokenAsProcessed(
                   token,
                   tokenInfo.mintUrl,
                   tokenInfo.unit,
                   tokenInfo.amount ? Number(tokenInfo.amount) : 0
                 );
+                if (isProcessed) {
+                  console.log('Cashu token already processed, skipping');
+                  return;
+                }
+
+                const wallet = await eCashContext.addWallet(tokenInfo.mintUrl, tokenInfo.unit);
+                await wallet.receiveToken(token);
 
                 console.log('Cashu token processed successfully');
 
