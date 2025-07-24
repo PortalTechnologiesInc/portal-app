@@ -10,24 +10,32 @@ export default {
     userInterfaceStyle: 'dark',
     newArchEnabled: true,
     splash: {
-      image: './assets/images/appLogo.png',
+      image: './assets/images/appSplash.png',
       resizeMode: 'contain',
-      backgroundColor: '#000000',
+      backgroundColor: '#141416',
     },
     androidNavigationBar: {
-      backgroundColor: '#000000',
+      backgroundColor: '#141416',
     },
     ios: {
       supportsTablet: true,
       userInterfaceStyle: 'dark',
       bundleIdentifier: 'cc.getportal.portal',
       associatedDomains: ['applinks:portal.app'],
+      infoPlist: {
+        NSCameraUsageDescription: 'Portal uses your camera to scan for QR codes',
+      },
+      icon: {
+        dark: './assets/images/iosDark.png',
+        light: './assets/images/iosLight.png',
+        tinted: './assets/images/iosTinted.png',
+      },
     },
     android: {
       googleServicesFile: process.env.GOOGLE_SERVICES_JSON,
       adaptiveIcon: {
         foregroundImage: './assets/images/appLogo.png',
-        backgroundColor: '#000000',
+        backgroundColor: '#141416',
       },
       package: 'cc.getportal.portal',
       userInterfaceStyle: 'dark',
@@ -54,10 +62,10 @@ export default {
       [
         'expo-splash-screen',
         {
-          image: './assets/images/appLogo.png',
+          image: './assets/images/appSplash.png',
           imageWidth: 200,
           resizeMode: 'contain',
-          backgroundColor: '#000000',
+          backgroundColor: '#141416',
         },
       ],
       'expo-secure-store',
