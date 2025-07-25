@@ -16,7 +16,7 @@ export const fromUnixSeconds = (seconds: number | bigint): Date => {
 // Database record types (as stored in SQLite)
 export interface ActivityRecord {
   id: string;
-  type: 'auth' | 'pay' | 'ticket' | 'ticket_approved' | 'ticket_denied' | 'ticket_received';
+  type: 'auth' | 'pay' | 'spontaneous_pay' | 'ticket' | 'ticket_approved' | 'ticket_denied' | 'ticket_received';
   service_name: string;
   service_key: string;
   detail: string;
@@ -26,8 +26,9 @@ export interface ActivityRecord {
   request_id: string;
   created_at: number; // Unix timestamp in seconds
   subscription_id: string | null;
-  status: 'neutral' | 'positive' | 'negative' | 'pending';
+  status: 'neutral' | 'positive' | 'negative' | 'pending' | 'refunded';
   invoice?: string | null; // Invoice for payment activities (optional)
+  refund_invoice?: string | null; // Refund invoice for refunded payments (optional)
 }
 
 export interface SubscriptionRecord {
@@ -132,8 +133,8 @@ export class DatabaseService {
       try {
         await this.db.runAsync(
           `INSERT INTO activities (
-            id, type, service_name, service_key, detail, date, amount, currency, request_id, created_at, subscription_id, status, invoice
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            id, type, service_name, service_key, detail, date, amount, currency, request_id, created_at, subscription_id, status, invoice, refund_invoice
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             id,
             activity.type,
@@ -148,6 +149,7 @@ export class DatabaseService {
             activity.subscription_id,
             activity.status || 'neutral',
             activity.invoice || null,
+            activity.refund_invoice || null,
           ]
         );
 
@@ -178,7 +180,7 @@ export class DatabaseService {
     };
   }
 
-  async updateActivityStatus(id: string, status: 'neutral' | 'positive' | 'negative' | 'pending'): Promise<void> {
+  async updateActivityStatus(id: string, status: 'neutral' | 'positive' | 'negative' | 'pending' | 'refunded'): Promise<void> {
     try {
       await this.db.runAsync(
         'UPDATE activities SET status = ? WHERE id = ?',
@@ -186,6 +188,18 @@ export class DatabaseService {
       );
     } catch (error) {
       console.error('Error updating activity status:', error);
+      throw error;
+    }
+  }
+
+  async updateActivityRefundInvoice(id: string, refundInvoice: string): Promise<void> {
+    try {
+      await this.db.runAsync(
+        'UPDATE activities SET refund_invoice = ? WHERE id = ?',
+        [refundInvoice, id]
+      );
+    } catch (error) {
+      console.error('Error updating activity refund invoice:', error);
       throw error;
     }
   }
@@ -947,7 +961,7 @@ export class DatabaseService {
   // Payment status log methods
   async addPaymentStatusEntry(
     invoice: string,
-    actionType: 'payment_started' | 'payment_completed' | 'payment_failed'
+    actionType: 'payment_started' | 'payment_completed' | 'payment_failed' | 'refund_started' | 'refund_completed' | 'refund_failed'
   ): Promise<number> {
     try {
       const now = toUnixSeconds(Date.now());
@@ -967,7 +981,7 @@ export class DatabaseService {
   async getPaymentStatusEntries(invoice: string): Promise<Array<{
     id: number;
     invoice: string;
-    action_type: 'payment_started' | 'payment_completed' | 'payment_failed';
+    action_type: 'payment_started' | 'payment_completed' | 'payment_failed' | 'refund_started' | 'refund_completed' | 'refund_failed';
     created_at: Date;
   }>> {
     try {
@@ -983,7 +997,7 @@ export class DatabaseService {
 
       return records.map(record => ({
         ...record,
-        action_type: record.action_type as 'payment_started' | 'payment_completed' | 'payment_failed',
+        action_type: record.action_type as 'payment_started' | 'payment_completed' | 'payment_failed' | 'refund_started' | 'refund_completed' | 'refund_failed',
         created_at: fromUnixSeconds(record.created_at),
       }));
     } catch (error) {
@@ -995,7 +1009,7 @@ export class DatabaseService {
   async getPendingPayments(): Promise<Array<{
     id: string;
     invoice: string;
-    action_type: 'payment_started' | 'payment_completed' | 'payment_failed';
+    action_type: 'payment_started' | 'payment_completed' | 'payment_failed' | 'refund_started' | 'refund_completed' | 'refund_failed';
     created_at: Date;
   }>> {
     try {
@@ -1015,5 +1029,13 @@ export class DatabaseService {
       console.error('Error getting pending payments:', error);
       return [];
     }
+  }
+
+  async getActivityByInvoice(invoice: string): Promise<ActivityRecord | null> {
+    const record = await this.db.getFirstAsync<ActivityRecord>(
+      `SELECT * FROM activities WHERE request_id = ?`,
+      [invoice]
+    );
+    return record;
   }
 }

@@ -60,6 +60,7 @@ interface PendingRequestsContextType {
   pendingUrl: KeyHandshakeUrl | undefined;
   showSkeletonLoader: (parsedUrl: KeyHandshakeUrl) => void;
   setRequestFailed: (failed: boolean) => void;
+  refreshActivitiesData: () => void;
 }
 
 const PendingRequestsContext = createContext<PendingRequestsContextType | undefined>(undefined);
@@ -907,6 +908,10 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
     }
   }, [nostrService.pendingRequests, pendingUrl, timeoutId]);
 
+  const refreshActivitiesData = useCallback(() => {
+    refreshData();
+  }, [refreshData]);
+
   // Memoize the context value to prevent recreation on every render
   const contextValue = useMemo(
     () => ({
@@ -919,6 +924,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
       pendingUrl,
       showSkeletonLoader,
       setRequestFailed,
+      refreshActivitiesData,
     }),
     [
       getByType,
@@ -930,6 +936,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
       pendingUrl,
       showSkeletonLoader,
       setRequestFailed,
+      refreshActivitiesData,
     ]
   );
 

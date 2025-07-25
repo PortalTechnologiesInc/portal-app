@@ -25,7 +25,11 @@ import {
   CashuRequestContentWithKey,
   CashuResponseStatus,
   PaymentStatusNotifier,
-  PaymentStatus
+  PaymentStatus,
+  InvoiceRequestListener,
+  InvoiceRequestContentWithKey,
+  MakeInvoiceResponse,
+  MakeInvoiceRequest,
 } from 'portal-app-lib';
 import { DatabaseService } from '@/services/database';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -152,8 +156,10 @@ interface NostrServiceContextType {
   portalApp: PortalAppInterface | null;
   nwcWallet: Nwc | null;
   pendingRequests: { [key: string]: PendingRequest };
+  invoiceRequests: { [key: string]: { request:InvoiceRequestContentWithKey, resolve: (response: MakeInvoiceResponse) => void } };
   payInvoice: (invoice: string) => Promise<string>;
   lookupInvoice: (invoice: string) => Promise<LookupInvoiceResponse>;
+  makeInvoice: (amount: bigint, description: string) => Promise<MakeInvoiceResponse>;
   disconnectWallet: () => void;
   sendKeyHandshake: (url: KeyHandshakeUrl) => Promise<void>;
   getServiceName: (publicKey: string) => Promise<string | null>;
@@ -290,6 +296,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   const [relayStatuses, setRelayStatuses] = useState<RelayInfo[]>([]);
   const [keypair, setKeypair] = useState<KeypairInterface | null>(null);
   const [reinitKey, setReinitKey] = useState(0);
+  const [invoiceRequests, setInvoiceRequests] = useState<{ [key: string]: { request:InvoiceRequestContentWithKey, resolve: (response: MakeInvoiceResponse) => void } }>({});
 
   // Remove the in-memory deduplication system
   // const processedCashuTokens = useRef<Set<string>>(new Set());
@@ -444,7 +451,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                   };
 
                   // Import and use ActivitiesContext directly
-                  const { useActivities } = await import('@/context/ActivitiesContext');
+                  // const { useActivities } = await import('@/context/ActivitiesContext');
                   // Note: We can't use hooks inside event listeners, so we'll use the database directly
                   // but also emit the event for UI updates
                   const activityId = await DB.addActivity(activity);
@@ -710,6 +717,21 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         }
         app.listenClosedRecurringPayment(new ClosedRecurringPaymentListenerImpl());
 
+        class LocalInvoiceRequestListenerImpl implements InvoiceRequestListener {
+          async onInvoiceRequests(event: InvoiceRequestContentWithKey): Promise<MakeInvoiceResponse> {
+            console.log('Invoice request received', event);
+
+            return new Promise<MakeInvoiceResponse>(resolve => {
+              setInvoiceRequests(prev => {
+                const newInvoiceRequests = { ...prev };
+                newInvoiceRequests[event.inner.requestId] = { request: event, resolve: resolve };
+                return newInvoiceRequests;
+              });
+            });
+          }
+        }
+        app.listenInvoiceRequests(new LocalInvoiceRequestListenerImpl());
+
         // Save portal app instance
         setPortalApp(app);
         console.log('NostrService initialized successfully with public key:', publicKeyStr);
@@ -850,6 +872,22 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
       return nwcWallet.lookupInvoice(invoice);
     },
     [nwcWallet]
+  );
+
+  // Make invoice via wallet
+  const makeInvoice = useCallback(
+    async (amount: bigint, description: string): Promise<MakeInvoiceResponse> => {
+      if (!nwcWallet) {
+        throw new Error('NWC wallet not connected');
+      }
+      const request = MakeInvoiceRequest.create({
+        amount: amount,
+        description: description,
+        descriptionHash: undefined,
+        expiry: undefined,
+      });
+      return nwcWallet.makeInvoice(request);
+    }, [nwcWallet]
   );
 
   // Disconnect wallet
@@ -1268,7 +1306,9 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     portalApp,
     nwcWallet,
     pendingRequests,
+    invoiceRequests,
     payInvoice,
+    makeInvoice,
     lookupInvoice,
     disconnectWallet,
     sendKeyHandshake,

@@ -3,7 +3,7 @@ import { CheckCircle, Clock, XCircle, AlertCircle, Info } from 'lucide-react-nat
 import { ActivityType } from '@/utils';
 import type { ActivityWithDates } from '@/services/database';
 
-export type ActivityStatus = 'success' | 'failed' | 'pending' | 'received';
+export type ActivityStatus = 'success' | 'failed' | 'pending' | 'received' | 'refunded';
 
 export const getActivityStatus = (activity: ActivityWithDates): ActivityStatus => {
   // Map database status to ActivityStatus
@@ -14,6 +14,8 @@ export const getActivityStatus = (activity: ActivityWithDates): ActivityStatus =
       return 'failed';
     case 'pending':
       return 'pending';
+    case 'refunded':
+      return 'refunded';
     case 'neutral':
     default:
       // For ticket activities, determine status based on type
@@ -25,6 +27,8 @@ export const getActivityStatus = (activity: ActivityWithDates): ActivityStatus =
         return 'failed'; // Denied tickets are failed
       } else if (activity.type === 'ticket') {
         return 'pending'; // Legacy ticket type (if any) are pending
+      } else if (activity.type === 'spontaneous_pay') {
+        return 'received'; // Neutral status for spontaneous payments
       }
       return 'pending'; // Default for neutral status
   }
@@ -48,6 +52,8 @@ export const getStatusColor = (
       return colors.statusError;
     case 'received':
       return colors.textSecondary; // Neutral color for received
+    case 'refunded':
+      return colors.textSecondary;
     default:
       return colors.textSecondary;
   }
@@ -72,6 +78,8 @@ export const getStatusIcon = (
       return <XCircle size={size} color={colors.statusError} />;
     case 'received':
       return <Info size={size} color={colors.textSecondary} />;
+    case 'refunded':
+      return <XCircle size={size} color={colors.statusError} />;
     default:
       return <AlertCircle size={size} color={colors.textSecondary} />;
   }
@@ -87,6 +95,8 @@ export const getStatusText = (status: ActivityStatus): string => {
       return 'Failed';
     case 'received':
       return 'Received';
+    case 'refunded':
+      return 'Refunded';
     default:
       return 'Unknown';
   }
@@ -98,6 +108,8 @@ export const getActivityTypeText = (type: string): string => {
       return 'Login Request';
     case ActivityType.Pay:
       return 'Payment';
+    case ActivityType.SpontaneousPay:
+      return 'Incoming Payment';
     case 'ticket':
     case 'ticket_approved':
     case 'ticket_denied':

@@ -46,6 +46,8 @@ export const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
         return <Key size={20} color={iconColor} />;
       case ActivityType.Pay:
         return <BanknoteIcon size={20} color={iconColor} />;
+      case 'spontaneous_pay':
+        return <BanknoteIcon size={20} color={iconColor} />;
       case 'ticket':
       case 'ticket_approved':
       case 'ticket_denied':
@@ -58,10 +60,12 @@ export const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
 
   const getActivityTypeText = () => {
     switch (activity.type) {
-      case ActivityType.Auth:
+      case 'auth':
         return 'Login Request';
-      case ActivityType.Pay:
+      case 'pay':
         return 'Payment';
+      case 'spontaneous_pay':
+        return 'Incoming Payment';
       case 'ticket':
       case 'ticket_approved':
       case 'ticket_denied':
@@ -70,6 +74,23 @@ export const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
       default:
         return 'Activity';
     }
+  };
+
+  const shouldShowAmount = () => {
+    return (
+      (activity.type === 'pay' || activity.type === 'spontaneous_pay') &&
+      activity.amount !== null
+    );
+  };
+
+  const shouldShowStatus = () => {
+    return (
+      activity.type === 'ticket' ||
+      activity.type === 'ticket_approved' ||
+      activity.type === 'ticket_denied' ||
+      activity.type === 'ticket_received' ||
+      activity.type === 'spontaneous_pay'
+    );
   };
 
   // Format ticket title with quantity if amount > 1
@@ -101,32 +122,48 @@ export const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
         {getActivityIcon()}
       </View>
       <View style={styles.activityInfo}>
-        <ThemedText type="subtitle" style={{ color: primaryTextColor }}>
-          {activity.type === 'ticket' ? activity.detail : activity.service_name}
+        <ThemedText 
+          type="subtitle" 
+          style={[
+            { color: primaryTextColor },
+            activity.status === 'refunded' ? styles.refundedText : null
+          ]}
+        >
+          {(activity.type === 'ticket' || activity.type === 'spontaneous_pay') ? activity.detail : activity.service_name}
         </ThemedText>
         <ThemedText style={[styles.typeText, { color: secondaryTextColor }]}>
           {getActivityTypeText()}
         </ThemedText>
       </View>
       <View style={styles.activityDetails}>
-        {activity.type === ActivityType.Pay && activity.amount !== null && (
-          <ThemedText style={[styles.amount, { color: primaryTextColor }]}>
+        {shouldShowAmount() && (
+          <ThemedText 
+            style={[
+              styles.amount, 
+              { color: primaryTextColor },
+              activity.status === 'refunded' ? styles.refundedText : null
+            ]}
+          >
             {activity.amount} sats
           </ThemedText>
         )}
-        {(activity.type === 'ticket' ||
-          activity.type === 'ticket_approved' ||
-          activity.type === 'ticket_denied' ||
-          activity.type === 'ticket_received') &&
-          activity.amount !== null &&
-          activity.amount > 1 && (
-            <ThemedText style={[styles.amount, { color: primaryTextColor }]}>
-              x {activity.amount}
+        {shouldShowStatus() && (
+          <>
+            {(activity.type === 'ticket' ||
+              activity.type === 'ticket_approved' ||
+              activity.type === 'ticket_denied' ||
+              activity.type === 'ticket_received') &&
+              activity.amount !== null &&
+              activity.amount > 1 && (
+                <ThemedText style={[styles.amount, { color: primaryTextColor }]}>
+                  x {activity.amount}
+                </ThemedText>
+              )}
+            <ThemedText style={[styles.timeAgo, { color: secondaryTextColor }]}>
+              {formatRelativeTime(activity.date)}
             </ThemedText>
-          )}
-        <ThemedText style={[styles.timeAgo, { color: secondaryTextColor }]}>
-          {formatRelativeTime(activity.date)}
-        </ThemedText>
+          </>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -172,5 +209,9 @@ const styles = StyleSheet.create({
   timeAgo: {
     fontSize: 12,
     marginTop: 4,
+  },
+  refundedText: {
+    textDecorationLine: 'line-through',
+    textDecorationStyle: 'solid',
   },
 });

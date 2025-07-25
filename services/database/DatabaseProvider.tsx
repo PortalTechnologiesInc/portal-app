@@ -59,7 +59,7 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
   const migrateDbIfNeeded = useCallback(async (db: SQLiteDatabase) => {
     console.log('Database initialization started');
     setIsDbInitializing(true);
-    const DATABASE_VERSION = 13;
+    const DATABASE_VERSION = 14;
 
     try {
       let { user_version: currentDbVersion } = (await db.getFirstAsync<{
@@ -413,6 +413,73 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
         `);
         currentDbVersion = 13;
         console.log('Added invoice column to activities table - now at version 13');
+      }
+
+      if (currentDbVersion <= 13) {
+        await db.execAsync(`
+          -- Update payment_status table to include refund statuses
+          -- First, create a new table with the updated constraint
+          CREATE TABLE payment_status_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            invoice TEXT NOT NULL,
+            action_type TEXT NOT NULL CHECK (action_type IN ('payment_started', 'payment_completed', 'payment_failed', 'refund_started', 'refund_completed', 'refund_failed')),
+            created_at INTEGER NOT NULL -- Unix timestamp
+          );
+          
+          -- Copy data from old table to new table
+          INSERT INTO payment_status_new SELECT * FROM payment_status;
+          
+          -- Drop old table and rename new table
+          DROP TABLE payment_status;
+          ALTER TABLE payment_status_new RENAME TO payment_status;
+          
+          -- Recreate indexes
+          CREATE INDEX IF NOT EXISTS idx_payment_status_invoice ON payment_status(invoice);
+          CREATE INDEX IF NOT EXISTS idx_payment_status_action_type ON payment_status(action_type);
+          CREATE INDEX IF NOT EXISTS idx_payment_status_created_at ON payment_status(created_at);
+
+          -- Update activities table to include refunded status
+          -- First, create a new table with the updated constraint
+          CREATE TABLE activities_new (
+            id TEXT PRIMARY KEY NOT NULL,
+            type TEXT NOT NULL CHECK (type IN ('auth', 'pay', 'spontaneous_pay', 'ticket', 'ticket_approved', 'ticket_denied', 'ticket_received')),
+            service_name TEXT NOT NULL,
+            service_key TEXT NOT NULL,
+            detail TEXT NOT NULL,
+            date INTEGER NOT NULL,
+            amount INTEGER,
+            currency TEXT,
+            request_id TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            subscription_id TEXT REFERENCES subscriptions(id) ON DELETE SET NULL,
+            status TEXT DEFAULT 'neutral' CHECK (status IN ('neutral', 'positive', 'negative', 'pending', 'refunded')),
+            invoice TEXT,
+            refund_invoice TEXT DEFAULT NULL
+          );
+          
+          -- Copy data from old table to new table
+          INSERT INTO activities_new (
+            id, type, service_name, service_key, detail, date, amount, currency, 
+            request_id, created_at, subscription_id, status, invoice, refund_invoice
+          ) SELECT 
+            id, type, service_name, service_key, detail, date, amount, currency, 
+            request_id, created_at, subscription_id, status, invoice, NULL
+          FROM activities;
+          
+          -- Drop old table and rename new table
+          DROP TABLE activities;
+          ALTER TABLE activities_new RENAME TO activities;
+          
+          -- Recreate indexes
+          CREATE INDEX IF NOT EXISTS idx_activities_date ON activities(date);
+          CREATE INDEX IF NOT EXISTS idx_activities_type ON activities(type);
+          CREATE INDEX IF NOT EXISTS idx_activities_subscription ON activities(subscription_id);
+          CREATE INDEX IF NOT EXISTS idx_activities_status ON activities(status);
+          CREATE INDEX IF NOT EXISTS idx_activities_invoice ON activities(invoice);
+          CREATE INDEX IF NOT EXISTS idx_activities_refund_invoice ON activities(refund_invoice);
+        `);
+        currentDbVersion = 14;
+        console.log('Added refund statuses to payment_status table and refunded status to activities - now at version 14');
       }
 
       await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
