@@ -43,7 +43,7 @@ debug.keystore
 result
 
 # local env files
-.env*
+.env.local
 .local
 
 # typescript

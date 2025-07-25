@@ -21,6 +21,7 @@ import registerPubkeysForPushNotificationsAsync from '@/services/NotificationSer
 import * as TaskManager from 'expo-task-manager';
 import { keyToHex } from 'portal-app-lib';
 import * as Notifications from 'expo-notifications';
+import { ECashProvider } from '@/context/ECashContext';
 
 
 // Prevent splash screen from auto-hiding
@@ -109,18 +110,20 @@ const AuthenticatedAppContent = () => {
   }
 
   return (
-    <NostrServiceProvider mnemonic={mnemonic || ''} walletUrl={walletUrl}>
-      <UserProfileProvider>
-        <ActivitiesProvider>
-          <PendingRequestsProvider>
-            <DeeplinkProvider>
-              <NotificationConfigurator />
-              <Stack screenOptions={{ headerShown: false }} />
-            </DeeplinkProvider>
-          </PendingRequestsProvider>
-        </ActivitiesProvider>
-      </UserProfileProvider>
-    </NostrServiceProvider>
+    <ECashProvider mnemonic={mnemonic || ''}>
+      <NostrServiceProvider mnemonic={mnemonic || ''} walletUrl={walletUrl}>
+        <UserProfileProvider>
+          <ActivitiesProvider>
+            <PendingRequestsProvider>
+              <DeeplinkProvider>
+                <NotificationConfigurator />
+                <Stack screenOptions={{ headerShown: false }} />
+              </DeeplinkProvider>
+            </PendingRequestsProvider>
+          </ActivitiesProvider>
+        </UserProfileProvider>
+      </NostrServiceProvider>
+    </ECashProvider>
   );
 };
 

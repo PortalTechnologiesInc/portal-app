@@ -20,7 +20,10 @@ const validateImage = async (uri: string): Promise<{ isValid: boolean; error?: s
     // Check file size (3MB limit - reduced from 5MB)
     if (fileInfo.size && fileInfo.size > 3 * 1024 * 1024) {
       const sizeInMB = (fileInfo.size / (1024 * 1024)).toFixed(2);
-      return { isValid: false, error: `Image is ${sizeInMB}MB. Please choose an image smaller than 3MB.` };
+      return {
+        isValid: false,
+        error: `Image is ${sizeInMB}MB. Please choose an image smaller than 3MB.`,
+      };
     }
 
     // Check file extension for GIF
@@ -50,7 +53,12 @@ const isBase64String = (str: string): boolean => {
 
   // Check if it contains only valid base64 characters
   const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
-  return base64Regex.test(str) && !str.startsWith('data:') && !str.startsWith('file:') && !str.startsWith('http');
+  return (
+    base64Regex.test(str) &&
+    !str.startsWith('data:') &&
+    !str.startsWith('file:') &&
+    !str.startsWith('http')
+  );
 };
 
 const USERNAME_KEY = 'portal_username';
@@ -177,9 +185,9 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
               console.log('Auto-generated profile setup completed');
 
-              // Auto-save the generated profile to the network
+              // Auto-save the generated profile to the network with empty display name
               try {
-                await setProfile(randomUsername);
+                await setProfile(randomUsername, ''); // Explicitly set empty display name
                 console.log('Auto-generated profile saved to network');
               } catch (error) {
                 console.log('Failed to auto-save profile to network:', error);
@@ -223,10 +231,10 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setTimeout(() => reject(new Error('Profile fetch timeout')), 15000); // 15 second timeout
       });
 
-      const fetchedProfile = await Promise.race([
+      const fetchedProfile = (await Promise.race([
         nostrService.portalApp.fetchProfile(publicKey),
-        timeoutPromise
-      ]) as any;
+        timeoutPromise,
+      ])) as any;
 
       if (fetchedProfile) {
         console.log('Profile fetched successfully');
@@ -235,7 +243,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         // Extract data from fetched profile with proper normalization
         let fetchedUsername = '';
         let fetchedDisplayName = '';
-        
+
         // Try to get username from nip05 first (most reliable)
         if (fetchedProfile.nip05) {
           const nip05Parts = fetchedProfile.nip05.split('@');
@@ -244,30 +252,30 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
             console.log('Username extracted from nip05:', fetchedUsername);
           }
         }
-        
+
         // Fallback to name field if nip05 didn't work
         if (!fetchedUsername && fetchedProfile.name) {
           fetchedUsername = fetchedProfile.name;
           console.log('Username extracted from name field:', fetchedUsername);
         }
-        
+
         // Fallback to displayName if nothing else worked
         if (!fetchedUsername && fetchedProfile.displayName) {
           fetchedUsername = fetchedProfile.displayName;
           console.log('Username extracted from displayName field:', fetchedUsername);
         }
-        
+
         // Always normalize the username to match server behavior
         // The server trims and lowercases, so we should do the same
         if (fetchedUsername) {
           const originalUsername = fetchedUsername;
           fetchedUsername = fetchedUsername.trim().toLowerCase().replace(/\s+/g, '');
-          
+
           if (originalUsername !== fetchedUsername) {
             console.log('Username normalized from:', originalUsername, 'to:', fetchedUsername);
           }
         }
-        
+
         // Extract display name (more flexible, keep as-is)
         if ('displayName' in fetchedProfile) {
           fetchedDisplayName = fetchedProfile.displayName || ''; // Allow empty string
@@ -281,7 +289,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
           fetchedDisplayName = fetchedUsername;
           console.log('Display name set to username:', fetchedDisplayName);
         }
-        
+
         const fetchedAvatarUri = fetchedProfile.picture || null; // Ensure null instead of empty string
 
         console.log('Final extracted username:', fetchedUsername);
@@ -292,7 +300,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         if (fetchedUsername) {
           await setUsername(fetchedUsername);
         }
-        
+
         // Always set display name, even if empty (user might have intentionally cleared it)
         await setDisplayName(fetchedDisplayName);
 
@@ -394,7 +402,11 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   };
 
-  const setProfile = async (newUsername: string, newDisplayName?: string, newAvatarUri?: string | null) => {
+  const setProfile = async (
+    newUsername: string,
+    newDisplayName?: string,
+    newAvatarUri?: string | null
+  ) => {
     try {
       if (!nostrService.portalApp || !nostrService.publicKey) {
         throw new Error('Portal app or public key not initialized');
@@ -402,15 +414,17 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
       // Validate and normalize username
       const normalizedUsername = newUsername.trim().toLowerCase();
-      
+
       // Check for invalid characters
       if (normalizedUsername.includes(' ')) {
         throw new Error('Username cannot contain spaces');
       }
-      
+
       // Additional validation for username format (optional - portal.cc specific rules)
       if (normalizedUsername && !/^[a-z0-9._-]+$/.test(normalizedUsername)) {
-        throw new Error('Username can only contain lowercase letters, numbers, dots, underscores, and hyphens');
+        throw new Error(
+          'Username can only contain lowercase letters, numbers, dots, underscores, and hyphens'
+        );
       }
 
       setSyncStatus('syncing');
@@ -420,7 +434,14 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const displayNameChanged = newDisplayName !== networkDisplayName;
       const avatarChanged = newAvatarUri !== networkAvatarUri;
 
-      console.log('Updating profile - username changed:', usernameChanged, 'display name changed:', displayNameChanged, 'avatar changed:', avatarChanged);
+      console.log(
+        'Updating profile - username changed:',
+        usernameChanged,
+        'display name changed:',
+        displayNameChanged,
+        'avatar changed:',
+        avatarChanged
+      );
 
       if (!usernameChanged && !displayNameChanged && !avatarChanged) {
         console.log('No changes detected, skipping profile update');
@@ -511,7 +532,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
           imageUrl = `https://profile.getportal.cc/${hexPubkey}`;
         } catch (error: any) {
           console.error('Image upload failed');
-          
+
           // Extract error from portal app response
           let errorMessage = '';
           if (error.inner && Array.isArray(error.inner) && error.inner.length > 0) {
@@ -519,7 +540,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
           } else {
             errorMessage = error instanceof Error ? error.message : String(error);
           }
-          
+
           throw new Error(`Failed to upload image: ${errorMessage}`);
         }
       } else if (!avatarChanged && networkAvatarUri) {

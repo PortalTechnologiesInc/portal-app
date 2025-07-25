@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Tabs } from 'expo-router';
-import { Home, List, Receipt, Award, UserSquare2, Settings } from 'lucide-react-native';
+import { Home, List, Receipt, Ticket, UserSquare2, Settings } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
 import { View, Platform, ToastAndroid } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,8 +16,8 @@ const SubscriptionIcon = React.memo(({ color }: { color: string }) => (
   <Receipt size={24} color={color} />
 ));
 
-const CertificateIcon = React.memo(({ color }: { color: string }) => (
-  <Award size={24} color={color} />
+const TicketIcon = React.memo(({ color }: { color: string }) => (
+  <Ticket size={24} color={color} />
 ));
 
 const IdentityIcon = React.memo(({ color }: { color: string }) => (
@@ -110,16 +110,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="Certificates"
-        listeners={{
-          tabPress: e => {
-            e.preventDefault(); // <-- this function blocks
-            ToastAndroid.showWithGravity('Coming soon!', ToastAndroid.SHORT, ToastAndroid.CENTER);
-          },
-        }}
+        name="Tickets"
         options={{
-          title: 'Certificates',
-          tabBarIcon: ({ color }) => <CertificateIcon color={color} />,
+          title: 'Tickets',
+          tabBarIcon: ({ color }) => <TicketIcon color={color} />,
         }}
       />
       <Tabs.Screen
@@ -127,6 +121,14 @@ export default function TabLayout() {
         options={{
           title: 'Settings',
           tabBarIcon: ({ color }) => <SettingsIcon color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="Certificates"
+        options={{
+          title: 'Certificates',
+          tabBarIcon: ({ color }) => <IdentityIcon color={color} />,
+          href: null, // This hides the tab from the tab bar
         }}
       />
       <Tabs.Screen

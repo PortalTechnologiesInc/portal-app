@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  View, 
-  FlatList, 
-  StyleSheet, 
-  TouchableOpacity, 
-  TextInput, 
-  Image, 
-  Alert, 
-  ScrollView, 
-  RefreshControl 
+import {
+  View,
+  FlatList,
+  StyleSheet,
+  TouchableOpacity,
+  TextInput,
+  Image,
+  Alert,
+  ScrollView,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Identity } from '@/utils/types';
@@ -35,21 +35,21 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
   const router = useRouter();
 
   // Profile management state
-  const { 
-    username, 
+  const {
+    username,
     displayName,
-    avatarUri, 
-    avatarRefreshKey, 
+    avatarUri,
+    avatarRefreshKey,
     networkUsername,
     networkDisplayName,
     networkAvatarUri,
-    setUsername, 
+    setUsername,
     setDisplayName,
-    setAvatarUri, 
+    setAvatarUri,
     setProfile,
-    isProfileEditable, 
-    fetchProfile, 
-    syncStatus 
+    isProfileEditable,
+    fetchProfile,
+    syncStatus,
   } = useUserProfile();
   const nostrService = useNostrService();
   const [usernameInput, setUsernameInput] = useState('');
@@ -128,7 +128,7 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
     // Normalize and validate username
     const normalizedUsername = usernameInput.trim().toLowerCase();
     const trimmedDisplayName = displayNameInput.trim();
-    
+
     // Check if anything has actually changed
     const usernameChanged = normalizedUsername !== networkUsername;
     const displayNameChanged = trimmedDisplayName !== networkDisplayName;
@@ -146,7 +146,10 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
     }
 
     if (normalizedUsername && !/^[a-z0-9._-]+$/.test(normalizedUsername)) {
-      showToast('Username can only contain lowercase letters, numbers, dots, underscores, and hyphens', 'error');
+      showToast(
+        'Username can only contain lowercase letters, numbers, dots, underscores, and hyphens',
+        'error'
+      );
       return;
     }
 
@@ -154,7 +157,7 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
     try {
       // Use the setProfile method to save username, display name, and avatar to the network
       await setProfile(
-        normalizedUsername || username || '', 
+        normalizedUsername || username || '',
         trimmedDisplayName,
         avatarUri || undefined
       );
@@ -163,16 +166,8 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
       setUsernameInput(normalizedUsername || username || '');
       setDisplayNameInput(trimmedDisplayName);
 
-      // Provide specific feedback about what was saved
-      const changes = [];
-      if (usernameChanged) changes.push('username');
-      if (displayNameChanged) changes.push('display name');
-      if (avatarChanged) changes.push('avatar');
-      
-      if (changes.length > 0) {
-        showToast(`${changes.join(', ')} saved successfully`, 'success');
-      }
-      
+      // Show success message
+      showToast('Updated profile', 'success');
     } catch (error) {
       console.error('Error saving profile:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to save profile';
@@ -203,7 +198,9 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
       <View style={styles.identityCardContent}>
         <View style={styles.identityInfo}>
           <ThemedText style={[styles.identityName, { color: textPrimary }]}>{item.name}</ThemedText>
-          <ThemedText style={[styles.identityKey, { color: textSecondary }]}>{item.publicKey}</ThemedText>
+          <ThemedText style={[styles.identityKey, { color: textSecondary }]}>
+            {item.publicKey}
+          </ThemedText>
         </View>
         <TouchableOpacity
           style={[styles.editButton, { backgroundColor: buttonPrimary }]}
@@ -223,11 +220,7 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <ArrowLeft size={20} color={textPrimary} />
           </TouchableOpacity>
-          <ThemedText
-            style={styles.headerText}
-            lightColor={textPrimary}
-            darkColor={textPrimary}
-          >
+          <ThemedText style={styles.headerText} lightColor={textPrimary} darkColor={textPrimary}>
             Identities & Profile
           </ThemedText>
         </ThemedView>
@@ -319,7 +312,7 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
                       !isProfileEditable && styles.usernameInputDisabled,
                     ]}
                     value={usernameInput}
-                    onChangeText={(text) => {
+                    onChangeText={text => {
                       // Convert to lowercase and filter out invalid characters
                       // Show lowercase letters instead of blocking capitals entirely
                       const normalizedText = text
@@ -340,34 +333,36 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
               </View>
 
               <TouchableOpacity
+                style={[
+                  styles.saveButton,
+                  { backgroundColor: buttonPrimary },
+                  (!isProfileEditable || profileIsLoading) && {
+                    backgroundColor: inputBorderColor,
+                    opacity: 0.5,
+                  },
+                ]}
+                onPress={handleSaveProfile}
+                disabled={!isProfileEditable || profileIsLoading}
+              >
+                <ThemedText
                   style={[
-                    styles.saveButton,
-                    { backgroundColor: buttonPrimary },
-                    (!isProfileEditable || profileIsLoading) && {
-                      backgroundColor: inputBorderColor,
-                      opacity: 0.5,
-                    },
+                    styles.saveButtonText,
+                    { color: buttonPrimaryText },
+                    (!isProfileEditable || profileIsLoading) && { color: textSecondary },
                   ]}
-                  onPress={handleSaveProfile}
-                  disabled={!isProfileEditable || profileIsLoading}
                 >
-                  <ThemedText
-                    style={[
-                      styles.saveButtonText,
-                      { color: buttonPrimaryText },
-                      (!isProfileEditable || profileIsLoading) && { color: textSecondary },
-                    ]}
-                  >
-                    {profileIsLoading ? 'Saving...' : (() => {
-                      const usernameChanged = usernameInput.trim() !== networkUsername;
-                      const displayNameChanged = displayNameInput.trim() !== networkDisplayName;
-                      const avatarChanged = avatarUri !== networkAvatarUri;
-                      const hasChanges = usernameChanged || displayNameChanged || avatarChanged;
-                      
-                      return hasChanges ? 'Save Changes' : 'Save Profile';
-                    })()}
-                  </ThemedText>
-                </TouchableOpacity>
+                  {profileIsLoading
+                    ? 'Saving...'
+                    : (() => {
+                        const usernameChanged = usernameInput.trim() !== networkUsername;
+                        const displayNameChanged = displayNameInput.trim() !== networkDisplayName;
+                        const avatarChanged = avatarUri !== networkAvatarUri;
+                        const hasChanges = usernameChanged || displayNameChanged || avatarChanged;
+
+                        return hasChanges ? 'Save Changes' : 'Save Profile';
+                      })()}
+                </ThemedText>
+              </TouchableOpacity>
             </View>
           </ThemedView>
 
@@ -393,12 +388,16 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
                     ax87DJe9IjdDJi40PoaW55tRf3h9kM2nQx4bV8cL1sEp6yR7tU9wA3mN5lK8hJ2bVx4cZ9qS2fG5hK8jL4mN7pQ1rT3uY6wA9bC2eF5hI7kM0nP4qS6vY8zA1dF3gH5jL7mP9rT2uW4yB6cE8gJ0kN2oQ4sV6xA8bD1fH3iL5nP7rT9uW2yC4eG6hJ8lN0pS2vY4zA6cF8iL0oR3tW5yB7dG9jM1pS3vY5zA8cF0hL2oR4tW6yB8dG1jM3pS5vY7zA9cF1hL3oR5tW7yB9dG2jM4pS6vY8zA0cF2hL4oR6tW8yB0dG3jM5pS7vY9zA1cF3hL5oR7tW9yB1dG4jM6pS8vY0zA2cF4hL6oR8tW0yB2dG5jM7pS9vY1zA3cF5hL7oR9tW1yB3dG6jM8pS0vY2zA4cF6hL8oR0tW2yB4dG7jM9pS1vY3zA5cF7hL9oR1tW3yB5dG8jM0pS2vY4zA6cF8hL0oR2tW4yB6dG9jM1pS3vY5zA7cF9hL1oR3tW5yB7dG0jM2pS4vY6zA8c
                   </ThemedText>
                 </ScrollView>
-                <TouchableOpacity onPress={() => {
-                  // Copy master key to clipboard
-                  const masterKey = 'ax87DJe9IjdDJi40PoaW55tRf3h9kM2nQx4bV8cL1sEp6yR7tU9wA3mN5lK8hJ2bVx4cZ9qS2fG5hK8jL4mN7pQ1rT3uY6wA9bC2eF5hI7kM0nP4qS6vY8zA1dF3gH5jL7mP9rT2uW4yB6cE8gJ0kN2oQ4sV6xA8bD1fH3iL5nP7rT9uW2yC4eG6hJ8lN0pS2vY4zA6cF8iL0oR3tW5yB7dG9jM1pS3vY5zA8cF0hL2oR4tW6yB8dG1jM3pS5vY7zA9cF1hL3oR5tW7yB9dG2jM4pS6vY8zA0cF2hL4oR6tW8yB0dG3jM5pS7vY9zA1cF3hL5oR7tW9yB1dG4jM6pS8vY0zA2cF4hL6oR8tW0yB2dG5jM7pS9vY1zA3cF5hL7oR9tW1yB3dG6jM8pS0vY2zA4cF6hL8oR0tW2yB4dG7jM9pS1vY3zA5cF7hL9oR1tW3yB5dG8jM0pS2vY4zA6cF8hL0oR2tW4yB6dG9jM1pS3vY5zA7cF9hL1oR3tW5yB7dG0jM2pS4vY6zA8c';
-                  Clipboard.setStringAsync(masterKey);
-                  showToast('Master key copied to clipboard', 'success');
-                }} style={styles.copyMasterKeyButton}>
+                <TouchableOpacity
+                  onPress={() => {
+                    // Copy master key to clipboard
+                    const masterKey =
+                      'ax87DJe9IjdDJi40PoaW55tRf3h9kM2nQx4bV8cL1sEp6yR7tU9wA3mN5lK8hJ2bVx4cZ9qS2fG5hK8jL4mN7pQ1rT3uY6wA9bC2eF5hI7kM0nP4qS6vY8zA1dF3gH5jL7mP9rT2uW4yB6cE8gJ0kN2oQ4sV6xA8bD1fH3iL5nP7rT9uW2yC4eG6hJ8lN0pS2vY4zA6cF8iL0oR3tW5yB7dG9jM1pS3vY5zA8cF0hL2oR4tW6yB8dG1jM3pS5vY7zA9cF1hL3oR5tW7yB9dG2jM4pS6vY8zA0cF2hL4oR6tW8yB0dG3jM5pS7vY9zA1cF3hL5oR7tW9yB1dG4jM6pS8vY0zA2cF4hL6oR8tW0yB2dG5jM7pS9vY1zA3cF5hL7oR9tW1yB3dG6jM8pS0vY2zA4cF6hL8oR0tW2yB4dG7jM9pS1vY3zA5cF7hL9oR1tW3yB5dG8jM0pS2vY4zA6cF8hL0oR2tW4yB6dG9jM1pS3vY5zA7cF9hL1oR3tW5yB7dG0jM2pS4vY6zA8c';
+                    Clipboard.setStringAsync(masterKey);
+                    showToast('Master key copied to clipboard', 'success');
+                  }}
+                  style={styles.copyMasterKeyButton}
+                >
                   <Copy size={16} color={textSecondary} />
                 </TouchableOpacity>
               </View>

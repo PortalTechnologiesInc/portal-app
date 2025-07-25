@@ -23,6 +23,7 @@ import {
   Coins,
   Info,
   Link,
+  Ticket,
 } from 'lucide-react-native';
 import { DatabaseService } from '@/services/database';
 import type { ActivityWithDates } from '@/services/database';
@@ -32,7 +33,10 @@ import { getActivityStatus } from '@/utils/activityHelpers';
 import { ActivityHeader } from '@/components/ActivityDetail/ActivityHeader';
 import { ActivityMainCard } from '@/components/ActivityDetail/ActivityMainCard';
 import { ActivityDetailRow } from '@/components/ActivityDetail/ActivityDetailRow';
-import { PaymentStatusProgress, PaymentStep } from '@/components/ActivityDetail/PaymentStatusProgress';
+import {
+  PaymentStatusProgress,
+  PaymentStep,
+} from '@/components/ActivityDetail/PaymentStatusProgress';
 import * as Clipboard from 'expo-clipboard';
 
 export default function ActivityDetailScreen() {
@@ -125,25 +129,32 @@ export default function ActivityDetailScreen() {
 
   // Mock functions for testing payment status updates
   const simulatePaymentSuccess = () => {
-    setPaymentSteps(prevSteps => 
-      prevSteps.map((step, index) => 
+    setPaymentSteps(prevSteps =>
+      prevSteps.map((step, index) =>
         index === prevSteps.length - 1 && step.status === 'pending'
-          ? { ...step, status: 'success', title: 'Done', subtitle: 'Payment completed successfully' }
+          ? {
+              ...step,
+              status: 'success',
+              title: 'Done',
+              subtitle: 'Payment completed successfully',
+            }
           : step
       )
     );
   };
 
-  const simulatePaymentError = (errorType: 'insufficient_funds' | 'network_error' | 'payment_declined' = 'insufficient_funds') => {
-    setPaymentSteps(prevSteps => 
-      prevSteps.map((step, index) => 
+  const simulatePaymentError = (
+    errorType: 'insufficient_funds' | 'network_error' | 'payment_declined' = 'insufficient_funds'
+  ) => {
+    setPaymentSteps(prevSteps =>
+      prevSteps.map((step, index) =>
         index === prevSteps.length - 1 && step.status === 'pending'
-          ? { 
-              ...step, 
-              status: 'error', 
-              title: 'Failed', 
+          ? {
+              ...step,
+              status: 'error',
+              title: 'Failed',
               subtitle: 'Payment could not be completed',
-              errorType 
+              errorType,
             }
           : step
       )
@@ -159,7 +170,7 @@ export default function ActivityDetailScreen() {
         status: 'pending',
         title: 'Retrying...',
         subtitle: 'Attempting payment again',
-      }
+      },
     ]);
   };
 
@@ -197,15 +208,21 @@ export default function ActivityDetailScreen() {
     );
   }
 
-  const activityStatus = getActivityStatus(activity.detail);
+  const activityStatus = getActivityStatus(activity.detail, activity.type);
   const isPayment = activity.type === ActivityType.Pay;
   const isAuth = activity.type === ActivityType.Auth;
+  const isTicket =
+    activity.type === ActivityType.Ticket ||
+    activity.type === 'ticket_approved' ||
+    activity.type === 'ticket_denied' ||
+    activity.type === 'ticket_received';
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]}>
       <ThemedView style={styles.container}>
         <ActivityHeader
           isAuth={isAuth}
+          isTicket={isTicket}
           onBackPress={handleBackPress}
           onShare={handleShare}
         />
@@ -222,14 +239,14 @@ export default function ActivityDetailScreen() {
           {/* Payment Status Progress - Only for payment activities */}
           {isPayment && (
             <View style={styles.sectionContainer}>
-              <ThemedText type="subtitle" style={[styles.sectionTitle, { color: primaryTextColor }]}>
+              <ThemedText
+                type="subtitle"
+                style={[styles.sectionTitle, { color: primaryTextColor }]}
+              >
                 Payment Status
               </ThemedText>
-                             <View style={[styles.statusCard, { backgroundColor: surfaceSecondaryColor }]}>
-                <PaymentStatusProgress 
-                  steps={paymentSteps}
-                  onRetry={handleRetryPayment}
-                />
+              <View style={[styles.statusCard, { backgroundColor: surfaceSecondaryColor }]}>
+                <PaymentStatusProgress steps={paymentSteps} onRetry={handleRetryPayment} />
               </View>
             </View>
           )}
@@ -237,7 +254,10 @@ export default function ActivityDetailScreen() {
           {/* Temporary Test Controls - Remove when real logic is implemented */}
           {isPayment && (
             <View style={styles.sectionContainer}>
-              <ThemedText type="subtitle" style={[styles.sectionTitle, { color: primaryTextColor }]}>
+              <ThemedText
+                type="subtitle"
+                style={[styles.sectionTitle, { color: primaryTextColor }]}
+              >
                 Test Controls (Temporary)
               </ThemedText>
               <View style={[styles.testControlsCard, { backgroundColor: surfaceSecondaryColor }]}>
@@ -266,7 +286,11 @@ export default function ActivityDetailScreen() {
           {/* Details Section */}
           <View style={styles.sectionContainer}>
             <ThemedText type="subtitle" style={[styles.sectionTitle, { color: primaryTextColor }]}>
-              {isAuth ? 'Authentication Details' : 'Transaction Details'}
+              {isAuth
+                ? 'Authentication Details'
+                : isTicket
+                  ? 'Ticket Details'
+                  : 'Transaction Details'}
             </ThemedText>
 
             <View style={[styles.detailCard, { backgroundColor: surfaceSecondaryColor }]}>
@@ -284,13 +308,15 @@ export default function ActivityDetailScreen() {
                 onCopy={handleCopyId}
               />
 
-              <ActivityDetailRow
-                icon={<Server size={18} color={secondaryTextColor} />}
-                label="Service Key"
-                value={activity.service_key}
-                copyable
-                onCopy={handleCopyServiceKey}
-              />
+              {!isTicket && (
+                <ActivityDetailRow
+                  icon={<Server size={18} color={secondaryTextColor} />}
+                  label="Service Key"
+                  value={activity.service_key}
+                  copyable
+                  onCopy={handleCopyServiceKey}
+                />
+              )}
 
               {isPayment && (
                 <>
@@ -308,6 +334,16 @@ export default function ActivityDetailScreen() {
                     />
                   )}
                 </>
+              )}
+
+              {isTicket && (
+                <ActivityDetailRow
+                  icon={<Ticket size={18} color={secondaryTextColor} />}
+                  label="Ticket ID"
+                  value={activity.request_id}
+                  copyable
+                  onCopy={() => Clipboard.setStringAsync(activity.request_id)}
+                />
               )}
 
               <ActivityDetailRow
@@ -330,30 +366,58 @@ export default function ActivityDetailScreen() {
           {/* Activity Type Specific Information */}
           <View style={styles.sectionContainer}>
             <ThemedText type="subtitle" style={[styles.sectionTitle, { color: primaryTextColor }]}>
-              {isAuth ? 'Security Information' : 'Payment Information'}
+              {isAuth
+                ? 'Security Information'
+                : isTicket
+                  ? 'Ticket Information'
+                  : 'Payment Information'}
             </ThemedText>
 
             <View style={[styles.infoCard, { backgroundColor: surfaceSecondaryColor }]}>
               <View style={styles.infoContent}>
                 {isAuth ? (
                   <Shield size={24} color={primaryTextColor} style={styles.infoIcon} />
+                ) : isTicket ? (
+                  <Ticket size={24} color={primaryTextColor} style={styles.infoIcon} />
                 ) : (
                   <BanknoteIcon size={24} color={primaryTextColor} style={styles.infoIcon} />
                 )}
                 <View style={styles.infoTextContainer}>
                   <ThemedText style={[styles.infoTitle, { color: primaryTextColor }]}>
-                    {isAuth ? 'Authentication Request' : 'Payment Transaction'}
+                    {isAuth
+                      ? 'Authentication Request'
+                      : isTicket
+                        ? 'Ticket Request'
+                        : 'Payment Transaction'}
                   </ThemedText>
                   <ThemedText style={[styles.infoText, { color: secondaryTextColor }]}>
-                    This was a {isAuth ? 'login' : 'payment'} request {isAuth ? 'to authenticate your identity with' : 'from'} {activity.service_name}.
-                    {activityStatus === 'success' && (isAuth ? ' You successfully granted access.' : ' The payment was processed successfully.')}
+                    This was a {isAuth ? 'login' : isTicket ? 'ticket request' : 'payment'} request{' '}
+                    {isAuth ? 'to authenticate your identity with' : 'from'} {activity.service_name}
+                    .
+                    {activityStatus === 'success' &&
+                      (isAuth
+                        ? ' You successfully granted access.'
+                        : isTicket
+                          ? ' You received a ticket.'
+                          : ' The payment was processed successfully.')}
                     {activityStatus === 'failed' &&
                       activity.detail.toLowerCase().includes('denied') &&
-                      (isAuth ? ' You denied this authentication request.' : ' You denied this payment request.')}
+                      (isAuth
+                        ? ' You denied this authentication request.'
+                        : isTicket
+                          ? ' You denied this ticket request.'
+                          : ' You denied this payment request.')}
                     {activityStatus === 'failed' &&
                       !activity.detail.toLowerCase().includes('denied') &&
-                      (isAuth ? ' The authentication was not completed.' : ' The payment could not be completed.')}
-                    {activityStatus === 'pending' && !isAuth && ' The payment is still being processed.'}
+                      (isAuth
+                        ? ' The authentication was not completed.'
+                        : isTicket
+                          ? ' The ticket request could not be completed.'
+                          : ' The payment could not be completed.')}
+                    {activityStatus === 'pending' &&
+                      !isAuth &&
+                      !isTicket &&
+                      ' The payment is still being processed.'}
                   </ThemedText>
                 </View>
               </View>

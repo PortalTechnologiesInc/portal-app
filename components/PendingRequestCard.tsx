@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { usePendingRequests } from '../context/PendingRequestsContext';
 import { useNostrService } from '@/context/NostrServiceContext';
+import { useECash } from '@/context/ECashContext';
 import { type SinglePaymentRequest, type RecurringPaymentRequest, Currency_Tags } from 'portal-app-lib';
 import type { PendingRequest } from '@/utils/types';
 import { useThemeColor } from '@/hooks/useThemeColor';
@@ -26,6 +27,8 @@ const getRequestTypeText = (type: string) => {
       return 'Certificate Request';
     case 'identity':
       return 'Identity Request';
+    case 'ticket':
+      return 'Ticket Request';
     default:
       return 'Unknown Request';
   }
@@ -41,6 +44,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = ({ request }) => 
   const { approve, deny } = usePendingRequests();
   const { id, metadata, type } = request;
   const nostrService = useNostrService();
+  const { wallets } = useECash();
   const [serviceName, setServiceName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const isMounted = useRef(true);
@@ -53,7 +57,9 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = ({ request }) => 
   const shadowColor = useThemeColor({}, 'shadowColor');
 
   // Add debug logging when a card is rendered
-  console.log(`Rendering card ${id} of type ${type} with service key ${(metadata as SinglePaymentRequest).serviceKey}`);
+  console.log(
+    `Rendering card ${id} of type ${type} with service key ${(metadata as SinglePaymentRequest).serviceKey}`
+  );
 
   const calendarObj =
     type === 'subscription'
@@ -62,14 +68,29 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = ({ request }) => 
 
   const recurrence = calendarObj?.inner.toHumanReadable(false);
 
+  // Extract service key based on request type
+  const getServiceKey = () => {
+    if (type === 'ticket') {
+      return (metadata as any)?.title || 'Unknown Ticket';
+    }
+    return (metadata as SinglePaymentRequest).serviceKey;
+  };
+
+  const serviceKey = getServiceKey();
+
   useEffect(() => {
+    if (type === 'ticket' && request.ticketTitle) {
+      setServiceName(request.ticketTitle);
+      setIsLoading(false);
+      return;
+    }
+
     const fetchServiceName = async () => {
       if (!isMounted.current) return;
-
+      
       try {
         setIsLoading(true);
-        const name = await nostrService.getServiceName((metadata as SinglePaymentRequest).serviceKey);
-
+        const name = await nostrService.getServiceName(serviceKey);
         if (isMounted.current) {
           setServiceName(name);
           setIsLoading(false);
@@ -82,24 +103,37 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = ({ request }) => 
         }
       }
     };
-
     fetchServiceName();
-
-    // Cleanup function to prevent state updates after unmount
     return () => {
       isMounted.current = false;
     };
-  }, [(metadata as SinglePaymentRequest).serviceKey, nostrService]);
+  }, [serviceKey, nostrService, type, metadata, wallets, request.ticketTitle]);
 
   const recipientPubkey = (metadata as SinglePaymentRequest).recipient;
 
   // Extract payment information if this is a payment request
   const isPaymentRequest = type === 'payment';
   const isSubscriptionRequest = type === 'subscription';
+  const isTicketRequest = type === 'ticket';
 
-  const content =
-    (metadata as SinglePaymentRequest)?.content ||
-    (metadata as RecurringPaymentRequest)?.content;
+  const content = (metadata as SinglePaymentRequest)?.content;
+  const amount =
+    content?.amount ||
+    content?.amount ||
+    (isTicketRequest ? (metadata as any)?.inner?.amount : null);
+
+  // For Ticket requests, only show sending tokens (not receiving)
+  const isTicketSending =
+    isTicketRequest && (metadata as any)?.inner?.mintUrl && (metadata as any)?.inner?.amount;
+
+  // Format service name with quantity for ticket requests
+  const formatServiceName = () => {
+    if (isTicketRequest && amount && Number(amount) > 1) {
+      const ticketAmount = Number(amount);
+      return `${serviceName || 'Unknown Service'} x ${ticketAmount}`;
+    }
+    return serviceName || 'Unknown Service';
+  };
 
   return (
     <View style={[styles.card, { backgroundColor: cardBackgroundColor, shadowColor }]}>
@@ -111,22 +145,22 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = ({ request }) => 
         style={[
           styles.serviceName,
           { color: primaryTextColor },
-          !serviceName && styles.unknownService
+          !serviceName && styles.unknownService,
         ]}
       >
-        {serviceName || 'Unknown Service'}
+        {formatServiceName()}
       </Text>
 
       <Text style={[styles.serviceInfo, { color: secondaryTextColor }]}>
         {truncatePubkey(recipientPubkey)}
       </Text>
 
-      {(isPaymentRequest || isSubscriptionRequest) && content.amount !== null && (
+      {(isPaymentRequest || isSubscriptionRequest) && amount !== null && (
         <View style={[styles.amountContainer, { borderColor }]}>
           {isSubscriptionRequest ? (
             <View style={styles.amountRow}>
               <Text style={[styles.amountText, { color: primaryTextColor }]}>
-                {content.currency.tag === Currency_Tags.Fiat ? `${Number(content.amount)} ${content.currency.inner}` : `${Number(content.amount) / 1000} sats`}
+                {content.currency.tag === Currency_Tags.Fiat ? `${Number(amount)} ${content.currency.inner}` : `${Number(amount) / 1000} sats`}
               </Text>
               <Text style={[styles.recurranceText, { color: primaryTextColor }]}>
                 {recurrence?.toLowerCase()}
@@ -134,7 +168,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = ({ request }) => 
             </View>
           ) : (
             <Text style={[styles.amountText, { color: primaryTextColor }]}>
-              {content.currency.tag === Currency_Tags.Fiat ? `${Number(content.amount)} ${content.currency.inner}` : `${Number(content.amount) / 1000} sats`}
+              {content.currency.tag === Currency_Tags.Fiat ? `${Number(amount)} ${content.currency.inner}` : `${Number(amount) / 1000} sats`}
             </Text>
           )}
         </View>

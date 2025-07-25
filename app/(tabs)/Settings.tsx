@@ -14,7 +14,16 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, ChevronRight, Fingerprint, Shield, X, Check, Wallet, Wifi } from 'lucide-react-native';
+import {
+  ArrowLeft,
+  ChevronRight,
+  Fingerprint,
+  Shield,
+  X,
+  Check,
+  Wallet,
+  Wifi,
+} from 'lucide-react-native';
 import { Moon, Sun, Smartphone } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useOnboarding } from '@/context/OnboardingContext';
@@ -23,6 +32,7 @@ import {
   walletUrlEvents,
   deleteMnemonic,
   getMnemonic,
+  getWalletUrl,
 } from '@/services/SecureStorageService';
 import { resetDatabase } from '@/services/database/DatabaseProvider';
 import { useNostrService } from '@/context/NostrServiceContext';
@@ -38,16 +48,17 @@ export default function SettingsScreen() {
   const { resetOnboarding } = useOnboarding();
   const nostrService = useNostrService();
   const { themeMode, setThemeMode } = useTheme();
-  const { 
-    preferredCurrency, 
-    setPreferredCurrency, 
+  const {
+    preferredCurrency,
+    setPreferredCurrency,
     getCurrentCurrencyDisplayName,
-    getCurrentCurrencySymbol 
+    getCurrentCurrencySymbol,
   } = useCurrency();
   const [isWalletConnectedState, setIsWalletConnectedState] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isCurrencyModalVisible, setIsCurrencyModalVisible] = useState(false);
+  const [walletUrl, setWalletUrl] = useState('');
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -62,12 +73,14 @@ export default function SettingsScreen() {
   const statusConnectedColor = useThemeColor({}, 'statusConnected');
 
   // Get real NWC connection status
-  const { nwcConnectionStatus } = nostrService;
+  const { nwcConnectionStatus, nwcConnectionError } = nostrService;
 
   // Initialize wallet connection status
   useEffect(() => {
     const checkWalletConnection = async () => {
       try {
+        const url = await getWalletUrl();
+        setWalletUrl(url);
         const walletConnected = await isWalletConnected();
         // Use real NWC connection status if available, otherwise fall back to URL existence
         const realConnectionStatus =
@@ -87,6 +100,7 @@ export default function SettingsScreen() {
 
     // Subscribe to wallet URL changes
     const subscription = walletUrlEvents.addListener('walletUrlChanged', async newUrl => {
+      setWalletUrl(newUrl || '');
       setIsWalletConnectedState(Boolean(newUrl?.trim()));
     });
 
@@ -169,7 +183,6 @@ export default function SettingsScreen() {
     setRefreshing(true);
     try {
       // Refresh connection status for both relays and NWC wallet
-      await nostrService.refreshConnectionStatus();
       await nostrService.refreshNwcConnectionStatus();
     } catch (error) {
       console.error('Error refreshing connection status:', error);
@@ -208,6 +221,18 @@ export default function SettingsScreen() {
       ]
     );
   };
+
+  function getWalletStatusText() {
+    if (!walletUrl || !walletUrl.trim()) return 'Not configured';
+    if (nwcConnectionStatus === true) return 'Connected';
+    if (nwcConnectionStatus === false) {
+      return nostrService.nwcConnectionError
+        ? `Error: ${nostrService.nwcConnectionError}`
+        : 'Disconnected';
+    }
+    if (nwcConnectionStatus === null) return 'Connecting...';
+    return 'Unknown';
+  }
 
   if (isLoading) {
     return (
@@ -255,9 +280,7 @@ export default function SettingsScreen() {
             </ThemedText>
           </View>
         </View>
-        {preferredCurrency === item && (
-          <Check size={20} color={statusConnectedColor} />
-        )}
+        {preferredCurrency === item && <Check size={20} color={statusConnectedColor} />}
       </View>
     </TouchableOpacity>
   );
@@ -315,12 +338,18 @@ export default function SettingsScreen() {
                         </ThemedText>
                         <View style={styles.cardStatusRow}>
                           <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
-                            {isWalletConnectedState ? 'Connected' : 'Not connected'}
+                            {getWalletStatusText()}
                           </ThemedText>
-                          <View style={[
-                            styles.statusIndicator, 
-                            { backgroundColor: isWalletConnectedState ? statusConnectedColor : secondaryTextColor }
-                          ]} />
+                          <View
+                            style={[
+                              styles.statusIndicator,
+                              {
+                                backgroundColor: isWalletConnectedState
+                                  ? statusConnectedColor
+                                  : secondaryTextColor,
+                              },
+                            ]}
+                          />
                         </View>
                       </View>
                     </View>
@@ -355,181 +384,158 @@ export default function SettingsScreen() {
           </ThemedView>
 
           {/* Nostr Section */}
-          <ThemedView style={styles.section}>
-            <View style={[styles.sectionDivider, { backgroundColor: inputBorderColor }]} />
-            <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
-              Relays
-            </ThemedText>
-            <ThemedView style={styles.walletSection}>
-              <TouchableOpacity
-                style={[styles.card, { backgroundColor: cardBackgroundColor }]}
-                onPress={handleNostrCardPress}
-                activeOpacity={0.7}
-              >
-                <View style={styles.cardContent}>
-                  <View style={styles.cardLeft}>
-                    <View style={styles.cardHeader}>
-                      <View style={[styles.cardIcon, { backgroundColor: buttonPrimaryColor }]}>
-                        <Wifi size={20} color={buttonPrimaryTextColor} />
-                      </View>
-                      <View style={styles.cardText}>
-                        <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
-                          Nostr relays
-                        </ThemedText>
-                        <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
-                          Manage the Nostr relays your app connects to
-                        </ThemedText>
-                      </View>
-                    </View>
+          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
+            Relays
+          </ThemedText>
+          <TouchableOpacity
+            style={[styles.card, { backgroundColor: cardBackgroundColor }]}
+            onPress={handleNostrCardPress}
+            activeOpacity={0.7}
+          >
+            <View style={styles.cardContent}>
+              <View style={styles.cardLeft}>
+                <View style={styles.cardHeader}>
+                  <View style={[styles.cardIcon, { backgroundColor: buttonPrimaryColor }]}>
+                    <Wifi size={20} color={buttonPrimaryTextColor} />
                   </View>
-                  <ChevronRight size={24} color={secondaryTextColor} />
+                  <View style={styles.cardText}>
+                    <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
+                      Nostr relays
+                    </ThemedText>
+                    <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
+                      Manage the Nostr relays your app connects to
+                    </ThemedText>
+                  </View>
                 </View>
-              </TouchableOpacity>
-            </ThemedView>
-          </ThemedView>
+              </View>
+              <ChevronRight size={24} color={secondaryTextColor} />
+            </View>
+          </TouchableOpacity>
 
           {/* Theme Section */}
-          <ThemedView style={styles.section}>
-            <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
-              Appearance
-            </ThemedText>
-            <ThemedView style={styles.themeSection}>
-              <ThemedView style={[styles.themeCard, { backgroundColor: cardBackgroundColor }]}>
-                <TouchableOpacity
-                  onPress={handleThemeChange}
-                  activeOpacity={0.7}
-                  style={styles.themeCardTouchable}
-                >
-                  <View style={styles.themeCardContent}>
-                    <View style={styles.themeCardLeft}>
-                      <View style={styles.themeIconContainer}>
-                        {themeMode === 'auto' ? (
-                          <Smartphone size={24} color={buttonPrimaryColor} />
-                        ) : themeMode === 'light' ? (
-                          <Sun size={24} color={statusConnectedColor} />
-                        ) : (
-                          <Moon size={24} color={buttonPrimaryColor} />
-                        )}
-                      </View>
-                      <View style={styles.themeTextContainer}>
-                        <ThemedText style={[styles.themeTitle, { color: primaryTextColor }]}>
-                          Theme
-                        </ThemedText>
-                        <ThemedText style={[styles.themeStatus, { color: secondaryTextColor }]}>
-                          {themeMode === 'auto'
-                            ? 'Auto (System)'
-                            : themeMode === 'light'
-                              ? 'Light'
-                              : 'Dark'}
-                        </ThemedText>
-                      </View>
-                    </View>
-                    <View style={[styles.themeIndicator, { backgroundColor: buttonPrimaryColor }]}>
-                      <ThemedText style={[styles.tapToChange, { color: buttonPrimaryTextColor }]}>
-                        Tap to change
-                      </ThemedText>
-                    </View>
+          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
+            Appearance
+          </ThemedText>
+          <ThemedView style={[styles.themeCard, { backgroundColor: cardBackgroundColor }]}>
+            <TouchableOpacity
+              onPress={handleThemeChange}
+              activeOpacity={0.7}
+              style={styles.themeCardTouchable}
+            >
+              <View style={styles.themeCardContent}>
+                <View style={styles.themeCardLeft}>
+                  <View style={styles.themeIconContainer}>
+                    {themeMode === 'auto' ? (
+                      <Smartphone size={24} color={buttonPrimaryColor} />
+                    ) : themeMode === 'light' ? (
+                      <Sun size={24} color={statusConnectedColor} />
+                    ) : (
+                      <Moon size={24} color={buttonPrimaryColor} />
+                    )}
                   </View>
-                </TouchableOpacity>
-              </ThemedView>
-            </ThemedView>
+                  <View style={styles.themeTextContainer}>
+                    <ThemedText style={[styles.themeTitle, { color: primaryTextColor }]}>
+                      Theme
+                    </ThemedText>
+                    <ThemedText style={[styles.themeStatus, { color: secondaryTextColor }]}>
+                      {themeMode === 'auto'
+                        ? 'Auto (System)'
+                        : themeMode === 'light'
+                          ? 'Light'
+                          : 'Dark'}
+                    </ThemedText>
+                  </View>
+                </View>
+                <View style={[styles.themeIndicator, { backgroundColor: buttonPrimaryColor }]}>
+                  <ThemedText style={[styles.tapToChange, { color: buttonPrimaryTextColor }]}>
+                    Tap to change
+                  </ThemedText>
+                </View>
+              </View>
+            </TouchableOpacity>
           </ThemedView>
 
           {/* Security Section */}
-          <ThemedView style={styles.section}>
-            <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
-              Security
-            </ThemedText>
-            <ThemedView style={styles.securitySection}>
-              <View style={[styles.appLockOption, { backgroundColor: cardBackgroundColor }]}>
-                <View style={styles.appLockLeft}>
-                  <View style={styles.appLockIconContainer}>
-                    <Shield size={24} color={secondaryTextColor} />
-                  </View>
-                  <View style={styles.appLockTextContainer}>
-                    <ThemedText style={[styles.appLockTitle, { color: secondaryTextColor }]}>
-                      App Lock
-                    </ThemedText>
-                    <ThemedText style={[styles.appLockDescription, { color: secondaryTextColor }]}>
-                      App lock feature has been disabled
-                    </ThemedText>
-                  </View>
-                </View>
-                <Switch
-                  value={false}
-                  onValueChange={() => {}}
-                  disabled={true}
-                  trackColor={{
-                    false: inputBorderColor,
-                    true: inputBorderColor,
-                  }}
-                  thumbColor={inputBorderColor}
-                  ios_backgroundColor={inputBorderColor}
-                />
+          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
+            Security
+          </ThemedText>
+          <View style={[styles.appLockOption, { backgroundColor: cardBackgroundColor }]}>
+            <View style={styles.appLockLeft}>
+              <View style={styles.appLockIconContainer}>
+                <Shield size={24} color={secondaryTextColor} />
               </View>
-            </ThemedView>
-          </ThemedView>
+              <View style={styles.appLockTextContainer}>
+                <ThemedText style={[styles.appLockTitle, { color: secondaryTextColor }]}>
+                  App Lock
+                </ThemedText>
+                <ThemedText style={[styles.appLockDescription, { color: secondaryTextColor }]}>
+                  App lock feature has been disabled
+                </ThemedText>
+              </View>
+            </View>
+            <Switch
+              value={false}
+              onValueChange={() => {}}
+              disabled={true}
+              trackColor={{
+                false: inputBorderColor,
+                true: inputBorderColor,
+              }}
+              thumbColor={inputBorderColor}
+              ios_backgroundColor={inputBorderColor}
+            />
+          </View>
 
           {/* Export Section */}
-          <ThemedView style={styles.section}>
-            <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
-              Export
-            </ThemedText>
-            <ThemedView style={styles.exportSection}>
-              <TouchableOpacity
-                style={[styles.exportButton, { backgroundColor: buttonPrimaryColor }]}
-                onPress={handleExportMnemonic}
-              >
-                <View style={styles.exportButtonContent}>
-                  <ThemedText style={[styles.exportButtonText, { color: buttonPrimaryTextColor }]}>
-                    Export Mnemonic
-                  </ThemedText>
-                  <View style={styles.fingerprintIcon}>
-                    <Fingerprint size={20} color={buttonPrimaryTextColor} />
-                  </View>
-                </View>
-              </TouchableOpacity>
-            </ThemedView>
-            <ThemedView style={styles.exportSection}>
-              <TouchableOpacity
-                style={[styles.exportButton, { backgroundColor: buttonPrimaryColor }]}
-                onPress={handleExportAppData}
-              >
-                <View style={styles.exportButtonContent}>
-                  <ThemedText style={[styles.exportButtonText, { color: buttonPrimaryTextColor }]}>
-                    Export App Data
-                  </ThemedText>
-                  <View style={styles.fingerprintIcon}>
-                    <Fingerprint size={20} color={buttonPrimaryTextColor} />
-                  </View>
-                </View>
-              </TouchableOpacity>
-            </ThemedView>
-          </ThemedView>
+          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
+            Export
+          </ThemedText>
+          <TouchableOpacity
+            style={[styles.exportButton, { backgroundColor: buttonPrimaryColor }]}
+            onPress={handleExportMnemonic}
+          >
+            <View style={styles.exportButtonContent}>
+              <ThemedText style={[styles.exportButtonText, { color: buttonPrimaryTextColor }]}>
+                Export Mnemonic
+              </ThemedText>
+              <View style={styles.fingerprintIcon}>
+                <Fingerprint size={20} color={buttonPrimaryTextColor} />
+              </View>
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.exportButton, { backgroundColor: buttonPrimaryColor }]}
+            onPress={handleExportAppData}
+          >
+            <View style={styles.exportButtonContent}>
+              <ThemedText style={[styles.exportButtonText, { color: buttonPrimaryTextColor }]}>
+                Export App Data
+              </ThemedText>
+              <View style={styles.fingerprintIcon}>
+                <Fingerprint size={20} color={buttonPrimaryTextColor} />
+              </View>
+            </View>
+          </TouchableOpacity>
 
           {/* Extra Section */}
-          <ThemedView style={styles.section}>
-            <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
-              Extra
-            </ThemedText>
-            <ThemedView style={styles.extraSection}>
-              <TouchableOpacity
-                style={[styles.clearDataButton, { backgroundColor: buttonDangerColor }]}
-                onPress={handleClearAppData}
+          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
+            Extra
+          </ThemedText>
+          <TouchableOpacity
+            style={[styles.clearDataButton, { backgroundColor: buttonDangerColor }]}
+            onPress={handleClearAppData}
+          >
+            <View style={styles.clearDataButtonContent}>
+              <ThemedText
+                style={[styles.clearDataButtonText, { color: buttonDangerTextColor }]}
               >
-                <View style={styles.clearDataButtonContent}>
-                  <ThemedText
-                    style={[styles.clearDataButtonText, { color: buttonDangerTextColor }]}
-                  >
-                    Reset App
-                  </ThemedText>
-                  <View style={styles.fingerprintIcon}>
-                    <Fingerprint size={20} color={buttonDangerTextColor} />
-                  </View>
-                </View>
-              </TouchableOpacity>
-            </ThemedView>
-          </ThemedView>
+                Reset App
+              </ThemedText>
+              <View style={styles.fingerprintIcon}>
+                <Fingerprint size={20} color={buttonDangerTextColor} />
+              </View>
+            </View>
+          </TouchableOpacity>
         </ScrollView>
       </ThemedView>
 
@@ -548,7 +554,7 @@ export default function SettingsScreen() {
           <TouchableOpacity
             style={[styles.modalContent, { backgroundColor: backgroundColor }]}
             activeOpacity={1}
-            onPress={(e) => e.stopPropagation()}
+            onPress={e => e.stopPropagation()}
           >
             <View style={styles.modalHeader}>
               <ThemedText style={[styles.modalTitle, { color: primaryTextColor }]}>
@@ -565,7 +571,7 @@ export default function SettingsScreen() {
               <FlatList
                 data={currencies}
                 renderItem={renderCurrencyItem}
-                keyExtractor={(item) => item}
+                keyExtractor={item => item}
                 style={styles.currencyList}
                 showsVerticalScrollIndicator={false}
               />
@@ -592,8 +598,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 20,
+    paddingTop: 16,
+    paddingBottom: 16,
   },
   backButton: {
     marginRight: 15,
@@ -607,40 +613,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   contentContainer: {
-    paddingVertical: 12,
-  },
-  section: {
-    marginBottom: 24,
-    width: '100%',
-  },
-  sectionDivider: {
-    height: 1,
-    marginBottom: 16,
-    opacity: 0.3,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
+    paddingVertical: 16,
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  walletSection: {
-    paddingVertical: 12,
-    width: '100%',
-  },
-  themeSection: {
-    paddingVertical: 12,
-    width: '100%',
+    marginBottom: 12,
   },
   card: {
     borderRadius: 12,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   cardContent: {
     flexDirection: 'row',
@@ -666,7 +649,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cardTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     marginBottom: 4,
   },
@@ -684,10 +667,6 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     marginLeft: 8,
   },
-  exportSection: {
-    paddingVertical: 6,
-    width: '100%',
-  },
   exportButton: {
     padding: 16,
     borderRadius: 12,
@@ -695,7 +674,7 @@ const styles = StyleSheet.create({
     maxWidth: 500,
     alignItems: 'center',
     alignSelf: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   exportButtonText: {
     fontSize: 16,
@@ -712,13 +691,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 0,
   },
-  securitySection: {
-    paddingVertical: 12,
-    width: '100%',
-  },
   appLockOption: {
     borderRadius: 12,
     padding: 16,
+    marginBottom: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -746,7 +722,7 @@ const styles = StyleSheet.create({
   themeCard: {
     borderRadius: 12,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   themeCardContent: {
     flexDirection: 'row',
@@ -765,7 +741,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   themeTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     marginBottom: 4,
   },
@@ -782,10 +758,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   themeCardTouchable: {
-    width: '100%',
-  },
-  extraSection: {
-    paddingVertical: 12,
     width: '100%',
   },
   clearDataButton: {

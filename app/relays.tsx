@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, TouchableOpacity, Alert, TextInput, View, ToastAndroid } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { Colors } from '@/constants/Colors';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, X } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -38,7 +37,6 @@ function isWebsocketUri(uri: string): boolean {
 
 export default function NostrRelayManagementScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams();
   const [everyPopularRelayList, setEveryRelayList] = useState<string[]>([]);
   const [selectedRelays, setSelectedRelays] = useState<string[]>([]);
   const [customRelayTextFieldValue, setCustomRelayTextFieldValue] = useState<string>('');
@@ -138,9 +136,7 @@ export default function NostrRelayManagementScreen() {
 
     try {
       await Promise.all([...promises, DB.updateRelays(newlySelectedRelays)]);
-
-      // Refresh connection status to show updated relays
-      await nostrService.refreshConnectionStatus();
+      setActiveRelaysList(newlySelectedRelays);
     } catch (error) {
       console.error(error);
     }

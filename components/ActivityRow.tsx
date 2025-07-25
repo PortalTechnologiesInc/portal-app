@@ -1,6 +1,6 @@
 import type React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
-import { Key, BanknoteIcon } from 'lucide-react-native';
+import { Key, BanknoteIcon, Ticket } from 'lucide-react-native';
 import { ThemedText } from './ThemedText';
 import { ThemedView } from './ThemedView';
 import { Colors } from '@/constants/Colors';
@@ -37,8 +37,56 @@ export const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
     textSecondary: borderPrimaryColor,
   };
 
-  const activityStatus = getActivityStatus(activity.detail);
+  const activityStatus = getActivityStatus(activity.detail, activity.type);
   const statusColor = getStatusColor(activityStatus, statusColors);
+
+  const getActivityIcon = () => {
+    switch (activity.type) {
+      case ActivityType.Auth:
+        return <Key size={20} color={iconColor} />;
+      case ActivityType.Pay:
+        return <BanknoteIcon size={20} color={iconColor} />;
+      case 'ticket':
+      case 'ticket_approved':
+      case 'ticket_denied':
+      case 'ticket_received':
+        return <Ticket size={20} color={iconColor} />;
+      default:
+        return <BanknoteIcon size={20} color={iconColor} />;
+    }
+  };
+
+  const getActivityTypeText = () => {
+    switch (activity.type) {
+      case ActivityType.Auth:
+        return 'Login Request';
+      case ActivityType.Pay:
+        return 'Payment';
+      case 'ticket':
+      case 'ticket_approved':
+      case 'ticket_denied':
+      case 'ticket_received':
+        return 'Ticket';
+      default:
+        return 'Activity';
+    }
+  };
+
+  // Format ticket title with quantity if amount > 1
+  const formatTicketTitle = () => {
+    if (
+      activity.type === 'ticket' ||
+      activity.type === 'ticket_approved' ||
+      activity.type === 'ticket_denied' ||
+      activity.type === 'ticket_received'
+    ) {
+      const amount = activity.amount;
+      if (amount && amount > 1) {
+        return `${activity.detail} x ${amount}`;
+      }
+    }
+    return activity.detail;
+  };
 
   return (
     <TouchableOpacity
@@ -50,18 +98,14 @@ export const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
       activeOpacity={0.7}
     >
       <View style={[styles.iconContainer, { backgroundColor: iconBackgroundColor }]}>
-        {activity.type === ActivityType.Auth ? (
-          <Key size={20} color={iconColor} />
-        ) : (
-          <BanknoteIcon size={20} color={iconColor} />
-        )}
+        {getActivityIcon()}
       </View>
       <View style={styles.activityInfo}>
         <ThemedText type="subtitle" style={{ color: primaryTextColor }}>
-          {activity.service_name}
+          {activity.type === 'ticket' ? activity.detail : activity.service_name}
         </ThemedText>
         <ThemedText style={[styles.typeText, { color: secondaryTextColor }]}>
-          {activity.type === ActivityType.Auth ? 'Login Request' : 'Payment'}
+          {getActivityTypeText()}
         </ThemedText>
       </View>
       <View style={styles.activityDetails}>
@@ -70,6 +114,16 @@ export const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
             {activity.amount} sats
           </ThemedText>
         )}
+        {(activity.type === 'ticket' ||
+          activity.type === 'ticket_approved' ||
+          activity.type === 'ticket_denied' ||
+          activity.type === 'ticket_received') &&
+          activity.amount !== null &&
+          activity.amount > 1 && (
+            <ThemedText style={[styles.amount, { color: primaryTextColor }]}>
+              x {activity.amount}
+            </ThemedText>
+          )}
         <ThemedText style={[styles.timeAgo, { color: secondaryTextColor }]}>
           {formatRelativeTime(activity.date)}
         </ThemedText>

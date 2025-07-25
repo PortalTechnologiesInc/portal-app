@@ -69,6 +69,10 @@ export interface WalletInfoState {
 export enum ActivityType {
   Auth = 'auth',
   Pay = 'pay',
+  Ticket = 'ticket',
+  TicketApproved = 'ticket_approved',
+  TicketDenied = 'ticket_denied',
+  TicketReceived = 'ticket_received',
 }
 
 /**
@@ -79,7 +83,13 @@ export type Frequency = 'daily' | 'weekly' | 'monthly' | 'annually';
 /**
  * Types of pending requests
  */
-export type PendingRequestType = 'login' | 'payment' | 'certificate' | 'identity' | 'subscription';
+export type PendingRequestType =
+  | 'login'
+  | 'payment'
+  | 'certificate'
+  | 'identity'
+  | 'subscription'
+  | 'ticket';
 
 // =============================================================================
 // CORE ENTITY INTERFACES
@@ -124,6 +134,21 @@ export interface UpcomingPayment {
   dueDate: Date;
 }
 
+export interface Ticket {
+  id: string;
+  title: string;
+  description?: string;
+  mintUrl: string;
+  balance: bigint;
+  isNonFungible: boolean;
+  // Rich metadata from UnitInfo
+  frontCardBackground?: string;
+  backCardBackground?: string;
+  location?: string;
+  date?: string;
+  kind: 'Event' | 'Other';
+}
+
 /**
  * Pending request for user approval
  */
@@ -133,6 +158,7 @@ export interface PendingRequest {
   type: PendingRequestType;
   timestamp: Date;
   result: (value: any) => void; // Portal-app-lib response types (AuthResponseStatus | PaymentResponseContent | RecurringPaymentResponseContent)
+  ticketTitle?: string; // Always set for ticket requests, for consistent UI
 }
 
 // =============================================================================

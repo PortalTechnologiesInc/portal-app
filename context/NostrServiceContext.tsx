@@ -17,6 +17,15 @@ import {
   AuthResponseStatus,
   CloseRecurringPaymentResponse,
   ClosedRecurringPaymentListener,
+  RelayStatusListener,
+  KeypairInterface,
+  parseCashuToken,
+  CashuDirectContentWithKey,
+  CashuDirectListener,
+  CashuRequestListener,
+  CashuRequestContent,
+  CashuRequestContentWithKey,
+  CashuResponseStatus,
 } from 'portal-app-lib';
 import { DatabaseService } from '@/services/database';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -25,11 +34,11 @@ import type {
   PendingRequest,
   RelayConnectionStatus,
   RelayInfo,
-  ConnectionSummary,
   WalletInfo,
-  WalletInfoState
+  WalletInfoState,
 } from '@/utils/types';
-import { useActivities } from './ActivitiesContext';
+import { handleErrorWithToastAndReinit } from '@/utils/Toast';
+import { useECash } from './ECashContext';
 import { handleAuthChallenge, handleCloseRecurringPaymentResponse, handleRecurringPaymentRequest, handleSinglePaymentRequest } from '@/services/EventFilters';
 
 // Constants and helper classes from original NostrService
@@ -69,6 +78,30 @@ function mapNumericStatusToString(numericStatus: number): RelayConnectionStatus 
     default:
       console.warn(`🔍 NostrService: Unknown numeric RelayStatus: ${numericStatus}`);
       return 'Unknown';
+  }
+}
+
+export class LocalCashuDirectListener implements CashuDirectListener {
+  private callback: (event: CashuDirectContentWithKey) => Promise<void>;
+
+  constructor(callback: (event: CashuDirectContentWithKey) => Promise<void>) {
+    this.callback = callback;
+  }
+
+  onCashuDirect(event: CashuDirectContentWithKey): Promise<void> {
+    return this.callback(event);
+  }
+}
+
+export class LocalCashuRequestListener implements CashuRequestListener {
+  private callback: (event: CashuRequestContentWithKey) => Promise<CashuResponseStatus>;
+
+  constructor(callback: (event: CashuRequestContentWithKey) => Promise<CashuResponseStatus>) {
+    this.callback = callback;
+  }
+
+  onCashuRequest(event: CashuRequestContentWithKey): Promise<CashuResponseStatus> {
+    return this.callback(event);
   }
 }
 
@@ -138,14 +171,13 @@ interface NostrServiceContextType {
   submitNip05: (nip05: string) => Promise<void>;
   submitImage: (imageBase64: string) => Promise<void>;
   closeRecurringPayment: (pubkey: string, subscriptionId: string) => Promise<void>;
+  allRelaysConnected: boolean;
+  connectedCount: number;
+  issueJWT: ((targetKey: string, expiresInHours: bigint) => string) | undefined;
 
   // Connection management functions
-  getConnectionSummary: () => ConnectionSummary;
-  refreshConnectionStatus: () => Promise<void>;
-  forceReconnect: () => Promise<void>;
   startPeriodicMonitoring: () => void;
   stopPeriodicMonitoring: () => void;
-  connectionStatus: any; // Keep for backwards compatibility, but prefer getConnectionSummary
 
   // NWC wallet connection monitoring
   nwcConnectionStatus: boolean | null;
@@ -156,6 +188,7 @@ interface NostrServiceContextType {
   walletInfo: WalletInfoState;
   refreshWalletInfo: () => Promise<void>;
   getWalletInfo: () => Promise<WalletInfo | null>;
+  relayStatuses: RelayInfo[];
 }
 
 // Create context with default values
@@ -251,7 +284,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   const [publicKey, setPublicKey] = useState<string | null>(null);
   const [pendingRequests, setPendingRequests] = useState<{ [key: string]: PendingRequest }>({});
   const [nwcWallet, setNwcWallet] = useState<Nwc | null>(null);
-  const [connectionStatus, setConnectionStatus] = useState<any>(null);
   const [nwcConnectionStatus, setNwcConnectionStatus] = useState<boolean | null>(null);
   const [nwcConnectionError, setNwcConnectionError] = useState<string | null>(null);
   const [nwcTimeoutUntil, setNwcTimeoutUntil] = useState<number | null>(null);
@@ -264,14 +296,60 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     error: null,
     lastUpdated: null,
   });
+  const [relayStatuses, setRelayStatuses] = useState<RelayInfo[]>([]);
+  const [keypair, setKeypair] = useState<KeypairInterface | null>(null);
+  const [reinitKey, setReinitKey] = useState(0);
+
+  // Remove the in-memory deduplication system
+  // const processedCashuTokens = useRef<Set<string>>(new Set());
+
+  class LocalRelayStatusListener implements RelayStatusListener {
+    onRelayStatusChange(relay_url: string, status: number): Promise<void> {
+      setRelayStatuses(prev => {
+        const index = prev.findIndex(relay => relay.url === relay_url);
+
+        // If relay is terminated, remove it from the list
+        if (status === 5) {
+          return prev.filter(relay => relay.url !== relay_url);
+        }
+
+        // If relay is not in the list, add it
+        if (index === -1) {
+          return [
+            ...prev,
+            { url: relay_url, status: mapNumericStatusToString(status), connected: status === 3 },
+          ];
+        }
+
+        // Otherwise, update the relay list
+        return [
+          ...prev.slice(0, index),
+          { url: relay_url, status: mapNumericStatusToString(status), connected: status === 3 },
+          ...prev.slice(index + 1),
+        ];
+      });
+      return Promise.resolve();
+    }
+  }
+
+  const allRelaysConnected = relayStatuses.length > 0 && relayStatuses.every(r => r.connected);
+  const connectedCount = relayStatuses.filter(r => r.connected).length;
 
   // Refs to store current values for stable AppState listener
   const portalAppRef = useRef<PortalAppInterface | null>(null);
-  const refreshConnectionStatusRef = useRef<(() => Promise<void>) | null>(null);
   const refreshNwcConnectionStatusRef = useRef<(() => Promise<void>) | null>(null);
 
+  const eCashContext = useECash();
   const sqliteContext = useSQLiteContext();
   const DB = new DatabaseService(sqliteContext);
+
+  // Add reinit logic
+  const triggerReinit = useCallback(() => {
+    setIsInitialized(false);
+    setPortalApp(null);
+    setPublicKey(null);
+    setReinitKey(k => k + 1);
+  }, []);
 
   // Initialize the NostrService
   useEffect(() => {
@@ -295,6 +373,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         // Create Mnemonic object
         const mnemonicObj = new Mnemonic(mnemonic);
         const keypair = mnemonicObj.getKeypair();
+        setKeypair(keypair);
         const publicKeyStr = keypair.publicKey().toString();
 
         // Set public key
@@ -307,11 +386,200 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
           DEFAULT_RELAYS.forEach(relay => relays.push(relay));
           await DB.updateRelays(DEFAULT_RELAYS);
         }
-        const app = await PortalAppManager.getInstance(keypair, relays);
+        const app = await PortalAppManager.getInstance(
+          keypair,
+          relays,
+          new LocalRelayStatusListener()
+        );
 
         // Start listening and give it a moment to establish connections
         app.listen({ signal: abortController.signal });
         console.log('PortalApp listening started...');
+
+        app
+          .listenCashuDirect(
+            new LocalCashuDirectListener(async (event: CashuDirectContentWithKey) => {
+              console.log('Cashu direct token received', event);
+
+              try {
+                // Auto-process the Cashu token (receiving tokens)
+                const token = event.inner.token;
+
+                // Check if we've already processed this token
+                const isProcessed = await DB.isCashuTokenProcessed(token);
+                if (isProcessed) {
+                  console.log('Cashu token already processed, skipping');
+                  return;
+                }
+
+                const tokenInfo = await parseCashuToken(token);
+                const wallet = await eCashContext.addWallet(tokenInfo.mintUrl, tokenInfo.unit);
+                await wallet.receiveToken(token);
+
+                // Mark token as processed after successful processing
+                await DB.markCashuTokenAsProcessed(
+                  token,
+                  tokenInfo.mintUrl,
+                  tokenInfo.unit,
+                  tokenInfo.amount ? Number(tokenInfo.amount) : 0
+                );
+
+                console.log('Cashu token processed successfully');
+
+                // Emit event to notify that wallet balances have changed
+                const { globalEvents } = await import('@/utils/index');
+                globalEvents.emit('walletBalancesChanged', {
+                  mintUrl: tokenInfo.mintUrl,
+                  unit: tokenInfo.unit,
+                });
+                console.log('walletBalancesChanged event emitted');
+
+                // Record activity for token receipt
+                try {
+                  // For Cashu direct, use mint URL as service identifier
+                  const serviceKey = tokenInfo.mintUrl;
+                  const unitInfo = await wallet.getUnitInfo();
+                  const ticketTitle = unitInfo?.title || wallet.unit();
+
+                  // Add activity to database using ActivitiesContext directly
+                  const activity = {
+                    type: 'ticket_received' as const,
+                    service_key: serviceKey,
+                    service_name: ticketTitle, // Always use ticket title
+                    detail: ticketTitle, // Always use ticket title
+                    date: new Date(),
+                    amount: tokenInfo.amount ? Number(tokenInfo.amount) : null, // Store actual number of tickets, not divided by 1000
+                    currency: 'sats' as const,
+                    request_id: `cashu-direct-${Date.now()}`,
+                    subscription_id: null,
+                  };
+
+                  // Import and use ActivitiesContext directly
+                  const { useActivities } = await import('@/context/ActivitiesContext');
+                  // Note: We can't use hooks inside event listeners, so we'll use the database directly
+                  // but also emit the event for UI updates
+                  const activityId = await DB.addActivity(activity);
+                  console.log('Activity added to database with ID:', activityId);
+
+                  // Emit event for UI updates
+                  globalEvents.emit('activityAdded', activity);
+                  console.log('activityAdded event emitted');
+                  console.log('Cashu direct activity recorded successfully');
+                } catch (activityError) {
+                  console.error('Error recording Cashu direct activity:', activityError);
+                }
+              } catch (error: any) {
+                console.error('Error processing Cashu token:', error.inner);
+              }
+
+              // Return void for direct processing
+              return;
+            })
+          )
+          .catch(e => {
+            console.error('Error listening for Cashu direct', e);
+            handleErrorWithToastAndReinit(
+              'Failed to listen for Cashu direct. Retrying...',
+              triggerReinit
+            );
+          });
+
+        app.listenCashuRequests(
+          new LocalCashuRequestListener(async (event: CashuRequestContentWithKey) => {
+            const id = `cashu-request-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+            console.log(`Cashu request with id ${id} received`, event);
+
+            // Declare wallet in outer scope
+            let wallet;
+            // Check if we have the required unit before creating pending request
+            try {
+              const requiredMintUrl = event.inner.mintUrl;
+              const requiredUnit = event.inner.unit;
+              const requiredAmount = event.inner.amount;
+
+              console.log(
+                `Checking if we have unit: ${requiredUnit} from mint: ${requiredMintUrl} with amount: ${requiredAmount}`
+              );
+              console.log(`Available wallets:`, Object.keys(eCashContext.wallets));
+              console.log(`Looking for wallet key: ${requiredMintUrl}-${requiredUnit}`);
+
+              // Check if we have a wallet for this mint and unit
+              wallet = await eCashContext.getWallet(requiredMintUrl, requiredUnit);
+              console.log(`Wallet found in ECashContext:`, !!wallet);
+
+              // If wallet not found in ECashContext, try to create it
+              if (!wallet) {
+                console.log(`Wallet not found in ECashContext, trying to create it...`);
+                try {
+                  wallet = await eCashContext.addWallet(requiredMintUrl, requiredUnit);
+                  console.log(`Successfully created wallet for ${requiredMintUrl}-${requiredUnit}`);
+                } catch (error) {
+                  console.error(
+                    `Error creating wallet for ${requiredMintUrl}-${requiredUnit}:`,
+                    error
+                  );
+                }
+              }
+
+              if (!wallet) {
+                console.log(
+                  `No wallet found for mint: ${requiredMintUrl}, unit: ${requiredUnit} - auto-rejecting`
+                );
+                return new CashuResponseStatus.InsufficientFunds();
+              }
+
+              // Check if we have sufficient balance
+              const balance = await wallet.getBalance();
+              if (balance < requiredAmount) {
+                console.log(
+                  `Insufficient balance: ${balance} < ${requiredAmount} - auto-rejecting`
+                );
+                return new CashuResponseStatus.InsufficientFunds();
+              }
+
+              console.log(
+                `Wallet found with sufficient balance: ${balance} >= ${requiredAmount} - creating pending request`
+              );
+            } catch (error) {
+              console.error('Error checking wallet availability:', error);
+              return new CashuResponseStatus.InsufficientFunds();
+            }
+
+            // Get the ticket title for pending requests
+            let ticketTitle = 'Unknown Ticket';
+            if (wallet) {
+              let unitInfo;
+              try {
+                unitInfo = wallet.getUnitInfo ? await wallet.getUnitInfo() : undefined;
+              } catch (e) {
+                unitInfo = undefined;
+              }
+              ticketTitle = unitInfo?.title || wallet.unit();
+            }
+            return new Promise<CashuResponseStatus>(resolve => {
+              const newRequest: PendingRequest = {
+                id,
+                metadata: event,
+                timestamp: new Date(),
+                type: 'ticket',
+                result: resolve,
+                ticketTitle, // Set the ticket name for UI
+              };
+              setPendingRequests(prev => {
+                const newPendingRequests = { ...prev };
+                newPendingRequests[id] = newRequest;
+                console.log('Updated pending requests map:', newPendingRequests);
+                return newPendingRequests;
+              });
+            });
+          })
+        );
+
+        /**
+         * these logic go inside the new listeners that will be implemented
+         */
+        // end
 
         app
           .listenForAuthChallenge(
@@ -345,7 +613,10 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
           )
           .catch(e => {
             console.error('Error listening for auth challenge', e);
-            // TODO: re-initialize the app
+            handleErrorWithToastAndReinit(
+              'Failed to listen for authentication challenge. Retrying...',
+              triggerReinit
+            );
           });
 
         app
@@ -407,7 +678,10 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
           )
           .catch(e => {
             console.error('Error listening for payment request', e);
-            // TODO: re-initialize the app
+            handleErrorWithToastAndReinit(
+              'Failed to listen for payment request. Retrying...',
+              triggerReinit
+            );
           });
 
         // Listen for closed recurring payments
@@ -441,7 +715,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
       console.log('Aborting NostrService initialization');
       abortController.abort();
     };
-  }, [mnemonic, appIsActive]);
+  }, [mnemonic, appIsActive, reinitKey]);
 
   useEffect(() => {
     console.log('Updated pending requests:', pendingRequests);
@@ -598,27 +872,33 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         }
 
         // Step 2: Check relay connection status before attempting network fetch
-        if (!connectionStatus || !(connectionStatus instanceof Map) || connectionStatus.size === 0) {
+        if (!relayStatuses.length || relayStatuses.every(r => r.status === 'Disconnected')) {
           console.warn('DEBUG: No relays connected, cannot fetch service profile for:', pubKey);
-          throw new Error('No relay connections available. Please check your internet connection and try again.');
+          throw new Error(
+            'No relay connections available. Please check your internet connection and try again.'
+          );
         }
 
         // Check if at least one relay is connected
         let connectedCount = 0;
-        for (const [url, status] of connectionStatus.entries()) {
-          const finalStatus = typeof status === 'number' ? mapNumericStatusToString(status) : 'Unknown';
-          if (finalStatus === 'Connected') {
+        for (const relay of relayStatuses) {
+          if (relay.status === 'Connected') {
             connectedCount++;
           }
         }
 
         if (connectedCount === 0) {
-          console.warn('DEBUG: No relays in Connected state, cannot fetch service profile for:', pubKey);
-          throw new Error('No relay connections available. Please check your internet connection and try again.');
+          console.warn(
+            'DEBUG: No relays in Connected state, cannot fetch service profile for:',
+            pubKey
+          );
+          throw new Error(
+            'No relay connections available. Please check your internet connection and try again.'
+          );
         }
 
         console.log('DEBUG: NostrService.getServiceName fetching from network for pubKey:', pubKey);
-        console.log('DEBUG: Connected relays:', connectedCount, '/', connectionStatus.size);
+        console.log('DEBUG: Connected relays:', connectedCount, '/', relayStatuses.length);
 
         // Step 3: Fetch from network
         const profile = await portalApp.fetchProfile(pubKey);
@@ -641,7 +921,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         throw error;
       }
     },
-    [portalApp, connectionStatus]
+    [portalApp, relayStatuses]
   );
 
   const dismissPendingRequest = useCallback((id: string) => {
@@ -671,67 +951,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     },
     [portalApp]
   );
-
-  // Refresh connection status from portal app
-  const refreshConnectionStatus = useCallback(async () => {
-    if (portalApp) {
-      try {
-        const status = await portalApp.connectionStatus();
-        setConnectionStatus(status);
-      } catch (error: any) {
-        console.error('NostrService: Error fetching connection status:', error.inner);
-        setConnectionStatus(null);
-      }
-    }
-  }, [portalApp]);
-
-  // Get processed connection summary
-  const getConnectionSummary = useCallback((): ConnectionSummary => {
-    if (!connectionStatus) {
-      return {
-        allRelaysConnected: false,
-        connectedCount: 0,
-        totalCount: 0,
-        relays: [],
-      };
-    }
-
-    if (connectionStatus instanceof Map) {
-      const relayEntries = Array.from(connectionStatus.entries());
-
-      const relays: RelayInfo[] = relayEntries
-        .map(([url, status]) => {
-          // Convert numeric status to string using the mapping function
-          const finalStatus: RelayConnectionStatus =
-            typeof status === 'number' ? mapNumericStatusToString(status) : 'Unknown';
-
-          return {
-            url,
-            status: finalStatus,
-            connected: finalStatus === 'Connected',
-          };
-        })
-        .sort((a, b) => a.url.localeCompare(b.url)); // Sort by URL for consistent order
-
-      const connectedCount = relays.filter(relay => relay.connected).length;
-      const totalCount = relays.length;
-      const allRelaysConnected = totalCount > 0 && connectedCount === totalCount;
-
-      return {
-        allRelaysConnected,
-        connectedCount,
-        totalCount,
-        relays,
-      };
-    }
-
-    return {
-      allRelaysConnected: false,
-      connectedCount: 0,
-      totalCount: 0,
-      relays: [],
-    };
-  }, [connectionStatus]);
 
   // Simple monitoring control functions (to be used by navigation-based polling)
   const startPeriodicMonitoring = useCallback(() => {
@@ -826,25 +1045,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     }
   }, [nwcWallet]); // Only depend on nwcWallet to prevent infinite recreation
 
-  // Force reconnect function to trigger immediate reconnection
-  const forceReconnect = useCallback(async () => {
-    if (!portalApp) {
-      console.warn('PortalApp not initialized, cannot force reconnect');
-      return;
-    }
-
-    console.log('Force reconnecting to relays...');
-
-    try {
-      // Only refresh connection status, don't trigger recursive calls
-      await refreshConnectionStatus();
-
-      console.log('Force reconnect initiated');
-    } catch (error: any) {
-      console.error('Error during force reconnect:', error.inner);
-    }
-  }, [portalApp, refreshConnectionStatus]);
-
   // Centralized NWC polling - only when wallet is configured
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null;
@@ -869,9 +1069,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   useEffect(() => {
     // Add a small delay to allow relay connections to establish after initialization
     const timer = setTimeout(() => {
-      if (refreshConnectionStatusRef.current) {
-        refreshConnectionStatusRef.current();
-      }
       if (refreshNwcConnectionStatusRef.current) {
         refreshNwcConnectionStatusRef.current();
       }
@@ -884,10 +1081,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   useEffect(() => {
     portalAppRef.current = portalApp;
   }, [portalApp]);
-
-  useEffect(() => {
-    refreshConnectionStatusRef.current = refreshConnectionStatus;
-  }, [refreshConnectionStatus]);
 
   useEffect(() => {
     refreshNwcConnectionStatusRef.current = refreshNwcConnectionStatus;
@@ -907,9 +1100,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         if (portalAppRef.current) {
           console.log('📱 App became active - refreshing connection status');
           try {
-            if (refreshConnectionStatusRef.current) {
-              await refreshConnectionStatusRef.current();
-            }
             if (refreshNwcConnectionStatusRef.current) {
               await refreshNwcConnectionStatusRef.current();
             }
@@ -934,19 +1124,25 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   // Remove the old unstable AppState listener
   // (commenting out the old one that was being recreated constantly)
 
-  const submitNip05 = useCallback(async (nip05: string) => {
-    if (!portalApp) {
-      throw new Error('PortalApp not initialized');
-    }
-    await portalApp.registerNip05(nip05);
-  }, [portalApp]);
+  const submitNip05 = useCallback(
+    async (nip05: string) => {
+      if (!portalApp) {
+        throw new Error('PortalApp not initialized');
+      }
+      await portalApp.registerNip05(nip05);
+    },
+    [portalApp]
+  );
 
-  const submitImage = useCallback(async (imageBase64: string) => {
-    if (!portalApp) {
-      throw new Error('PortalApp not initialized');
-    }
-    await portalApp.registerImg(imageBase64);
-  }, [portalApp]);
+  const submitImage = useCallback(
+    async (imageBase64: string) => {
+      if (!portalApp) {
+        throw new Error('PortalApp not initialized');
+      }
+      await portalApp.registerImg(imageBase64);
+    },
+    [portalApp]
+  );
 
   // Wallet info functions
   const getWalletInfo = useCallback(async (): Promise<WalletInfo | null> => {
@@ -970,7 +1166,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
       // Using flexible property access to handle different response formats
       const walletData: WalletInfo = {
         alias: info.alias,
-        get_balance: Number(balance)
+        get_balance: Number(balance),
       };
 
       setWalletInfo({
@@ -1014,6 +1210,10 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
       });
     }
   }, [nwcWallet, nwcConnectionStatus, refreshWalletInfo]);
+
+  const issueJWT = (targetKey: string, expiresInHours: bigint) => {
+    return keypair!.issueJwt(targetKey, expiresInHours);
+  };
 
   /* useEffect(() => {
     class Logger implements LogCallback {
@@ -1062,20 +1262,20 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     dismissPendingRequest,
     setUserProfile,
     closeRecurringPayment,
-    getConnectionSummary,
-    refreshConnectionStatus,
-    connectionStatus,
     startPeriodicMonitoring,
     stopPeriodicMonitoring,
     nwcConnectionStatus,
     nwcConnectionError,
     refreshNwcConnectionStatus,
-    forceReconnect,
     submitNip05,
     submitImage,
     walletInfo,
     refreshWalletInfo,
     getWalletInfo,
+    relayStatuses,
+    allRelaysConnected,
+    connectedCount,
+    issueJWT,
   };
 
   return (
