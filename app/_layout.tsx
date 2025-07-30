@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { OnboardingProvider, useOnboarding } from '@/context/OnboardingContext';
 import { UserProfileProvider } from '@/context/UserProfileContext';
 import { PendingRequestsProvider } from '@/context/PendingRequestsContext';
+import { InboundPaymentsProvider } from '@/context/InboundPaymentsContext';
 import { DeeplinkProvider } from '@/context/DeeplinkContext';
 import { ActivitiesProvider } from '@/context/ActivitiesContext';
 import { DatabaseProvider } from '@/services/database/DatabaseProvider';
@@ -130,12 +131,14 @@ const AuthenticatedAppContent = () => {
       <NostrServiceProvider mnemonic={mnemonic || ''} walletUrl={walletUrl}>
         <UserProfileProvider>
           <ActivitiesProvider>
-            <PendingRequestsProvider>
-              <DeeplinkProvider>
-                <NotificationConfigurator />
-                <Stack screenOptions={{ headerShown: false }} />
-              </DeeplinkProvider>
-            </PendingRequestsProvider>
+            <InboundPaymentsProvider>
+              <PendingRequestsProvider>
+                <DeeplinkProvider>
+                  <NotificationConfigurator />
+                  <Stack screenOptions={{ headerShown: false }} />
+                </DeeplinkProvider>
+              </PendingRequestsProvider>
+            </InboundPaymentsProvider>
           </ActivitiesProvider>
         </UserProfileProvider>
       </NostrServiceProvider>

@@ -203,6 +203,7 @@ export default function ActivityDetailScreen() {
             activityStatus={activityStatus}
             detail={activity.detail}
             amount={activity.amount}
+            refunded={activity.refunded}
           />
 
           {/* Payment Status Progress - Only for payment activities */}

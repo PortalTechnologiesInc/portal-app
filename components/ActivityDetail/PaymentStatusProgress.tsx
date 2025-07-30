@@ -30,7 +30,7 @@ export const convertPaymentStatusToSteps = (
   paymentStatusEntries: Array<{
     id: number;
     invoice: string;
-    action_type: 'payment_started' | 'payment_completed' | 'payment_failed';
+    action_type: 'payment_started' | 'payment_completed' | 'payment_failed' | 'refund_started' | 'refund_completed' | 'refund_failed';
     created_at: Date;
   }>
 ): PaymentStep[] => {
@@ -51,8 +51,8 @@ export const convertPaymentStatusToSteps = (
         steps.push({
           id: `${stepId++}`,
           status: 'pending',
-          title: 'Pending...',
-          subtitle: 'Processing your payment',
+          title: 'Processing payment',
+          subtitle: 'Your payment is being processed',
           timestamp: entry.created_at,
         });
         break;
@@ -97,6 +97,61 @@ export const convertPaymentStatusToSteps = (
             status: 'error',
             title: 'Payment failed',
             subtitle: 'Your payment could not be completed',
+            timestamp: entry.created_at,
+            errorType: 'unknown_error',
+          });
+        }
+        break;
+      case 'refund_started':
+        steps.push({
+          id: `${stepId++}`,
+          status: 'pending',
+          title: 'Processing refund',
+          subtitle: 'Your refund is being processed',
+          timestamp: entry.created_at,
+        });
+        break;
+      case 'refund_completed':
+        // Update the last pending step to completed
+        const lastRefundPendingIndex = steps.findIndex(step => step.status === 'pending');
+        if (lastRefundPendingIndex !== -1) {
+          steps[lastRefundPendingIndex] = {
+            ...steps[lastRefundPendingIndex],
+            status: 'success',
+            title: 'Refund completed',
+            subtitle: 'Your refund was successful',
+            timestamp: entry.created_at,
+          };
+        } else {
+          // If no pending step found, add a completed step
+          steps.push({
+            id: `${stepId++}`,
+            status: 'success',
+            title: 'Refund completed',
+            subtitle: 'Your refund was successful',
+            timestamp: entry.created_at,
+          });
+        }
+        break;
+      case 'refund_failed':
+        // Update the last pending step to error
+        const lastRefundPendingStepIndex = steps.findIndex(step => step.status === 'pending');
+        if (lastRefundPendingStepIndex !== -1) {
+          steps[lastRefundPendingStepIndex] = {
+            ...steps[lastRefundPendingStepIndex],
+            status: 'error',
+            title: 'Refund failed',
+            subtitle: 'Your refund could not be completed',
+            timestamp: entry.created_at,
+            errorType: 'unknown_error',
+          };
+        } else {
+          // If no pending step found, add an error step
+          steps.push({
+            id: `${stepId++}`,
+            status: 'error',
+            title: 'Refund failed',
+            subtitle: 'Your refund could not be completed',
             timestamp: entry.created_at,
             errorType: 'unknown_error',
           });

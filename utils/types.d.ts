@@ -69,6 +69,7 @@ export interface WalletInfoState {
 export enum ActivityType {
   Auth = 'auth',
   Pay = 'pay',
+  SpontaneousPay = 'spontaneous_pay',
   Ticket = 'ticket',
   TicketApproved = 'ticket_approved',
   TicketDenied = 'ticket_denied',

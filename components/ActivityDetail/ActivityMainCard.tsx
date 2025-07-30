@@ -97,10 +97,22 @@ export const ActivityMainCard: React.FC<ActivityMainCardProps> = ({
 
       {isPayment && amount && (
         <View style={styles.amountContainer}>
-          <ThemedText style={[styles.amount, { color: primaryTextColor }]}>
+          <ThemedText 
+            style={[
+              styles.amount, 
+              { color: primaryTextColor },
+              activityStatus === 'refunded' ? styles.refundedText : null
+            ]}
+          >
             {amount.toLocaleString()} sats
           </ThemedText>
-          <ThemedText style={[styles.amountSubtext, { color: secondaryTextColor }]}>
+          <ThemedText 
+            style={[
+              styles.amountSubtext, 
+              { color: secondaryTextColor },
+              activityStatus === 'refunded' ? styles.refundedText : null
+            ]}
+          >
             {formatSatsToUSD(amount)}
           </ThemedText>
         </View>
@@ -169,5 +181,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     lineHeight: 22,
+  },
+  refundedText: {
+    textDecorationLine: 'line-through',
+    textDecorationStyle: 'solid',
   },
 });

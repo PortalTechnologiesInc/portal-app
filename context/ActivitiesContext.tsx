@@ -15,6 +15,7 @@ import {
   type SubscriptionWithDates,
 } from '@/services/database';
 import { useDatabaseStatus } from '@/services/database/DatabaseProvider';
+import { useNostrService } from '@/context/NostrServiceContext';
 
 interface ActivitiesContextType {
   activities: ActivityWithDates[];
