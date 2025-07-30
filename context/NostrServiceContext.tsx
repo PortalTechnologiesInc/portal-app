@@ -622,13 +622,14 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         app
           .listenForPaymentRequest(
             new LocalPaymentRequestListener(
-              (event: SinglePaymentRequest) => {
+              async (event: SinglePaymentRequest) => {
                 const id = event.eventId;
 
                 console.log(`Single payment request with id ${id} received`, event);
 
+                const serviceName = (await getServiceName(event.serviceKey)) || 'Unknown Service';
                 return new Promise<PaymentResponseContent>(resolve => {
-                  handleSinglePaymentRequest(event, DB, resolve)
+                  handleSinglePaymentRequest(serviceName, event, DB, resolve)
                     .then(askUser => {
                       if (askUser) {
                         const newRequest: PendingRequest = {
