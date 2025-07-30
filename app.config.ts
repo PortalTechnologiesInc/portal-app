@@ -1,7 +1,7 @@
 export default {
   expo: {
     name: 'Portal',
-    slug: 'portal',
+    slug: 'Portal',
     version: '1.0.0',
     orientation: 'portrait',
     owner: 'portaltechnologiesinc',
