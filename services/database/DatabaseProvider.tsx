@@ -59,7 +59,7 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
   const migrateDbIfNeeded = useCallback(async (db: SQLiteDatabase) => {
     console.log('Database initialization started');
     setIsDbInitializing(true);
-    const DATABASE_VERSION = 11;
+    const DATABASE_VERSION = 13;
 
     try {
       let { user_version: currentDbVersion } = (await db.getFirstAsync<{
@@ -370,12 +370,49 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
       }
 
       if (currentDbVersion <= 10) {
-        // The processed_cashu_tokens table is now created dynamically when needed
-        // This prevents migration issues and allows for better error handling
+        await db.execAsync(`
+          CREATE TABLE IF NOT EXISTS processed_cashu_tokens (
+            token_hash TEXT PRIMARY KEY NOT NULL,
+            mint_url TEXT NOT NULL,
+            unit TEXT NOT NULL,
+            amount INTEGER NOT NULL,
+            processed_at INTEGER NOT NULL -- Unix timestamp
+          );
+          CREATE INDEX IF NOT EXISTS idx_processed_cashu_tokens_hash ON processed_cashu_tokens(token_hash);
+          CREATE INDEX IF NOT EXISTS idx_processed_cashu_tokens_mint ON processed_cashu_tokens(mint_url);
+        `);
         currentDbVersion = 11;
-        console.log(
-          'Updated to version 11 - processed_cashu_tokens table will be created dynamically'
-        );
+        console.log('Created processed_cashu_tokens table - now at version 11');
+      }
+
+      if (currentDbVersion <= 11) {
+        await db.execAsync(`
+          CREATE TABLE IF NOT EXISTS payment_status (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            invoice TEXT NOT NULL,
+            action_type TEXT NOT NULL CHECK (action_type IN ('payment_started', 'payment_completed', 'payment_failed')),
+            created_at INTEGER NOT NULL -- Unix timestamp
+          );
+          CREATE INDEX IF NOT EXISTS idx_payment_status_invoice ON payment_status(invoice);
+          CREATE INDEX IF NOT EXISTS idx_payment_status_action_type ON payment_status(action_type);
+          CREATE INDEX IF NOT EXISTS idx_payment_status_created_at ON payment_status(created_at);
+          
+          -- Add status column to activities table
+          ALTER TABLE activities ADD COLUMN status TEXT DEFAULT 'neutral' CHECK (status IN ('neutral', 'positive', 'negative', 'pending'));
+          CREATE INDEX IF NOT EXISTS idx_activities_status ON activities(status);
+        `);
+        currentDbVersion = 12;
+        console.log('Created payment_status table and added status column to activities - now at version 12');
+      }
+
+      if (currentDbVersion <= 12) {
+        await db.execAsync(`
+          -- Add invoice column to activities table for payment activities
+          ALTER TABLE activities ADD COLUMN invoice TEXT;
+          CREATE INDEX IF NOT EXISTS idx_activities_invoice ON activities(invoice);
+        `);
+        currentDbVersion = 13;
+        console.log('Added invoice column to activities table - now at version 13');
       }
 
       await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);

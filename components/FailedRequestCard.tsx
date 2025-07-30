@@ -1,4 +1,4 @@
-import type React from 'react';
+import React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { ThemedText } from './ThemedText';
 import { Colors } from '@/constants/Colors';
@@ -11,60 +11,62 @@ interface FailedRequestCardProps {
   onCancel: () => void;
 }
 
-export const FailedRequestCard: React.FC<FailedRequestCardProps> = ({ onRetry, onCancel }) => {
-  // Theme colors
-  const cardBackgroundColor = useThemeColor({}, 'cardBackground');
-  const primaryTextColor = useThemeColor({}, 'textPrimary');
-  const secondaryTextColor = useThemeColor({}, 'textSecondary');
-  const warningColor = useThemeColor({}, 'statusWarning');
-  const shadowColor = useThemeColor({}, 'shadowColor');
-  const buttonPrimaryColor = useThemeColor({}, 'buttonPrimary');
-  const buttonPrimaryTextColor = useThemeColor({}, 'buttonPrimaryText');
-  const buttonSecondaryColor = useThemeColor({}, 'buttonSecondary');
-  const buttonSecondaryTextColor = useThemeColor({}, 'buttonSecondaryText');
+export const FailedRequestCard: React.FC<FailedRequestCardProps> = React.memo(
+  ({ onRetry, onCancel }) => {
+    // Theme colors
+    const cardBackgroundColor = useThemeColor({}, 'cardBackground');
+    const primaryTextColor = useThemeColor({}, 'textPrimary');
+    const secondaryTextColor = useThemeColor({}, 'textSecondary');
+    const warningColor = useThemeColor({}, 'statusWarning');
+    const shadowColor = useThemeColor({}, 'shadowColor');
+    const buttonPrimaryColor = useThemeColor({}, 'buttonPrimary');
+    const buttonPrimaryTextColor = useThemeColor({}, 'buttonPrimaryText');
+    const buttonSecondaryColor = useThemeColor({}, 'buttonSecondary');
+    const buttonSecondaryTextColor = useThemeColor({}, 'buttonSecondaryText');
 
-  return (
-    <View style={[styles.card, { backgroundColor: cardBackgroundColor, shadowColor }]}>
-      {/* Request type row */}
-      <ThemedText style={[styles.requestType, { color: secondaryTextColor }]}>
-        Request Status
-      </ThemedText>
-
-      {/* Title row with icon */}
-      <View style={styles.titleRow}>
-        <AlertTriangle size={22} color={warningColor} style={styles.titleIcon} />
-        <ThemedText style={[styles.serviceName, { color: primaryTextColor }]}>
-          Request Failed
+    return (
+      <View style={[styles.card, { backgroundColor: cardBackgroundColor, shadowColor }]}>
+        {/* Request type row */}
+        <ThemedText style={[styles.requestType, { color: secondaryTextColor }]}>
+          Request Status
         </ThemedText>
-      </View>
 
-      <ThemedText style={[styles.serviceInfo, { color: secondaryTextColor }]}>
-        The request timed out. Would you like to try again?
-      </ThemedText>
-
-      <View style={styles.actions}>
-        <TouchableOpacity
-          style={[styles.button, styles.cancelButton, { backgroundColor: buttonSecondaryColor }]}
-          onPress={onCancel}
-        >
-          <ThemedText style={[styles.buttonText, { color: buttonSecondaryTextColor }]}>
-            Cancel
+        {/* Title row with icon */}
+        <View style={styles.titleRow}>
+          <AlertTriangle size={22} color={warningColor} style={styles.titleIcon} />
+          <ThemedText style={[styles.serviceName, { color: primaryTextColor }]}>
+            Request Failed
           </ThemedText>
-        </TouchableOpacity>
+        </View>
 
-        <TouchableOpacity
-          style={[styles.button, styles.retryButton, { backgroundColor: buttonPrimaryColor }]}
-          onPress={onRetry}
-        >
-          <RefreshCw size={16} color={buttonPrimaryTextColor} style={styles.buttonIcon} />
-          <ThemedText style={[styles.buttonText, { color: buttonPrimaryTextColor }]}>
-            Retry
-          </ThemedText>
-        </TouchableOpacity>
+        <ThemedText style={[styles.serviceInfo, { color: secondaryTextColor }]}>
+          The request timed out. Would you like to try again?
+        </ThemedText>
+
+        <View style={styles.actions}>
+          <TouchableOpacity
+            style={[styles.button, styles.cancelButton, { backgroundColor: buttonSecondaryColor }]}
+            onPress={onCancel}
+          >
+            <ThemedText style={[styles.buttonText, { color: buttonSecondaryTextColor }]}>
+              Cancel
+            </ThemedText>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, styles.retryButton, { backgroundColor: buttonPrimaryColor }]}
+            onPress={onRetry}
+          >
+            <RefreshCw size={16} color={buttonPrimaryTextColor} style={styles.buttonIcon} />
+            <ThemedText style={[styles.buttonText, { color: buttonPrimaryTextColor }]}>
+              Retry
+            </ThemedText>
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
-  );
-};
+    );
+  }
+);
 
 const styles = StyleSheet.create({
   card: {

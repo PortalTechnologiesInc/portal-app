@@ -1,4 +1,4 @@
-import type React from 'react';
+import React from 'react';
 import { useEffect, useRef } from 'react';
 import { View, StyleSheet, Animated, type ViewStyle, type StyleProp } from 'react-native';
 import { ThemedText } from './ThemedText';
@@ -43,7 +43,7 @@ const SkeletonPulse = ({ style }: { style: StyleProp<ViewStyle> }) => {
   );
 };
 
-export const PendingRequestSkeletonCard: React.FC = () => {
+export const PendingRequestSkeletonCard: React.FC = React.memo(() => {
   // Theme colors
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');
   const skeletonBaseColor = useThemeColor({}, 'skeletonBase');
@@ -74,7 +74,7 @@ export const PendingRequestSkeletonCard: React.FC = () => {
       </View>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   card: {

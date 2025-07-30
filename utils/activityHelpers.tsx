@@ -1,34 +1,32 @@
 import React from 'react';
 import { CheckCircle, Clock, XCircle, AlertCircle, Info } from 'lucide-react-native';
 import { ActivityType } from '@/utils';
+import type { ActivityWithDates } from '@/services/database';
 
 export type ActivityStatus = 'success' | 'failed' | 'pending' | 'received';
 
-export const getActivityStatus = (detail: string, type?: string): ActivityStatus => {
-  const lowerDetail = detail.toLowerCase();
-
-  // For ticket activities, determine status based on type
-  if (type === 'ticket_received') {
-    return 'received'; // Neutral status for received tickets
-  } else if (type === 'ticket_approved') {
-    return 'success'; // Approved tickets are success
-  } else if (type === 'ticket_denied') {
-    return 'failed'; // Denied tickets are failed
-  } else if (type === 'ticket') {
-    return 'pending'; // Legacy ticket type (if any) are pending
-  }
-
-  if (lowerDetail.includes('approved') || lowerDetail.includes('success')) {
-    return 'success';
-  } else if (
-    lowerDetail.includes('failed') ||
-    lowerDetail.includes('denied') ||
-    lowerDetail.includes('error') ||
-    lowerDetail.includes('rejected')
-  ) {
-    return 'failed';
-  } else {
-    return 'pending';
+export const getActivityStatus = (activity: ActivityWithDates): ActivityStatus => {
+  // Map database status to ActivityStatus
+  switch (activity.status) {
+    case 'positive':
+      return 'success';
+    case 'negative':
+      return 'failed';
+    case 'pending':
+      return 'pending';
+    case 'neutral':
+    default:
+      // For ticket activities, determine status based on type
+      if (activity.type === 'ticket_received') {
+        return 'received'; // Neutral status for received tickets
+      } else if (activity.type === 'ticket_approved') {
+        return 'success'; // Approved tickets are success
+      } else if (activity.type === 'ticket_denied') {
+        return 'failed'; // Denied tickets are failed
+      } else if (activity.type === 'ticket') {
+        return 'pending'; // Legacy ticket type (if any) are pending
+      }
+      return 'pending'; // Default for neutral status
   }
 };
 

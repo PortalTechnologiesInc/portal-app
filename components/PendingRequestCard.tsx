@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { FC } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -40,175 +40,190 @@ const truncatePubkey = (pubkey: string | undefined) => {
   return `${pubkey.substring(0, 16)}...${pubkey.substring(pubkey.length - 16)}`;
 };
 
-export const PendingRequestCard: FC<PendingRequestCardProps> = ({ request }) => {
-  const { approve, deny } = usePendingRequests();
-  const { id, metadata, type } = request;
-  const nostrService = useNostrService();
-  const { wallets } = useECash();
-  const [serviceName, setServiceName] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const isMounted = useRef(true);
+export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
+  ({ request }) => {
+    const { approve, deny } = usePendingRequests();
+    const { id, metadata, type } = request;
+    const nostrService = useNostrService();
+    const { wallets } = useECash();
+    const [serviceName, setServiceName] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const isMounted = useRef(true);
 
-  // Theme colors
-  const cardBackgroundColor = useThemeColor({}, 'cardBackground');
-  const primaryTextColor = useThemeColor({}, 'textPrimary');
-  const secondaryTextColor = useThemeColor({}, 'textSecondary');
-  const borderColor = useThemeColor({}, 'borderPrimary');
-  const shadowColor = useThemeColor({}, 'shadowColor');
+    // Theme colors
+    const cardBackgroundColor = useThemeColor({}, 'cardBackground');
+    const primaryTextColor = useThemeColor({}, 'textPrimary');
+    const secondaryTextColor = useThemeColor({}, 'textSecondary');
+    const borderColor = useThemeColor({}, 'borderPrimary');
+    const shadowColor = useThemeColor({}, 'shadowColor');
 
-  // Add debug logging when a card is rendered
-  console.log(
-    `Rendering card ${id} of type ${type} with service key ${(metadata as SinglePaymentRequest).serviceKey}`
-  );
+    // Add debug logging when a card is rendered
+    console.log(
+      `Rendering card ${id} of type ${type} with service key ${(metadata as SinglePaymentRequest).serviceKey}`
+    );
 
-  const calendarObj =
-    type === 'subscription'
-      ? (metadata as RecurringPaymentRequest)?.content?.recurrence.calendar
-      : null;
+    const calendarObj =
+      type === 'subscription'
+        ? (metadata as RecurringPaymentRequest)?.content?.recurrence.calendar
+        : null;
 
-  const recurrence = calendarObj?.inner.toHumanReadable(false);
+    const recurrence = calendarObj?.inner.toHumanReadable(false);
 
-  // Extract service key based on request type
-  const getServiceKey = () => {
-    if (type === 'ticket') {
-      return (metadata as any)?.title || 'Unknown Ticket';
-    }
-    return (metadata as SinglePaymentRequest).serviceKey;
-  };
-
-  const serviceKey = getServiceKey();
-
-  useEffect(() => {
-    if (type === 'ticket' && request.ticketTitle) {
-      setServiceName(request.ticketTitle);
-      setIsLoading(false);
-      return;
-    }
-
-    const fetchServiceName = async () => {
-      if (!isMounted.current) return;
-      
-      try {
-        setIsLoading(true);
-        const name = await nostrService.getServiceName(serviceKey);
-        if (isMounted.current) {
-          setServiceName(name);
-          setIsLoading(false);
-        }
-      } catch (error) {
-        console.error('Failed to fetch service name:', error);
-        if (isMounted.current) {
-          setServiceName(null);
-          setIsLoading(false);
-        }
+    // Extract service key based on request type
+    const getServiceKey = () => {
+      if (type === 'ticket') {
+        return (metadata as any)?.title || 'Unknown Ticket';
       }
+      return (metadata as SinglePaymentRequest).serviceKey;
     };
-    fetchServiceName();
-    return () => {
-      isMounted.current = false;
+
+    const serviceKey = getServiceKey();
+
+    useEffect(() => {
+      if (type === 'ticket' && request.ticketTitle) {
+        setServiceName(request.ticketTitle);
+        setIsLoading(false);
+        return;
+      }
+
+      const fetchServiceName = async () => {
+        if (!isMounted.current) return;
+
+        try {
+          setIsLoading(true);
+          const name = await nostrService.getServiceName(serviceKey);
+          if (isMounted.current) {
+            setServiceName(name);
+            setIsLoading(false);
+          }
+        } catch (error) {
+          console.error('Failed to fetch service name:', error);
+          if (isMounted.current) {
+            setServiceName(null);
+            setIsLoading(false);
+          }
+        }
+      };
+
+      fetchServiceName();
+
+      return () => {
+        isMounted.current = false;
+      };
+    }, [serviceKey, nostrService, type, metadata, wallets, request.ticketTitle]);
+
+    const recipientPubkey = (metadata as SinglePaymentRequest).recipient;
+
+    // Extract payment information if this is a payment request
+    const isPaymentRequest = type === 'payment';
+    const isSubscriptionRequest = type === 'subscription';
+    const isTicketRequest = type === 'ticket';
+
+    const content = (metadata as SinglePaymentRequest)?.content;
+    const amount =
+      content?.amount ||
+      content?.amount ||
+      (isTicketRequest ? (metadata as any)?.inner?.amount : null);
+
+    // For Ticket requests, only show sending tokens (not receiving)
+    const isTicketSending =
+      isTicketRequest && (metadata as any)?.inner?.mintUrl && (metadata as any)?.inner?.amount;
+
+    // Format service name with quantity for ticket requests
+    const formatServiceName = () => {
+      if (isTicketRequest && amount && Number(amount) > 1) {
+        const ticketAmount = Number(amount);
+        return `${serviceName || 'Unknown Service'} x ${ticketAmount}`;
+      }
+      return serviceName || 'Unknown Service';
     };
-  }, [serviceKey, nostrService, type, metadata, wallets, request.ticketTitle]);
 
-  const recipientPubkey = (metadata as SinglePaymentRequest).recipient;
+    return (
+      <View style={[styles.card, { backgroundColor: cardBackgroundColor, shadowColor }]}>
+        <Text style={[styles.requestType, { color: secondaryTextColor }]}>
+          {getRequestTypeText(type)}
+        </Text>
 
-  // Extract payment information if this is a payment request
-  const isPaymentRequest = type === 'payment';
-  const isSubscriptionRequest = type === 'subscription';
-  const isTicketRequest = type === 'ticket';
+        <Text
+          style={[
+            styles.serviceName,
+            { color: primaryTextColor },
+            !serviceName && styles.unknownService,
+          ]}
+        >
+          {formatServiceName()}
+        </Text>
 
-  const content = (metadata as SinglePaymentRequest)?.content;
-  const amount =
-    content?.amount ||
-    content?.amount ||
-    (isTicketRequest ? (metadata as any)?.inner?.amount : null);
+        <Text style={[styles.serviceInfo, { color: secondaryTextColor }]}>
+          {truncatePubkey(recipientPubkey)}
+        </Text>
 
-  // For Ticket requests, only show sending tokens (not receiving)
-  const isTicketSending =
-    isTicketRequest && (metadata as any)?.inner?.mintUrl && (metadata as any)?.inner?.amount;
-
-  // Format service name with quantity for ticket requests
-  const formatServiceName = () => {
-    if (isTicketRequest && amount && Number(amount) > 1) {
-      const ticketAmount = Number(amount);
-      return `${serviceName || 'Unknown Service'} x ${ticketAmount}`;
-    }
-    return serviceName || 'Unknown Service';
-  };
-
-  return (
-    <View style={[styles.card, { backgroundColor: cardBackgroundColor, shadowColor }]}>
-      <Text style={[styles.requestType, { color: secondaryTextColor }]}>
-        {getRequestTypeText(type)}
-      </Text>
-
-      <Text
-        style={[
-          styles.serviceName,
-          { color: primaryTextColor },
-          !serviceName && styles.unknownService,
-        ]}
-      >
-        {formatServiceName()}
-      </Text>
-
-      <Text style={[styles.serviceInfo, { color: secondaryTextColor }]}>
-        {truncatePubkey(recipientPubkey)}
-      </Text>
-
-      {(isPaymentRequest || isSubscriptionRequest) && amount !== null && (
-        <View style={[styles.amountContainer, { borderColor }]}>
-          {isSubscriptionRequest ? (
-            <View style={styles.amountRow}>
+        {(isPaymentRequest || isSubscriptionRequest) && amount !== null && (
+          <View style={[styles.amountContainer, { borderColor }]}>
+            {isSubscriptionRequest ? (
+              <View style={styles.amountRow}>
+                <Text style={[styles.amountText, { color: primaryTextColor }]}>
+                  {content.currency.tag === Currency_Tags.Fiat ? `${Number(amount)} ${content.currency.inner}` : `${Number(amount) / 1000} sats`}
+                </Text>
+                <Text style={[styles.recurranceText, { color: primaryTextColor }]}>
+                  {recurrence?.toLowerCase()}
+                </Text>
+              </View>
+            ) : (
               <Text style={[styles.amountText, { color: primaryTextColor }]}>
                 {content.currency.tag === Currency_Tags.Fiat ? `${Number(amount)} ${content.currency.inner}` : `${Number(amount) / 1000} sats`}
               </Text>
-              <Text style={[styles.recurranceText, { color: primaryTextColor }]}>
-                {recurrence?.toLowerCase()}
-              </Text>
-            </View>
-          ) : (
-            <Text style={[styles.amountText, { color: primaryTextColor }]}>
-              {content.currency.tag === Currency_Tags.Fiat ? `${Number(amount)} ${content.currency.inner}` : `${Number(amount) / 1000} sats`}
-            </Text>
-          )}
-        </View>
-      )}
+            )}
+          </View>
+        )}
 
-      <View style={styles.actions}>
-        <TouchableOpacity
-          style={[
-            styles.button,
-            styles.approveButton,
-            { backgroundColor: useThemeColor({}, 'buttonSuccess') },
-          ]}
-          onPress={() => approve(id)}
-        >
-          <Ionicons
-            name="checkmark-outline"
-            size={20}
-            color={useThemeColor({}, 'buttonSuccessText')}
-          />
-          <Text style={[styles.buttonText, { color: useThemeColor({}, 'buttonSuccessText') }]}>
-            Approve
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.button,
-            styles.denyButton,
-            { backgroundColor: useThemeColor({}, 'buttonDanger') },
-          ]}
-          onPress={() => deny(id)}
-        >
-          <Ionicons name="close-outline" size={20} color={useThemeColor({}, 'buttonDangerText')} />
-          <Text style={[styles.buttonText, { color: useThemeColor({}, 'buttonDangerText') }]}>
-            Deny
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.actions}>
+          <TouchableOpacity
+            style={[
+              styles.button,
+              styles.approveButton,
+              { backgroundColor: useThemeColor({}, 'buttonSuccess') },
+            ]}
+            onPress={() => approve(id)}
+          >
+            <Ionicons
+              name="checkmark-outline"
+              size={20}
+              color={useThemeColor({}, 'buttonSuccessText')}
+            />
+            <Text style={[styles.buttonText, { color: useThemeColor({}, 'buttonSuccessText') }]}>
+              Approve
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.button,
+              styles.denyButton,
+              { backgroundColor: useThemeColor({}, 'buttonDanger') },
+            ]}
+            onPress={() => deny(id)}
+          >
+            <Ionicons
+              name="close-outline"
+              size={20}
+              color={useThemeColor({}, 'buttonDangerText')}
+            />
+            <Text style={[styles.buttonText, { color: useThemeColor({}, 'buttonDangerText') }]}>
+              Deny
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
-  );
-};
+    );
+  },
+  (prevProps, nextProps) => {
+    // Only re-render if the request id or type changes
+    return (
+      prevProps.request.id === nextProps.request.id &&
+      prevProps.request.type === nextProps.request.type
+    );
+  }
+);
 
 const styles = StyleSheet.create({
   card: {

@@ -2,7 +2,7 @@ export default {
   expo: {
     name: 'Portal',
     slug: 'Portal',
-    version: '1.0.0',
+    version: '1.0.3',
     orientation: 'portrait',
     owner: 'portaltechnologiesinc',
     icon: './assets/images/appLogo.png',
@@ -25,6 +25,9 @@ export default {
       infoPlist: {
         NSCameraUsageDescription: 'Portal uses your camera to scan for QR codes',
       },
+      config: {
+        usesNonExemptEncryption: false,
+      },
       icon: {
         dark: './assets/images/iosDark.png',
         light: './assets/images/iosLight.png',
@@ -32,6 +35,7 @@ export default {
       },
     },
     android: {
+      versionCode: 4,
       googleServicesFile: process.env.GOOGLE_SERVICES_JSON,
       adaptiveIcon: {
         foregroundImage: './assets/images/appLogo.png',
@@ -84,6 +88,13 @@ export default {
           enableBackgroundRemoteNotifications: true,
         },
       ],
+      [
+        "react-native-nfc-manager",
+        {
+          "nfcPermission": "Portal uses NFC for contactless interactions",
+          "includeNdefEntitlement": false,
+        }
+      ]
     ],
     experiments: {
       typedRoutes: true,

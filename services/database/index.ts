@@ -26,6 +26,8 @@ export interface ActivityRecord {
   request_id: string;
   created_at: number; // Unix timestamp in seconds
   subscription_id: string | null;
+  status: 'neutral' | 'positive' | 'negative' | 'pending';
+  invoice?: string | null; // Invoice for payment activities (optional)
 }
 
 export interface SubscriptionRecord {
@@ -130,8 +132,8 @@ export class DatabaseService {
       try {
         await this.db.runAsync(
           `INSERT INTO activities (
-            id, type, service_name, service_key, detail, date, amount, currency, request_id, created_at, subscription_id
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            id, type, service_name, service_key, detail, date, amount, currency, request_id, created_at, subscription_id, status, invoice
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             id,
             activity.type,
@@ -144,6 +146,8 @@ export class DatabaseService {
             activity.request_id,
             now,
             activity.subscription_id,
+            activity.status || 'neutral',
+            activity.invoice || null,
           ]
         );
 
@@ -172,6 +176,18 @@ export class DatabaseService {
       date: fromUnixSeconds(record.date),
       created_at: fromUnixSeconds(record.created_at),
     };
+  }
+
+  async updateActivityStatus(id: string, status: 'neutral' | 'positive' | 'negative' | 'pending'): Promise<void> {
+    try {
+      await this.db.runAsync(
+        'UPDATE activities SET status = ? WHERE id = ?',
+        [status, id]
+      );
+    } catch (error) {
+      console.error('Error updating activity status:', error);
+      throw error;
+    }
   }
 
   async getActivities(
@@ -632,6 +648,8 @@ export class DatabaseService {
   async addCashuTransaction(transaction: string): Promise<void> {
     try {
       const txData = JSON.parse(transaction);
+      const metadata = JSON.stringify(txData.metadata);
+      const ys = JSON.stringify(txData.ys);
       await this.db.runAsync(
         'INSERT OR REPLACE INTO cashu_transactions (id, mint_url, direction, amount, fee, unit, ys, timestamp, memo, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [
@@ -641,10 +659,10 @@ export class DatabaseService {
           txData.amount,
           txData.fee,
           txData.unit,
-          txData.ys,
+          ys,
           txData.timestamp,
           txData.memo,
-          txData.metadata,
+          metadata,
         ]
       );
     } catch (error) {
@@ -656,19 +674,23 @@ export class DatabaseService {
   async getCashuTransaction(transactionId: string): Promise<string | undefined> {
     try {
       const tx = await this.db.getFirstAsync<{
-        id: Uint8Array;
+        id: string;
         mint_url: string;
         direction: string;
         amount: number;
         fee: number;
         unit: string;
-        ys: Uint8Array;
+        ys: string;
         timestamp: number;
         memo: string | null;
         metadata: string | null;
       }>('SELECT * FROM cashu_transactions WHERE id = ?', [transactionId]);
 
-      return tx ? JSON.stringify(tx) : undefined;
+      return tx ? JSON.stringify({
+        ...tx,
+        ys: JSON.parse(tx.ys),
+        metadata: tx.metadata ? JSON.parse(tx.metadata) : null,
+      }) : undefined;
     } catch (error) {
       console.error('[DatabaseService] Error getting transaction:', error);
       return undefined;
@@ -698,7 +720,11 @@ export class DatabaseService {
       }
 
       const transactions = await this.db.getAllAsync(query, params);
-      return transactions.map(tx => JSON.stringify(tx));
+      return transactions.map(tx => JSON.stringify({
+        ...tx,
+        ys: JSON.parse(tx.ys),
+        metadata: tx.metadata ? JSON.parse(tx.metadata) : null,
+      }));
     } catch (error) {
       console.error('[DatabaseService] Error listing transactions:', error);
       return [];
@@ -892,138 +918,102 @@ export class DatabaseService {
   }
 
   // Cashu token deduplication methods
-  async isCashuTokenProcessed(tokenHash: string): Promise<boolean> {
-    try {
-      // Check if table exists first
-      const tableExists = await this.db.getFirstAsync<{ name: string }>(
-        `SELECT name FROM sqlite_master WHERE type='table' AND name='processed_cashu_tokens'`
-      );
-
-      if (!tableExists) {
-        // Table doesn't exist, create it
-        await this.db.execAsync(`
-          CREATE TABLE processed_cashu_tokens (
-            token_hash TEXT PRIMARY KEY NOT NULL,
-            mint_url TEXT NOT NULL,
-            unit TEXT NOT NULL,
-            amount INTEGER NOT NULL,
-            processed_at INTEGER NOT NULL -- Unix timestamp
-          );
-          
-          -- Create index for faster lookups
-          CREATE INDEX idx_processed_cashu_tokens_hash ON processed_cashu_tokens(token_hash);
-          CREATE INDEX idx_processed_cashu_tokens_mint ON processed_cashu_tokens(mint_url);
-        `);
-      } else {
-        // Table exists, check if it has the right schema
-        const tableInfo = await this.db.getAllAsync<{ name: string; type: string }>(
-          `PRAGMA table_info(processed_cashu_tokens)`
-        );
-
-        // If table doesn't have the right columns, recreate it
-        const hasMintUrl = tableInfo.some(col => col.name === 'mint_url');
-        const hasUnit = tableInfo.some(col => col.name === 'unit');
-        const hasAmount = tableInfo.some(col => col.name === 'amount');
-        const hasProcessedAt = tableInfo.some(col => col.name === 'processed_at');
-
-        if (!hasMintUrl || !hasUnit || !hasAmount || !hasProcessedAt) {
-          // Drop and recreate table with correct schema
-          await this.db.execAsync(`DROP TABLE IF EXISTS processed_cashu_tokens`);
-          await this.db.execAsync(`
-            CREATE TABLE processed_cashu_tokens (
-              token_hash TEXT PRIMARY KEY NOT NULL,
-              mint_url TEXT NOT NULL,
-              unit TEXT NOT NULL,
-              amount INTEGER NOT NULL,
-              processed_at INTEGER NOT NULL -- Unix timestamp
-            );
-            
-            -- Create index for faster lookups
-            CREATE INDEX idx_processed_cashu_tokens_hash ON processed_cashu_tokens(token_hash);
-            CREATE INDEX idx_processed_cashu_tokens_mint ON processed_cashu_tokens(mint_url);
-          `);
-        }
-      }
-
-      const record = await this.db.getFirstAsync<{ token_hash: string }>(
-        `SELECT token_hash FROM processed_cashu_tokens WHERE token_hash = ?`,
-        [tokenHash]
-      );
-      return record ? true : false;
-    } catch (error) {
-      console.error('Error checking if Cashu token is processed:', error);
-      return false; // Assume not processed if we can't check
-    }
-  }
-
+  /**
+   * Atomically marks the token as processed. Returns true if it was already processed, false if this is the first time.
+   */
   async markCashuTokenAsProcessed(
     tokenHash: string,
     mintUrl: string,
     unit: string,
     amount: number
-  ): Promise<void> {
+  ): Promise<boolean> {
     try {
-      // Check if table exists first
-      const tableExists = await this.db.getFirstAsync<{ name: string }>(
-        `SELECT name FROM sqlite_master WHERE type='table' AND name='processed_cashu_tokens'`
-      );
-
-      if (!tableExists) {
-        // Table doesn't exist, create it
-        await this.db.execAsync(`
-          CREATE TABLE processed_cashu_tokens (
-            token_hash TEXT PRIMARY KEY NOT NULL,
-            mint_url TEXT NOT NULL,
-            unit TEXT NOT NULL,
-            amount INTEGER NOT NULL,
-            processed_at INTEGER NOT NULL -- Unix timestamp
-          );
-          
-          -- Create index for faster lookups
-          CREATE INDEX idx_processed_cashu_tokens_hash ON processed_cashu_tokens(token_hash);
-          CREATE INDEX idx_processed_cashu_tokens_mint ON processed_cashu_tokens(mint_url);
-        `);
-      } else {
-        // Table exists, check if it has the right schema
-        const tableInfo = await this.db.getAllAsync<{ name: string; type: string }>(
-          `PRAGMA table_info(processed_cashu_tokens)`
-        );
-
-        // If table doesn't have the right columns, recreate it
-        const hasMintUrl = tableInfo.some(col => col.name === 'mint_url');
-        const hasUnit = tableInfo.some(col => col.name === 'unit');
-        const hasAmount = tableInfo.some(col => col.name === 'amount');
-        const hasProcessedAt = tableInfo.some(col => col.name === 'processed_at');
-
-        if (!hasMintUrl || !hasUnit || !hasAmount || !hasProcessedAt) {
-          // Drop and recreate table with correct schema
-          await this.db.execAsync(`DROP TABLE IF EXISTS processed_cashu_tokens`);
-          await this.db.execAsync(`
-            CREATE TABLE processed_cashu_tokens (
-              token_hash TEXT PRIMARY KEY NOT NULL,
-              mint_url TEXT NOT NULL,
-              unit TEXT NOT NULL,
-              amount INTEGER NOT NULL,
-              processed_at INTEGER NOT NULL -- Unix timestamp
-            );
-            
-            -- Create index for faster lookups
-            CREATE INDEX idx_processed_cashu_tokens_hash ON processed_cashu_tokens(token_hash);
-            CREATE INDEX idx_processed_cashu_tokens_mint ON processed_cashu_tokens(mint_url);
-          `);
-        }
-      }
-
       const now = toUnixSeconds(Date.now());
-      await this.db.runAsync(
+      const result = await this.db.runAsync(
         `INSERT OR IGNORE INTO processed_cashu_tokens (
           token_hash, mint_url, unit, amount, processed_at
         ) VALUES (?, ?, ?, ?, ?)`,
         [tokenHash, mintUrl, unit, amount, now]
       );
+      // result.changes === 0 means it was already present
+      return result.changes === 0;
     } catch (error) {
       console.error('Error marking Cashu token as processed:', error);
       // Don't throw - this is not critical for the app to function
+      return false;
+    }
+  }
+
+  // Payment status log methods
+  async addPaymentStatusEntry(
+    invoice: string,
+    actionType: 'payment_started' | 'payment_completed' | 'payment_failed'
+  ): Promise<number> {
+    try {
+      const now = toUnixSeconds(Date.now());
+      const result = await this.db.runAsync(
+        `INSERT INTO payment_status (
+          invoice, action_type, created_at
+        ) VALUES (?, ?, ?)`,
+        [invoice, actionType, now]
+      );
+      return result.lastInsertRowId;
+    } catch (error) {
+      console.error('Error adding payment status entry:', error);
+      throw error;
+    }
+  }
+
+  async getPaymentStatusEntries(invoice: string): Promise<Array<{
+    id: number;
+    invoice: string;
+    action_type: 'payment_started' | 'payment_completed' | 'payment_failed';
+    created_at: Date;
+  }>> {
+    try {
+      const records = await this.db.getAllAsync<{
+        id: number;
+        invoice: string;
+        action_type: string;
+        created_at: number;
+      }>(
+        `SELECT * FROM payment_status WHERE invoice = ? ORDER BY created_at ASC`,
+        [invoice]
+      );
+
+      return records.map(record => ({
+        ...record,
+        action_type: record.action_type as 'payment_started' | 'payment_completed' | 'payment_failed',
+        created_at: fromUnixSeconds(record.created_at),
+      }));
+    } catch (error) {
+      console.error('Error getting payment status entries:', error);
+      return [];
+    }
+  }
+
+  async getPendingPayments(): Promise<Array<{
+    id: string;
+    invoice: string;
+    action_type: 'payment_started' | 'payment_completed' | 'payment_failed';
+    created_at: Date;
+  }>> {
+    try {
+      const records = await this.db.getAllAsync<ActivityRecord>(
+        `SELECT * FROM activities 
+         WHERE type = 'pay' AND status = 'pending'
+         ORDER BY created_at ASC`
+      );
+
+      return records.map(record => ({
+        id: record.id,
+        invoice: record.request_id, // Assuming request_id contains the invoice
+        action_type: 'payment_started' as const, // All pending payments are started
+        created_at: fromUnixSeconds(record.created_at),
+      }));
+    } catch (error) {
+      console.error('Error getting pending payments:', error);
+      return [];
     }
   }
 }

@@ -37,7 +37,7 @@ export const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
     textSecondary: borderPrimaryColor,
   };
 
-  const activityStatus = getActivityStatus(activity.detail, activity.type);
+  const activityStatus = getActivityStatus(activity);
   const statusColor = getStatusColor(activityStatus, statusColors);
 
   const getActivityIcon = () => {

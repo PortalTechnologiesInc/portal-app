@@ -25,6 +25,89 @@ interface PaymentStatusProgressProps {
   onRetry?: () => void;
 }
 
+// Helper function to convert payment status entries to PaymentStep format
+export const convertPaymentStatusToSteps = (
+  paymentStatusEntries: Array<{
+    id: number;
+    invoice: string;
+    action_type: 'payment_started' | 'payment_completed' | 'payment_failed';
+    created_at: Date;
+  }>
+): PaymentStep[] => {
+  const steps: PaymentStep[] = [];
+  let stepId = 1;
+
+  // Add steps based on payment status entries
+  for (const entry of paymentStatusEntries) {
+    switch (entry.action_type) {
+      case 'payment_started':
+        steps.push({
+          id: `${stepId++}`,
+          status: 'success',
+          title: 'Payment started',
+          subtitle: 'Your payment has been created',
+          timestamp: entry.created_at,
+        });
+        steps.push({
+          id: `${stepId++}`,
+          status: 'pending',
+          title: 'Pending...',
+          subtitle: 'Processing your payment',
+          timestamp: entry.created_at,
+        });
+        break;
+      case 'payment_completed':
+        // Update the last pending step to completed
+        const lastPendingIndex = steps.findIndex(step => step.status === 'pending');
+        if (lastPendingIndex !== -1) {
+          steps[lastPendingIndex] = {
+            ...steps[lastPendingIndex],
+            status: 'success',
+            title: 'Payment completed',
+            subtitle: 'Your payment was successful',
+            timestamp: entry.created_at,
+          };
+        } else {
+          // If no pending step found, add a completed step
+          steps.push({
+            id: `${stepId++}`,
+            status: 'success',
+            title: 'Payment completed',
+            subtitle: 'Your payment was successful',
+            timestamp: entry.created_at,
+          });
+        }
+        break;
+      case 'payment_failed':
+        // Update the last pending step to error
+        const lastPendingStepIndex = steps.findIndex(step => step.status === 'pending');
+        if (lastPendingStepIndex !== -1) {
+          steps[lastPendingStepIndex] = {
+            ...steps[lastPendingStepIndex],
+            status: 'error',
+            title: 'Payment failed',
+            subtitle: 'Your payment could not be completed',
+            timestamp: entry.created_at,
+            errorType: 'unknown_error',
+          };
+        } else {
+          // If no pending step found, add an error step
+          steps.push({
+            id: `${stepId++}`,
+            status: 'error',
+            title: 'Payment failed',
+            subtitle: 'Your payment could not be completed',
+            timestamp: entry.created_at,
+            errorType: 'unknown_error',
+          });
+        }
+        break;
+    }
+  }
+
+  return steps;
+};
+
 export function PaymentStatusProgress({ steps, onRetry }: PaymentStatusProgressProps) {
   const rotateAnim = useRef(new Animated.Value(0)).current;
 

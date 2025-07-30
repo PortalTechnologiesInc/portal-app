@@ -6,7 +6,7 @@ export async function handleAuthChallenge(event: AuthChallengeEvent, database: D
   return true;
 }
 
-export async function handleSinglePaymentRequest(serviceName: string, request: SinglePaymentRequest, database: DatabaseService, resolve: (status: PaymentResponseContent) => void): Promise<boolean> {
+export async function handleSinglePaymentRequest(serviceName: string, request: SinglePaymentRequest, database: DatabaseService, resolve: (status: PaymentStatus) => void): Promise<boolean> {
   const walletUrl = await getWalletUrl();
   try {
     let wallet: Nwc | undefined;
@@ -27,32 +27,27 @@ export async function handleSinglePaymentRequest(serviceName: string, request: S
     try {
       let subscriptionFromDb = await database.getSubscription(subId);
       if (!subscriptionFromDb) {
-        resolve({
-          status: new PaymentStatus.Rejected({
+        resolve(
+          new PaymentStatus.Rejected({
             reason: `Subscription with ID ${subId} not found in database`
-          }),
-          requestId: request.content.requestId,
-        });
+          })
+        );
         return false;
       }
       subscription = subscriptionFromDb;
     } catch (e) {
-      resolve({
-        status: new PaymentStatus.Rejected({
+      resolve(
+        new PaymentStatus.Rejected({
           reason: 'Failed to retrieve subscription from database. Please try again or contact support if the issue persists.'
-        }),
-        requestId: request.content.requestId,
-      });
+        })
+      );
       return false;
     }
 
     if (request.content.amount != BigInt(subscription.amount)) {
-      resolve({
-        status: new PaymentStatus.Rejected({
-          reason: `Payment amount does not match subscription amount.\nExpected: ${subscription.amount} ${subscription.currency}\nReceived: ${request.content.amount} ${request.content.currency}`
-        }),
-        requestId: request.content.requestId,
-      });
+      resolve(new PaymentStatus.Rejected({
+        reason: `Payment amount does not match subscription amount.\nExpected: ${subscription.amount} ${subscription.currency}\nReceived: ${request.content.amount} ${request.content.currency}`
+      }));
       return false;
     }
 
@@ -61,12 +56,9 @@ export async function handleSinglePaymentRequest(serviceName: string, request: S
     let nextOccurence = parseCalendar(subscription.recurrence_calendar).nextOccurrence(lastPayment)
 
     if (!nextOccurence || fromUnixSeconds(nextOccurence) > new Date()) {
-      resolve({
-        status: new PaymentStatus.Rejected({
-          reason: 'Payment is not due yet. Please wait till the next payment is scheduled.'
-        }),
-        requestId: request.content.requestId,
-      });
+      resolve(new PaymentStatus.Rejected({
+        reason: 'Payment is not due yet. Please wait till the next payment is scheduled.'
+      }));
       return false
     }
 
@@ -80,15 +72,15 @@ export async function handleSinglePaymentRequest(serviceName: string, request: S
         amount: Number(request.content.amount),
         currency: request.content.currency.tag,
         request_id: request.eventId,
+        status: 'negative',
         subscription_id: request.content.subscriptionId || null,
       });
 
-      resolve({
-        status: new PaymentStatus.Rejected({
+      resolve(
+        new PaymentStatus.Rejected({
           reason: 'Recurrent payment failed: insufficient wallet balance.'
-        }),
-        requestId: request.content.requestId,
-      });
+        })
+      );
 
       return false;
     }
@@ -102,18 +94,16 @@ export async function handleSinglePaymentRequest(serviceName: string, request: S
     database.updateSubscriptionLastPayment(subscription.id, Date.now());
 
 
-    resolve({
-      status: new PaymentStatus.Pending,
-      requestId: request.content.requestId,
-    });
+    resolve(
+      new PaymentStatus.Approved,
+    );
     return false;
   } catch (e) {
-    resolve({
-      status: new PaymentStatus.Rejected({
+    resolve(
+      new PaymentStatus.Rejected({
         reason: `An unexpected error occurred while processing the payment: ${e}.\nPlease try again or contact support if the issue persists.`
-      }),
-      requestId: request.content.requestId,
-    });
+      })
+    );
     return false;
   }
 }

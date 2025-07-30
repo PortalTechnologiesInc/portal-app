@@ -4,7 +4,6 @@ import {
   AuthChallengeEvent,
   KeyHandshakeUrl,
   Mnemonic,
-  PaymentResponseContent,
   Profile,
   RecurringPaymentResponseContent,
   Nwc,
@@ -23,9 +22,11 @@ import {
   CashuDirectContentWithKey,
   CashuDirectListener,
   CashuRequestListener,
-  CashuRequestContent,
   CashuRequestContentWithKey,
   CashuResponseStatus,
+  PaymentStatusNotifier,
+  PaymentStatus,
+  PaymentResponseContent
 } from 'portal-app-lib';
 import { DatabaseService } from '@/services/database';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -118,19 +119,22 @@ export class LocalAuthChallengeListener implements AuthChallengeListener {
 }
 
 export class LocalPaymentRequestListener implements PaymentRequestListener {
-  private singleCb: (event: SinglePaymentRequest) => Promise<PaymentResponseContent>;
+  private singleCb: (event: SinglePaymentRequest, notifier: PaymentStatusNotifier) => Promise<void>;
   private recurringCb: (event: RecurringPaymentRequest) => Promise<RecurringPaymentResponseContent>;
 
   constructor(
-    singleCb: (event: SinglePaymentRequest) => Promise<PaymentResponseContent>,
+    singleCb: (event: SinglePaymentRequest, notifier: PaymentStatusNotifier) => Promise<void>,
     recurringCb: (event: RecurringPaymentRequest) => Promise<RecurringPaymentResponseContent>
   ) {
     this.singleCb = singleCb;
     this.recurringCb = recurringCb;
   }
 
-  onSinglePaymentRequest(event: SinglePaymentRequest): Promise<PaymentResponseContent> {
-    return this.singleCb(event);
+  onSinglePaymentRequest(
+    event: SinglePaymentRequest,
+    notifier: PaymentStatusNotifier
+  ): Promise<void> {
+    return this.singleCb(event, notifier);
   }
 
   onRecurringPaymentRequest(
@@ -360,9 +364,9 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
       return;
     }
 
-    // Only initialize when app is active
-    if (!appIsActive) {
-      console.log('App not active, skipping initialization');
+    // Prevent re-initialization if already initialized
+    if (isInitialized && portalApp) {
+      console.log('NostrService already initialized, skipping re-initialization');
       return;
     }
 
@@ -406,23 +410,20 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                 const token = event.inner.token;
 
                 // Check if we've already processed this token
-                const isProcessed = await DB.isCashuTokenProcessed(token);
-                if (isProcessed) {
-                  console.log('Cashu token already processed, skipping');
-                  return;
-                }
-
                 const tokenInfo = await parseCashuToken(token);
-                const wallet = await eCashContext.addWallet(tokenInfo.mintUrl, tokenInfo.unit);
-                await wallet.receiveToken(token);
-
-                // Mark token as processed after successful processing
-                await DB.markCashuTokenAsProcessed(
+                const isProcessed = await DB.markCashuTokenAsProcessed(
                   token,
                   tokenInfo.mintUrl,
                   tokenInfo.unit,
                   tokenInfo.amount ? Number(tokenInfo.amount) : 0
                 );
+                if (isProcessed) {
+                  console.log('Cashu token already processed, skipping');
+                  return;
+                }
+
+                const wallet = await eCashContext.addWallet(tokenInfo.mintUrl, tokenInfo.unit);
+                await wallet.receiveToken(token);
 
                 console.log('Cashu token processed successfully');
 
@@ -452,6 +453,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                     currency: 'sats' as const,
                     request_id: `cashu-direct-${Date.now()}`,
                     subscription_id: null,
+                    status: 'neutral' as 'neutral',
                   };
 
                   // Import and use ActivitiesContext directly
@@ -567,6 +569,11 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                 ticketTitle, // Set the ticket name for UI
               };
               setPendingRequests(prev => {
+                // Check if request already exists to prevent duplicates
+                if (prev[id]) {
+                  console.log(`Request ${id} already exists, skipping duplicate`);
+                  return prev;
+                }
                 const newPendingRequests = { ...prev };
                 newPendingRequests[id] = newRequest;
                 console.log('Updated pending requests map:', newPendingRequests);
@@ -601,6 +608,11 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                       };
 
                       setPendingRequests(prev => {
+                        // Check if request already exists to prevent duplicates
+                        if (prev[id]) {
+                          console.log(`Request ${id} already exists, skipping duplicate`);
+                          return prev;
+                        }
                         const newPendingRequests = { ...prev };
                         newPendingRequests[id] = newRequest;
                         console.log('Updated pending requests map:', newPendingRequests);
@@ -622,14 +634,28 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         app
           .listenForPaymentRequest(
             new LocalPaymentRequestListener(
-              async (event: SinglePaymentRequest) => {
+              async (event: SinglePaymentRequest, notifier: PaymentStatusNotifier) => {
                 const id = event.eventId;
 
                 console.log(`Single payment request with id ${id} received`, event);
 
                 const serviceName = (await getServiceName(event.serviceKey)) || 'Unknown Service';
-                return new Promise<PaymentResponseContent>(resolve => {
-                  handleSinglePaymentRequest(serviceName, event, DB, resolve)
+                return new Promise<void>(resolve => {
+                  // Immediately resolve the promise, we use the notifier to notify the payment status
+                  resolve();
+
+                  // TODO: validate amount against the invoice. If it doesn't match, reject immediately
+
+                  const resolver = async (status: PaymentStatus) => {
+                    await notifier.notify({
+                      status,
+                      requestId: event.content.requestId,
+                    });
+                  };
+
+
+
+                  handleSinglePaymentRequest(serviceName, event, DB, resolver)
                     .then(askUser => {
                       if (askUser) {
                         const newRequest: PendingRequest = {
@@ -637,10 +663,15 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                           metadata: event,
                           timestamp: new Date(),
                           type: 'payment',
-                          result: resolve,
+                          result: resolver
                         };
 
                         setPendingRequests(prev => {
+                          // Check if request already exists to prevent duplicates
+                          if (prev[id]) {
+                            console.log(`Request ${id} already exists, skipping duplicate`);
+                            return prev;
+                          }
                           const newPendingRequests = { ...prev };
                           newPendingRequests[id] = newRequest;
                           return newPendingRequests;
@@ -667,6 +698,11 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                         };
 
                         setPendingRequests(prev => {
+                          // Check if request already exists to prevent duplicates
+                          if (prev[id]) {
+                            console.log(`Request ${id} already exists, skipping duplicate`);
+                            return prev;
+                          }
                           const newPendingRequests = { ...prev };
                           newPendingRequests[id] = newRequest;
                           return newPendingRequests;
@@ -716,7 +752,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
       console.log('Aborting NostrService initialization');
       abortController.abort();
     };
-  }, [mnemonic, appIsActive, reinitKey]);
+  }, [mnemonic, reinitKey]);
 
   useEffect(() => {
     console.log('Updated pending requests:', pendingRequests);

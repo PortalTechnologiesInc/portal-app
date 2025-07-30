@@ -36,29 +36,19 @@ import { ActivityDetailRow } from '@/components/ActivityDetail/ActivityDetailRow
 import {
   PaymentStatusProgress,
   PaymentStep,
+  convertPaymentStatusToSteps,
 } from '@/components/ActivityDetail/PaymentStatusProgress';
 import * as Clipboard from 'expo-clipboard';
+import { useActivities } from '@/context/ActivitiesContext';
 
 export default function ActivityDetailScreen() {
   const { id } = useLocalSearchParams();
   const [activity, setActivity] = useState<ActivityWithDates | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [paymentSteps, setPaymentSteps] = useState<PaymentStep[]>([
-    {
-      id: '1',
-      status: 'completed',
-      title: 'Payment initiated',
-      subtitle: 'Your payment has been created',
-    },
-    {
-      id: '2',
-      status: 'pending',
-      title: 'Pending...',
-      subtitle: 'Processing your payment',
-    },
-  ]);
+  const [paymentSteps, setPaymentSteps] = useState<PaymentStep[]>([]);
   const db = useSQLiteContext();
+  const { activities } = useActivities();
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -79,6 +69,19 @@ export default function ActivityDetailScreen() {
 
         if (activityData) {
           setActivity(activityData);
+
+          // If this is a payment activity, fetch payment status entries
+          if (activityData.type === 'pay' && activityData.invoice) {
+            try {
+              const paymentStatusEntries = await dbService.getPaymentStatusEntries(activityData.invoice);
+              console.log('paymentStatusEntries', paymentStatusEntries);
+              const steps = convertPaymentStatusToSteps(paymentStatusEntries);
+              setPaymentSteps(steps);
+            } catch (err) {
+              console.error('Error fetching payment status entries:', err);
+              setPaymentSteps([]);
+            }
+          }
         } else {
           setError('Activity not found');
         }
@@ -93,7 +96,7 @@ export default function ActivityDetailScreen() {
     if (id) {
       fetchActivity();
     }
-  }, [id, db]);
+  }, [id, db, activities]);
 
   const handleBackPress = () => {
     router.back();
@@ -108,8 +111,8 @@ export default function ActivityDetailScreen() {
 
     const shareContent = {
       title: 'Activity Details',
-      message: `Activity ID: ${activity.id}\nType: ${activity.type}\nStatus: ${getActivityStatus(activity.detail)}`,
-      url: `myapp://activity/${activity.id}`, // Deep link to the activity
+      message: `Activity ID: ${activity.id}\nType: ${activity.type}\nStatus: ${getActivityStatus(activity)}`,
+      url: `portal-app://activity/${activity.id}`, // Deep link to the activity
     };
 
     Share.share(shareContent);
@@ -125,40 +128,6 @@ export default function ActivityDetailScreen() {
     if (!activity) return;
 
     Clipboard.setStringAsync(activity.request_id as string);
-  };
-
-  // Mock functions for testing payment status updates
-  const simulatePaymentSuccess = () => {
-    setPaymentSteps(prevSteps =>
-      prevSteps.map((step, index) =>
-        index === prevSteps.length - 1 && step.status === 'pending'
-          ? {
-              ...step,
-              status: 'success',
-              title: 'Done',
-              subtitle: 'Payment completed successfully',
-            }
-          : step
-      )
-    );
-  };
-
-  const simulatePaymentError = (
-    errorType: 'insufficient_funds' | 'network_error' | 'payment_declined' = 'insufficient_funds'
-  ) => {
-    setPaymentSteps(prevSteps =>
-      prevSteps.map((step, index) =>
-        index === prevSteps.length - 1 && step.status === 'pending'
-          ? {
-              ...step,
-              status: 'error',
-              title: 'Failed',
-              subtitle: 'Payment could not be completed',
-              errorType,
-            }
-          : step
-      )
-    );
   };
 
   const handleRetryPayment = () => {
@@ -208,7 +177,7 @@ export default function ActivityDetailScreen() {
     );
   }
 
-  const activityStatus = getActivityStatus(activity.detail, activity.type);
+  const activityStatus = getActivityStatus(activity);
   const isPayment = activity.type === ActivityType.Pay;
   const isAuth = activity.type === ActivityType.Auth;
   const isTicket =
@@ -237,7 +206,7 @@ export default function ActivityDetailScreen() {
           />
 
           {/* Payment Status Progress - Only for payment activities */}
-          {isPayment && (
+          {isPayment && paymentSteps.length > 0 && (
             <View style={styles.sectionContainer}>
               <ThemedText
                 type="subtitle"
@@ -247,38 +216,6 @@ export default function ActivityDetailScreen() {
               </ThemedText>
               <View style={[styles.statusCard, { backgroundColor: surfaceSecondaryColor }]}>
                 <PaymentStatusProgress steps={paymentSteps} onRetry={handleRetryPayment} />
-              </View>
-            </View>
-          )}
-
-          {/* Temporary Test Controls - Remove when real logic is implemented */}
-          {isPayment && (
-            <View style={styles.sectionContainer}>
-              <ThemedText
-                type="subtitle"
-                style={[styles.sectionTitle, { color: primaryTextColor }]}
-              >
-                Test Controls (Temporary)
-              </ThemedText>
-              <View style={[styles.testControlsCard, { backgroundColor: surfaceSecondaryColor }]}>
-                <View style={styles.testButtonRow}>
-                  <TouchableOpacity
-                    onPress={simulatePaymentSuccess}
-                    style={[styles.testButton, { backgroundColor: statusConnectedColor }]}
-                  >
-                    <ThemedText style={[styles.testButtonText, { color: 'white' }]}>
-                      Simulate Success
-                    </ThemedText>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => simulatePaymentError('insufficient_funds')}
-                    style={[styles.testButton, { backgroundColor: statusErrorColor }]}
-                  >
-                    <ThemedText style={[styles.testButtonText, { color: 'white' }]}>
-                      Simulate Error
-                    </ThemedText>
-                  </TouchableOpacity>
-                </View>
               </View>
             </View>
           )}
@@ -508,24 +445,5 @@ const styles = StyleSheet.create({
   infoText: {
     fontSize: 16,
     lineHeight: 22,
-  },
-  testControlsCard: {
-    borderRadius: 20,
-    padding: 20,
-  },
-  testButtonRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 12,
-  },
-  testButton: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  testButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
   },
 });

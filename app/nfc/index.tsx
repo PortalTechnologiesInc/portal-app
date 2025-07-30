@@ -225,9 +225,9 @@ export default function NFCScanScreen() {
 
       if (enabled) {
         // Only show toast if page is focused to prevent navigation issues
-        if (isPageFocusedRef.current && !isLeavingPageRef.current) {
-          showToast('NFC enabled! Starting scan...', 'success');
-        }
+        // if (isPageFocusedRef.current && !isLeavingPageRef.current) {
+        //   showToast('NFC enabled! Starting scan...', 'success');
+        // }
         setScanState('ready');
         // Auto-start scanning when NFC becomes enabled
         addTimeout(() => {
@@ -506,9 +506,9 @@ export default function NFCScanScreen() {
         stopGlowAnimation();
         stopScanLineAnimation();
         // Only show toast if page is focused
-        if (isPageFocusedRef.current && !isLeavingPageRef.current) {
-          showToast(`Portal URL found: ${validation.portalUrl}`, 'success');
-        }
+        // if (isPageFocusedRef.current && !isLeavingPageRef.current) {
+        //   showToast(`Portal URL found: ${validation.portalUrl}`, 'success');
+        // }
         console.log('Valid portal URL detected:', validation.portalUrl);
 
         // Stop scanning
@@ -519,7 +519,7 @@ export default function NFCScanScreen() {
         // Navigate to homepage immediately so user sees the skeleton loader
         addTimeout(() => {
           router.replace('/(tabs)');
-        }, 500);
+        }, 100);
       } else {
         setScanState('error');
         stopGlowAnimation();
