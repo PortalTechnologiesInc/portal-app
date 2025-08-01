@@ -42,6 +42,7 @@ export default function NostrRelayManagementScreen() {
   const [customRelayTextFieldValue, setCustomRelayTextFieldValue] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [activeRelaysList, setActiveRelaysList] = useState<string[]>([]); // Fix: Make this a state variable
+  const [filterText, setFilterText] = useState<string>('');
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -160,12 +161,14 @@ export default function NostrRelayManagementScreen() {
     );
   }
 
+  // Filter popular relays based on filter text
+  const filteredRelays = everyPopularRelayList.filter(relay =>
+    relay.toLowerCase().includes(filterText.toLowerCase())
+  );
+
   const itemRows: string[][] = [[], [], []];
 
-  for (const realy of everyPopularRelayList) {
-
-  }
-  everyPopularRelayList.forEach((item, index) => {
+  filteredRelays.forEach((item, index) => {
     itemRows[index % itemRows.length].push(item);
   })
 
@@ -193,6 +196,15 @@ export default function NostrRelayManagementScreen() {
           <ThemedText style={styles.titleText}>
             Popular relays:
           </ThemedText>
+          <View style={[styles.filterContainer, { borderBottomColor: inputBorderColor }]}>
+            <TextInput
+              style={[styles.filterInput, { color: primaryTextColor }]}
+              value={filterText}
+              onChangeText={setFilterText}
+              placeholder="Filter relays..."
+              placeholderTextColor={inputPlaceholderColor}
+            />
+          </View>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -382,5 +394,14 @@ const styles = StyleSheet.create({
     // color handled by theme
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  filterContainer: {
+    borderBottomWidth: 1,
+    marginBottom: 12,
+  },
+  filterInput: {
+    fontSize: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
   },
 });
