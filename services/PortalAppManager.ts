@@ -1,4 +1,3 @@
-import { RelayConnectionStatus } from '@/utils';
 import {
   KeypairInterface,
   PortalApp,

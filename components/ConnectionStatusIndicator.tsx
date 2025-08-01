@@ -71,7 +71,27 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
     relayStatuses,
     allRelaysConnected,
     connectedCount,
+    removedRelays,
   } = useNostrService();
+
+  // Filter out removed relays from relay statuses (defensive programming)
+  const filteredRelayStatuses = useMemo(() => {
+    const filtered = relayStatuses.filter(relay => !removedRelays.has(relay.url));
+
+    // Debug logging for relay filtering
+    if (relayStatuses.length !== filtered.length) {
+      console.log('🔍 [CONNECTION INDICATOR] Filtering relays:');
+      console.log('  - Total relays:', relayStatuses.length);
+      console.log('  - Removed relays:', Array.from(removedRelays));
+      console.log('  - Filtered relays:', filtered.length);
+      console.log(
+        '  - Visible relays:',
+        filtered.map(r => `${r.url} (${r.status})`)
+      );
+    }
+
+    return filtered;
+  }, [relayStatuses, removedRelays]);
 
   // Network connectivity detection
   useEffect(() => {
@@ -471,17 +491,19 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
                         <ThemedText
                           style={[styles.detailDescription, { color: textSecondaryColor }]}
                         >
-                          {relayStatuses.length > 0
+                          {filteredRelayStatuses.length > 0
                             ? (() => {
-                                const connected = relayStatuses.filter(r => r.connected).length;
-                                const total = relayStatuses.length;
+                                const connected = filteredRelayStatuses.filter(
+                                  r => r.connected
+                                ).length;
+                                const total = filteredRelayStatuses.length;
                                 return `${connected}/${total} relays connected`;
                               })()
                             : 'Nostr relay connections for messaging'}
                         </ThemedText>
 
                         {/* More Info Toggle */}
-                        {relayStatuses.length > 0 && (
+                        {filteredRelayStatuses.length > 0 && (
                           <TouchableOpacity
                             style={styles.moreInfoButton}
                             onPress={e => {
@@ -512,10 +534,10 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
                     </TouchableOpacity>
 
                     {/* Expandable Relay Details */}
-                    {showRelayDetails && relayStatuses.length > 0 && (
+                    {showRelayDetails && filteredRelayStatuses.length > 0 && (
                       <View style={styles.expandedRelayDetails}>
                         <View style={styles.compactRelayGrid}>
-                          {relayStatuses
+                          {filteredRelayStatuses
                             .slice() // Create a copy to avoid mutating original array
                             .sort((a, b) => a.url.localeCompare(b.url)) // Sort by URL for consistent order
                             .map((relay: RelayInfo) => {

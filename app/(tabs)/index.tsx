@@ -25,7 +25,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
 import { formatAvatarUri } from '@/utils';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { RelayDebugControls } from '@/components/RelayDebugControls';
 
 const FIRST_LAUNCH_KEY = 'portal_first_launch_completed';
 
@@ -238,7 +237,6 @@ export default function Home() {
           }
         >
           <ThemedView style={styles.header}>
-            <RelayDebugControls />
             <View style={styles.headerContent}>
               <TouchableOpacity style={styles.headerLeft} onPress={handleSettingsNavigate}>
                 <View style={styles.welcomeRow}>
@@ -309,10 +307,10 @@ export default function Home() {
                     style={[styles.nfcButton, { backgroundColor: buttonPrimaryColor }]}
                     onPress={() => handleScan('nfc')}
                   >
-                    <Nfc size={24} color={buttonPrimaryTextColor} />
                     <ThemedText style={[styles.nfcText, { color: buttonPrimaryTextColor }]}>
                       Contactless
                     </ThemedText>
+                    <Nfc size={24} color={buttonPrimaryTextColor} />
                   </TouchableOpacity>
                 </View>
                 <View style={styles.buttonContainer}>
@@ -320,10 +318,10 @@ export default function Home() {
                     style={[styles.qrButton, { backgroundColor: buttonPrimaryColor }]}
                     onPress={() => handleScan('qr')}
                   >
-                    <QrCode size={24} color={buttonPrimaryTextColor} />
                     <ThemedText style={[styles.qrText, { color: buttonPrimaryTextColor }]}>
                       Scan QR
                     </ThemedText>
+                    <QrCode size={24} color={buttonPrimaryTextColor} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -508,12 +506,12 @@ const styles = StyleSheet.create({
   nfcText: {
     fontSize: 12,
     fontWeight: '600',
-    marginLeft: 6,
+    marginRight: 6,
   },
   qrText: {
     fontSize: 12,
     fontWeight: '600',
-    marginLeft: 6,
+    marginRight: 6,
   },
 
   welcomeContainer: {

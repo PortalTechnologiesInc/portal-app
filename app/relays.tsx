@@ -125,29 +125,73 @@ export default function NostrRelayManagementScreen() {
   const updateRelays = async () => {
     let newlySelectedRelays = selectedRelays;
 
-    let promises: Promise<void>[] = [];
+    let removePromises: Promise<void>[] = [];
+    let addPromises: Promise<void>[] = [];
+
+    // Handle relay removals
     for (const oldRelay of activeRelaysList) {
       if (!newlySelectedRelays.includes(oldRelay)) {
+        // Mark relay as removed in the context to prevent it from showing in connection status
+        nostrService.markRelayAsRemoved(oldRelay);
+
         const promise = nostrService.portalApp?.removeRelay(oldRelay);
         if (promise) {
-          promises.push(promise);
+          removePromises.push(
+            promise.catch(error => {
+              console.error('❌ Failed to remove relay:', oldRelay, error.inner || error.message);
+              // Don't throw - allow other operations to continue
+            })
+          );
         }
       }
     }
+
+    // Handle relay additions
     for (const newRelay of newlySelectedRelays) {
       if (!activeRelaysList.includes(newRelay)) {
+        // Clear from removed list and add to native layer
+        nostrService.clearRemovedRelay(newRelay);
+
         const promise = nostrService.portalApp?.addRelay(newRelay);
         if (promise) {
-          promises.push(promise);
+          addPromises.push(
+            promise.catch(error => {
+              console.error('❌ Failed to add relay:', newRelay, error.inner || error.message);
+              // Don't throw - allow other operations to continue
+            })
+          );
         }
       }
     }
 
     try {
-      await Promise.all([...promises, DB.updateRelays(newlySelectedRelays)]);
+      // Wait for all removal operations first
+      console.log('🗑️ Processing relay removals...');
+      await Promise.all(removePromises);
+
+      // Then handle additions
+      console.log('➕ Processing relay additions...');
+      await Promise.all(addPromises);
+
+      // If relays were added, trigger global reconnect to get status updates
+      if (addPromises.length > 0) {
+        console.log('🔄 Triggering global reconnect for newly added relays...');
+        await nostrService.triggerGlobalReconnect();
+      }
+
+      // Finally update the database
+      console.log('💾 Updating database...');
+      await DB.updateRelays(newlySelectedRelays);
+
       setActiveRelaysList(newlySelectedRelays);
-    } catch (error) {
-      console.error(error);
+      console.log('✅ Relay update completed successfully');
+    } catch (error: any) {
+      console.error('❌ Critical error during relay update:', error.inner || error.message);
+      ToastAndroid.showWithGravity(
+        'Failed to update relays. Please try again.',
+        ToastAndroid.LONG,
+        ToastAndroid.CENTER
+      );
     }
     router.back();
   };

@@ -201,6 +201,13 @@ interface NostrServiceContextType {
   refreshWalletInfo: () => Promise<void>;
   getWalletInfo: () => Promise<WalletInfo | null>;
   relayStatuses: RelayInfo[];
+
+  // Removed relays tracking
+  removedRelays: Set<string>;
+  markRelayAsRemoved: (relayUrl: string) => void;
+  clearRemovedRelay: (relayUrl: string) => void;
+  reconnectRelay: (relayUrl: string) => Promise<void>;
+  triggerGlobalReconnect: () => Promise<void>;
 }
 
 // Create context with default values
@@ -311,38 +318,62 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   const [relayStatuses, setRelayStatuses] = useState<RelayInfo[]>([]);
   const [keypair, setKeypair] = useState<KeypairInterface | null>(null);
   const [reinitKey, setReinitKey] = useState(0);
+  const [removedRelays, setRemovedRelays] = useState<Set<string>>(new Set());
 
-  // Remove the in-memory deduplication system
-  // const processedCashuTokens = useRef<Set<string>>(new Set());
+  // Track last reconnection attempts to prevent spam
+  const lastReconnectAttempts = useRef<Map<string, number>>(new Map());
 
   class LocalRelayStatusListener implements RelayStatusListener {
     onRelayStatusChange(relay_url: string, status: number): Promise<void> {
       const statusString = mapNumericStatusToString(status);
-
-      // Debug logging for status changes
-      logRelayEvent(`Status Change: ${relay_url}`, {
-        numericStatus: status,
-        stringStatus: statusString,
-        connected: status === 3,
-        appState: AppState.currentState,
-        timestamp: new Date().toISOString(),
-      });
+      console.log('📡 [STATUS UPDATE] Relay:', relay_url, '→', statusString, `(${status})`);
 
       setRelayStatuses(prev => {
+        // Check if this relay has been marked as removed by user
+        if (removedRelaysRef.current.has(relay_url)) {
+          // Don't add removed relays back to the status list
+          return prev.filter(relay => relay.url !== relay_url);
+        }
+
+        // Reset reconnection attempts tracker when relay connects successfully
+        if (status === 3) {
+          // Connected - clear both manual and auto reconnection attempts
+          lastReconnectAttempts.current.delete(relay_url);
+          lastReconnectAttempts.current.delete(`auto_${relay_url}`);
+        }
+
+        // Auto-reconnect logic for terminated/disconnected relays
+        if (status === 5 || status === 4) {
+          // Terminated or Disconnected
+          const now = Date.now();
+          const lastAutoAttempt = lastReconnectAttempts.current.get(`auto_${relay_url}`) || 0;
+          const timeSinceLastAutoAttempt = now - lastAutoAttempt;
+
+          // Only attempt auto-reconnection if more than 10 seconds have passed since last auto-attempt
+          if (timeSinceLastAutoAttempt > 10000) {
+            lastReconnectAttempts.current.set(`auto_${relay_url}`, now);
+
+            // Use setTimeout to avoid blocking the status update
+            setTimeout(async () => {
+              try {
+                const currentPortalApp = portalAppRef.current;
+                if (currentPortalApp && typeof currentPortalApp.reconnectRelay === 'function') {
+                  await currentPortalApp.reconnectRelay(relay_url);
+                } else if (currentPortalApp) {
+                  await currentPortalApp.addRelay(relay_url);
+                }
+              } catch (error) {
+                console.error('❌ Auto-reconnect failed for relay:', relay_url, error);
+              }
+            }, 2000);
+          }
+        }
+
         const index = prev.findIndex(relay => relay.url === relay_url);
         let newStatuses: RelayInfo[];
 
-        // If relay is terminated, remove it from the list
-        if (status === 5) {
-          logRelayEvent(`Relay Terminated: ${relay_url}`, { appState: AppState.currentState });
-          newStatuses = prev.filter(relay => relay.url !== relay_url);
-        }
         // If relay is not in the list, add it
-        else if (index === -1) {
-          logRelayEvent(`New Relay Added: ${relay_url}`, {
-            status: statusString,
-            appState: AppState.currentState,
-          });
+        if (index === -1) {
           newStatuses = [
             ...prev,
             { url: relay_url, status: statusString, connected: status === 3 },
@@ -352,11 +383,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         else {
           const oldStatus = prev[index].status;
           if (oldStatus !== statusString) {
-            logRelayEvent(`Relay Status Updated: ${relay_url}`, {
-              from: oldStatus,
-              to: statusString,
-              appState: AppState.currentState,
-            });
           }
           newStatuses = [
             ...prev.slice(0, index),
@@ -364,9 +390,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
             ...prev.slice(index + 1),
           ];
         }
-
-        // Update debug logger with new status array
-        relayDebugLogger.updateRelayStatus(newStatuses);
 
         return newStatuses;
       });
@@ -382,6 +405,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   const portalAppRef = useRef<PortalAppInterface | null>(null);
   const refreshNwcConnectionStatusRef = useRef<(() => Promise<void>) | null>(null);
   const relayStatusesRef = useRef<RelayInfo[]>([]);
+  const removedRelaysRef = useRef<Set<string>>(new Set());
 
   const eCashContext = useECash();
   const sqliteContext = useSQLiteContext();
@@ -1164,6 +1188,10 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     relayStatusesRef.current = relayStatuses;
   }, [relayStatuses]);
 
+  useEffect(() => {
+    removedRelaysRef.current = removedRelays;
+  }, [removedRelays]);
+
   // Stable AppState listener - runs only once, never recreated
   useEffect(() => {
     console.log('🔄 Setting up STABLE AppState listener (runs once)');
@@ -1172,91 +1200,53 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
       const previousState = AppState.currentState;
       console.log('AppState changed to:', nextAppState);
 
-      // Log app state transition for debugging
-      // Use ref to get current relay status (not stale closure)
-      const currentConnectedCount = relayStatusesRef.current.filter(r => r.connected).length;
-      const currentTotalCount = relayStatusesRef.current.length;
-      logRelayEvent(`App State Transition: ${previousState} → ${nextAppState}`, {
-        from: previousState,
-        to: nextAppState,
-        relayCount: currentTotalCount,
-        connectedRelays: currentConnectedCount,
-        timestamp: new Date().toISOString(),
-      });
+      console.log(`App State Transition: ${previousState} → ${nextAppState}`);
 
-      // Update app active state
-      setAppIsActive(nextAppState === 'active');
+      // Defer state updates to avoid setState during render
+      setTimeout(() => {
+        setAppIsActive(nextAppState === 'active');
+      }, 0);
 
       if (nextAppState === 'active') {
-        logRelayEvent('App became active - triggering connection refresh', {
-          hasPortalApp: !!portalAppRef.current,
-          hasRefreshFunction: !!refreshNwcConnectionStatusRef.current,
-        });
-
-        if (portalAppRef.current) {
-          console.log('📱 App became active - checking relay status and refreshing connections');
-          try {
-            // Check if any relays are currently connected
-            const currentConnectedCount = relayStatusesRef.current.filter(r => r.connected).length;
-            const hasConnectedRelays = currentConnectedCount > 0;
-
-            if (!hasConnectedRelays) {
-              // No relays connected - Android likely killed WebSocket connections
-              console.log('🔄 No relays connected - triggering PortalApp reconnect...');
-              if (portalAppRef.current.reconnect) {
-                await portalAppRef.current.reconnect();
-                logRelayEvent('PortalApp reconnect completed - was disconnected', {
-                  success: true,
-                  totalRelays: relayStatusesRef.current.length,
-                  previouslyConnected: 0,
-                });
-              } else {
-                console.log('⚠️ PortalApp reconnect method not available');
-                logRelayEvent('PortalApp reconnect method not available', {});
-              }
-            } else {
-              // Some relays still connected - Android didn't kill connections
-              console.log(
-                `✅ ${currentConnectedCount} relays already connected - skipping reconnect`
-              );
-              logRelayEvent('Skipped reconnect - relays already connected', {
-                connectedRelays: currentConnectedCount,
-                totalRelays: relayStatusesRef.current.length,
-                reason: 'websockets_survived_background',
-              });
-            }
-
-            // Also refresh NWC connection status
-            if (refreshNwcConnectionStatusRef.current) {
-              await refreshNwcConnectionStatusRef.current();
-              // Use ref to get current relay status (not stale closure)
+        // Defer app active logic to avoid interfering with ongoing renders
+        setTimeout(async () => {
+          if (portalAppRef.current) {
+            console.log('📱 App became active - checking relay status and refreshing connections');
+            try {
+              // Check if any relays are currently connected
               const currentConnectedCount = relayStatusesRef.current.filter(
                 r => r.connected
               ).length;
-              logRelayEvent('Connection status refresh completed', {
-                success: true,
-                connectedRelays: currentConnectedCount,
-              });
+              const hasConnectedRelays = currentConnectedCount > 0;
+
+              if (!hasConnectedRelays) {
+                // No relays connected - Android likely killed WebSocket connections
+                console.log('🔄 No relays connected - triggering PortalApp reconnect...');
+                if (portalAppRef.current.reconnect) {
+                  await portalAppRef.current.reconnect();
+                } else {
+                  console.log('⚠️ PortalApp reconnect method not available');
+                }
+              } else {
+                // Some relays still connected - Android didn't kill connections
+                console.log(
+                  `✅ ${currentConnectedCount} relays already connected - skipping reconnect`
+                );
+              }
+
+              // Also refresh NWC connection status
+              if (refreshNwcConnectionStatusRef.current) {
+                await refreshNwcConnectionStatusRef.current();
+              }
+            } catch (error: any) {
+              console.error('Error during app active reconnection:', error.inner || error.message);
             }
-          } catch (error: any) {
-            console.error('Error during app active reconnection:', error.inner || error.message);
-            logRelayEvent('App active reconnection failed', {
-              error: error.inner || error.message,
-              success: false,
-            });
+          } else {
+            console.log('⚠️ App became active but portalApp is null - will re-initialize');
           }
-        } else {
-          console.log('⚠️ App became active but portalApp is null - will re-initialize');
-          logRelayEvent('App active but PortalApp is null', { willReinitialize: true });
-        }
+        }, 100); // Small delay to let any ongoing renders complete
       } else if (nextAppState === 'background') {
-        // Use ref to get current relay status (not stale closure)
-        const currentConnectedCount = relayStatusesRef.current.filter(r => r.connected).length;
-        const currentTotalCount = relayStatusesRef.current.length;
-        logRelayEvent('App moved to background', {
-          connectedRelays: currentConnectedCount,
-          totalRelays: currentTotalCount,
-        });
+        console.log('App moved to background');
       }
     };
 
@@ -1343,6 +1333,75 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     await getWalletInfo();
   }, [getWalletInfo]);
 
+  // Removed relays management functions
+  const markRelayAsRemoved = useCallback((relayUrl: string) => {
+    // Update ref immediately for status listener
+    removedRelaysRef.current.add(relayUrl);
+
+    // Defer state updates to next tick to avoid setState during render
+    setTimeout(() => {
+      setRemovedRelays(prev => new Set([...prev, relayUrl]));
+      // Also immediately remove it from relay statuses to avoid showing disconnected removed relays
+      setRelayStatuses(prev => prev.filter(relay => relay.url !== relayUrl));
+    }, 0);
+  }, []);
+
+  const clearRemovedRelay = useCallback((relayUrl: string) => {
+    setRemovedRelays(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(relayUrl);
+      return newSet;
+    });
+  }, []);
+
+  // Function to properly reconnect a relay using the new lib method
+  const reconnectRelay = useCallback(
+    async (relayUrl: string) => {
+      // CRITICAL: Synchronously update the ref first to avoid race conditions
+      removedRelaysRef.current.delete(relayUrl);
+      clearRemovedRelay(relayUrl);
+
+      // Use the new reconnectRelay method from the lib, with fallback to addRelay
+      if (portalApp) {
+        try {
+          // Check if the new reconnectRelay method is available
+          if (typeof portalApp.reconnectRelay === 'function') {
+            try {
+              await portalApp.reconnectRelay(relayUrl);
+            } catch (reconnectError: any) {
+              // If reconnectRelay fails (e.g., "relay not found"), fall back to addRelay
+              await portalApp.addRelay(relayUrl);
+            }
+          } else {
+            await portalApp.addRelay(relayUrl);
+          }
+        } catch (error: any) {
+          console.error(
+            '❌ Critical failure in reconnect/add relay:',
+            relayUrl,
+            error.inner || error.message
+          );
+        }
+      } else {
+        console.error('❌ No portalApp available for relay reconnection:', relayUrl);
+      }
+    },
+    [clearRemovedRelay, portalApp]
+  );
+
+  // Function to trigger global reconnect - use this after adding multiple relays
+  const triggerGlobalReconnect = useCallback(async () => {
+    if (portalApp && portalApp.reconnect) {
+      try {
+        console.log('🔄 Triggering global reconnect to refresh all relay connections');
+        await portalApp.reconnect();
+        console.log('✅ Global reconnect completed');
+      } catch (error: any) {
+        console.error('❌ Global reconnect failed:', error.inner || error.message);
+      }
+    }
+  }, [portalApp]);
+
   // Auto-refresh wallet info when wallet connects/changes
   useEffect(() => {
     if (nwcWallet && nwcConnectionStatus === true) {
@@ -1363,7 +1422,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     return keypair!.issueJwt(targetKey, expiresInHours);
   };
 
-  useEffect(() => {
+  /* useEffect(() => {
     class Logger implements LogCallback {
       log(entry: LogEntry) {
         const message = `[${entry.target}] ${entry.message}`;
@@ -1392,7 +1451,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     } catch (error) {
       console.error('Error initializing logger:', error);
     }
-  }, []);
+  }, []); */
 
   // Context value
   const contextValue: NostrServiceContextType = {
@@ -1424,6 +1483,11 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     allRelaysConnected,
     connectedCount,
     issueJWT,
+    removedRelays,
+    markRelayAsRemoved,
+    clearRemovedRelay,
+    reconnectRelay,
+    triggerGlobalReconnect,
   };
 
   return (
