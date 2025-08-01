@@ -6,6 +6,7 @@ import { View, Platform, ToastAndroid } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HapticTab } from '@/components/HapticTab';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import Constants from 'expo-constants';
 
 // Memoized tab icons to prevent unnecessary re-rendering
 const HomeIcon = React.memo(({ color }: { color: string }) => <Home size={24} color={color} />);
@@ -123,15 +124,14 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <SettingsIcon color={color} />,
         }}
       />
-      {__DEV__ && (
-        <Tabs.Screen
-          name="Debug"
-          options={{
-            title: 'Debug',
-            tabBarIcon: ({ color }) => <DebugIcon color={color} />,
-          }}
-        />
-      )}
+      <Tabs.Screen
+        name="Debug"
+        options={{
+          title: 'Debug',
+          tabBarIcon: ({ color }) => <DebugIcon color={color} />,
+          href: Constants.executionEnvironment === 'storeClient' || !__DEV__ ? null : undefined, // Hide in production
+        }}
+      />
       <Tabs.Screen
         name="Certificates"
         options={{
