@@ -1,11 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import {
-  StyleSheet,
-  TouchableOpacity,
-  Alert,
-  TextInput,
-  View,
-} from 'react-native';
+import { StyleSheet, TouchableOpacity, Alert, TextInput, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -67,7 +61,7 @@ const validateNwcUrl = (url: string): { isValid: boolean; error?: string } => {
   }
 };
 
-// Pure function for connection state derivation - eliminates complex state management
+// Pure function for connection state derivation - using event-driven status
 const deriveConnectionState = (
   walletUrl: string,
   nwcConnectionStatus: boolean | null,
@@ -78,18 +72,35 @@ const deriveConnectionState = (
     return { state: 'none', error: '' };
   }
 
-  if (isValidating || nwcConnectionStatus === null) {
+  if (isValidating) {
     return { state: 'connecting', error: '' };
   }
 
+  // Use event-driven NWC connection status if available
   if (nwcConnectionStatus === true) {
     return { state: 'connected', error: '' };
   }
 
-  return {
-    state: 'disconnected',
-    error: nwcConnectionError || 'Unable to connect to wallet service',
-  };
+  if (nwcConnectionStatus === false) {
+    return {
+      state: 'disconnected',
+      error: nwcConnectionError || 'Unable to connect to wallet service',
+    };
+  }
+
+  // If no status yet (null), check if URL is valid and show connecting
+  if (nwcConnectionStatus === null) {
+    const validation = validateNwcUrl(walletUrl);
+    if (validation.isValid) {
+      return { state: 'connecting', error: '' };
+    }
+    return {
+      state: 'error',
+      error: validation.error || 'Invalid wallet configuration',
+    };
+  }
+
+  return { state: 'error', error: 'Unknown connection state' };
 };
 
 export default function WalletManagementScreen() {
@@ -104,13 +115,8 @@ export default function WalletManagementScreen() {
   const params = useLocalSearchParams();
   const handledUrlRef = useRef<string | null>(null);
 
-  const {
-    nwcConnectionStatus,
-    nwcConnectionError,
-    refreshNwcConnectionStatus,
-    walletInfo,
-    refreshWalletInfo
-  } = useNostrService();
+  const { walletInfo, refreshWalletInfo, nwcConnectionStatus, nwcConnectionError } =
+    useNostrService();
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -124,7 +130,7 @@ export default function WalletManagementScreen() {
   const statusConnectingColor = useThemeColor({}, 'statusConnecting');
   const statusErrorColor = useThemeColor({}, 'statusError');
 
-  // Memoized connection state derivation - eliminates complex state updates
+  // Memoized connection state derivation - using event-driven status
   const connectionState = useMemo(() => {
     return deriveConnectionState(walletUrl, nwcConnectionStatus, nwcConnectionError, isValidating);
   }, [walletUrl, nwcConnectionStatus, nwcConnectionError, isValidating]);
@@ -142,34 +148,22 @@ export default function WalletManagementScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [nwcConnectionStatus]);
+  }, []);
 
   // Initial load effect
   useEffect(() => {
     loadWalletData();
   }, [loadWalletData]);
 
-  // Monitor NWC connection status when wallet page is focused
+  // Load wallet info when page is focused
   useFocusEffect(
     useCallback(() => {
-      console.log('🔐 Entered Wallet Page: Starting NWC connection monitoring');
-
-      // Only refresh NWC status if we have a wallet configured
+      // Refresh wallet info if we have a wallet configured
       if (walletUrl && walletUrl.trim()) {
-        // Initial check when entering the page (only once, no polling)
-        refreshNwcConnectionStatus();
-
-        // No more polling interval - let context handle periodic checks
-        console.log('🔐 Initial NWC check complete, context will handle polling');
-
-        return () => {
-          console.log('🔐 Left Wallet Page: NWC monitoring handled by context');
-        };
-      } else {
-        console.log('🔐 No wallet configured, skipping NWC monitoring');
-        return () => {}; // No cleanup needed if no wallet
+        refreshWalletInfo();
+        console.log('🔐 Wallet info refreshed');
       }
-    }, [walletUrl]) // Only depend on walletUrl to avoid unnecessary re-runs
+    }, [walletUrl, refreshWalletInfo])
   );
 
   // Optimized wallet URL change subscription with proper cleanup
@@ -181,16 +175,6 @@ export default function WalletManagementScreen() {
     return () => subscription.remove();
   }, []);
 
-  // Optimized NWC status effect with better dependency management
-  useEffect(() => {
-    if (nwcConnectionStatus !== null) {
-      // Stop validating when we have a definitive status
-      if (isValidating) {
-        setIsValidating(false);
-      }
-    }
-  }, [nwcConnectionStatus, isValidating]);
-
   // Optimized clear input handler with better async handling
   const handleClearInput = useCallback(async () => {
     setInputValue('');
@@ -198,17 +182,17 @@ export default function WalletManagementScreen() {
       await saveWalletUrl('');
       setWalletUrlState('');
 
-      // Refresh NWC connection status after clearing
+      // Refresh wallet info after clearing
       try {
-        await refreshNwcConnectionStatus();
+        await refreshWalletInfo();
       } catch (error) {
-        console.error('Error refreshing NWC connection status after clear:', error);
+        console.error('Error refreshing wallet info after clear:', error);
       }
     } catch (error) {
       console.error('Error clearing wallet URL:', error);
       Alert.alert('Error', 'Failed to clear wallet URL. Please try again.');
     }
-  }, [refreshNwcConnectionStatus]);
+  }, [refreshWalletInfo]);
 
   // Optimized validation and save with better state management
   const validateAndSaveWalletUrl = useCallback(
@@ -229,11 +213,11 @@ export default function WalletManagementScreen() {
         handledUrlRef.current = null;
         router.setParams({});
 
-        // Trigger immediate refresh of NWC connection status for faster UI feedback
+        // Trigger immediate refresh of wallet info for faster UI feedback
         try {
-          await refreshNwcConnectionStatus();
+          await refreshWalletInfo();
         } catch (error) {
-          console.error('Error refreshing NWC connection status after save:', error);
+          console.error('Error refreshing wallet info after save:', error);
         }
 
         // Set timeout to prevent infinite validating state
@@ -253,7 +237,7 @@ export default function WalletManagementScreen() {
         setIsValidating(false);
       }
     },
-    [inputValue, isValidating, router]
+    [inputValue, isValidating, router, refreshWalletInfo]
   );
 
   // Scanned URL handling effect - automatically process valid URLs from QR scanner
@@ -302,15 +286,13 @@ export default function WalletManagementScreen() {
     return await validateAndSaveWalletUrl(urlToSave);
   };
 
-  // Manual refresh function for connection status
+  // Manual refresh function for wallet info
   const handleRefreshConnection = useCallback(async () => {
     if (walletUrl && walletUrl.trim()) {
-      console.log('Manual NWC connection refresh triggered');
-      await refreshNwcConnectionStatus();
+      console.log('Manual wallet info refresh triggered');
+      await refreshWalletInfo();
     }
-  }, [walletUrl, refreshNwcConnectionStatus]);
-
-
+  }, [walletUrl, refreshWalletInfo]);
 
   if (isLoading) {
     return (
@@ -366,7 +348,7 @@ export default function WalletManagementScreen() {
             </View>
 
             <View style={styles.walletUrlInputContainer}>
-                            <TextInput
+              <TextInput
                 style={[
                   styles.walletUrlInput,
                   {
@@ -375,9 +357,11 @@ export default function WalletManagementScreen() {
                     borderColor: isEditing ? inputBorderColor : 'transparent',
                   },
                 ]}
-                value={isEditing ? inputValue : (walletUrl ? '•'.repeat(walletUrl.length) : '')}
+                value={isEditing ? inputValue : walletUrl ? '•'.repeat(walletUrl.length) : ''}
                 onChangeText={setInputValue}
-                placeholder={walletUrl && !isEditing ? "Tap to edit wallet URL" : "nostr+walletconnect://..."}
+                placeholder={
+                  walletUrl && !isEditing ? 'Tap to edit wallet URL' : 'nostr+walletconnect://...'
+                }
                 placeholderTextColor={inputPlaceholderColor}
                 onFocus={() => setIsEditing(true)}
                 multiline={true}
@@ -388,7 +372,10 @@ export default function WalletManagementScreen() {
               <TouchableOpacity
                 style={[
                   styles.walletUrlAction,
-                  { backgroundColor: isEditing && hasChanged ? statusConnectedColor : surfaceSecondaryColor }
+                  {
+                    backgroundColor:
+                      isEditing && hasChanged ? statusConnectedColor : surfaceSecondaryColor,
+                  },
                 ]}
                 onPress={handleIconPress}
               >
@@ -405,13 +392,12 @@ export default function WalletManagementScreen() {
             {/* Helper text */}
             <ThemedText style={[styles.walletUrlHelper, { color: secondaryTextColor }]}>
               {!isEditing && !walletUrl
-                ? "Tap the pencil icon to enter your wallet URL or use the QR scanner"
+                ? 'Tap the pencil icon to enter your wallet URL or use the QR scanner'
                 : isEditing && hasChanged
-                ? "Tap the check icon to save your changes"
-                : isEditing
-                ? "Tap the X to cancel editing"
-                : "Your wallet connection URL is configured"
-              }
+                  ? 'Tap the check icon to save your changes'
+                  : isEditing
+                    ? 'Tap the X to cancel editing'
+                    : 'Your wallet connection URL is configured'}
             </ThemedText>
           </View>
 
@@ -512,58 +498,65 @@ export default function WalletManagementScreen() {
                   Wallet Details
                 </ThemedText>
 
-              {walletInfo.isLoading && (
-                <ThemedText style={[styles.walletInfoLoading, { color: secondaryTextColor }]}>
-                  Loading wallet information...
-                </ThemedText>
-              )}
+                {walletInfo.isLoading && (
+                  <ThemedText style={[styles.walletInfoLoading, { color: secondaryTextColor }]}>
+                    Loading wallet information...
+                  </ThemedText>
+                )}
 
-              {walletInfo.error && (
-                <ThemedText style={[styles.walletInfoError, { color: statusErrorColor }]}>
-                  Error: {walletInfo.error}
-                </ThemedText>
-              )}
+                {walletInfo.error && (
+                  <ThemedText style={[styles.walletInfoError, { color: statusErrorColor }]}>
+                    Error: {walletInfo.error}
+                  </ThemedText>
+                )}
 
-              {walletInfo.data && (
-                <>
-                  {/* Wallet Name and Balance in the same row */}
-                  <View style={styles.walletInfoRow}>
-                    <View style={styles.walletInfoItemWithLabels}>
-                      <View style={styles.walletInfoField}>
-                        <ThemedText style={[styles.walletInfoFieldLabel, { color: secondaryTextColor }]}>
-                          Name:
-                        </ThemedText>
-                        <ThemedText style={[styles.walletInfoFieldValue, { color: primaryTextColor }]}>
-                          {walletInfo.data.alias || 'Lightning Wallet'}
-                        </ThemedText>
-                      </View>
-                      {walletInfo.data.get_balance !== undefined && (
+                {walletInfo.data && (
+                  <>
+                    {/* Wallet Name and Balance in the same row */}
+                    <View style={styles.walletInfoRow}>
+                      <View style={styles.walletInfoItemWithLabels}>
                         <View style={styles.walletInfoField}>
-                          <ThemedText style={[styles.walletInfoFieldLabel, { color: secondaryTextColor }]}>
-                            Balance:
+                          <ThemedText
+                            style={[styles.walletInfoFieldLabel, { color: secondaryTextColor }]}
+                          >
+                            Name:
                           </ThemedText>
-                          <ThemedText style={[styles.walletInfoFieldValue, { color: statusConnectedColor }]}>
-                            ⚡ {Math.floor(walletInfo.data.get_balance / 1000).toLocaleString()} sats
+                          <ThemedText
+                            style={[styles.walletInfoFieldValue, { color: primaryTextColor }]}
+                          >
+                            {walletInfo.data.alias || 'Lightning Wallet'}
                           </ThemedText>
                         </View>
-                      )}
+                        {walletInfo.data.get_balance !== undefined && (
+                          <View style={styles.walletInfoField}>
+                            <ThemedText
+                              style={[styles.walletInfoFieldLabel, { color: secondaryTextColor }]}
+                            >
+                              Balance:
+                            </ThemedText>
+                            <ThemedText
+                              style={[styles.walletInfoFieldValue, { color: statusConnectedColor }]}
+                            >
+                              ⚡ {Math.floor(walletInfo.data.get_balance / 1000).toLocaleString()}{' '}
+                              sats
+                            </ThemedText>
+                          </View>
+                        )}
+                      </View>
                     </View>
-                  </View>
-                </>
-              )}
+                  </>
+                )}
 
-              {/* Show placeholder message if no wallet data and not loading */}
-              {!walletInfo.data && !walletInfo.isLoading && !walletInfo.error && (
-                                 <ThemedText style={[styles.walletInfoPlaceholder, { color: secondaryTextColor }]}>
-                   Wallet information will appear here once loaded.
-                 </ThemedText>
-               )}
+                {/* Show placeholder message if no wallet data and not loading */}
+                {!walletInfo.data && !walletInfo.isLoading && !walletInfo.error && (
+                  <ThemedText style={[styles.walletInfoPlaceholder, { color: secondaryTextColor }]}>
+                    Wallet information will appear here once loaded.
+                  </ThemedText>
+                )}
               </View>
             )}
           </View>
         </ThemedView>
-
-
       </ThemedView>
     </SafeAreaView>
   );
@@ -760,7 +753,6 @@ const styles = StyleSheet.create({
     marginTop: -2,
     fontWeight: 'bold',
   },
-
 
   walletInfoLoading: {
     fontSize: 14,

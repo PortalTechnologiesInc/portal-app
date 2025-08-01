@@ -1,4 +1,12 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+} from 'react';
 import { AppState } from 'react-native';
 import {
   AuthChallengeEvent,
@@ -191,16 +199,16 @@ interface NostrServiceContextType {
   startPeriodicMonitoring: () => void;
   stopPeriodicMonitoring: () => void;
 
-  // NWC wallet connection monitoring
-  nwcConnectionStatus: boolean | null;
-  nwcConnectionError: string | null;
-  refreshNwcConnectionStatus: () => Promise<void>;
-
   // Wallet info from getinfo method
   walletInfo: WalletInfoState;
   refreshWalletInfo: () => Promise<void>;
   getWalletInfo: () => Promise<WalletInfo | null>;
   relayStatuses: RelayInfo[];
+
+  // NWC relay status
+  nwcRelayStatus: RelayInfo | null;
+  nwcConnectionStatus: boolean | null; // Derived from nwcRelayStatus.connected
+  nwcConnectionError: string | null; // Derived from nwcRelayStatus when disconnected
 
   // Removed relays tracking
   removedRelays: Set<string>;
@@ -219,60 +227,6 @@ interface NostrServiceProviderProps {
   walletUrl: string | null;
   children: React.ReactNode;
 }
-
-// Pure function for status interpretation - better testability and reusability
-const interpretNwcStatus = (status: any): boolean => {
-  if (status === null || status === undefined) {
-    return false;
-  }
-
-  // If status is a Map and has entries, consider it connected
-  if (status instanceof Map) {
-    return status.size > 0;
-  }
-  // If status is a boolean
-  else if (typeof status === 'boolean') {
-    return status;
-  }
-  // If status is a number, consider >=0 as connected (permissive approach)
-  else if (typeof status === 'number') {
-    return status >= 0;
-  }
-  // If status is a string, be more permissive
-  else if (typeof status === 'string') {
-    const statusStr = status.toLowerCase();
-    return (
-      !statusStr.includes('disconnected') &&
-      !statusStr.includes('error') &&
-      !statusStr.includes('failed')
-    );
-  }
-  // If status is an object, check for explicit failure indicators
-  else if (typeof status === 'object') {
-    const hasExplicitFailure =
-      (status as any).connected === false ||
-      (status as any).success === false ||
-      (status as any).status === 'disconnected' ||
-      (status as any).error;
-    return !hasExplicitFailure;
-  }
-  // Default: if we get any response without timeout, consider it connected
-  return true;
-};
-
-// Pure function for error categorization - better maintainability
-const categorizeNwcError = (error: unknown): string => {
-  const errorMessage = error instanceof Error ? error.message : String(error);
-
-  if (errorMessage.includes('timeout')) {
-    return 'Connection timeout - wallet may be unreachable';
-  } else if (errorMessage.includes('network')) {
-    return 'Network error - check your connection';
-  } else if (errorMessage.includes('connection')) {
-    return 'Unable to connect to wallet service';
-  }
-  return 'Connection failed';
-};
 
 // Optimized timeout wrapper with proper cleanup
 const createTimeoutPromise = (
@@ -303,11 +257,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   const [publicKey, setPublicKey] = useState<string | null>(null);
   const [pendingRequests, setPendingRequests] = useState<{ [key: string]: PendingRequest }>({});
   const [nwcWallet, setNwcWallet] = useState<Nwc | null>(null);
-  const [nwcConnectionStatus, setNwcConnectionStatus] = useState<boolean | null>(null);
-  const [nwcConnectionError, setNwcConnectionError] = useState<string | null>(null);
-  const [nwcTimeoutUntil, setNwcTimeoutUntil] = useState<number | null>(null);
-  const [nwcCheckInProgress, setNwcCheckInProgress] = useState(false);
-  const [lastNwcCheck, setLastNwcCheck] = useState<number>(0);
   const [appIsActive, setAppIsActive] = useState(true);
   const [walletInfo, setWalletInfo] = useState<WalletInfoState>({
     data: null,
@@ -316,12 +265,29 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     lastUpdated: null,
   });
   const [relayStatuses, setRelayStatuses] = useState<RelayInfo[]>([]);
+  const [nwcRelayStatus, setNwcRelayStatus] = useState<RelayInfo | null>(null);
   const [keypair, setKeypair] = useState<KeypairInterface | null>(null);
   const [reinitKey, setReinitKey] = useState(0);
   const [removedRelays, setRemovedRelays] = useState<Set<string>>(new Set());
 
   // Track last reconnection attempts to prevent spam
   const lastReconnectAttempts = useRef<Map<string, number>>(new Map());
+
+  class NwcRelayStatusListener implements RelayStatusListener {
+    onRelayStatusChange(relay_url: string, status: number): Promise<void> {
+      const statusString = mapNumericStatusToString(status);
+      console.log('💰 [NWC STATUS UPDATE] Relay:', relay_url, '→', statusString, `(${status})`);
+
+      // Update NWC relay status state
+      setNwcRelayStatus({
+        url: relay_url,
+        status: statusString,
+        connected: status === 3, // Status 3 = Connected
+      });
+
+      return Promise.resolve();
+    }
+  }
 
   class LocalRelayStatusListener implements RelayStatusListener {
     onRelayStatusChange(relay_url: string, status: number): Promise<void> {
@@ -403,7 +369,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
   // Refs to store current values for stable AppState listener
   const portalAppRef = useRef<PortalAppInterface | null>(null);
-  const refreshNwcConnectionStatusRef = useRef<(() => Promise<void>) | null>(null);
   const relayStatusesRef = useRef<RelayInfo[]>([]);
   const removedRelaysRef = useRef<Set<string>>(new Set());
 
@@ -823,22 +788,13 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   useEffect(() => {
     if (!isInitialized) return;
 
-    // Always reset connection status when wallet URL changes (including when cleared)
-    console.log(
-      'NostrServiceContext: Wallet URL changed to:',
-      walletUrl,
-      'resetting connection status'
-    );
-    setNwcConnectionStatus(null);
-    setNwcConnectionError(null);
-
-    // Clear any timeout state
-    setNwcTimeoutUntil(null);
-    setNwcCheckInProgress(false);
+    // Wallet URL changed
+    console.log('NostrServiceContext: Wallet URL changed to:', walletUrl);
 
     if (!walletUrl) {
       console.log('Wallet URL cleared, disconnecting wallet');
       setNwcWallet(null);
+      setNwcRelayStatus(null); // Clear NWC relay status when wallet is disconnected
       return;
     }
 
@@ -848,58 +804,30 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     const connectWallet = async () => {
       try {
         console.log('Connecting to wallet with URL:', walletUrl);
-        const wallet = new Nwc(walletUrl);
+        const wallet = new Nwc(walletUrl, new NwcRelayStatusListener());
 
         if (isCancelled) return;
         setNwcWallet(wallet);
         console.log('Wallet connected successfully');
 
-        // Schedule initial status check with proper cleanup
+        // Initialize wallet info after connection
         timeoutId = setTimeout(async () => {
           if (isCancelled) return;
 
           try {
-            // Call getInfo first to establish relay connections before checking status
+            // Call getInfo to establish relay connections
             console.log('Calling getInfo to establish relay connections...');
-            let info = await wallet.getInfo();
-            console.log('info: ', info);
-            if (isCancelled) return;
-
-            console.log('getInfo completed, now checking connection status...');
-            const status = await wallet.connectionStatus();
-            if (isCancelled) return;
-
-            const isConnected = interpretNwcStatus(status);
-            setNwcConnectionStatus(isConnected);
-            setNwcConnectionError(isConnected ? null : 'Unable to connect to wallet service');
-            console.log('Initial NWC wallet connection status:', isConnected);
+            await wallet.getInfo();
+            console.log('Wallet initialization completed');
           } catch (error) {
             if (isCancelled) return;
-
-            const errorMessage = error instanceof Error ? error.message : String(error);
-
-            // Handle specific NWC errors more gracefully
-            if (errorMessage.includes('AppError.Nwc')) {
-              console.log('NWC wallet not ready or unavailable during initial check');
-              setNwcConnectionStatus(false);
-              setNwcConnectionError('Wallet not available - will retry automatically');
-            } else if (errorMessage.includes('timeout')) {
-              console.log('NWC initial connection timeout - will retry automatically');
-              setNwcConnectionStatus(false);
-              setNwcConnectionError('Connection timeout - will retry automatically');
-            } else {
-              console.error('Error checking initial NWC connection status:', error);
-              setNwcConnectionStatus(false);
-              setNwcConnectionError('Failed to verify wallet connection');
-            }
+            console.log('Wallet initialization encountered an error (non-fatal):', error);
           }
         }, 1000);
       } catch (error) {
         if (isCancelled) return;
         console.error('Failed to connect wallet:', error);
         setNwcWallet(null);
-        setNwcConnectionStatus(null);
-        setNwcConnectionError('Failed to connect to wallet');
       }
     };
 
@@ -1059,130 +987,10 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     console.warn('stopPeriodicMonitoring is deprecated. Use navigation-based monitoring instead.');
   }, []);
 
-  // Simple NWC connection status refresh - prevent concurrent calls
-  const refreshNwcConnectionStatus = useCallback(async () => {
-    const currentWallet = nwcWallet;
-
-    if (!currentWallet) {
-      setNwcConnectionStatus(null);
-      setNwcConnectionError(null);
-      return;
-    }
-
-    // Skip if another check is already in progress
-    if (nwcCheckInProgress) {
-      return;
-    }
-
-    // Skip if we're in timeout period (60 seconds after last timeout)
-    const now = Date.now();
-    if (nwcTimeoutUntil && now < nwcTimeoutUntil) {
-      return;
-    }
-
-    // Add debounce: Skip if we've checked within the last 3 seconds
-    if (now - lastNwcCheck < 3000) {
-      return;
-    }
-
-    // Set in-progress flag to prevent concurrent calls
-    setNwcCheckInProgress(true);
-    setLastNwcCheck(now);
-
-    try {
-      setNwcConnectionError(null);
-
-      // Use optimized timeout with proper cleanup
-      const { promise: timeoutPromise, cleanup } = createTimeoutPromise(10000);
-
-      try {
-        // Call getInfo first to establish relay connections before checking status
-        await Promise.race([currentWallet.getInfo(), timeoutPromise]);
-
-        const status: any = await Promise.race([currentWallet.connectionStatus(), timeoutPromise]);
-
-        cleanup();
-
-        // Use pure function for status interpretation
-        const isConnected = interpretNwcStatus(status);
-
-        setNwcConnectionStatus(isConnected);
-        setNwcConnectionError(isConnected ? null : 'Unable to connect to wallet service');
-
-        // Clear timeout on successful connection
-        if (isConnected) {
-          setNwcTimeoutUntil(null);
-        }
-
-        // Always clear in-progress flag on successful completion
-        setNwcCheckInProgress(false);
-      } catch (raceError) {
-        cleanup();
-        throw raceError;
-      }
-    } catch (error: any) {
-      // Always clear in-progress flag on error
-      setNwcCheckInProgress(false);
-
-      if (currentWallet === nwcWallet) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        const userFriendlyError = categorizeNwcError(error);
-
-        setNwcConnectionStatus(false);
-        setNwcConnectionError(userFriendlyError);
-
-        // If timeout error, set timeout period without logging
-        if (errorMessage.includes('timeout')) {
-          const timeoutUntil = Date.now() + 60000; // 60 seconds from now
-          setNwcTimeoutUntil(timeoutUntil);
-        } else {
-          // Log other errors normally (keep real errors)
-          console.error('NostrService: Error fetching NWC connection status:', error.inner);
-        }
-      }
-    }
-  }, [nwcWallet]); // Only depend on nwcWallet to prevent infinite recreation
-
-  // Centralized NWC polling - only when wallet is configured
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | null = null;
-
-    if (nwcWallet) {
-      // Start periodic polling every 5 seconds (unified with relay polling)
-      interval = setInterval(() => {
-        if (refreshNwcConnectionStatusRef.current) {
-          refreshNwcConnectionStatusRef.current();
-        }
-      }, 5000);
-    }
-
-    return () => {
-      if (interval) {
-        clearInterval(interval);
-      }
-    };
-  }, [nwcWallet]); // Only start/stop when wallet configuration changes
-
-  // Initial connection status fetch with delay to allow relay connections to establish
-  useEffect(() => {
-    // Add a small delay to allow relay connections to establish after initialization
-    const timer = setTimeout(() => {
-      if (refreshNwcConnectionStatusRef.current) {
-        refreshNwcConnectionStatusRef.current();
-      }
-    }, 2000); // 2 second delay to allow relay connections to establish
-
-    return () => clearTimeout(timer);
-  }, []); // Empty dependency array - only run once on mount
-
   // Update refs when values change (no effect recreation)
   useEffect(() => {
     portalAppRef.current = portalApp;
   }, [portalApp]);
-
-  useEffect(() => {
-    refreshNwcConnectionStatusRef.current = refreshNwcConnectionStatus;
-  }, [refreshNwcConnectionStatus]);
 
   useEffect(() => {
     relayStatusesRef.current = relayStatuses;
@@ -1232,11 +1040,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                 console.log(
                   `✅ ${currentConnectedCount} relays already connected - skipping reconnect`
                 );
-              }
-
-              // Also refresh NWC connection status
-              if (refreshNwcConnectionStatusRef.current) {
-                await refreshNwcConnectionStatusRef.current();
               }
             } catch (error: any) {
               console.error('Error during app active reconnection:', error.inner || error.message);
@@ -1404,10 +1207,10 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
   // Auto-refresh wallet info when wallet connects/changes
   useEffect(() => {
-    if (nwcWallet && nwcConnectionStatus === true) {
-      console.log('Wallet connected, fetching wallet info...');
+    if (nwcWallet) {
+      console.log('Wallet available, fetching wallet info...');
       refreshWalletInfo();
-    } else if (!nwcWallet) {
+    } else {
       // Clear wallet info when wallet disconnects
       setWalletInfo({
         data: null,
@@ -1416,11 +1219,25 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         lastUpdated: null,
       });
     }
-  }, [nwcWallet, nwcConnectionStatus, refreshWalletInfo]);
+  }, [nwcWallet, refreshWalletInfo]);
 
   const issueJWT = (targetKey: string, expiresInHours: bigint) => {
     return keypair!.issueJwt(targetKey, expiresInHours);
   };
+
+  // Derived NWC connection status values
+  const nwcConnectionStatus = useMemo(() => {
+    if (!nwcWallet) return null; // No wallet configured
+    if (!nwcRelayStatus) return null; // No status received yet
+    return nwcRelayStatus.connected; // Return the actual connection status
+  }, [nwcWallet, nwcRelayStatus]);
+
+  const nwcConnectionError = useMemo(() => {
+    if (!nwcWallet) return null; // No wallet configured
+    if (!nwcRelayStatus) return 'Connecting...'; // No status received yet
+    if (nwcRelayStatus.connected) return null; // No error when connected
+    return `Connection ${nwcRelayStatus.status.toLowerCase()}`; // Show status as error message
+  }, [nwcWallet, nwcRelayStatus]);
 
   /* useEffect(() => {
     class Logger implements LogCallback {
@@ -1471,15 +1288,15 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     closeRecurringPayment,
     startPeriodicMonitoring,
     stopPeriodicMonitoring,
-    nwcConnectionStatus,
-    nwcConnectionError,
-    refreshNwcConnectionStatus,
     submitNip05,
     submitImage,
     walletInfo,
     refreshWalletInfo,
     getWalletInfo,
     relayStatuses,
+    nwcRelayStatus,
+    nwcConnectionStatus,
+    nwcConnectionError,
     allRelaysConnected,
     connectedCount,
     issueJWT,

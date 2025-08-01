@@ -101,13 +101,13 @@ export default function Home() {
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      // Refresh connection status for both relays and NWC wallet
-      await nostrService.refreshNwcConnectionStatus();
+      // Refresh wallet info
+      await nostrService.refreshWalletInfo();
 
       // Trigger ConnectionStatusIndicator update
       setRefreshTrigger(prev => prev + 1);
     } catch (error) {
-      console.error('Error refreshing connection status:', error);
+      console.error('Error refreshing wallet info:', error);
     }
     setRefreshing(false);
   };

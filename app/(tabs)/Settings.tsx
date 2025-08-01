@@ -72,7 +72,7 @@ export default function SettingsScreen() {
   const buttonDangerTextColor = useThemeColor({}, 'buttonDangerText');
   const statusConnectedColor = useThemeColor({}, 'statusConnected');
 
-  // Get real NWC connection status
+  // Get event-driven NWC connection status
   const { nwcConnectionStatus, nwcConnectionError } = nostrService;
 
   // Initialize wallet connection status
@@ -82,7 +82,7 @@ export default function SettingsScreen() {
         const url = await getWalletUrl();
         setWalletUrl(url);
         const walletConnected = await isWalletConnected();
-        // Use real NWC connection status if available, otherwise fall back to URL existence
+        // Use event-driven NWC connection status if available, otherwise fall back to URL existence
         const realConnectionStatus =
           nwcConnectionStatus !== null ? nwcConnectionStatus : walletConnected;
         setIsWalletConnectedState(realConnectionStatus);
@@ -182,10 +182,10 @@ export default function SettingsScreen() {
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      // Refresh connection status for both relays and NWC wallet
-      await nostrService.refreshNwcConnectionStatus();
+      // Refresh wallet info
+      await nostrService.refreshWalletInfo();
     } catch (error) {
-      console.error('Error refreshing connection status:', error);
+      console.error('Error refreshing wallet info:', error);
     }
     setRefreshing(false);
   };
@@ -226,12 +226,10 @@ export default function SettingsScreen() {
     if (!walletUrl || !walletUrl.trim()) return 'Not configured';
     if (nwcConnectionStatus === true) return 'Connected';
     if (nwcConnectionStatus === false) {
-      return nostrService.nwcConnectionError
-        ? `Error: ${nostrService.nwcConnectionError}`
-        : 'Disconnected';
+      return nwcConnectionError ? `Error: ${nwcConnectionError}` : 'Disconnected';
     }
-    if (nwcConnectionStatus === null) return 'Connecting...';
-    return 'Unknown';
+    if (nwcConnectionStatus === null && isWalletConnectedState) return 'Connecting...';
+    return 'Not configured';
   }
 
   if (isLoading) {
@@ -384,9 +382,7 @@ export default function SettingsScreen() {
           </ThemedView>
 
           {/* Nostr Section */}
-          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
-            Relays
-          </ThemedText>
+          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>Relays</ThemedText>
           <TouchableOpacity
             style={[styles.card, { backgroundColor: cardBackgroundColor }]}
             onPress={handleNostrCardPress}
@@ -487,9 +483,7 @@ export default function SettingsScreen() {
           </View>
 
           {/* Export Section */}
-          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
-            Export
-          </ThemedText>
+          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>Export</ThemedText>
           <TouchableOpacity
             style={[styles.exportButton, { backgroundColor: buttonPrimaryColor }]}
             onPress={handleExportMnemonic}
@@ -518,17 +512,13 @@ export default function SettingsScreen() {
           </TouchableOpacity>
 
           {/* Extra Section */}
-          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
-            Extra
-          </ThemedText>
+          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>Extra</ThemedText>
           <TouchableOpacity
             style={[styles.clearDataButton, { backgroundColor: buttonDangerColor }]}
             onPress={handleClearAppData}
           >
             <View style={styles.clearDataButtonContent}>
-              <ThemedText
-                style={[styles.clearDataButtonText, { color: buttonDangerTextColor }]}
-              >
+              <ThemedText style={[styles.clearDataButtonText, { color: buttonDangerTextColor }]}>
                 Reset App
               </ThemedText>
               <View style={styles.fingerprintIcon}>

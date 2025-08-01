@@ -32,8 +32,7 @@ export default function ErrorScreen() {
   const appVersion = Constants?.default?.expoConfig?.version || 'unknown';
   const timestamp = new Date().toISOString();
   const relayStatuses = JSON.stringify(nostrService.relayStatuses, null, 2);
-  const nwcConnectionStatus = String(nostrService.nwcConnectionStatus);
-  const nwcConnectionError = nostrService.nwcConnectionError || 'N/A';
+
   const walletInfoLastUpdated = nostrService.walletInfo?.lastUpdated
     ? nostrService.walletInfo.lastUpdated.toISOString()
     : 'N/A';
@@ -107,9 +106,6 @@ export default function ErrorScreen() {
     `allRelaysConnected: ${allRelaysConnected}\n` +
     `\n--- Pending Requests ---\n${pendingRequestsSummary}\n` +
     `\n--- Relay Statuses ---\n${relayStatuses}\n` +
-    `\n--- NWC Connection ---\n` +
-    `nwcConnectionStatus: ${nwcConnectionStatus}\n` +
-    `nwcConnectionError: ${nwcConnectionError}\n` +
     `\n--- Wallet Info ---\n` +
     `alias: ${nostrService.walletInfo?.data?.alias || 'N/A'}\n` +
     `lastUpdated: ${walletInfoLastUpdated}\n`;

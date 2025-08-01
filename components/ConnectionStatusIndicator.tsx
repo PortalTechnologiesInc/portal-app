@@ -24,7 +24,7 @@ interface ConnectionStatusIndicatorProps {
   triggerRefresh?: number; // When this value changes, trigger an immediate refresh
 }
 
-// Pure function for wallet status derivation - better performance and testability
+// Pure function for wallet status derivation - using event-driven status
 const deriveWalletStatus = (
   nwcWallet: any,
   nwcConnectionStatus: boolean | null,
@@ -35,10 +35,10 @@ const deriveWalletStatus = (
     return { configured: false, connected: false };
   }
 
-  // Use real NWC connection status if available, otherwise fall back to wallet connected state
-  const realWalletStatus =
+  // Use event-driven NWC connection status if available, otherwise fall back to wallet connected state
+  const realConnectionStatus =
     nwcConnectionStatus !== null ? nwcConnectionStatus : isWalletConnectedState;
-  return { configured: true, connected: realWalletStatus };
+  return { configured: true, connected: realConnectionStatus };
 };
 
 export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps> = ({
@@ -67,11 +67,11 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
     nwcWallet,
     nwcConnectionStatus,
     nwcConnectionError,
-    refreshNwcConnectionStatus,
     relayStatuses,
     allRelaysConnected,
     connectedCount,
     removedRelays,
+    refreshWalletInfo,
   } = useNostrService();
 
   // Filter out removed relays from relay statuses (defensive programming)
@@ -105,15 +105,15 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
   useEffect(() => {
     const handleAppStateChange = (nextAppState: string) => {
       if (nextAppState === 'active') {
-        console.log('🔄 ConnectionStatusIndicator: App became active - refreshing status (nwc)');
+        console.log('🔄 ConnectionStatusIndicator: App became active - refreshing wallet info');
         // Trigger immediate refresh when app becomes active
-        refreshNwcConnectionStatus();
+        refreshWalletInfo();
       }
     };
 
     // Initial immediate refresh on mount
-    console.log('🔄 ConnectionStatusIndicator: Component mounted - refreshing status (nwc)');
-    refreshNwcConnectionStatus();
+    console.log('🔄 ConnectionStatusIndicator: Component mounted - refreshing wallet info');
+    refreshWalletInfo();
 
     // Listen for app state changes
     const subscription = AppState.addEventListener('change', handleAppStateChange);
@@ -121,17 +121,17 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
     return () => {
       subscription?.remove();
     };
-  }, [refreshNwcConnectionStatus]);
+  }, [refreshWalletInfo]);
 
   // Handle external refresh triggers (e.g., from homepage focus)
   useEffect(() => {
     if (triggerRefresh !== undefined) {
-      console.log('🔄 ConnectionStatusIndicator: External refresh triggered (nwc)');
-      refreshNwcConnectionStatus();
+      console.log('🔄 ConnectionStatusIndicator: External refresh triggered');
+      refreshWalletInfo();
     }
-  }, [triggerRefresh, refreshNwcConnectionStatus]);
+  }, [triggerRefresh, refreshWalletInfo]);
 
-  // Memoized wallet status - eliminates redundant effect and state
+  // Memoized wallet status - using event-driven status
   const walletStatus = useMemo(() => {
     return deriveWalletStatus(nwcWallet, nwcConnectionStatus, isWalletConnectedState);
   }, [nwcWallet, nwcConnectionStatus, isWalletConnectedState]);
@@ -320,8 +320,14 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
     );
   };
 
-  const getStatusText = (isConnected: boolean) => {
-    return isConnected ? 'Connected' : 'Disconnected';
+  const getWalletStatusText = () => {
+    if (!walletStatus.configured) return 'Not configured';
+
+    // Show connecting state when nwcConnectionStatus is null (no status received yet)
+    if (nwcConnectionStatus === null) return 'Connecting...';
+
+    // Show actual connection status
+    return nwcConnectionStatus ? 'Connected' : 'Disconnected';
   };
 
   // Navigation handlers
@@ -623,10 +629,12 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
                           size={20}
                           color={
                             walletStatus.configured
-                              ? walletStatus.connected
-                                ? statusConnectedColor
-                                : statusDisconnectedColor
-                              : textSecondaryColor
+                              ? nwcConnectionStatus === null
+                                ? statusConnectingColor // Connecting state
+                                : walletStatus.connected
+                                  ? statusConnectedColor // Connected
+                                  : statusDisconnectedColor // Disconnected
+                              : textSecondaryColor // Not configured
                           }
                         />
                       </View>
@@ -634,16 +642,20 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
                         <ThemedText style={[styles.detailLabel, { color: textSecondaryColor }]}>
                           Wallet Connection
                         </ThemedText>
-                        <ThemedText style={[styles.detailValue, { color: textPrimaryColor }]}>
-                          {walletStatus.configured
-                            ? getStatusText(walletStatus.connected)
-                            : 'Not configured'}
+                        <ThemedText
+                          style={[
+                            styles.detailValue,
+                            { color: textPrimaryColor },
+                            nwcConnectionStatus === null && { color: statusConnectingColor }, // Connecting color
+                          ]}
+                        >
+                          {getWalletStatusText()}
                         </ThemedText>
                         <ThemedText
                           style={[styles.detailDescription, { color: textSecondaryColor }]}
                         >
                           {walletStatus.configured
-                            ? nwcConnectionError || 'NWC wallet configured'
+                            ? nwcConnectionError || 'NWC wallet connected'
                             : 'No wallet configured in settings'}
                         </ThemedText>
                       </View>
