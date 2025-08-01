@@ -26,7 +26,10 @@ import {
   CashuResponseStatus,
   PaymentStatusNotifier,
   PaymentStatus,
-  PaymentResponseContent
+  LogCallback,
+  LogEntry,
+  LogLevel,
+  initLogger,
 } from 'portal-app-lib';
 import { DatabaseService } from '@/services/database';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -40,7 +43,12 @@ import type {
 } from '@/utils/types';
 import { handleErrorWithToastAndReinit } from '@/utils/Toast';
 import { useECash } from './ECashContext';
-import { handleAuthChallenge, handleCloseRecurringPaymentResponse, handleRecurringPaymentRequest, handleSinglePaymentRequest } from '@/services/EventFilters';
+import {
+  handleAuthChallenge,
+  handleCloseRecurringPaymentResponse,
+  handleRecurringPaymentRequest,
+  handleSinglePaymentRequest,
+} from '@/services/EventFilters';
 
 // Constants and helper classes from original NostrService
 const DEFAULT_RELAYS = [
@@ -309,29 +317,60 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
   class LocalRelayStatusListener implements RelayStatusListener {
     onRelayStatusChange(relay_url: string, status: number): Promise<void> {
+      const statusString = mapNumericStatusToString(status);
+
+      // Debug logging for status changes
+      logRelayEvent(`Status Change: ${relay_url}`, {
+        numericStatus: status,
+        stringStatus: statusString,
+        connected: status === 3,
+        appState: AppState.currentState,
+        timestamp: new Date().toISOString(),
+      });
+
       setRelayStatuses(prev => {
         const index = prev.findIndex(relay => relay.url === relay_url);
+        let newStatuses: RelayInfo[];
 
         // If relay is terminated, remove it from the list
         if (status === 5) {
-          return prev.filter(relay => relay.url !== relay_url);
+          logRelayEvent(`Relay Terminated: ${relay_url}`, { appState: AppState.currentState });
+          newStatuses = prev.filter(relay => relay.url !== relay_url);
         }
-
         // If relay is not in the list, add it
-        if (index === -1) {
-          return [
+        else if (index === -1) {
+          logRelayEvent(`New Relay Added: ${relay_url}`, {
+            status: statusString,
+            appState: AppState.currentState,
+          });
+          newStatuses = [
             ...prev,
-            { url: relay_url, status: mapNumericStatusToString(status), connected: status === 3 },
+            { url: relay_url, status: statusString, connected: status === 3 },
+          ];
+        }
+        // Otherwise, update the relay list
+        else {
+          const oldStatus = prev[index].status;
+          if (oldStatus !== statusString) {
+            logRelayEvent(`Relay Status Updated: ${relay_url}`, {
+              from: oldStatus,
+              to: statusString,
+              appState: AppState.currentState,
+            });
+          }
+          newStatuses = [
+            ...prev.slice(0, index),
+            { url: relay_url, status: statusString, connected: status === 3 },
+            ...prev.slice(index + 1),
           ];
         }
 
-        // Otherwise, update the relay list
-        return [
-          ...prev.slice(0, index),
-          { url: relay_url, status: mapNumericStatusToString(status), connected: status === 3 },
-          ...prev.slice(index + 1),
-        ];
+        // Update debug logger with new status array
+        relayDebugLogger.updateRelayStatus(newStatuses);
+
+        return newStatuses;
       });
+
       return Promise.resolve();
     }
   }
@@ -342,6 +381,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   // Refs to store current values for stable AppState listener
   const portalAppRef = useRef<PortalAppInterface | null>(null);
   const refreshNwcConnectionStatusRef = useRef<(() => Promise<void>) | null>(null);
+  const relayStatusesRef = useRef<RelayInfo[]>([]);
 
   const eCashContext = useECash();
   const sqliteContext = useSQLiteContext();
@@ -596,30 +636,29 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
               console.log(`Auth challenge with id ${id} received`, event);
 
               return new Promise<AuthResponseStatus>(resolve => {
-                handleAuthChallenge(event, DB, resolve)
-                  .then(askUser => {
-                    if (askUser) {
-                      const newRequest: PendingRequest = {
-                        id,
-                        metadata: event,
-                        timestamp: new Date(),
-                        type: 'login',
-                        result: resolve,
-                      };
+                handleAuthChallenge(event, DB, resolve).then(askUser => {
+                  if (askUser) {
+                    const newRequest: PendingRequest = {
+                      id,
+                      metadata: event,
+                      timestamp: new Date(),
+                      type: 'login',
+                      result: resolve,
+                    };
 
-                      setPendingRequests(prev => {
-                        // Check if request already exists to prevent duplicates
-                        if (prev[id]) {
-                          console.log(`Request ${id} already exists, skipping duplicate`);
-                          return prev;
-                        }
-                        const newPendingRequests = { ...prev };
-                        newPendingRequests[id] = newRequest;
-                        console.log('Updated pending requests map:', newPendingRequests);
-                        return newPendingRequests;
-                      });
-                    }
-                  })
+                    setPendingRequests(prev => {
+                      // Check if request already exists to prevent duplicates
+                      if (prev[id]) {
+                        console.log(`Request ${id} already exists, skipping duplicate`);
+                        return prev;
+                      }
+                      const newPendingRequests = { ...prev };
+                      newPendingRequests[id] = newRequest;
+                      console.log('Updated pending requests map:', newPendingRequests);
+                      return newPendingRequests;
+                    });
+                  }
+                });
               });
             })
           )
@@ -653,31 +692,28 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                     });
                   };
 
+                  handleSinglePaymentRequest(serviceName, event, DB, resolver).then(askUser => {
+                    if (askUser) {
+                      const newRequest: PendingRequest = {
+                        id,
+                        metadata: event,
+                        timestamp: new Date(),
+                        type: 'payment',
+                        result: resolver,
+                      };
 
-
-                  handleSinglePaymentRequest(serviceName, event, DB, resolver)
-                    .then(askUser => {
-                      if (askUser) {
-                        const newRequest: PendingRequest = {
-                          id,
-                          metadata: event,
-                          timestamp: new Date(),
-                          type: 'payment',
-                          result: resolver
-                        };
-
-                        setPendingRequests(prev => {
-                          // Check if request already exists to prevent duplicates
-                          if (prev[id]) {
-                            console.log(`Request ${id} already exists, skipping duplicate`);
-                            return prev;
-                          }
-                          const newPendingRequests = { ...prev };
-                          newPendingRequests[id] = newRequest;
-                          return newPendingRequests;
-                        });
-                      }
-                    })
+                      setPendingRequests(prev => {
+                        // Check if request already exists to prevent duplicates
+                        if (prev[id]) {
+                          console.log(`Request ${id} already exists, skipping duplicate`);
+                          return prev;
+                        }
+                        const newPendingRequests = { ...prev };
+                        newPendingRequests[id] = newRequest;
+                        return newPendingRequests;
+                      });
+                    }
+                  });
                 });
               },
               (event: RecurringPaymentRequest) => {
@@ -686,29 +722,28 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                 console.log(`Recurring payment request with id ${id} received`, event);
 
                 return new Promise<RecurringPaymentResponseContent>(resolve => {
-                  handleRecurringPaymentRequest(event, DB, resolve)
-                    .then(askUser => {
-                      if (askUser) {
-                        const newRequest: PendingRequest = {
-                          id,
-                          metadata: event,
-                          timestamp: new Date(),
-                          type: 'subscription',
-                          result: resolve,
-                        };
+                  handleRecurringPaymentRequest(event, DB, resolve).then(askUser => {
+                    if (askUser) {
+                      const newRequest: PendingRequest = {
+                        id,
+                        metadata: event,
+                        timestamp: new Date(),
+                        type: 'subscription',
+                        result: resolve,
+                      };
 
-                        setPendingRequests(prev => {
-                          // Check if request already exists to prevent duplicates
-                          if (prev[id]) {
-                            console.log(`Request ${id} already exists, skipping duplicate`);
-                            return prev;
-                          }
-                          const newPendingRequests = { ...prev };
-                          newPendingRequests[id] = newRequest;
-                          return newPendingRequests;
-                        });
-                      }
-                    });
+                      setPendingRequests(prev => {
+                        // Check if request already exists to prevent duplicates
+                        if (prev[id]) {
+                          console.log(`Request ${id} already exists, skipping duplicate`);
+                          return prev;
+                        }
+                        const newPendingRequests = { ...prev };
+                        newPendingRequests[id] = newRequest;
+                        return newPendingRequests;
+                      });
+                    }
+                  });
                 });
               }
             )
@@ -722,16 +757,18 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
           });
 
         // Listen for closed recurring payments
-        app.listenClosedRecurringPayment(new LocalClosedRecurringPaymentListener(
-          (event: CloseRecurringPaymentResponse) => {
-            console.log('Closed subscription received', event);
-            return new Promise<void>(resolve => {
-              handleCloseRecurringPaymentResponse(event, DB, resolve);
+        app
+          .listenClosedRecurringPayment(
+            new LocalClosedRecurringPaymentListener((event: CloseRecurringPaymentResponse) => {
+              console.log('Closed subscription received', event);
+              return new Promise<void>(resolve => {
+                handleCloseRecurringPaymentResponse(event, DB, resolve);
+              });
             })
-          }
-        )).catch(e => {
-          console.error('Error listening for recurring payments closing.', e);
-        });
+          )
+          .catch(e => {
+            console.error('Error listening for recurring payments closing.', e);
+          });
 
         // Save portal app instance
         setPortalApp(app);
@@ -1123,29 +1160,103 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     refreshNwcConnectionStatusRef.current = refreshNwcConnectionStatus;
   }, [refreshNwcConnectionStatus]);
 
+  useEffect(() => {
+    relayStatusesRef.current = relayStatuses;
+  }, [relayStatuses]);
+
   // Stable AppState listener - runs only once, never recreated
   useEffect(() => {
     console.log('🔄 Setting up STABLE AppState listener (runs once)');
 
     const handleAppStateChange = async (nextAppState: string) => {
+      const previousState = AppState.currentState;
       console.log('AppState changed to:', nextAppState);
+
+      // Log app state transition for debugging
+      // Use ref to get current relay status (not stale closure)
+      const currentConnectedCount = relayStatusesRef.current.filter(r => r.connected).length;
+      const currentTotalCount = relayStatusesRef.current.length;
+      logRelayEvent(`App State Transition: ${previousState} → ${nextAppState}`, {
+        from: previousState,
+        to: nextAppState,
+        relayCount: currentTotalCount,
+        connectedRelays: currentConnectedCount,
+        timestamp: new Date().toISOString(),
+      });
 
       // Update app active state
       setAppIsActive(nextAppState === 'active');
 
       if (nextAppState === 'active') {
+        logRelayEvent('App became active - triggering connection refresh', {
+          hasPortalApp: !!portalAppRef.current,
+          hasRefreshFunction: !!refreshNwcConnectionStatusRef.current,
+        });
+
         if (portalAppRef.current) {
-          console.log('📱 App became active - refreshing connection status');
+          console.log('📱 App became active - checking relay status and refreshing connections');
           try {
+            // Check if any relays are currently connected
+            const currentConnectedCount = relayStatusesRef.current.filter(r => r.connected).length;
+            const hasConnectedRelays = currentConnectedCount > 0;
+
+            if (!hasConnectedRelays) {
+              // No relays connected - Android likely killed WebSocket connections
+              console.log('🔄 No relays connected - triggering PortalApp reconnect...');
+              if (portalAppRef.current.reconnect) {
+                await portalAppRef.current.reconnect();
+                logRelayEvent('PortalApp reconnect completed - was disconnected', {
+                  success: true,
+                  totalRelays: relayStatusesRef.current.length,
+                  previouslyConnected: 0,
+                });
+              } else {
+                console.log('⚠️ PortalApp reconnect method not available');
+                logRelayEvent('PortalApp reconnect method not available', {});
+              }
+            } else {
+              // Some relays still connected - Android didn't kill connections
+              console.log(
+                `✅ ${currentConnectedCount} relays already connected - skipping reconnect`
+              );
+              logRelayEvent('Skipped reconnect - relays already connected', {
+                connectedRelays: currentConnectedCount,
+                totalRelays: relayStatusesRef.current.length,
+                reason: 'websockets_survived_background',
+              });
+            }
+
+            // Also refresh NWC connection status
             if (refreshNwcConnectionStatusRef.current) {
               await refreshNwcConnectionStatusRef.current();
+              // Use ref to get current relay status (not stale closure)
+              const currentConnectedCount = relayStatusesRef.current.filter(
+                r => r.connected
+              ).length;
+              logRelayEvent('Connection status refresh completed', {
+                success: true,
+                connectedRelays: currentConnectedCount,
+              });
             }
           } catch (error: any) {
-            console.error('Error refreshing connection status on app active:', error.inner);
+            console.error('Error during app active reconnection:', error.inner || error.message);
+            logRelayEvent('App active reconnection failed', {
+              error: error.inner || error.message,
+              success: false,
+            });
           }
         } else {
           console.log('⚠️ App became active but portalApp is null - will re-initialize');
+          logRelayEvent('App active but PortalApp is null', { willReinitialize: true });
         }
+      } else if (nextAppState === 'background') {
+        // Use ref to get current relay status (not stale closure)
+        const currentConnectedCount = relayStatusesRef.current.filter(r => r.connected).length;
+        const currentTotalCount = relayStatusesRef.current.length;
+        logRelayEvent('App moved to background', {
+          connectedRelays: currentConnectedCount,
+          totalRelays: currentTotalCount,
+        });
       }
     };
 
@@ -1252,7 +1363,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     return keypair!.issueJwt(targetKey, expiresInHours);
   };
 
-  /* useEffect(() => {
+  useEffect(() => {
     class Logger implements LogCallback {
       log(entry: LogEntry) {
         const message = `[${entry.target}] ${entry.message}`;
@@ -1276,12 +1387,12 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
       }
     }
     try {
-      initLogger(new Logger(), LogLevel.Trace)
+      initLogger(new Logger(), LogLevel.Trace);
       console.log('Logger initialized');
     } catch (error) {
       console.error('Error initializing logger:', error);
     }
-  }, []); */
+  }, []);
 
   // Context value
   const contextValue: NostrServiceContextType = {

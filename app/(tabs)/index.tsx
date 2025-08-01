@@ -25,6 +25,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
 import { formatAvatarUri } from '@/utils';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { RelayDebugControls } from '@/components/RelayDebugControls';
 
 const FIRST_LAUNCH_KEY = 'portal_first_launch_completed';
 
@@ -237,6 +238,7 @@ export default function Home() {
           }
         >
           <ThemedView style={styles.header}>
+            <RelayDebugControls />
             <View style={styles.headerContent}>
               <TouchableOpacity style={styles.headerLeft} onPress={handleSettingsNavigate}>
                 <View style={styles.welcomeRow}>
