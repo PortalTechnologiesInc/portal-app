@@ -2,16 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, TouchableOpacity, Alert, TextInput, View, ToastAndroid, ScrollView } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, X } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { ArrowLeft, X, Plus } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSQLiteContext } from 'expo-sqlite';
 import { DatabaseService } from '@/services/database';
-import Dropdown from 'react-native-input-select';
 import { useThemeColor } from '@/hooks/useThemeColor';
 
-import relayListFile from '../assets/RelayListist.json';
-import { TSelectedItem } from 'react-native-input-select/lib/typescript/src/types/index.types';
+import popularRelayListFile from '../assets/RelayListist.json';
 import { useNostrService } from '@/context/NostrServiceContext';
 
 function makeList(text: string): string[] {
@@ -37,22 +35,30 @@ function isWebsocketUri(uri: string): boolean {
 
 export default function NostrRelayManagementScreen() {
   const router = useRouter();
-  const [everyPopularRelayList, setEveryRelayList] = useState<string[]>([]);
+
+  // list of relays the user can choose from
+  const [popularRelayList, setPopularRelayList] = useState<string[]>([]);
+
+  // list of relays selected by the user. If they are just being added they're not active until saved.
   const [selectedRelays, setSelectedRelays] = useState<string[]>([]);
+
+  // list of active relays. These are fetched from the db and are the relays currently used by the library.
+  const [activeRelaysList, setActiveRelaysList] = useState<string[]>([]);
+
   const [customRelayTextFieldValue, setCustomRelayTextFieldValue] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
-  const [activeRelaysList, setActiveRelaysList] = useState<string[]>([]); // Fix: Make this a state variable
   const [filterText, setFilterText] = useState<string>('');
+  const [showCustomRelayInput, setShowCustomRelayInput] = useState<boolean>(false);
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
-  const surfaceSecondaryColor = useThemeColor({}, 'surfaceSecondary');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
   const inputBackgroundColor = useThemeColor({}, 'inputBackground');
   const inputBorderColor = useThemeColor({}, 'inputBorder');
   const inputPlaceholderColor = useThemeColor({}, 'inputPlaceholder');
   const buttonPrimaryColor = useThemeColor({}, 'buttonPrimary');
+  const buttonSecondaryColor = useThemeColor({}, 'buttonSecondary');
   const buttonPrimaryTextColor = useThemeColor({}, 'buttonPrimaryText');
 
   const nostrService = useNostrService();
@@ -61,61 +67,63 @@ export default function NostrRelayManagementScreen() {
 
   // Load relay data on mount
   useEffect(() => {
-    const partialList = relayListFile;
-    const loadEveryRelayList = async () => {
+    const loadRelaysList = async () => {
       try {
-        setEveryRelayList(partialList);
+        let relaysList: string[] = [];
+
+        const activeRelays = (await DB.getRelays()).map(value => value.ws_uri);
+
+        activeRelays.forEach((relayUrl) => {
+          if (!popularRelayListFile.includes(relayUrl)) {
+            relaysList.push(relayUrl);
+          }
+        })
+
+        popularRelayListFile.forEach((relayUrl) => {
+          relaysList.push(relayUrl);
+        })
+
+        setActiveRelaysList(activeRelays);
+        setSelectedRelays(activeRelays);
+        setPopularRelayList(Array.from(relaysList));
       } catch (error) {
         console.error('Error loading relays data:', error);
       } finally {
         setIsLoading(false);
       }
     };
-    loadEveryRelayList();
-
-    const loadRelaysData = async () => {
-      try {
-        const currentRelays = (await DB.getRelays()).map(value => value.ws_uri);
-        setActiveRelaysList(currentRelays); // Fix: Use setter function
-
-        const [popularRelays, customRelays] = splitArray(currentRelays, item =>
-          partialList.includes(item)
-        );
-
-        setSelectedRelays(popularRelays);
-        setCustomRelayTextFieldValue(customRelays.join('\n'));
-      } catch (error) {
-        console.error('Error loading relays data:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadRelaysData();
+    loadRelaysList();
   }, []);
 
-  const handleClearInput = async () => {
-    try {
-      // Clear the wallet URL in storage
-      setCustomRelayTextFieldValue('');
-    } catch (error) {
-      console.error('Error clearing wallet URL:', error);
-      Alert.alert('Error', 'Failed to clear wallet URL. Please try again.');
+  const handleAddCustomRelay = () => {
+    const customRelay = customRelayTextFieldValue.trim();
+
+    if (!isWebsocketUri(customRelay)) {
+      ToastAndroid.showWithGravity(
+        'Websocket format is wrong',
+        ToastAndroid.LONG,
+        ToastAndroid.CENTER
+      );
+      return;
     }
+
+    // Add to popular relays list if not already present
+    if (!popularRelayList.includes(customRelay)) {
+      setPopularRelayList([customRelay, ...popularRelayList]);
+    }
+
+    // Add to selected relays if not already selected
+    if (!selectedRelays.includes(customRelay)) {
+      setSelectedRelays([customRelay, ...selectedRelays]);
+    }
+
+    // Clear input and hide the input field
+    setCustomRelayTextFieldValue('');
+    setShowCustomRelayInput(false);
   };
 
   const updateRelays = async () => {
-    const customRelays = makeList(customRelayTextFieldValue);
-    for (const relay of customRelays) {
-      if (!isWebsocketUri(relay)) {
-        ToastAndroid.showWithGravity(
-          'Websocket format is wrong',
-          ToastAndroid.LONG,
-          ToastAndroid.CENTER
-        );
-        return;
-      }
-    }
-    let newlySelectedRelays = selectedRelays?.concat(customRelays);
+    let newlySelectedRelays = selectedRelays;
 
     let promises: Promise<void>[] = [];
     for (const oldRelay of activeRelaysList) {
@@ -162,16 +170,15 @@ export default function NostrRelayManagementScreen() {
   }
 
   // Filter popular relays based on filter text
-  const filteredRelays = everyPopularRelayList.filter(relay =>
+  const filteredRelays = popularRelayList.filter(relay =>
     relay.toLowerCase().includes(filterText.toLowerCase())
   );
 
-  const itemRows: string[][] = [[], [], []];
+  const itemRows: string[][] = [[], [], [], []];
 
   filteredRelays.forEach((item, index) => {
     itemRows[index % itemRows.length].push(item);
   })
-
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
@@ -246,26 +253,45 @@ export default function NostrRelayManagementScreen() {
             </View>
           </ScrollView>
 
-          {/* Custom Relays Input */}
+          {/* Custom Relays Section */}
           <ThemedText style={[styles.titleText, { color: primaryTextColor }]}>
             Custom relays:
           </ThemedText>
-          <View style={styles.customRelaysUrlContainer}>
-            <View style={[styles.relaysUrlInputContainer, { borderBottomColor: inputBorderColor }]}>
-              <TextInput
-                style={[styles.relaysUrlInput, { color: primaryTextColor }]}
-                value={customRelayTextFieldValue}
-                multiline
-                numberOfLines={9}
-                onChangeText={setCustomRelayTextFieldValue}
-                placeholder="Enter a list of relays url separated by a newline char"
-                placeholderTextColor={inputPlaceholderColor}
-              />
-              <TouchableOpacity style={styles.textFieldAction} onPress={handleClearInput}>
-                <X size={20} color={primaryTextColor} />
+
+          {!showCustomRelayInput ? (
+            <TouchableOpacity
+              style={[styles.addCustomRelayButton, { backgroundColor: buttonSecondaryColor }]}
+              onPress={() => setShowCustomRelayInput(true)}
+            >
+              <Plus size={20} color={buttonPrimaryTextColor} />
+              <ThemedText style={[styles.addCustomRelayButtonText, { color: buttonPrimaryTextColor }]}>
+                Add custom relay
+              </ThemedText>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.customRelaysUrlContainer}>
+              <View style={[styles.relaysUrlInputContainer, { borderBottomColor: inputBorderColor }]}>
+                <TextInput
+                  style={[styles.relaysUrlInput, { color: primaryTextColor }]}
+                  value={customRelayTextFieldValue}
+                  onChangeText={setCustomRelayTextFieldValue}
+                  placeholder="Enter relay URL (e.g., wss://relay.example.com)"
+                  placeholderTextColor={inputPlaceholderColor}
+                />
+                <TouchableOpacity style={styles.textFieldAction} onPress={() => setShowCustomRelayInput(false)}>
+                  <X size={20} color={primaryTextColor} />
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity
+                style={[styles.confirmCustomRelayButton, { backgroundColor: buttonPrimaryColor }]}
+                onPress={handleAddCustomRelay}
+              >
+                <ThemedText style={[styles.confirmCustomRelayButtonText, { color: buttonPrimaryTextColor }]}>
+                  Add
+                </ThemedText>
               </TouchableOpacity>
             </View>
-          </View>
+          )}
 
           <TouchableOpacity
             style={[styles.saveButton, { backgroundColor: buttonPrimaryColor }]}
@@ -355,10 +381,24 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
   },
+  addCustomRelayButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 24,
+    gap: 8,
+  },
+  addCustomRelayButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
   customRelaysUrlContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 24,
+    gap: 12,
   },
   relaysUrlInputContainer: {
     flex: 1,
@@ -366,7 +406,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderBottomWidth: 1,
     // borderBottomColor handled by theme
-    marginRight: 12,
   },
   relaysUrlInput: {
     flex: 1,
@@ -374,11 +413,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     paddingVertical: 12,
     paddingHorizontal: 8,
-    minHeight: 100,
-    textAlignVertical: 'top',
   },
   textFieldAction: {
     paddingHorizontal: 8,
+  },
+  confirmCustomRelayButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  confirmCustomRelayButtonText: {
+    fontSize: 14,
+    fontWeight: 'bold',
   },
   saveButton: {
     // backgroundColor handled by theme
@@ -388,6 +434,7 @@ const styles = StyleSheet.create({
     maxWidth: 500,
     alignItems: 'center',
     alignSelf: 'center',
+    marginTop: 32,
     marginBottom: 8,
   },
   saveButtonText: {
