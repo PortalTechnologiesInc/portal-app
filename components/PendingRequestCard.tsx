@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { usePendingRequests } from '../context/PendingRequestsContext';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { useECash } from '@/context/ECashContext';
-import type { SinglePaymentRequest, RecurringPaymentRequest } from 'portal-app-lib';
+import { type SinglePaymentRequest, type RecurringPaymentRequest, Currency_Tags } from 'portal-app-lib';
 import type { PendingRequest } from '@/utils/types';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { Layout } from '@/constants/Layout';
@@ -88,6 +88,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
 
       const fetchServiceName = async () => {
         if (!isMounted.current) return;
+
         try {
           setIsLoading(true);
           const name = await nostrService.getServiceName(serviceKey);
@@ -118,9 +119,10 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const isSubscriptionRequest = type === 'subscription';
     const isTicketRequest = type === 'ticket';
 
+    const content = (metadata as SinglePaymentRequest)?.content;
     const amount =
-      (metadata as SinglePaymentRequest)?.content?.amount ||
-      (metadata as RecurringPaymentRequest)?.content?.amount ||
+      content?.amount ||
+      content?.amount ||
       (isTicketRequest ? (metadata as any)?.inner?.amount : null);
 
     // For Ticket requests, only show sending tokens (not receiving)
@@ -161,7 +163,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
             {isSubscriptionRequest ? (
               <View style={styles.amountRow}>
                 <Text style={[styles.amountText, { color: primaryTextColor }]}>
-                  {Number(amount) / 1000} sats
+                  {content.currency.tag === Currency_Tags.Fiat ? `${Number(amount)} ${content.currency.inner}` : `${Number(amount) / 1000} sats`}
                 </Text>
                 <Text style={[styles.recurranceText, { color: primaryTextColor }]}>
                   {recurrence?.toLowerCase()}
@@ -169,7 +171,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
               </View>
             ) : (
               <Text style={[styles.amountText, { color: primaryTextColor }]}>
-                {Number(amount) / 1000} sats
+                {content.currency.tag === Currency_Tags.Fiat ? `${Number(amount)} ${content.currency.inner}` : `${Number(amount) / 1000} sats`}
               </Text>
             )}
           </View>

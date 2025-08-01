@@ -25,7 +25,8 @@ import {
   CashuRequestContentWithKey,
   CashuResponseStatus,
   PaymentStatusNotifier,
-  PaymentStatus
+  PaymentStatus,
+  PaymentResponseContent
 } from 'portal-app-lib';
 import { DatabaseService } from '@/services/database';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -39,6 +40,7 @@ import type {
 } from '@/utils/types';
 import { handleErrorWithToastAndReinit } from '@/utils/Toast';
 import { useECash } from './ECashContext';
+import { handleAuthChallenge, handleCloseRecurringPaymentResponse, handleRecurringPaymentRequest, handleSinglePaymentRequest } from '@/services/EventFilters';
 
 // Constants and helper classes from original NostrService
 const DEFAULT_RELAYS = [
@@ -139,6 +141,17 @@ export class LocalPaymentRequestListener implements PaymentRequestListener {
     event: RecurringPaymentRequest
   ): Promise<RecurringPaymentResponseContent> {
     return this.recurringCb(event);
+  }
+}
+
+export class LocalClosedRecurringPaymentListener implements ClosedRecurringPaymentListener {
+  private callback: (event: CloseRecurringPaymentResponse) => Promise<void>;
+
+  constructor(callback: (event: CloseRecurringPaymentResponse) => Promise<void>) {
+    this.callback = callback;
+  }
+  async onClosedRecurringPayment(event: CloseRecurringPaymentResponse): Promise<void> {
+    return this.callback(event);
   }
 }
 
@@ -583,25 +596,30 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
               console.log(`Auth challenge with id ${id} received`, event);
 
               return new Promise<AuthResponseStatus>(resolve => {
-                const newRequest: PendingRequest = {
-                  id,
-                  metadata: event,
-                  timestamp: new Date(),
-                  type: 'login',
-                  result: resolve,
-                };
+                handleAuthChallenge(event, DB, resolve)
+                  .then(askUser => {
+                    if (askUser) {
+                      const newRequest: PendingRequest = {
+                        id,
+                        metadata: event,
+                        timestamp: new Date(),
+                        type: 'login',
+                        result: resolve,
+                      };
 
-                setPendingRequests(prev => {
-                  // Check if request already exists to prevent duplicates
-                  if (prev[id]) {
-                    console.log(`Request ${id} already exists, skipping duplicate`);
-                    return prev;
-                  }
-                  const newPendingRequests = { ...prev };
-                  newPendingRequests[id] = newRequest;
-                  console.log('Updated pending requests map:', newPendingRequests);
-                  return newPendingRequests;
-                });
+                      setPendingRequests(prev => {
+                        // Check if request already exists to prevent duplicates
+                        if (prev[id]) {
+                          console.log(`Request ${id} already exists, skipping duplicate`);
+                          return prev;
+                        }
+                        const newPendingRequests = { ...prev };
+                        newPendingRequests[id] = newRequest;
+                        console.log('Updated pending requests map:', newPendingRequests);
+                        return newPendingRequests;
+                      });
+                    }
+                  })
               });
             })
           )
@@ -616,40 +634,50 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         app
           .listenForPaymentRequest(
             new LocalPaymentRequestListener(
-              (event: SinglePaymentRequest, notifier: PaymentStatusNotifier) => {
+              async (event: SinglePaymentRequest, notifier: PaymentStatusNotifier) => {
                 const id = event.eventId;
 
                 console.log(`Single payment request with id ${id} received`, event);
 
+                const serviceName = (await getServiceName(event.serviceKey)) || 'Unknown Service';
                 return new Promise<void>(resolve => {
                   // Immediately resolve the promise, we use the notifier to notify the payment status
                   resolve();
 
                   // TODO: validate amount against the invoice. If it doesn't match, reject immediately
 
-                  const newRequest: PendingRequest = {
-                    id,
-                    metadata: event,
-                    timestamp: new Date(),
-                    type: 'payment',
-                    result: async (status: PaymentStatus) => {
-                      await notifier.notify({
-                        status,
-                        requestId: event.content.requestId,
-                      });
-                    },
+                  const resolver = async (status: PaymentStatus) => {
+                    await notifier.notify({
+                      status,
+                      requestId: event.content.requestId,
+                    });
                   };
 
-                  setPendingRequests(prev => {
-                    // Check if request already exists to prevent duplicates
-                    if (prev[id]) {
-                      console.log(`Request ${id} already exists, skipping duplicate`);
-                      return prev;
-                    }
-                    const newPendingRequests = { ...prev };
-                    newPendingRequests[id] = newRequest;
-                    return newPendingRequests;
-                  });
+
+
+                  handleSinglePaymentRequest(serviceName, event, DB, resolver)
+                    .then(askUser => {
+                      if (askUser) {
+                        const newRequest: PendingRequest = {
+                          id,
+                          metadata: event,
+                          timestamp: new Date(),
+                          type: 'payment',
+                          result: resolver
+                        };
+
+                        setPendingRequests(prev => {
+                          // Check if request already exists to prevent duplicates
+                          if (prev[id]) {
+                            console.log(`Request ${id} already exists, skipping duplicate`);
+                            return prev;
+                          }
+                          const newPendingRequests = { ...prev };
+                          newPendingRequests[id] = newRequest;
+                          return newPendingRequests;
+                        });
+                      }
+                    })
                 });
               },
               (event: RecurringPaymentRequest) => {
@@ -658,24 +686,29 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                 console.log(`Recurring payment request with id ${id} received`, event);
 
                 return new Promise<RecurringPaymentResponseContent>(resolve => {
-                  const newRequest: PendingRequest = {
-                    id,
-                    metadata: event,
-                    timestamp: new Date(),
-                    type: 'subscription',
-                    result: resolve,
-                  };
+                  handleRecurringPaymentRequest(event, DB, resolve)
+                    .then(askUser => {
+                      if (askUser) {
+                        const newRequest: PendingRequest = {
+                          id,
+                          metadata: event,
+                          timestamp: new Date(),
+                          type: 'subscription',
+                          result: resolve,
+                        };
 
-                  setPendingRequests(prev => {
-                    // Check if request already exists to prevent duplicates
-                    if (prev[id]) {
-                      console.log(`Request ${id} already exists, skipping duplicate`);
-                      return prev;
-                    }
-                    const newPendingRequests = { ...prev };
-                    newPendingRequests[id] = newRequest;
-                    return newPendingRequests;
-                  });
+                        setPendingRequests(prev => {
+                          // Check if request already exists to prevent duplicates
+                          if (prev[id]) {
+                            console.log(`Request ${id} already exists, skipping duplicate`);
+                            return prev;
+                          }
+                          const newPendingRequests = { ...prev };
+                          newPendingRequests[id] = newRequest;
+                          return newPendingRequests;
+                        });
+                      }
+                    });
                 });
               }
             )
@@ -689,26 +722,16 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
           });
 
         // Listen for closed recurring payments
-        class ClosedRecurringPaymentListenerImpl implements ClosedRecurringPaymentListener {
-          async onClosedRecurringPayment(event: CloseRecurringPaymentResponse): Promise<void> {
+        app.listenClosedRecurringPayment(new LocalClosedRecurringPaymentListener(
+          (event: CloseRecurringPaymentResponse) => {
             console.log('Closed subscription received', event);
-            try {
-              await DB.updateSubscriptionStatus(event.content.subscriptionId, 'cancelled');
-
-              // Refresh UI to reflect the subscription status change
-              console.log('Refreshing subscriptions UI after subscription closure');
-              // Import the global event emitter to notify ActivitiesProvider
-              const { globalEvents } = await import('@/utils/index');
-              globalEvents.emit('subscriptionStatusChanged', {
-                subscriptionId: event.content.subscriptionId,
-                status: 'cancelled',
-              });
-            } catch (error) {
-              console.error('Error setting closed recurring payment', error);
-            }
+            return new Promise<void>(resolve => {
+              handleCloseRecurringPaymentResponse(event, DB, resolve);
+            })
           }
-        }
-        app.listenClosedRecurringPayment(new ClosedRecurringPaymentListenerImpl());
+        )).catch(e => {
+          console.error('Error listening for recurring payments closing.', e);
+        });
 
         // Save portal app instance
         setPortalApp(app);
@@ -777,8 +800,8 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
           try {
             // Call getInfo first to establish relay connections before checking status
             console.log('Calling getInfo to establish relay connections...');
-            await wallet.getInfo();
-            console.log('info: ', await wallet.getInfo());
+            let info = await wallet.getInfo();
+            console.log('info: ', info);
             if (isCancelled) return;
 
             console.log('getInfo completed, now checking connection status...');

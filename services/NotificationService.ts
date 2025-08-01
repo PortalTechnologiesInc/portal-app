@@ -4,13 +4,13 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
-const EXPO_PUSH_TOKEN_KEY = 'expo_push_token_key';
+const EXPO_PUSH_TOKEN_KEY = "expo_push_token_key"
 
 async function subscribeToNotificationService(expoPushToken: string, pubkeys: string[]) {
   const lastExpoPushNotificationToken = await SecureStore.getItemAsync(EXPO_PUSH_TOKEN_KEY);
-  // if (expoPushToken == lastExpoPushNotificationToken) {
-  //     return;
-  // }
+  if (expoPushToken == lastExpoPushNotificationToken) {
+      return;
+  }
 
   // right now the api accept only one pubkey, in the future it should accept a list of pubkeys
   try {
@@ -31,28 +31,25 @@ async function subscribeToNotificationService(expoPushToken: string, pubkeys: st
   try {
     await SecureStore.deleteItemAsync(EXPO_PUSH_TOKEN_KEY);
     await SecureStore.setItemAsync(EXPO_PUSH_TOKEN_KEY, expoPushToken);
-    console.log('new expoPushToken setted: ', expoPushToken);
+    console.log('new expoPushToken setted: ', expoPushToken)
   } catch (e) {
     // Silent fail - this is not critical
-    console.error(
-      'Failed to update the new expoPushToken in the app storage. The subscription to the notification service will be triggered again in the next app startup. The error is:',
-      e
-    );
+    console.error('Failed to update the new expoPushToken in the app storage. The subscription to the notification service will be triggered again in the next app startup. The error is:', e);
   }
 }
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+    shouldShowBanner: false,
+    shouldShowList: false,
   }),
 });
 
 function handleRegistrationError(errorMessage: string) {
   alert(errorMessage);
-  throw new Error(errorMessage);
+  console.error(errorMessage);
 }
 
 export default async function registerPubkeysForPushNotificationsAsync(pubkeys: string[]) {
@@ -89,10 +86,10 @@ export default async function registerPubkeysForPushNotificationsAsync(pubkeys: 
       ).data;
       subscribeToNotificationService(pushTokenString, pubkeys);
     } catch (e: unknown) {
-      console.error('Error while subscribing for notifications: ', e);
+      console.error("Error while subscribing for notifications: ", e);
       handleRegistrationError(`${e}`);
     }
   } else {
-    console.log('Must use physical device for push notifications');
+    handleRegistrationError('Must use physical device for push notifications');
   }
 }
