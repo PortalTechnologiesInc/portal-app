@@ -27,14 +27,14 @@ import {
 import { Moon, Sun, Smartphone } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useOnboarding } from '@/context/OnboardingContext';
+import { useSQLiteContext } from 'expo-sqlite';
 import {
   isWalletConnected,
   walletUrlEvents,
-  deleteMnemonic,
   getMnemonic,
   getWalletUrl,
 } from '@/services/SecureStorageService';
-import { resetDatabase } from '@/services/database/DatabaseProvider';
+import { AppResetService } from '@/services/AppResetService';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { showToast } from '@/utils/Toast';
 import { authenticateForSensitiveAction } from '@/services/BiometricAuthService';
@@ -46,6 +46,7 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 export default function SettingsScreen() {
   const router = useRouter();
   const { resetOnboarding } = useOnboarding();
+  const db = useSQLiteContext();
   const nostrService = useNostrService();
   const { themeMode, setThemeMode } = useTheme();
   const {
@@ -193,27 +194,50 @@ export default function SettingsScreen() {
   const handleClearAppData = () => {
     Alert.alert(
       'Reset App',
-      'This will reset all app data and take you back to onboarding. Are you sure?',
+      'This will completely reset all app data including:\n• Private keys and wallet\n• Profile information\n• All activities and subscriptions\n• App settings\n\nAre you sure?',
       [
         {
           text: 'Cancel',
           style: 'cancel',
         },
         {
-          text: 'Clear Data',
+          text: 'Reset Everything',
           style: 'destructive',
           onPress: () => {
             authenticateForSensitiveAction(async () => {
               try {
-                // Delete mnemonic first
-                deleteMnemonic();
-                // Reset the database
-                await resetDatabase();
-                // Reset onboarding state
-                await resetOnboarding();
+                // Show progress to user
+                showToast('Resetting app data...', 'loading');
+                
+                // Use comprehensive reset service
+                await AppResetService.performCompleteReset(db);
+                
+                // Verify reset completed
+                const resetComplete = await AppResetService.verifyResetComplete();
+                
+                if (resetComplete) {
+                  showToast('App reset successful!', 'success');
+                } else {
+                  showToast('App reset completed (some non-critical data may remain)', 'warning');
+                }
+                
+                // Navigation to onboarding is handled by AppResetService
+                
               } catch (error) {
-                console.error('Error clearing app data:', error);
-                Alert.alert('Error', 'Failed to Reset App. Please try again.');
+                console.error('Error during comprehensive app reset:', error);
+                
+                // Even if there's an error, try to navigate to onboarding
+                // as the reset likely succeeded partially
+                try {
+                  router.replace('/onboarding');
+                  showToast('Reset completed with errors - please check app state', 'warning');
+                } catch (navError) {
+                  Alert.alert(
+                    'Reset Error', 
+                    'Failed to reset app completely. Please restart the app manually.',
+                    [{ text: 'OK' }]
+                  );
+                }
               }
             }, 'Authenticate to reset all app data');
           },
