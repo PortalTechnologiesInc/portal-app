@@ -1,0 +1,249 @@
+# Portal App - Cursor AI Rules
+
+## AI Assistant Guidelines
+
+### User Interaction Preferences
+
+- **Structured Communication**: The user prefers receiving instructions as structured, step-by-step plans of action, with separate tasks when executing changes, rather than unstructured explanations or code snippets, as this approach yields better results.
+
+### Development Approach
+
+- **Minimal Changes**: Think carefully and only action the specific task I have given you with the most concise and elegant solution that changes as little code as possible. Do not override changes made by the user.
+
+## Project Overview
+
+Portal is a React Native mobile identity wallet built with Expo for Nostr protocol authentication and Lightning payments. This is a security-focused application with enterprise-grade requirements.
+
+## Technology Stack
+
+- **Framework**: React Native 0.79.5 + Expo 53.0.19
+- **Language**: TypeScript 5.8.3 (strict mode enabled)
+- **Navigation**: Expo Router (file-based routing)
+- **Database**: Expo SQLite with custom service layer
+- **State Management**: React Context (multiple specialized contexts)
+- **Styling**: Custom theme system with dark/light mode support
+- **Icons**: Lucide React Native
+- **Security**: Expo SecureStore, LocalAuthentication (biometrics)
+
+## Code Style & Formatting
+
+### Prettier Configuration
+
+- Semi-colons: required (`;`)
+- Quotes: single quotes (`'`)
+- Trailing commas: ES5 style
+- Print width: 100 characters
+- Tab width: 2 spaces
+- No tabs (spaces only)
+- Bracket spacing: enabled
+- Arrow function parens: avoid when possible
+
+### ESLint Rules
+
+- Follow TypeScript recommended rules
+- React recommended rules + hooks rules
+- No `React` import required (React 19)
+- Allow `require()` imports for React Native context
+- Prettier integration enforced as errors
+
+## Architecture Patterns
+
+### Directory Structure
+
+```
+app/                    # Expo Router pages (file-based routing)
+├── (tabs)/            # Tab navigation screens
+├── activity/[id]/     # Dynamic routes for activity details
+└── subscription/[id]/ # Dynamic routes for subscriptions
+
+components/            # Reusable UI components
+├── ActivityDetail/   # Feature-specific components
+└── ui/              # Base UI components
+
+context/              # React Context providers (state management)
+services/             # Business logic and external integrations
+models/              # TypeScript interfaces and types
+utils/               # Helper functions and utilities
+constants/           # App configuration and constants
+hooks/               # Custom React hooks
+```
+
+### State Management
+
+- Use React Context for state management, NOT Redux or Zustand
+- Create specialized contexts for different domains (Activities, Nostr, Theme, etc.)
+- Access database through `useSQLiteContext()` and `DatabaseService` class
+- Use secure storage for sensitive data via `SecureStorageService`
+
+### Database Operations
+
+```typescript
+// Always use the DatabaseService pattern
+const db = useSQLiteContext();
+const dbService = new DatabaseService(db);
+
+// Check database readiness before operations
+if (isDbReady) {
+  await dbService.someOperation();
+}
+```
+
+### Theme-Aware Components
+
+```typescript
+// All components must support theme system
+import { useThemeColor } from '@/hooks/useThemeColor';
+
+const backgroundColor = useThemeColor({}, 'background');
+const textColor = useThemeColor({}, 'textPrimary');
+```
+
+## Security Requirements
+
+### Critical Security Rules
+
+1. **Private keys NEVER leave the device** - use SecureStore only
+2. **Biometric authentication required** for sensitive operations
+3. **All user inputs must be validated** and sanitized
+4. **No sensitive data in logs** or console outputs
+5. **Use HTTPS only** for all network requests
+6. **Implement proper error handling** without exposing internal details
+
+### Biometric Authentication Pattern
+
+```typescript
+import { BiometricAuthService } from '@/services/BiometricAuthService';
+
+// Always verify biometric capability before sensitive operations
+if (await BiometricAuthService.isAvailable()) {
+  const authResult = await BiometricAuthService.authenticate();
+  if (authResult.success) {
+    // Proceed with sensitive operation
+  }
+}
+```
+
+## Component Development
+
+### React Native Best Practices
+
+- Use functional components with hooks (no class components)
+- Implement proper keyboard handling with `KeyboardAvoidingView`
+- Use `SafeAreaView` or safe area hooks for proper device rendering
+- Handle platform differences with `Platform.OS` when necessary
+- Use proper React Native navigation patterns with Expo Router
+
+### UI Component Guidelines
+
+- All components must support both light and dark themes
+- Use Lucide React Native for icons consistently
+- Implement proper accessibility labels and hints
+- Use consistent spacing and typography from theme system
+- Follow platform-specific design guidelines (iOS/Android)
+
+### Performance Considerations
+
+- Use `React.memo()` for expensive components
+- Implement proper list virtualization for large datasets
+- Optimize images and assets appropriately
+- Use lazy loading for heavy screens
+- Minimize bundle size by avoiding unnecessary dependencies
+
+## Nostr Protocol Integration
+
+### Nostr Service Patterns
+
+- Use `NostrServiceContext` for all Nostr operations
+- Implement proper event handling and filtering
+- Use event deduplication to prevent duplicate requests
+- Handle network failures gracefully with retry logic
+- Validate all incoming Nostr events
+
+### Event Handling
+
+```typescript
+// Use eventId as unique identifier for deduplication
+const requestId = eventId; // NOT uuid.v4()
+
+// Check for existing requests to prevent duplicates
+if (pendingRequests[requestId]) {
+  return; // Skip duplicate request
+}
+```
+
+## Error Handling
+
+### Error Management Strategy
+
+- Use try-catch blocks for all async operations
+- Log errors appropriately (no sensitive data)
+- Provide user-friendly error messages
+- Implement retry mechanisms for network operations
+- Use error boundaries for critical UI sections
+
+### Database Error Handling
+
+```typescript
+try {
+  await dbService.operation();
+} catch (error) {
+  console.error('Database operation failed:', error.message);
+  // Handle gracefully without exposing internal details
+}
+```
+
+## Testing Requirements
+
+- Write unit tests for all utility functions
+- Test components with both light and dark themes
+- Mock biometric authentication in tests
+- Test database operations with proper setup/teardown
+- Verify security-critical flows thoroughly
+
+## File Naming Conventions
+
+- Components: PascalCase (`ActivityCard.tsx`)
+- Hooks: camelCase starting with 'use' (`useThemeColor.ts`)
+- Services: PascalCase with 'Service' suffix (`BiometricAuthService.ts`)
+- Utils: camelCase (`activityHelpers.tsx`)
+- Constants: PascalCase or SCREAMING_SNAKE_CASE
+- Context files: PascalCase with 'Context' suffix
+
+## Import/Export Patterns
+
+- Use path aliases: `@/` for project root
+- Group imports: React, libraries, local imports
+- Use named exports for utilities, default for components
+- Import types separately when needed: `import type { ... }`
+
+## Development Workflow
+
+- Run `npm run lint` before commits
+- Use `npm run format` to apply Prettier formatting
+- Test on both iOS and Android platforms
+- Verify theme switching works correctly
+- Test biometric flows on real devices when possible
+
+## Security Checklist for New Features
+
+- [ ] No sensitive data in logs or console
+- [ ] Biometric authentication for sensitive operations
+- [ ] Input validation and sanitization
+- [ ] Secure storage for keys and secrets
+- [ ] Proper error handling without information leakage
+- [ ] Network requests use HTTPS only
+- [ ] User consent for sensitive operations
+- [ ] Audit trail for security-critical actions
+
+## Common Anti-Patterns to Avoid
+
+- ❌ Storing private keys in regular storage
+- ❌ Skipping biometric authentication for payments
+- ❌ Using class components instead of functional components
+- ❌ Ignoring theme support in new components
+- ❌ Direct database access without DatabaseService
+- ❌ Hardcoded strings instead of proper configuration
+- ❌ Platform-specific code without proper detection
+- ❌ Unhandled promise rejections in async operations
+
+Remember: This is a financial and identity application. Security and user privacy are paramount. When in doubt, choose the more secure approach.

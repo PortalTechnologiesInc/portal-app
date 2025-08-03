@@ -27,7 +27,6 @@ modules
 npm-debug.*
 yarn-debug.*
 yarn-error.*
-.cursorrules
 debug.keystore
 
 #idea
