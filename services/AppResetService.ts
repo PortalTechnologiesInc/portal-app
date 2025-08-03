@@ -62,7 +62,7 @@ export class AppResetService {
       console.error('❌ Failed to reset contexts:', error);
       errors.push({ step: 'Contexts', error });
     }
-    
+
     try {
       // Step 4: Reset navigation to onboarding
       console.log('Step 4/4: Resetting navigation...');
