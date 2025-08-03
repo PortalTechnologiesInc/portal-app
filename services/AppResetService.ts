@@ -1,6 +1,7 @@
 import { DatabaseService } from './database';
 import { SecureStorageService } from './SecureStorageServiceV2';
 import { resetDatabase as legacyResetDatabase } from './database/DatabaseProvider';
+import { resetAllContexts } from './ContextResetService';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { router } from 'expo-router';
 
@@ -54,8 +55,17 @@ export class AppResetService {
     }
 
     try {
-      // Step 3: Reset navigation to onboarding
-      console.log('Step 3/3: Resetting navigation...');
+      // Step 3: Reset all application contexts
+      console.log('Step 3/4: Resetting application contexts...');
+      resetAllContexts();
+    } catch (error) {
+      console.error('❌ Failed to reset contexts:', error);
+      errors.push({ step: 'Contexts', error });
+    }
+    
+    try {
+      // Step 4: Reset navigation to onboarding
+      console.log('Step 4/4: Resetting navigation...');
       router.replace('/onboarding');
     } catch (error) {
       console.error('❌ Failed to reset navigation:', error);
