@@ -1,12 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  StyleSheet,
-  View,
-  ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
-  Share,
-} from 'react-native';
+import { StyleSheet, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
@@ -73,7 +66,9 @@ export default function ActivityDetailScreen() {
           // If this is a payment activity, fetch payment status entries
           if (activityData.type === 'pay' && activityData.invoice) {
             try {
-              const paymentStatusEntries = await dbService.getPaymentStatusEntries(activityData.invoice);
+              const paymentStatusEntries = await dbService.getPaymentStatusEntries(
+                activityData.invoice
+              );
               console.log('paymentStatusEntries', paymentStatusEntries);
               const steps = convertPaymentStatusToSteps(paymentStatusEntries);
               setPaymentSteps(steps);
@@ -104,18 +99,6 @@ export default function ActivityDetailScreen() {
 
   const handleCopyId = () => {
     Clipboard.setStringAsync(id as string);
-  };
-
-  const handleShare = () => {
-    if (!activity) return;
-
-    const shareContent = {
-      title: 'Activity Details',
-      message: `Activity ID: ${activity.id}\nType: ${activity.type}\nStatus: ${getActivityStatus(activity)}`,
-      url: `portal-app://activity/${activity.id}`, // Deep link to the activity
-    };
-
-    Share.share(shareContent);
   };
 
   const handleCopyServiceKey = () => {
@@ -189,12 +172,7 @@ export default function ActivityDetailScreen() {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]}>
       <ThemedView style={styles.container}>
-        <ActivityHeader
-          isAuth={isAuth}
-          isTicket={isTicket}
-          onBackPress={handleBackPress}
-          onShare={handleShare}
-        />
+        <ActivityHeader isAuth={isAuth} isTicket={isTicket} onBackPress={handleBackPress} />
 
         <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
           <ActivityMainCard

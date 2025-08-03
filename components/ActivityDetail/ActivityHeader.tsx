@@ -9,7 +9,7 @@ interface ActivityHeaderProps {
   isAuth: boolean;
   isTicket?: boolean;
   onBackPress: () => void;
-  onShare: () => void;
+  onShare?: () => void;
 }
 
 export const ActivityHeader: React.FC<ActivityHeaderProps> = ({
@@ -35,9 +35,11 @@ export const ActivityHeader: React.FC<ActivityHeaderProps> = ({
         {getTitle()}
       </ThemedText>
       <View style={styles.headerActions}>
-        <TouchableOpacity onPress={onShare} style={styles.headerButton}>
-          <Share size={20} color={primaryTextColor} />
-        </TouchableOpacity>
+        {onShare && (
+          <TouchableOpacity onPress={onShare} style={styles.headerButton}>
+            <Share size={20} color={primaryTextColor} />
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
