@@ -20,30 +20,28 @@ const DatabaseContext = createContext<DatabaseContextType>({
 // Hook to consume the database context
 export const useDatabaseStatus = () => useContext(DatabaseContext);
 
-// Utility function to reset database tables
+/**
+ * @deprecated Use AppResetService.performCompleteReset() instead
+ * Legacy utility function to reset database tables - incomplete and will be removed
+ */
 export const resetDatabase = async (): Promise<void> => {
+  console.warn('resetDatabase() is deprecated and incomplete. Use AppResetService.performCompleteReset() instead.');
+  
   try {
-    console.log('Attempting to reset database tables');
+    console.log('Attempting legacy database reset...');
     const db = await openDatabaseAsync(DATABASE_NAME);
 
-    // Execute direct SQL to drop tables
-    await db.execAsync(`
-      		DROP TABLE IF EXISTS activities;
-      		DROP TABLE IF EXISTS subscriptions;
-      		DROP TABLE IF EXISTS name_cache;
-      		DROP INDEX IF EXISTS idx_activities_date;
-      		DROP INDEX IF EXISTS idx_activities_type;
-      		DROP INDEX IF EXISTS idx_activities_subscription;
-      		DROP INDEX IF EXISTS idx_subscriptions_next_payment;
-      		DROP INDEX IF EXISTS idx_name_cache_expires;
-      		DROP TABLE IF EXISTS subscriptions;
-      		PRAGMA user_version = 0;
-    	`);
+    // Import the comprehensive reset SQL from StorageRegistry
+    const { generateResetSQL } = await import('../StorageRegistry');
+    const resetSQL = generateResetSQL();
+    
+    await db.execAsync(resetSQL);
 
-    console.log('Database reset completed successfully');
+    console.log('Legacy database reset completed successfully');
     await db.closeAsync();
   } catch (error) {
     console.error('Failed to reset database:', error);
+    throw error;
   }
 };
 

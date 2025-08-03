@@ -2,6 +2,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import type { ActivityType, UpcomingPayment } from '@/utils/types';
 import type { Currency } from '@/utils/currency';
 import uuid from 'react-native-uuid';
+import { generateResetSQL } from '../StorageRegistry';
 
 // Timestamp utilities
 export const toUnixSeconds = (date: Date | number): number => {
@@ -99,24 +100,31 @@ export interface NostrRelayWithDates extends Omit<NostrRelay, 'created_at'> {
 export class DatabaseService {
   constructor(private db: SQLiteDatabase) {}
 
-  // Database reset method
-  async dropAllTables(): Promise<void> {
+  /**
+   * Comprehensive database reset method
+   * Drops all tables and indexes, resets schema version
+   */
+  async resetDatabase(): Promise<void> {
     try {
-      console.log('Dropping all tables from database');
-      // Drop existing tables
-      await this.db.execAsync(`
-        DROP TABLE IF EXISTS activities;
-        DROP TABLE IF EXISTS subscriptions;
-        DROP INDEX IF EXISTS idx_activities_date;
-        DROP INDEX IF EXISTS idx_activities_type;
-        DROP INDEX IF EXISTS idx_subscriptions_next_payment;
-        PRAGMA user_version = 0;
-      `);
-      console.log('All database tables dropped successfully');
+      console.log('🗃️ Starting comprehensive database reset...');
+      
+      // Use centralized SQL generation from StorageRegistry
+      const resetSQL = generateResetSQL();
+      await this.db.execAsync(resetSQL);
+      
+      console.log('✅ Database reset completed successfully');
     } catch (error) {
-      console.error('Failed to drop tables:', error);
+      console.error('❌ Failed to reset database:', error);
       throw error;
     }
+  }
+
+  /**
+   * @deprecated Use resetDatabase() instead
+   */
+  async dropAllTables(): Promise<void> {
+    console.warn('dropAllTables() is deprecated, use resetDatabase() instead');
+    return this.resetDatabase();
   }
 
   // Activity methods
