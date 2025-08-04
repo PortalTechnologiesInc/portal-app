@@ -8,6 +8,7 @@ export async function handleAuthChallenge(event: AuthChallengeEvent, database: D
 
 export async function handleSinglePaymentRequest(serviceName: string, request: SinglePaymentRequest, database: DatabaseService, resolve: (status: PaymentStatus) => void): Promise<boolean> {
   const walletUrl = await getWalletUrl();
+  console.warn('handling single payment');
   try {
     let wallet: Nwc | undefined;
     let balance: number | undefined;

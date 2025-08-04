@@ -34,10 +34,6 @@ import {
   CashuResponseStatus,
   PaymentStatusNotifier,
   PaymentStatus,
-  LogCallback,
-  LogEntry,
-  LogLevel,
-  initLogger,
 } from 'portal-app-lib';
 import { DatabaseService } from '@/services/database';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -185,7 +181,7 @@ interface NostrServiceContextType {
   lookupInvoice: (invoice: string) => Promise<LookupInvoiceResponse>;
   disconnectWallet: () => void;
   sendKeyHandshake: (url: KeyHandshakeUrl) => Promise<void>;
-  getServiceName: (publicKey: string) => Promise<string | null>;
+  getServiceName: (app: PortalAppInterface, publicKey: string) => Promise<string | null>;
   dismissPendingRequest: (id: string) => void;
   setUserProfile: (profile: Profile) => Promise<void>;
   submitNip05: (nip05: string) => Promise<void>;
@@ -667,42 +663,35 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
                 console.log(`Single payment request with id ${id} received`, event);
 
-                const serviceName = (await getServiceName(event.serviceKey)) || 'Unknown Service';
-                return new Promise<void>(resolve => {
-                  // Immediately resolve the promise, we use the notifier to notify the payment status
-                  resolve();
-
-                  // TODO: validate amount against the invoice. If it doesn't match, reject immediately
-
-                  const resolver = async (status: PaymentStatus) => {
-                    await notifier.notify({
-                      status,
-                      requestId: event.content.requestId,
-                    });
-                  };
-
-                  handleSinglePaymentRequest(serviceName, event, DB, resolver).then(askUser => {
-                    if (askUser) {
-                      const newRequest: PendingRequest = {
-                        id,
-                        metadata: event,
-                        timestamp: new Date(),
-                        type: 'payment',
-                        result: resolver,
-                      };
-
-                      setPendingRequests(prev => {
-                        // Check if request already exists to prevent duplicates
-                        if (prev[id]) {
-                          console.log(`Request ${id} already exists, skipping duplicate`);
-                          return prev;
-                        }
-                        const newPendingRequests = { ...prev };
-                        newPendingRequests[id] = newRequest;
-                        return newPendingRequests;
-                      });
-                    }
+                const serviceName = (await getServiceName(app, event.serviceKey)) || 'Unknown Service';
+                const resolver = async (status: PaymentStatus) => {
+                  await notifier.notify({
+                    status,
+                    requestId: event.content.requestId,
                   });
+                };
+
+                handleSinglePaymentRequest(serviceName, event, DB, resolver).then(askUser => {
+                  if (askUser) {
+                    const newRequest: PendingRequest = {
+                      id,
+                      metadata: event,
+                      timestamp: new Date(),
+                      type: 'payment',
+                      result: resolver,
+                    };
+
+                    setPendingRequests(prev => {
+                      // Check if request already exists to prevent duplicates
+                      if (prev[id]) {
+                        console.log(`Request ${id} already exists, skipping duplicate`);
+                        return prev;
+                      }
+                      const newPendingRequests = { ...prev };
+                      newPendingRequests[id] = newRequest;
+                      return newPendingRequests;
+                    });
+                  }
                 });
               },
               (event: RecurringPaymentRequest) => {
@@ -884,11 +873,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
   // Get service name with database caching
   const getServiceName = useCallback(
-    async (pubKey: string): Promise<string | null> => {
-      if (!portalApp) {
-        throw new Error('PortalApp not initialized');
-      }
-
+    async (app: PortalAppInterface, pubKey: string): Promise<string | null> => {
       try {
         // Step 1: Check for valid cached entry (not expired)
         const cachedName = await DB.getCachedServiceName(pubKey);
@@ -927,7 +912,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         console.log('DEBUG: Connected relays:', connectedCount, '/', relayStatuses.length);
 
         // Step 3: Fetch from network
-        const profile = await portalApp.fetchProfile(pubKey);
+        const profile = await app.fetchProfile(pubKey);
         console.log('DEBUG: portalApp.fetchProfile returned:', profile);
 
         // Step 4: Extract service name from profile

@@ -34,6 +34,7 @@ import type {
   PendingActivity,
   PendingSubscription,
 } from '@/utils/types';
+import { PortalAppManager } from '@/services/PortalAppManager';
 
 // Helper function to get service name with fallback
 const getServiceNameWithFallback = async (
@@ -268,7 +269,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
           let serviceName = 'Unknown Service';
           try {
-            const fetchedName = await nostrService.getServiceName(paymentRequest.serviceKey);
+            const fetchedName = await nostrService.getServiceName(PortalAppManager.tryGetInstance(), paymentRequest.serviceKey);
             serviceName = fetchedName || 'Unknown Service';
           } catch (e) {
             console.error('Error getting service name:', e);
