@@ -217,7 +217,7 @@
 
         devShells = {
           ios = pkgs.mkShell {
-            buildInputs = with pkgs; [ nodejs ];
+            buildInputs = with pkgs; [ nodejs cocoapods ];
 
             shellHook = ''
               export PATH="$HOME/.npm-global/bin:$PATH"
