@@ -9,6 +9,7 @@ import { type SinglePaymentRequest, type RecurringPaymentRequest, Currency_Tags 
 import type { PendingRequest } from '@/utils/types';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { Layout } from '@/constants/Layout';
+import { SkeletonPulse } from './PendingRequestSkeletonCard';
 
 interface PendingRequestCardProps {
   request: PendingRequest;
@@ -47,7 +48,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const nostrService = useNostrService();
     const { wallets } = useECash();
     const [serviceName, setServiceName] = useState<string | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isServiceNameLoading, setIsServiceNameLoading] = useState(true);
     const isMounted = useRef(true);
 
     // Theme colors
@@ -56,6 +57,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const secondaryTextColor = useThemeColor({}, 'textSecondary');
     const borderColor = useThemeColor({}, 'borderPrimary');
     const shadowColor = useThemeColor({}, 'shadowColor');
+    const skeletonBaseColor = useThemeColor({}, 'skeletonBase');
 
     // Add debug logging when a card is rendered
     console.log(
@@ -82,7 +84,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     useEffect(() => {
       if (type === 'ticket' && request.ticketTitle) {
         setServiceName(request.ticketTitle);
-        setIsLoading(false);
+        setIsServiceNameLoading(false);
         return;
       }
 
@@ -90,17 +92,17 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
         if (!isMounted.current) return;
 
         try {
-          setIsLoading(true);
+          setIsServiceNameLoading(true);
           const name = await nostrService.getServiceName(serviceKey);
           if (isMounted.current) {
             setServiceName(name);
-            setIsLoading(false);
+            setIsServiceNameLoading(false);
           }
         } catch (error) {
           console.error('Failed to fetch service name:', error);
           if (isMounted.current) {
             setServiceName(null);
-            setIsLoading(false);
+            setIsServiceNameLoading(false);
           }
         }
       };
@@ -151,7 +153,12 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
             !serviceName && styles.unknownService,
           ]}
         >
-          {formatServiceName()}
+          {isServiceNameLoading ?
+            <SkeletonPulse
+              style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
+
+            />
+            : formatServiceName()}
         </Text>
 
         <Text style={[styles.serviceInfo, { color: secondaryTextColor }]}>
@@ -307,5 +314,11 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  serviceNameSkeleton: {
+    borderRadius: 8,
+    marginBottom: 8,
+    width: '80%',
+    height: 20,
   },
 });

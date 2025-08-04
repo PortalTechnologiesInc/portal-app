@@ -1,13 +1,11 @@
 import React from 'react';
 import { useEffect, useRef } from 'react';
 import { View, StyleSheet, Animated, type ViewStyle, type StyleProp } from 'react-native';
-import { ThemedText } from './ThemedText';
-import { Colors } from '@/constants/Colors';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { Layout } from '@/constants/Layout';
 
 // Animated pulse component for skeleton loading effect
-const SkeletonPulse = ({ style }: { style: StyleProp<ViewStyle> }) => {
+export const SkeletonPulse = ({ style }: { style: StyleProp<ViewStyle> }) => {
   const translateX = useRef(new Animated.Value(-100)).current;
   const skeletonHighlightColor = useThemeColor({}, 'skeletonHighlight');
 
