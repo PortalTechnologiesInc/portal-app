@@ -10,7 +10,6 @@ import {
 } from 'react';
 import type {
   KeyHandshakeUrl,
-  PaymentResponseContent,
   RecurringPaymentRequest,
   SinglePaymentRequest,
 } from 'portal-app-lib';
@@ -19,14 +18,12 @@ import {
   RecurringPaymentStatus,
   AuthResponseStatus,
   CashuResponseStatus,
-  parseCashuToken,
-  parseCalendar,
 } from 'portal-app-lib';
 import { useSQLiteContext } from 'expo-sqlite';
 import { DatabaseService, fromUnixSeconds } from '@/services/database';
 import { useDatabaseStatus } from '@/services/database/DatabaseProvider';
 import { useActivities } from '@/context/ActivitiesContext';
-import { useNostrService } from '@/context/NostrServiceContext';
+import { NostrServiceContextType, useNostrService } from '@/context/NostrServiceContext';
 import { useECash } from '@/context/ECashContext';
 import type {
   PendingRequest,
@@ -34,14 +31,16 @@ import type {
   PendingActivity,
   PendingSubscription,
 } from '@/utils/types';
+import { PortalAppManager } from '@/services/PortalAppManager';
 
 // Helper function to get service name with fallback
 const getServiceNameWithFallback = async (
-  nostrService: any,
+  nostrService: NostrServiceContextType,
   serviceKey: string
 ): Promise<string> => {
   try {
-    const serviceName = await nostrService.getServiceName(serviceKey);
+    const app = PortalAppManager.tryGetInstance();
+    const serviceName = await nostrService.getServiceName(app, serviceKey);
     return serviceName || 'Unknown Service';
   } catch (error) {
     console.error('Failed to fetch service name:', error);

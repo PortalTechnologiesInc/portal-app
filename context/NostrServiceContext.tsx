@@ -34,10 +34,6 @@ import {
   CashuResponseStatus,
   PaymentStatusNotifier,
   PaymentStatus,
-  LogCallback,
-  LogEntry,
-  LogLevel,
-  initLogger,
 } from 'portal-app-lib';
 import { DatabaseService } from '@/services/database';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -174,7 +170,7 @@ export class LocalClosedRecurringPaymentListener implements ClosedRecurringPayme
 // Note: WalletInfo and WalletInfoState are now imported from centralized types
 
 // Context type definition
-interface NostrServiceContextType {
+export interface NostrServiceContextType {
   isInitialized: boolean;
   isWalletConnected: boolean;
   publicKey: string | null;
@@ -185,7 +181,7 @@ interface NostrServiceContextType {
   lookupInvoice: (invoice: string) => Promise<LookupInvoiceResponse>;
   disconnectWallet: () => void;
   sendKeyHandshake: (url: KeyHandshakeUrl) => Promise<void>;
-  getServiceName: (publicKey: string) => Promise<string | null>;
+  getServiceName: (app: PortalAppInterface, publicKey: string) => Promise<string | null>;
   dismissPendingRequest: (id: string) => void;
   setUserProfile: (profile: Profile) => Promise<void>;
   submitNip05: (nip05: string) => Promise<void>;
@@ -257,6 +253,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   const [publicKey, setPublicKey] = useState<string | null>(null);
   const [pendingRequests, setPendingRequests] = useState<{ [key: string]: PendingRequest }>({});
   const [nwcWallet, setNwcWallet] = useState<Nwc | null>(null);
+  const nwcWalletRef = useRef<Nwc | null>(null);
   const [appIsActive, setAppIsActive] = useState(true);
   const [walletInfo, setWalletInfo] = useState<WalletInfoState>({
     data: null,
@@ -680,7 +677,10 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                     });
                   };
 
-                  handleSinglePaymentRequest(event, DB, resolver, getServiceName, app).then(askUser => {
+                  console.warn(nwcWalletRef.current);
+                  console.warn(app);
+
+                  handleSinglePaymentRequest(nwcWalletRef.current, event, DB, resolver, getServiceName, app).then(askUser => {
                     if (askUser) {
                       const newRequest: PendingRequest = {
                         id,
@@ -806,6 +806,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         const wallet = new Nwc(walletUrl, new NwcRelayStatusListener());
 
         if (isCancelled) return;
+        nwcWalletRef.current = wallet;
         setNwcWallet(wallet);
         console.log('Wallet connected successfully');
 
@@ -894,15 +895,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
   // Get service name with database caching
   const getServiceName = useCallback(
-    async (pubKey: string, app?: PortalAppInterface | null): Promise<string | null> => {
-      let appToUse = app;
-      if (!appToUse) {
-        appToUse = portalApp;
-      }
-      if (!appToUse) {
-        throw new Error('PortalApp not initialized');
-      }
-
+    async (app: PortalAppInterface, pubKey: string): Promise<string | null> => {
       try {
         // Step 1: Check for valid cached entry (not expired)
         const cachedName = await DB.getCachedServiceName(pubKey);
@@ -941,7 +934,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         console.log('DEBUG: Connected relays:', connectedCount, '/', relayStatuses.length);
 
         // Step 3: Fetch from network
-        const profile = await appToUse.fetchProfile(pubKey);
+        const profile = await app.fetchProfile(pubKey);
         console.log('DEBUG: portalApp.fetchProfile returned:', profile);
 
         // Step 4: Extract service name from profile

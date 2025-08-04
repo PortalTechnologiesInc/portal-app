@@ -6,18 +6,9 @@ export async function handleAuthChallenge(event: AuthChallengeEvent, database: D
   return true;
 }
 
-export async function handleSinglePaymentRequest(request: SinglePaymentRequest, database: DatabaseService, resolve: (status: PaymentStatus) => void, getServiceName: (serviceKey: string, app?: PortalAppInterface | null) => Promise<string | null>, app: PortalAppInterface): Promise<boolean> {
+export async function handleSinglePaymentRequest(wallet: Nwc | null, request: SinglePaymentRequest, database: DatabaseService, resolve: (status: PaymentStatus) => void, getServiceName: (app: PortalAppInterface, serviceKey: string) => Promise<string | null>, app: PortalAppInterface): Promise<boolean> {
   const walletUrl = await getWalletUrl();
   try {
-    let wallet: Nwc | undefined;
-    let balance: number | undefined;
-
-    if (walletUrl) {
-      wallet = new Nwc(walletUrl);
-      await wallet.getInfo();
-      balance = Number((await wallet.getBalance()));
-    }
-
     let subId = request.content.subscriptionId;
     if (!subId) {
       return true;
@@ -46,7 +37,7 @@ export async function handleSinglePaymentRequest(request: SinglePaymentRequest, 
 
     let serviceName = "Unknown Service";
     try {
-      serviceName = await getServiceName(request.serviceKey, app) || "Unknown Service";
+      serviceName = await getServiceName(app, request.serviceKey) || "Unknown Service";
     } catch (e) {
       console.error('Error getting service name:', e);
     }
@@ -73,6 +64,13 @@ export async function handleSinglePaymentRequest(request: SinglePaymentRequest, 
         reason: 'Payment is not due yet. Please wait till the next payment is scheduled.'
       }));
       return false
+    }
+
+    let balance: number | undefined;
+
+    if (wallet) {
+      await wallet.getInfo();
+      balance = Number((await wallet.getBalance()));
     }
 
     if (balance && request.content.amount > balance) {
