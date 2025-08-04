@@ -160,10 +160,10 @@ const styles = StyleSheet.create({
   amount: {
     fontSize: 32,
     fontWeight: '700',
+    paddingVertical: 12,
   },
   amountSubtext: {
     fontSize: 16,
-    marginTop: 4,
   },
   description: {
     fontSize: 16,
