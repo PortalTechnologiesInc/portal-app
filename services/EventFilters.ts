@@ -6,18 +6,8 @@ export async function handleAuthChallenge(event: AuthChallengeEvent, database: D
   return true;
 }
 
-export async function handleSinglePaymentRequest(serviceName: string, request: SinglePaymentRequest, database: DatabaseService, resolve: (status: PaymentStatus) => void): Promise<boolean> {
-  const walletUrl = await getWalletUrl();
+export async function handleSinglePaymentRequest(wallet: Nwc | null, serviceName: string, request: SinglePaymentRequest, database: DatabaseService, resolve: (status: PaymentStatus) => void): Promise<boolean> {
   try {
-    let wallet: Nwc | undefined;
-    let balance: number | undefined;
-
-    if (walletUrl) {
-      wallet = new Nwc(walletUrl);
-      await wallet.getInfo();
-      balance = Number((await wallet.getBalance()));
-    }
-
     let subId = request.content.subscriptionId;
     if (!subId) {
       return true;
@@ -62,12 +52,19 @@ export async function handleSinglePaymentRequest(serviceName: string, request: S
       return false
     }
 
-    if (balance && request.content.amount < balance) {
+    let balance: number | undefined;
+
+    if (wallet) {
+      await wallet.getInfo();
+      balance = Number((await wallet.getBalance()));
+    }
+
+    if (!wallet || !balance || request.content.amount < balance) {
       database.addActivity({
         type: 'pay',
         service_key: request.serviceKey,
         service_name: serviceName,
-        detail: 'Recurrent payment failed: insufficient wallet balance.',
+        detail: 'Recurrent payment failed: wallet not initialized or insufficient balance.',
         date: new Date(),
         amount: Number(request.content.amount),
         currency: request.content.currency.tag,
@@ -78,14 +75,12 @@ export async function handleSinglePaymentRequest(serviceName: string, request: S
 
       resolve(
         new PaymentStatus.Rejected({
-          reason: 'Recurrent payment failed: insufficient wallet balance.'
+          reason: 'Recurrent payment failed: wallet not initialized or insufficient balance.'
         })
       );
 
       return false;
-    }
-
-    if (wallet) {
+    } else {
       // make the payment with nwc
       await wallet.payInvoice(request.content.invoice);
     }

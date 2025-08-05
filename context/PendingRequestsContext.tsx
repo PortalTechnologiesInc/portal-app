@@ -26,7 +26,7 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { DatabaseService, fromUnixSeconds } from '@/services/database';
 import { useDatabaseStatus } from '@/services/database/DatabaseProvider';
 import { useActivities } from '@/context/ActivitiesContext';
-import { useNostrService } from '@/context/NostrServiceContext';
+import { NostrServiceContextType, useNostrService } from '@/context/NostrServiceContext';
 import { useECash } from '@/context/ECashContext';
 import type {
   PendingRequest,
@@ -34,14 +34,15 @@ import type {
   PendingActivity,
   PendingSubscription,
 } from '@/utils/types';
+import { PortalAppManager } from '@/services/PortalAppManager';
 
 // Helper function to get service name with fallback
 const getServiceNameWithFallback = async (
-  nostrService: any,
+  nostrService: NostrServiceContextType,
   serviceKey: string
 ): Promise<string> => {
   try {
-    const serviceName = await nostrService.getServiceName(serviceKey);
+    const serviceName = await nostrService.getServiceName(PortalAppManager.tryGetInstance(), serviceKey);
     return serviceName || 'Unknown Service';
   } catch (error) {
     console.error('Failed to fetch service name:', error);
@@ -268,7 +269,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
           let serviceName = 'Unknown Service';
           try {
-            const fetchedName = await nostrService.getServiceName(paymentRequest.serviceKey);
+            const fetchedName = await nostrService.getServiceName(PortalAppManager.tryGetInstance(), paymentRequest.serviceKey);
             serviceName = fetchedName || 'Unknown Service';
           } catch (e) {
             console.error('Error getting service name:', e);
