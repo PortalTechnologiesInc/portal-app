@@ -7,7 +7,6 @@ export async function handleAuthChallenge(event: AuthChallengeEvent, database: D
 }
 
 export async function handleSinglePaymentRequest(wallet: Nwc | null, request: SinglePaymentRequest, database: DatabaseService, resolve: (status: PaymentStatus) => void, getServiceName: (app: PortalAppInterface, serviceKey: string) => Promise<string | null>, app: PortalAppInterface): Promise<boolean> {
-  const walletUrl = await getWalletUrl();
   try {
     let subId = request.content.subscriptionId;
     if (!subId) {
@@ -78,7 +77,7 @@ export async function handleSinglePaymentRequest(wallet: Nwc | null, request: Si
         type: 'pay',
         service_key: request.serviceKey,
         service_name: serviceName,
-        detail: 'Recurrent payment failed: insufficient wallet balance.',
+        detail: 'Recurrent payment failed: wallet not initialized or insufficient balance.',
         date: new Date(),
         amount: Number(amountSats),
         currency: request.content.currency.tag,
@@ -89,7 +88,7 @@ export async function handleSinglePaymentRequest(wallet: Nwc | null, request: Si
 
       resolve(
         new PaymentStatus.Rejected({
-          reason: 'Recurrent payment failed: insufficient wallet balance.'
+          reason: 'Recurrent payment failed: wallet not initialized or insufficient balance.'
         })
       );
 

@@ -223,6 +223,7 @@
             shellHook = ''
               export PATH="$HOME/.npm-global/bin:$PATH"
               export PATH="./node_modules/.bin:$PATH"
+              export LANG=en_US.UTF-8
               npm config set prefix "$HOME/.npm-global"
 
               if ! command -v npx expo &> /dev/null; then
