@@ -262,11 +262,11 @@ export default function NostrRelayManagementScreen() {
             style={styles.relayScrollView}
           >
             <View style={styles.relayListContainer}>
-              {itemRows.map((row) => (
-                <View style={styles.relayRow}>
+              {itemRows.map((row, rowIndex) => (
+                <View key={`row-${rowIndex}`} style={styles.relayRow}>
                   {row.map((relay, index) => (
                     <TouchableOpacity
-                      key={index}
+                      key={`relay-${rowIndex}-${index}-${relay}`}
                       style={[
                         styles.relayItem,
                         {
