@@ -876,7 +876,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
       const newTimeoutId = setTimeout(() => {
         setIsLoadingRequest(false);
         setRequestFailed(true);
-      }, 10000);
+      }, 15000);
 
       setTimeoutId(newTimeoutId);
     },
