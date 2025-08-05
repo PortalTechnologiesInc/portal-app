@@ -170,7 +170,7 @@ export class LocalClosedRecurringPaymentListener implements ClosedRecurringPayme
 // Note: WalletInfo and WalletInfoState are now imported from centralized types
 
 // Context type definition
-interface NostrServiceContextType {
+export interface NostrServiceContextType {
   isInitialized: boolean;
   isWalletConnected: boolean;
   publicKey: string | null;
@@ -671,7 +671,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                   });
                 };
 
-                handleSinglePaymentRequest(serviceName, event, DB, resolver).then(askUser => {
+                handleSinglePaymentRequest(nwcWallet, serviceName, event, DB, resolver).then(askUser => {
                   if (askUser) {
                     const newRequest: PendingRequest = {
                       id,
@@ -883,33 +883,15 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         }
 
         // Step 2: Check relay connection status before attempting network fetch
-        if (!relayStatuses.length || relayStatuses.every(r => r.status === 'Disconnected')) {
+        if (!relayStatusesRef.current.length || relayStatusesRef.current.every(r => r.status != 'Connected')) {
           console.warn('DEBUG: No relays connected, cannot fetch service profile for:', pubKey);
           throw new Error(
             'No relay connections available. Please check your internet connection and try again.'
           );
         }
 
-        // Check if at least one relay is connected
-        let connectedCount = 0;
-        for (const relay of relayStatuses) {
-          if (relay.status === 'Connected') {
-            connectedCount++;
-          }
-        }
-
-        if (connectedCount === 0) {
-          console.warn(
-            'DEBUG: No relays in Connected state, cannot fetch service profile for:',
-            pubKey
-          );
-          throw new Error(
-            'No relay connections available. Please check your internet connection and try again.'
-          );
-        }
-
         console.log('DEBUG: NostrService.getServiceName fetching from network for pubKey:', pubKey);
-        console.log('DEBUG: Connected relays:', connectedCount, '/', relayStatuses.length);
+        console.log('DEBUG: Connected relays:', connectedCount, '/', relayStatusesRef.current.length);
 
         // Step 3: Fetch from network
         const profile = await app.fetchProfile(pubKey);
