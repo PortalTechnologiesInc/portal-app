@@ -216,7 +216,8 @@
         };
 
         devShells = {
-          ios = pkgs.mkShell {
+          ios = pkgs.stdenvNoCC.mkDerivation {
+            name = "portal-ios-dev-shell";
             buildInputs = with pkgs; [ nodejs cocoapods ];
 
             shellHook = ''
@@ -233,6 +234,8 @@
               unset DEVELOPER_DIR
               # We want to use stuff from the xcode wrapper over nixpkgs
               export PATH=${xcodewrapper}/bin:$PATH
+
+              echo "Using Xcode toolchain from: ${xcodewrapper}"
             '';
           };
           default = pkgs.mkShell rec {
