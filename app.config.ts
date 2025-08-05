@@ -62,6 +62,12 @@ export default {
       favicon: './assets/images/favicon.png',
     },
     plugins: [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app accesses your photos to let you upload your profile picture."
+        }
+      ],
       'expo-router',
       [
         'expo-splash-screen',
