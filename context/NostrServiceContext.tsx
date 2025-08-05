@@ -876,6 +876,17 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         throw new Error('PortalApp not initialized');
       }
 
+      // let's try for 30 times. One every .5 sec should timeout after 15 secs.
+      let attempt = 0;
+      while (relayStatusesRef.current.every(r => !url.relays.includes(r.url) || r.status != 'Connected')) {
+        if (attempt >= 30) {
+          return
+        }
+        console.log(`🤝 Try #${attempt}. Handshake request delayed. No relay connected!`);
+        await new Promise(resolve => setTimeout(resolve, 500));
+        attempt++;
+      }
+
       console.log('Sending auth init', url);
       return portalApp.sendKeyHandshake(url);
     },
