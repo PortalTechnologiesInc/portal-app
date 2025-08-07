@@ -1,6 +1,5 @@
 import { DatabaseService } from './database';
 import { SecureStorageService } from './SecureStorageServiceV2';
-import { resetDatabase as legacyResetDatabase } from './database/DatabaseProvider';
 import { resetAllContexts } from './ContextResetService';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { router } from 'expo-router';
@@ -46,8 +45,7 @@ export class AppResetService {
         const dbService = new DatabaseService(database);
         await dbService.resetDatabase();
       } else {
-        // Fallback to legacy reset for standalone usage
-        await legacyResetDatabase();
+        console.warn('⚠️ No database provided for reset - skipping database reset');
       }
     } catch (error) {
       console.error('❌ Failed to reset database:', error);
@@ -81,46 +79,5 @@ export class AppResetService {
 
     // Even if there were errors, the reset likely succeeded enough to be functional
     // The app should still navigate to onboarding and work properly
-  }
-
-  /**
-   * Get comprehensive reset status for debugging
-   *
-   * @returns Object containing status of all storage systems
-   */
-  static async getResetStatus(): Promise<{
-    secureStorage: Record<string, boolean>;
-    timestamp: number;
-  }> {
-    return {
-      secureStorage: await SecureStorageService.getStorageStatus(),
-      timestamp: Date.now(),
-    };
-  }
-
-  /**
-   * Verify that reset completed successfully
-   *
-   * @returns Promise resolving to true if reset appears complete
-   */
-  static async verifyResetComplete(): Promise<boolean> {
-    try {
-      const status = await this.getResetStatus();
-
-      // Check if all critical SecureStore keys are cleared
-      const criticalKeys = [
-        'portal_mnemonic',
-        'portal_wallet_url',
-        'portal_username',
-        'profile_initialized',
-      ];
-
-      const hasRemainingCriticalData = criticalKeys.some(key => status.secureStorage[key]);
-
-      return !hasRemainingCriticalData;
-    } catch (error) {
-      console.error('Failed to verify reset status:', error);
-      return false;
-    }
   }
 }

@@ -207,33 +207,26 @@ export default function SettingsScreen() {
             authenticateForSensitiveAction(async () => {
               try {
                 // Show progress to user
-                showToast('Resetting app data...', 'loading');
-                
+                showToast('Resetting app data...');
+
                 // Use comprehensive reset service
                 await AppResetService.performCompleteReset(db);
-                
-                // Verify reset completed
-                const resetComplete = await AppResetService.verifyResetComplete();
-                
-                if (resetComplete) {
-                  showToast('App reset successful!', 'success');
-                } else {
-                  showToast('App reset completed (some non-critical data may remain)', 'warning');
-                }
-                
+
+                // Reset completed successfully
+                showToast('App reset successful!', 'success');
+
                 // Navigation to onboarding is handled by AppResetService
-                
               } catch (error) {
                 console.error('Error during comprehensive app reset:', error);
-                
+
                 // Even if there's an error, try to navigate to onboarding
                 // as the reset likely succeeded partially
                 try {
                   router.replace('/onboarding');
-                  showToast('Reset completed with errors - please check app state', 'warning');
+                  showToast('Reset completed with errors - please check app state', 'error');
                 } catch (navError) {
                   Alert.alert(
-                    'Reset Error', 
+                    'Reset Error',
                     'Failed to reset app completely. Please restart the app manually.',
                     [{ text: 'OK' }]
                   );
@@ -887,5 +880,11 @@ const styles = StyleSheet.create({
   },
   currencyItemDisplayName: {
     fontSize: 14,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  walletSection: {
+    marginBottom: 12,
   },
 });

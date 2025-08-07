@@ -119,14 +119,6 @@ export class DatabaseService {
     }
   }
 
-  /**
-   * @deprecated Use resetDatabase() instead
-   */
-  async dropAllTables(): Promise<void> {
-    console.warn('dropAllTables() is deprecated, use resetDatabase() instead');
-    return this.resetDatabase();
-  }
-
   // Activity methods
   async addActivity(activity: Omit<ActivityWithDates, 'id' | 'created_at'>): Promise<string> {
     try {
