@@ -57,6 +57,7 @@ import {
   handleRecurringPaymentRequest,
   handleSinglePaymentRequest,
 } from '@/services/EventFilters';
+import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 
 // Constants and helper classes from original NostrService
 const DEFAULT_RELAYS = [
@@ -272,6 +273,45 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
   // Track last reconnection attempts to prevent spam
   const lastReconnectAttempts = useRef<Map<string, number>>(new Map());
+
+  // Reset all NostrService state to initial values
+  // This is called during app reset to ensure clean state
+  const resetNostrService = () => {
+    console.log('🔄 Resetting NostrService state...');
+
+    // Reset all state to initial values
+    setPortalApp(null);
+    setIsInitialized(false);
+    setPublicKey(null);
+    setPendingRequests({});
+    setNwcWallet(null);
+    setAppIsActive(true);
+    setWalletInfo({
+      data: null,
+      isLoading: false,
+      error: null,
+      lastUpdated: null,
+    });
+    setRelayStatuses([]);
+    setNwcRelayStatus(null);
+    setKeypair(null);
+    setReinitKey(k => k + 1);
+    setRemovedRelays(new Set());
+
+    // Clear reconnection attempts tracking
+    lastReconnectAttempts.current.clear();
+
+    console.log('✅ NostrService state reset completed');
+  };
+
+  // Register/unregister context reset function
+  useEffect(() => {
+    registerContextReset(resetNostrService);
+
+    return () => {
+      unregisterContextReset(resetNostrService);
+    };
+  }, []);
 
   class NwcRelayStatusListener implements RelayStatusListener {
     onRelayStatusChange(relay_url: string, status: number): Promise<void> {
@@ -878,9 +918,11 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
       // let's try for 30 times. One every .5 sec should timeout after 15 secs.
       let attempt = 0;
-      while (relayStatusesRef.current.every(r => !url.relays.includes(r.url) || r.status != 'Connected')) {
+      while (
+        relayStatusesRef.current.every(r => !url.relays.includes(r.url) || r.status != 'Connected')
+      ) {
         if (attempt >= 30) {
-          return
+          return;
         }
         console.log(`🤝 Try #${attempt}. Handshake request delayed. No relay connected!`);
         await new Promise(resolve => setTimeout(resolve, 500));
