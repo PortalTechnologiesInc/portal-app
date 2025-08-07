@@ -37,9 +37,9 @@ export default [
     },
     plugins: {
       '@typescript-eslint': typescript,
-      'react': react,
+      react: react,
       'react-hooks': reactHooks,
-      'prettier': prettier,
+      prettier: prettier,
     },
     rules: {
       // TypeScript recommended rules
@@ -56,7 +56,7 @@ export default [
 
       // Custom rules from legacy config
       'react/react-in-jsx-scope': 'off',
-      
+
       // Allow require() in React Native context
       '@typescript-eslint/no-require-imports': 'off',
     },
@@ -89,9 +89,9 @@ export default [
       },
     },
     plugins: {
-      'react': react,
+      react: react,
       'react-hooks': reactHooks,
-      'prettier': prettier,
+      prettier: prettier,
     },
     rules: {
       // React recommended rules

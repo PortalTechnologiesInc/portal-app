@@ -123,4 +123,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingRight: 4,
   },
-}); 
+});

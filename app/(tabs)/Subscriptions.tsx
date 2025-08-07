@@ -28,7 +28,10 @@ export default function SubscriptionsScreen() {
   const handleFilterArchived = useCallback(() => setFilter('archived'), []);
 
   const filteredSubscriptions = useMemo(
-    () => (filter === 'active' ? subscriptions.filter(item => item.status === 'active') : subscriptions.filter(item => item.status === 'cancelled' || item.status === 'expired')),
+    () =>
+      filter === 'active'
+        ? subscriptions.filter(item => item.status === 'active')
+        : subscriptions.filter(item => item.status === 'cancelled' || item.status === 'expired'),
     [filter, subscriptions]
   );
 
@@ -75,15 +78,15 @@ export default function SubscriptionsScreen() {
               {parsedCalendar.toHumanReadable(false)}
             </ThemedText>
 
-            {
-              item.status == 'active' ? 
-                <ThemedText style={[styles.nextPayment, { color: secondaryTextColor }]}>
-                  Next payment: {formatDayAndDate(nextPayment)}
-                </ThemedText> :
-                <ThemedText style={[styles.nextPayment, { color: secondaryTextColor }]}>
-                  Subscription {item.status}
-                </ThemedText>
-            }
+            {item.status == 'active' ? (
+              <ThemedText style={[styles.nextPayment, { color: secondaryTextColor }]}>
+                Next payment: {formatDayAndDate(nextPayment)}
+              </ThemedText>
+            ) : (
+              <ThemedText style={[styles.nextPayment, { color: secondaryTextColor }]}>
+                Subscription {item.status}
+              </ThemedText>
+            )}
           </View>
         </TouchableOpacity>
       );
@@ -120,8 +123,7 @@ export default function SubscriptionsScreen() {
             style={[
               styles.filterChip,
               {
-                backgroundColor:
-                  filter === 'active' ? buttonPrimaryColor : buttonSecondaryColor,
+                backgroundColor: filter === 'active' ? buttonPrimaryColor : buttonSecondaryColor,
               },
             ]}
             onPress={handleFilterActive}
@@ -131,10 +133,7 @@ export default function SubscriptionsScreen() {
               style={[
                 styles.filterChipText,
                 {
-                  color:
-                    filter === 'archived'
-                      ? buttonPrimaryTextColor
-                      : buttonSecondaryTextColor,
+                  color: filter === 'archived' ? buttonPrimaryTextColor : buttonSecondaryTextColor,
                 },
               ]}
             >
@@ -145,8 +144,7 @@ export default function SubscriptionsScreen() {
             style={[
               styles.filterChip,
               {
-                backgroundColor:
-                  filter === 'archived' ? buttonPrimaryColor : buttonSecondaryColor,
+                backgroundColor: filter === 'archived' ? buttonPrimaryColor : buttonSecondaryColor,
               },
             ]}
             onPress={handleFilterArchived}
@@ -156,10 +154,7 @@ export default function SubscriptionsScreen() {
               style={[
                 styles.filterChipText,
                 {
-                  color:
-                    filter === 'archived'
-                      ? buttonPrimaryTextColor
-                      : buttonSecondaryTextColor,
+                  color: filter === 'archived' ? buttonPrimaryTextColor : buttonSecondaryTextColor,
                 },
               ]}
             >

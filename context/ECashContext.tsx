@@ -8,6 +8,7 @@ import {
 } from 'portal-app-lib';
 import { useSQLiteContext } from 'expo-sqlite';
 import { DatabaseService } from '@/services/database';
+import { useDatabaseStatus } from '@/services/database/DatabaseProvider';
 
 interface WalletKey {
   mintUrl: string;
@@ -35,15 +36,21 @@ const ECashContext = createContext<ECashContextType | undefined>(undefined);
 export function ECashProvider({ children, mnemonic }: { children: ReactNode; mnemonic: string }) {
   const [wallets, setWallets] = useState<{ [key: string]: CashuWalletInterface }>({});
   const [isLoading, setIsLoading] = useState(false);
-
   const sqliteContext = useSQLiteContext();
   const DB = new DatabaseService(sqliteContext);
+  const dbStatus = useDatabaseStatus();
 
   useEffect(() => {
     const fetchWallets = async () => {
       console.log('ECashContext: Starting wallet fetch...');
       setIsLoading(true);
       try {
+        // Check if database is ready before accessing it
+        if (!dbStatus.isDbInitialized) {
+          console.log('ECashContext: Database not ready yet, skipping wallet fetch');
+          return;
+        }
+
         const pairList = await DB.getMintUnitPairs();
         console.log('ECashContext: Loading wallets from pairs:', pairList);
 
@@ -71,7 +78,7 @@ export function ECashProvider({ children, mnemonic }: { children: ReactNode; mne
     };
 
     fetchWallets();
-  }, []);
+  }, [dbStatus.isDbInitialized]); // Add database status as dependency
 
   // Add a new wallet
   const addWallet = async (mintUrl: string, unit: string): Promise<CashuWalletInterface> => {

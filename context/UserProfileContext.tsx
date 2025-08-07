@@ -6,6 +6,7 @@ import { useNostrService } from './NostrServiceContext';
 import { formatAvatarUri, generateRandomGamertag } from '@/utils';
 import { keyToHex } from 'portal-app-lib';
 import type { ProfileSyncStatus } from '@/utils/types';
+import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 
 // Helper function to validate image
 const validateImage = async (uri: string): Promise<{ isValid: boolean; error?: string }> => {
@@ -83,6 +84,7 @@ type UserProfileContextType = {
   fetchProfile: (
     publicKey: string
   ) => Promise<{ found: boolean; username?: string; displayName?: string; avatarUri?: string }>;
+  resetProfile: () => void; // Add reset method to clear all profile state
 };
 
 const UserProfileContext = createContext<UserProfileContextType | null>(null);
@@ -98,6 +100,35 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [networkUsername, setNetworkUsername] = useState<string>('');
   const [networkDisplayName, setNetworkDisplayName] = useState<string>('');
   const [networkAvatarUri, setNetworkAvatarUri] = useState<string | null>(null);
+
+  // Reset all profile state to initial values
+  // This is called during app reset to ensure clean state
+  const resetProfile = () => {
+    console.log('🔄 Resetting UserProfile state...');
+    
+    // Reset local state to initial values
+    setUsernameState('');
+    setDisplayNameState('');
+    setAvatarUriState(null);
+    setSyncStatus('idle');
+    setAvatarRefreshKey(Date.now());
+    
+    // Reset network state tracking
+    setNetworkUsername('');
+    setNetworkDisplayName('');
+    setNetworkAvatarUri(null);
+    
+    console.log('✅ UserProfile state reset completed');
+  };
+
+  // Register/unregister context reset function
+  useEffect(() => {
+    registerContextReset(resetProfile);
+    
+    return () => {
+      unregisterContextReset(resetProfile);
+    };
+  }, []);
 
   const nostrService = useNostrService();
 
@@ -620,6 +651,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setAvatarUri,
         setProfile,
         fetchProfile,
+        resetProfile,
       }}
     >
       {children}

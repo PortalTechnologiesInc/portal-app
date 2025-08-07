@@ -87,29 +87,29 @@ export function useCurrency() {
 
 /**
  * Usage Examples:
- * 
+ *
  * // In any component that needs currency information:
  * import { useCurrency } from '@/context/CurrencyContext';
- * 
+ *
  * function MyComponent() {
- *   const { 
- *     preferredCurrency, 
- *     setPreferredCurrency, 
+ *   const {
+ *     preferredCurrency,
+ *     setPreferredCurrency,
  *     getNextCurrency,
  *     getCurrentCurrencySymbol,
  *     getCurrentCurrencyDisplayName,
- *     formatAmount 
+ *     formatAmount
  *   } = useCurrency();
- * 
+ *
  *   // Display formatted amount with preferred currency
  *   const displayPrice = formatAmount(100); // e.g., "$100" or "€100"
- * 
+ *
  *   // Cycle to next currency
  *   const handleCurrencyChange = () => {
  *     const nextCurrency = getNextCurrency();
  *     setPreferredCurrency(nextCurrency);
  *   };
- * 
+ *
  *   return (
  *     <View>
  *       <Text>Price: {displayPrice}</Text>
@@ -118,4 +118,4 @@ export function useCurrency() {
  *     </View>
  *   );
  * }
- */ 
+ */
