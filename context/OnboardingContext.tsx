@@ -41,7 +41,7 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     try {
       // Update local state FIRST to prevent flash
       setIsOnboardingComplete(true);
-      
+
       // Then update SecureStore
       await SecureStore.setItemAsync(ONBOARDING_KEY, 'true');
 
@@ -50,7 +50,7 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // Small delay to ensure state propagation
       await new Promise(resolve => setTimeout(resolve, 50));
-      
+
       // Navigate to home
       router.replace('/');
     } catch (e) {
@@ -65,10 +65,10 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     try {
       // Update local state first
       setIsOnboardingComplete(false);
-      
+
       // Then update SecureStore
       await SecureStore.setItemAsync(ONBOARDING_KEY, 'false');
-      
+
       // Navigate to onboarding
       router.replace('/onboarding');
     } catch (e) {

@@ -7,24 +7,28 @@ Portal is a mobile identity wallet for secure authentication and payments using 
 ## ✨ Features
 
 ### 🔐 Authentication & Identity
+
 - **Nostr Authentication**: Cryptographically secure authentication with websites and services
 - **Biometric Security**: Face ID, Touch ID, and fingerprint authentication
 - **Secure Key Management**: Private keys never leave your device
 - **Identity Management**: Complete control over your digital identity
 
 ### 💳 Payments & Subscriptions
+
 - **Lightning Payments**: One-time Bitcoin Lightning Network payments
 - **Subscription Management**: Monitor and control recurring payments
 - **Payment Status Tracking**: Real-time payment status with Revolut-style UI
 - **Wallet Integration**: Seamless NWC (Nostr Wallet Connect) integration
 
 ### 📱 User Experience
+
 - **Activity Dashboard**: Comprehensive tracking of all authentications and payments
 - **QR Code Scanner**: Quick authentication and payment initiation
 - **Dark/Light Theme**: Adaptive theme system with system preference support
 - **Intuitive Navigation**: Tab-based navigation with detailed activity views
 
 ### 🔒 Security & Privacy
+
 - **Local Storage**: All sensitive data stored securely on device
 - **Biometric Protection**: Additional security layer for sensitive operations
 - **No Data Sharing**: Zero personal data shared without explicit consent
@@ -33,22 +37,26 @@ Portal is a mobile identity wallet for secure authentication and payments using 
 ## 🛠 Technology Stack
 
 ### Core Technologies
+
 - **[React Native](https://reactnative.dev/)** - Cross-platform mobile development
 - **[Expo](https://expo.dev/)** - Development platform and SDK
 - **[TypeScript](https://www.typescriptlang.org/)** - Type-safe development
 - **[Expo Router](https://docs.expo.dev/router/introduction/)** - File-based navigation
 
 ### Storage & Security
+
 - **[Expo SQLite](https://docs.expo.dev/versions/latest/sdk/sqlite/)** - Local database storage
 - **[Expo SecureStore](https://docs.expo.dev/versions/latest/sdk/securestore/)** - Secure key storage
 - **[Expo LocalAuthentication](https://docs.expo.dev/versions/latest/sdk/local-authentication/)** - Biometric authentication
 
 ### Nostr & Payments
+
 - **[Nostr Protocol](https://nostr.com)** - Decentralized identity and messaging
 - **[Custom Rust lib](https://github.com/PortalTechnologiesInc/lib)** - Core Nostr logic and cryptography
 - **NWC Integration** - Nostr Wallet Connect for Lightning payments
 
 ### UI & Theming
+
 - **[Lucide React Native](https://lucide.dev/)** - Beautiful icon library
 - **Custom Theme System** - Adaptive dark/light theme support
 - **Safe Area Context** - Proper device-safe rendering
@@ -65,29 +73,33 @@ Portal is a mobile identity wallet for secure authentication and payments using 
 ### Installation
 
 1. **Clone the repository**:
+
    ```bash
    git clone https://github.com/PortalTechnologiesInc/Portal-App.git
    cd Portal-App
    ```
 
 2. **Install dependencies**:
+
    ```bash
    npm install
    ```
 
 3. **Start the development server**:
+
    ```bash
    npx expo start
    ```
 
 4. **Run on device/simulator**:
+
    ```bash
    # iOS
    npx expo run:ios
-   
+
    # Android
    npx expo run:android
-   
+
    # Web (development only)
    npx expo start --web
    ```
@@ -95,17 +107,20 @@ Portal is a mobile identity wallet for secure authentication and payments using 
 ## 📱 Usage Guide
 
 ### First-Time Setup
+
 1. **Generate Identity**: Create a new Nostr private key or import existing seed phrase
-3. **Profile Configuration**: Set up your identity information
-4. **Wallet Connection**: Connect your NWC-compatible Lightning wallet
+2. **Profile Configuration**: Set up your identity information
+3. **Wallet Connection**: Connect your NWC-compatible Lightning wallet
 
 ### Authentication Flow
+
 1. **Scan QR Code**: Use built-in scanner from website or service
 2. **Review Request**: Examine authentication details and permissions
 3. **Biometric Confirmation**: Confirm with Face ID/Touch ID
 4. **Approve/Deny**: Complete the authentication process
 
 ### Payment Management
+
 1. **Payment Requests**: Review incoming payment requests
 2. **Status Tracking**: Monitor payment progress with real-time updates
 3. **Subscription Control**: Manage recurring payments and subscriptions
@@ -140,6 +155,7 @@ portal-app/
 ```
 
 ### State Management
+
 - **Context-based Architecture**: Multiple specialized contexts for different domains
 - **SQLite Database**: Persistent storage for activities, subscriptions, and user data
 - **Secure Storage**: Encrypted storage for sensitive keys and tokens
@@ -170,6 +186,7 @@ npm run build
 ### Key Development Patterns
 
 #### Theme-Aware Components
+
 ```typescript
 import { useThemeColor } from '@/hooks/useThemeColor';
 
@@ -178,6 +195,7 @@ const textColor = useThemeColor({}, 'textPrimary');
 ```
 
 #### Database Operations
+
 ```typescript
 import { DatabaseService } from '@/services/database';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -187,6 +205,7 @@ const dbService = new DatabaseService(db);
 ```
 
 #### Biometric Authentication
+
 ```typescript
 import { BiometricAuthService } from '@/services/BiometricAuthService';
 

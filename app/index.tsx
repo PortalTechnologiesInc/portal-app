@@ -20,18 +20,18 @@ export default function Index() {
       try {
         // Check if app was opened with a deeplink
         const initialUrl = await Linking.getInitialURL();
-        
+
         if (initialUrl && !isDevelopmentDeeplink(initialUrl)) {
           // App was opened with a real deeplink (not development), let the deeplink handler manage navigation
           console.log('App opened with deeplink, preventing index redirect:', initialUrl);
           setHasDeeplink(true);
           return;
         }
-        
+
         if (initialUrl) {
           console.log('Development deeplink detected, ignoring:', initialUrl);
         }
-        
+
         setHasDeeplink(false);
       } catch (error) {
         console.error('Error checking for deeplink:', error);

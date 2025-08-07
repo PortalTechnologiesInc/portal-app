@@ -57,6 +57,12 @@ export const PendingRequestsList: React.FC = React.memo(() => {
     const db = new DatabaseService(sqliteContext);
 
     const processData = async () => {
+      // Check if database is ready before accessing it
+      if (!dbStatus.isDbInitialized) {
+        console.log('Database not ready yet, skipping pending requests processing');
+        return;
+      }
+
       // Get sorted requests
       const sortedRequests = Object.values(nostrService.pendingRequests)
         .filter(request => {
@@ -80,10 +86,17 @@ export const PendingRequestsList: React.FC = React.memo(() => {
           }
 
           // For other request types, check if they're stored
-          if (await db.isPendingRequestStored((request.metadata as SinglePaymentRequest).eventId)) {
-            return null; // Request is stored, so filter it out
+          try {
+            if (
+              await db.isPendingRequestStored((request.metadata as SinglePaymentRequest).eventId)
+            ) {
+              return null; // Request is stored, so filter it out
+            }
+            return request; // Request is not stored, so keep it
+          } catch (error) {
+            console.error('Error checking if request is stored:', error);
+            return request; // On error, keep the request
           }
-          return request; // Request is not stored, so keep it
         })
       );
 

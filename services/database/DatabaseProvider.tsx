@@ -395,7 +395,11 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
       setDbInitialized(true);
     } catch (error) {
       console.error('Database migration failed:', error);
-      setDbInitialized(false);
+      // Even if migration fails, try to set as initialized to prevent blocking the app
+      console.warn(
+        'Setting database as initialized despite migration errors to prevent app blocking'
+      );
+      setDbInitialized(true);
     } finally {
       setIsDbInitializing(false);
     }

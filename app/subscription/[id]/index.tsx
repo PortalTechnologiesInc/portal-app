@@ -21,6 +21,7 @@ import { DatabaseService, fromUnixSeconds, type SubscriptionWithDates } from '@/
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { PortalAppManager } from '@/services/PortalAppManager';
 import { CircleX, Hourglass } from 'lucide-react-native';
+import { useDatabaseStatus } from '@/services/database/DatabaseProvider';
 
 // Mock payment history for a subscription
 interface PaymentHistory {
@@ -51,18 +52,28 @@ export default function SubscriptionDetailScreen() {
   const orangeColor = Colors.orange;
 
   const sqliteContext = useSQLiteContext();
+  const dbStatus = useDatabaseStatus();
 
   const DB = useMemo(() => new DatabaseService(sqliteContext), [sqliteContext]);
 
   useEffect(() => {
-    if (id) {
-      // Get the subscription with the matching ID
+    const refreshData = async () => {
+      setLoading(true);
+
+      // Check if database is ready before accessing it
+      if (!dbStatus.isDbInitialized) {
+        console.log('Database not ready yet, skipping subscription data fetch');
+        setLoading(false);
+        return;
+      }
+
       const foundSubscription = subscriptions.find(sub => sub.id === id);
 
       if (foundSubscription) {
         setSubscription(foundSubscription);
 
-        DB.getSubscriptionPayments(id as string).then(payments =>
+        try {
+          const payments = await DB.getSubscriptionPayments(id as string);
           setPaymentHistory(
             payments.map(payment => ({
               id: payment.id,
@@ -71,13 +82,17 @@ export default function SubscriptionDetailScreen() {
               status: 'completed',
               date: payment.date.getTime(),
             }))
-          )
-        );
+          );
+        } catch (error) {
+          console.error('Error fetching subscription payments:', error);
+        }
       }
 
       setLoading(false);
-    }
-  }, [id, subscriptions, DB]);
+    };
+
+    refreshData();
+  }, [id, subscriptions, DB, dbStatus.isDbInitialized]); // Add database status as dependency
 
   const handleBackPress = () => {
     router.back();
@@ -100,7 +115,10 @@ export default function SubscriptionDetailScreen() {
             try {
               await DB.updateSubscriptionStatus(subscription.id, 'cancelled');
               refreshData();
-              PortalAppManager.tryGetInstance().closeRecurringPayment(subscription.service_key, subscription.id);
+              PortalAppManager.tryGetInstance().closeRecurringPayment(
+                subscription.service_key,
+                subscription.id
+              );
             } catch (error) {
               console.error(error);
             }
@@ -231,7 +249,7 @@ export default function SubscriptionDetailScreen() {
               {subscription.status === 'expired' && (
                 <ThemedText style={[styles.detail, { color: orangeColor }]}>
                   <View style={[styles.iconContainer]}>
-                  <Hourglass size={20} color={orangeColor} />
+                    <Hourglass size={20} color={orangeColor} />
                   </View>
                   Subscription expired
                 </ThemedText>
