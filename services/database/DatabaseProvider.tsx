@@ -20,31 +20,6 @@ const DatabaseContext = createContext<DatabaseContextType>({
 // Hook to consume the database context
 export const useDatabaseStatus = () => useContext(DatabaseContext);
 
-/**
- * @deprecated Use AppResetService.performCompleteReset() instead
- * Legacy utility function to reset database tables - incomplete and will be removed
- */
-export const resetDatabase = async (): Promise<void> => {
-  console.warn('resetDatabase() is deprecated and incomplete. Use AppResetService.performCompleteReset() instead.');
-  
-  try {
-    console.log('Attempting legacy database reset...');
-    const db = await openDatabaseAsync(DATABASE_NAME);
-
-    // Import the comprehensive reset SQL from StorageRegistry
-    const { generateResetSQL } = await import('../StorageRegistry');
-    const resetSQL = generateResetSQL();
-    
-    await db.execAsync(resetSQL);
-
-    console.log('Legacy database reset completed successfully');
-    await db.closeAsync();
-  } catch (error) {
-    console.error('Failed to reset database:', error);
-    throw error;
-  }
-};
-
 interface DatabaseProviderProps {
   children: ReactNode;
 }
@@ -400,7 +375,9 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
           CREATE INDEX IF NOT EXISTS idx_activities_status ON activities(status);
         `);
         currentDbVersion = 12;
-        console.log('Created payment_status table and added status column to activities - now at version 12');
+        console.log(
+          'Created payment_status table and added status column to activities - now at version 12'
+        );
       }
 
       if (currentDbVersion <= 12) {
