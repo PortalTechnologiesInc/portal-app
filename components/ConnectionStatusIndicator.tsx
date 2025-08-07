@@ -72,6 +72,7 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
     connectedCount,
     removedRelays,
     refreshWalletInfo,
+    checkAndReconnectRelays,
   } = useNostrService();
 
   // Filter out removed relays from relay statuses (defensive programming)
@@ -115,13 +116,16 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
     console.log('🔄 ConnectionStatusIndicator: Component mounted - refreshing wallet info');
     refreshWalletInfo();
 
+    // Check and reconnect relays if needed (Android background kill scenario)
+    checkAndReconnectRelays();
+
     // Listen for app state changes
     const subscription = AppState.addEventListener('change', handleAppStateChange);
 
     return () => {
       subscription?.remove();
     };
-  }, [refreshWalletInfo]);
+  }, [refreshWalletInfo, checkAndReconnectRelays]);
 
   // Handle external refresh triggers (e.g., from homepage focus)
   useEffect(() => {

@@ -217,6 +217,7 @@ interface NostrServiceContextType {
   clearRemovedRelay: (relayUrl: string) => void;
   reconnectRelay: (relayUrl: string) => Promise<void>;
   triggerGlobalReconnect: () => Promise<void>;
+  checkAndReconnectRelays: () => Promise<void>;
 }
 
 // Create context with default values
@@ -1258,6 +1259,40 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     }
   }, [portalApp]);
 
+  // Function to check and reconnect relays if needed - can be called from deeplink handlers
+  const checkAndReconnectRelays = useCallback(async () => {
+    if (!portalApp) {
+      console.log('⚠️ No portalApp available for relay check');
+      return;
+    }
+
+    try {
+      console.log('🔍 Checking relay connection status...');
+
+      // Check if any relays are currently connected
+      const currentConnectedCount = relayStatusesRef.current.filter(r => r.connected).length;
+      const hasConnectedRelays = currentConnectedCount > 0;
+
+      console.log(`📊 Current relay status: ${currentConnectedCount} connected relays`);
+
+      if (!hasConnectedRelays) {
+        // No relays connected - Android likely killed WebSocket connections
+        console.log('🔄 No relays connected - triggering PortalApp reconnect...');
+        if (portalApp.reconnect) {
+          await portalApp.reconnect();
+          console.log('✅ PortalApp reconnect completed');
+        } else {
+          console.log('⚠️ PortalApp reconnect method not available');
+        }
+      } else {
+        // Some relays still connected - Android didn't kill connections
+        console.log(`✅ ${currentConnectedCount} relays already connected - skipping reconnect`);
+      }
+    } catch (error: any) {
+      console.error('❌ Error during relay reconnection check:', error.inner || error.message);
+    }
+  }, [portalApp]);
+
   // Auto-refresh wallet info when wallet connects/changes
   useEffect(() => {
     if (nwcWallet) {
@@ -1358,6 +1393,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     clearRemovedRelay,
     reconnectRelay,
     triggerGlobalReconnect,
+    checkAndReconnectRelays,
   };
 
   return (
