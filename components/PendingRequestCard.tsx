@@ -5,7 +5,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { usePendingRequests } from '../context/PendingRequestsContext';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { useECash } from '@/context/ECashContext';
-import { type SinglePaymentRequest, type RecurringPaymentRequest, Currency_Tags } from 'portal-app-lib';
+import {
+  type SinglePaymentRequest,
+  type RecurringPaymentRequest,
+  Currency_Tags,
+} from 'portal-app-lib';
 import type { PendingRequest } from '@/utils/types';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { Layout } from '@/constants/Layout';
@@ -153,12 +157,13 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
             !serviceName && styles.unknownService,
           ]}
         >
-          {isServiceNameLoading ?
+          {isServiceNameLoading ? (
             <SkeletonPulse
               style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
-
             />
-            : formatServiceName()}
+          ) : (
+            formatServiceName()
+          )}
         </Text>
 
         <Text style={[styles.serviceInfo, { color: secondaryTextColor }]}>
@@ -170,7 +175,9 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
             {isSubscriptionRequest ? (
               <View style={styles.amountRow}>
                 <Text style={[styles.amountText, { color: primaryTextColor }]}>
-                  {content.currency.tag === Currency_Tags.Fiat ? `${Number(amount)} ${content.currency.inner}` : `${Number(amount) / 1000} sats`}
+                  {content.currency.tag === Currency_Tags.Fiat
+                    ? `${Number(amount)} ${content.currency.inner}`
+                    : `${Number(amount) / 1000} sats`}
                 </Text>
                 <Text style={[styles.recurranceText, { color: primaryTextColor }]}>
                   {recurrence?.toLowerCase()}
@@ -178,7 +185,9 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
               </View>
             ) : (
               <Text style={[styles.amountText, { color: primaryTextColor }]}>
-                {content.currency.tag === Currency_Tags.Fiat ? `${Number(amount)} ${content.currency.inner}` : `${Number(amount) / 1000} sats`}
+                {content.currency.tag === Currency_Tags.Fiat
+                  ? `${Number(amount)} ${content.currency.inner}`
+                  : `${Number(amount) / 1000} sats`}
               </Text>
             )}
           </View>

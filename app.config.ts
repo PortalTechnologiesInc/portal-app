@@ -63,10 +63,10 @@ export default {
     },
     plugins: [
       [
-        "expo-image-picker",
+        'expo-image-picker',
         {
-          "photosPermission": "The app accesses your photos to let you upload your profile picture."
-        }
+          photosPermission: 'The app accesses your photos to let you upload your profile picture.',
+        },
       ],
       'expo-router',
       [
@@ -95,12 +95,12 @@ export default {
         },
       ],
       [
-        "react-native-nfc-manager",
+        'react-native-nfc-manager',
         {
-          "nfcPermission": "Portal uses NFC for contactless interactions",
-          "includeNdefEntitlement": false,
-        }
-      ]
+          nfcPermission: 'Portal uses NFC for contactless interactions',
+          includeNdefEntitlement: false,
+        },
+      ],
     ],
     experiments: {
       typedRoutes: true,

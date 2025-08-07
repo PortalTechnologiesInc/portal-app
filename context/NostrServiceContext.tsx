@@ -58,6 +58,7 @@ import {
   handleSinglePaymentRequest,
 } from '@/services/EventFilters';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
+import { useDatabaseStatus } from '@/services/database/DatabaseProvider';
 
 // Constants and helper classes from original NostrService
 const DEFAULT_RELAYS = [
@@ -275,6 +276,9 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   // Track last reconnection attempts to prevent spam
   const lastReconnectAttempts = useRef<Map<string, number>>(new Map());
 
+  // Get database status to ensure database is ready before accessing tables
+  const dbStatus = useDatabaseStatus();
+
   // Reset all NostrService state to initial values
   // This is called during app reset to ensure clean state
   const resetNostrService = () => {
@@ -440,6 +444,17 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
       return;
     }
 
+    // Wait for database to be ready before initializing
+    if (!dbStatus.isDbInitialized) {
+      console.log('Database not ready yet, waiting for initialization...');
+      return;
+    }
+
+    // If database just became ready and we have a mnemonic but no portal app, initialize
+    if (dbStatus.isDbInitialized && mnemonic && !portalApp) {
+      console.log('Database ready, initializing NostrService...');
+    }
+
     const initializeNostrService = async () => {
       try {
         console.log('Initializing NostrService with mnemonic');
@@ -454,12 +469,32 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         setPublicKey(publicKeyStr);
 
         // Create and initialize portal app
+        let relays: string[] = [];
 
-        let relays = (await DB.getRelays()).map(relay => relay.ws_uri);
-        if (relays.length === 0) {
-          DEFAULT_RELAYS.forEach(relay => relays.push(relay));
-          await DB.updateRelays(DEFAULT_RELAYS);
+        try {
+          // Try to get relays from database first
+          const dbRelays = (await DB.getRelays()).map(relay => relay.ws_uri);
+          if (dbRelays.length > 0) {
+            relays = dbRelays;
+          } else {
+            // If no relays in database, use defaults and update database
+            relays = [...DEFAULT_RELAYS];
+            await DB.updateRelays(DEFAULT_RELAYS);
+          }
+        } catch (error) {
+          console.warn('Failed to get relays from database, using defaults:', error);
+          // Fallback to default relays if database access fails
+          relays = [...DEFAULT_RELAYS];
+          // Don't try to update database if it's not ready
+          if (dbStatus.isDbInitialized) {
+            try {
+              await DB.updateRelays(DEFAULT_RELAYS);
+            } catch (updateError) {
+              console.warn('Failed to update relays in database:', updateError);
+            }
+          }
         }
+
         const app = await PortalAppManager.getInstance(
           keypair,
           relays,
@@ -815,11 +850,11 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
     initializeNostrService();
 
+    // Cleanup function
     return () => {
-      console.log('Aborting NostrService initialization');
       abortController.abort();
     };
-  }, [mnemonic, reinitKey]);
+  }, [mnemonic, reinitKey, dbStatus.isDbInitialized]); // Add dbStatus.isDbInitialized to dependencies
 
   useEffect(() => {
     console.log('Updated pending requests:', pendingRequests);

@@ -12,14 +12,14 @@ import { useFocusEffect } from '@react-navigation/native';
 import { ActivityType } from '@/utils';
 
 const ItemList: React.FC = () => {
-  const { 
-    activities, 
-    isDbReady, 
-    refreshData, 
-    loadMoreActivities, 
-    hasMoreActivities, 
+  const {
+    activities,
+    isDbReady,
+    refreshData,
+    loadMoreActivities,
+    hasMoreActivities,
     isLoadingMore,
-    resetToFirstPage
+    resetToFirstPage,
   } = useActivities();
   const [filter, setFilter] = useState<ActivityType | null>(null);
 
@@ -97,19 +97,22 @@ const ItemList: React.FC = () => {
 
   // Memoized list header and footer components
   const ListHeaderComponent = useMemo(() => <View style={{ height: 16 }} />, []);
-  const ListFooterComponent = useMemo(() => (
-    <View style={{ height: 48, alignItems: 'center', justifyContent: 'center' }}>
-      {isLoadingMore ? (
-        <ThemedText style={[styles.loadingText, { color: secondaryTextColor }]}>
-          Loading more activities...
-        </ThemedText>
-      ) : !hasMoreActivities && activities.length > 0 ? (
-        <ThemedText style={[styles.endOfListText, { color: secondaryTextColor }]}>
-          No more activities
-        </ThemedText>
-      ) : null}
-    </View>
-  ), [isLoadingMore, hasMoreActivities, activities.length, secondaryTextColor]);
+  const ListFooterComponent = useMemo(
+    () => (
+      <View style={{ height: 48, alignItems: 'center', justifyContent: 'center' }}>
+        {isLoadingMore ? (
+          <ThemedText style={[styles.loadingText, { color: secondaryTextColor }]}>
+            Loading more activities...
+          </ThemedText>
+        ) : !hasMoreActivities && activities.length > 0 ? (
+          <ThemedText style={[styles.endOfListText, { color: secondaryTextColor }]}>
+            No more activities
+          </ThemedText>
+        ) : null}
+      </View>
+    ),
+    [isLoadingMore, hasMoreActivities, activities.length, secondaryTextColor]
+  );
 
   // link handler
   const handleLinkPress = useCallback((activity: ActivityWithDates) => {
@@ -211,9 +214,7 @@ const ItemList: React.FC = () => {
                 styles.filterChipText,
                 {
                   color:
-                    filter === ActivityType.Pay
-                      ? buttonPrimaryTextColor
-                      : buttonSecondaryTextColor,
+                    filter === ActivityType.Pay ? buttonPrimaryTextColor : buttonSecondaryTextColor,
                 },
               ]}
             >

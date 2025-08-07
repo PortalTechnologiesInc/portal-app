@@ -101,7 +101,7 @@ export default function QRScannerScreen() {
   const showErrorMessage = (message: string) => {
     setErrorMessage(message);
     setShowError(true);
-    
+
     // Hide error after 3 seconds and allow scanning again
     setTimeout(() => {
       setShowError(false);
@@ -162,8 +162,8 @@ export default function QRScannerScreen() {
   };
 
   const getInstructionText = () => {
-    return isWalletMode 
-      ? 'Point your camera at a wallet connection QR code' 
+    return isWalletMode
+      ? 'Point your camera at a wallet connection QR code'
       : 'Point your camera at a Portal authentication QR code';
   };
 
@@ -175,7 +175,9 @@ export default function QRScannerScreen() {
         <FlashlightOff size={24} color={buttonPrimaryText} />
       );
     } else {
-      return <Ionicons name={enableTorch ? 'flash' : 'flash-off'} size={24} color={buttonPrimaryText} />;
+      return (
+        <Ionicons name={enableTorch ? 'flash' : 'flash-off'} size={24} color={buttonPrimaryText} />
+      );
     }
   };
 
@@ -268,18 +270,58 @@ export default function QRScannerScreen() {
             <View style={styles.cameraOverlay}>
               {/* Scanner Frame */}
               <View style={styles.scannerFrame}>
-                <View style={[styles.scannerCorner, styles.topLeft, { 
-                  borderColor: showError ? statusErrorColor : (scanned ? statusConnectedColor : tintColor) 
-                }]} />
-                <View style={[styles.scannerCorner, styles.topRight, { 
-                  borderColor: showError ? statusErrorColor : (scanned ? statusConnectedColor : tintColor) 
-                }]} />
-                <View style={[styles.scannerCorner, styles.bottomLeft, { 
-                  borderColor: showError ? statusErrorColor : (scanned ? statusConnectedColor : tintColor) 
-                }]} />
-                <View style={[styles.scannerCorner, styles.bottomRight, { 
-                  borderColor: showError ? statusErrorColor : (scanned ? statusConnectedColor : tintColor) 
-                }]} />
+                <View
+                  style={[
+                    styles.scannerCorner,
+                    styles.topLeft,
+                    {
+                      borderColor: showError
+                        ? statusErrorColor
+                        : scanned
+                          ? statusConnectedColor
+                          : tintColor,
+                    },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.scannerCorner,
+                    styles.topRight,
+                    {
+                      borderColor: showError
+                        ? statusErrorColor
+                        : scanned
+                          ? statusConnectedColor
+                          : tintColor,
+                    },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.scannerCorner,
+                    styles.bottomLeft,
+                    {
+                      borderColor: showError
+                        ? statusErrorColor
+                        : scanned
+                          ? statusConnectedColor
+                          : tintColor,
+                    },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.scannerCorner,
+                    styles.bottomRight,
+                    {
+                      borderColor: showError
+                        ? statusErrorColor
+                        : scanned
+                          ? statusConnectedColor
+                          : tintColor,
+                    },
+                  ]}
+                />
               </View>
             </View>
           </CameraView>
@@ -291,9 +333,9 @@ export default function QRScannerScreen() {
             <ThemedText style={[styles.instructionText, { color: textSecondary }]}>
               {getInstructionText()}
             </ThemedText>
-            
-            <TouchableOpacity 
-              style={[styles.flashButton, { backgroundColor: buttonPrimary }]} 
+
+            <TouchableOpacity
+              style={[styles.flashButton, { backgroundColor: buttonPrimary }]}
               onPress={toggleTorch}
             >
               {renderFlashIcon()}
@@ -308,10 +350,19 @@ export default function QRScannerScreen() {
         {(scanned || showError) && (
           <View style={styles.statusOverlay}>
             <View style={[styles.statusCard, { backgroundColor: cardBackgroundColor }]}>
-              <ThemedText style={[styles.statusText, { 
-                color: showError ? statusErrorColor : statusConnectedColor 
-              }]}>
-                {showError ? errorMessage : (isWalletMode ? 'Wallet QR Scanned!' : 'QR Code Scanned!')}
+              <ThemedText
+                style={[
+                  styles.statusText,
+                  {
+                    color: showError ? statusErrorColor : statusConnectedColor,
+                  },
+                ]}
+              >
+                {showError
+                  ? errorMessage
+                  : isWalletMode
+                    ? 'Wallet QR Scanned!'
+                    : 'QR Code Scanned!'}
               </ThemedText>
             </View>
           </View>

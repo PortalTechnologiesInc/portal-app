@@ -35,10 +35,10 @@ export default function NFCScanScreen() {
 
   // Animation for glowing NFC icon
   const glowAnimation = useRef(new Animated.Value(1)).current;
-  
+
   // Animation for scan line
   const scanLineAnimation = useRef(new Animated.Value(0)).current;
-  
+
   // Timeout ID tracking to ensure proper cleanup
   const scanTimeouts = useRef<number[]>([]);
 
@@ -52,7 +52,7 @@ export default function NFCScanScreen() {
         callback();
       }
     }, delay) as unknown as number;
-    
+
     // Track the timeout ID for cleanup
     scanTimeouts.current.push(timeoutId);
     return timeoutId;
@@ -64,17 +64,18 @@ export default function NFCScanScreen() {
     scanTimeouts.current = [];
   };
 
-  const scanMessage = isNFCEnabled === null
-    ? 'Checking NFC status...'
-    : isNFCEnabled
-      ? scanState === 'scanning'
-        ? 'Hold your device near an NFC tag to scan'
-        : scanState === 'success'
-        ? 'NFC tag detected successfully!'
-        : scanState === 'error'
-        ? 'Scan failed. Use retry button below to scan again.'
-        : 'Ready to scan NFC tags automatically'
-      : 'Please enable NFC to use this feature';
+  const scanMessage =
+    isNFCEnabled === null
+      ? 'Checking NFC status...'
+      : isNFCEnabled
+        ? scanState === 'scanning'
+          ? 'Hold your device near an NFC tag to scan'
+          : scanState === 'success'
+            ? 'NFC tag detected successfully!'
+            : scanState === 'error'
+              ? 'Scan failed. Use retry button below to scan again.'
+              : 'Ready to scan NFC tags automatically'
+        : 'Please enable NFC to use this feature';
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -150,7 +151,7 @@ export default function NFCScanScreen() {
         {
           text: 'Open Settings',
           onPress: openNFCSettings,
-          style: 'default'
+          style: 'default',
         },
       ]
     );
@@ -178,7 +179,7 @@ export default function NFCScanScreen() {
   const startScanLineAnimation = () => {
     // Reset position
     scanLineAnimation.setValue(0);
-    
+
     Animated.loop(
       Animated.sequence([
         Animated.timing(scanLineAnimation, {
@@ -216,35 +217,38 @@ export default function NFCScanScreen() {
   };
 
   // NFC Status Change Handler
-  const handleNFCStatusChange = useCallback(async (newStatus?: boolean) => {
-    const enabled = newStatus !== undefined ? newStatus : await checkNFCStatus();
+  const handleNFCStatusChange = useCallback(
+    async (newStatus?: boolean) => {
+      const enabled = newStatus !== undefined ? newStatus : await checkNFCStatus();
 
-    if (enabled !== isNFCEnabled) {
-      setIsNFCEnabled(enabled);
-      setIsCheckingNFC(false);
+      if (enabled !== isNFCEnabled) {
+        setIsNFCEnabled(enabled);
+        setIsCheckingNFC(false);
 
-      if (enabled) {
-        // Only show toast if page is focused to prevent navigation issues
-        // if (isPageFocusedRef.current && !isLeavingPageRef.current) {
-        //   showToast('NFC enabled! Starting scan...', 'success');
-        // }
-        setScanState('ready');
-        // Auto-start scanning when NFC becomes enabled
-        addTimeout(() => {
-          startScan();
-        }, 100); // Start almost immediately
-      } else {
-        // Only show toast if page is focused to prevent navigation issues
-        if (isPageFocusedRef.current && !isLeavingPageRef.current) {
-          showToast('NFC disabled', 'error');
+        if (enabled) {
+          // Only show toast if page is focused to prevent navigation issues
+          // if (isPageFocusedRef.current && !isLeavingPageRef.current) {
+          //   showToast('NFC enabled! Starting scan...', 'success');
+          // }
+          setScanState('ready');
+          // Auto-start scanning when NFC becomes enabled
+          addTimeout(() => {
+            startScan();
+          }, 100); // Start almost immediately
+        } else {
+          // Only show toast if page is focused to prevent navigation issues
+          if (isPageFocusedRef.current && !isLeavingPageRef.current) {
+            showToast('NFC disabled', 'error');
+          }
+          setScanState('ready');
+          stopGlowAnimation();
         }
-        setScanState('ready');
-        stopGlowAnimation();
       }
-    }
-  }, [isNFCEnabled]);
+    },
+    [isNFCEnabled]
+  );
 
-    // NFC page focus management - only active when page is visible
+  // NFC page focus management - only active when page is visible
   useFocusEffect(
     useCallback(() => {
       let isListenerActive = false;
@@ -277,7 +281,6 @@ export default function NFCScanScreen() {
             const isEnabled = event.state === 'on' || event.state === 'turning_on';
             handleNFCStatusChange(isEnabled);
           });
-
         } catch (error) {
           console.log('NFC initialization error:', error);
           // Fallback to basic status check
@@ -307,7 +310,7 @@ export default function NFCScanScreen() {
       // Set page as focused and initialize NFC
       console.log('NFC page focused - starting NFC operations');
       setIsPageFocused(true);
-      isPageFocusedRef.current = true;  // Set ref immediately for synchronous access
+      isPageFocusedRef.current = true; // Set ref immediately for synchronous access
       isLeavingPageRef.current = false; // Reset leaving page flag
       initializeNFC();
 
@@ -343,8 +346,8 @@ export default function NFCScanScreen() {
         setScanState('ready');
         setIsCheckingNFC(false);
         setIsPageFocused(false);
-        isPageFocusedRef.current = false;  // Reset ref immediately
-        isLeavingPageRef.current = false;  // Reset leaving page flag
+        isPageFocusedRef.current = false; // Reset ref immediately
+        isLeavingPageRef.current = false; // Reset leaving page flag
 
         // Clear all timeouts
         clearAllTimeouts();
@@ -397,7 +400,8 @@ export default function NFCScanScreen() {
           const typeArray = new Uint8Array(record.type);
           const typeString = String.fromCharCode.apply(null, Array.from(typeArray));
 
-          if (typeString === 'U') { // URI record type
+          if (typeString === 'U') {
+            // URI record type
             const payload = new Uint8Array(record.payload);
             const identifierCode = payload[0];
 
@@ -425,10 +429,14 @@ export default function NFCScanScreen() {
           const typeArray = new Uint8Array(record.type);
           const typeString = String.fromCharCode.apply(null, Array.from(typeArray));
 
-          if (typeString === 'T') { // Text record type
+          if (typeString === 'T') {
+            // Text record type
             const payload = new Uint8Array(record.payload);
-            const languageCodeLength = payload[0] & 0x3F;
-            const text = String.fromCharCode.apply(null, Array.from(payload.slice(1 + languageCodeLength)));
+            const languageCodeLength = payload[0] & 0x3f;
+            const text = String.fromCharCode.apply(
+              null,
+              Array.from(payload.slice(1 + languageCodeLength))
+            );
 
             console.log('Found text record:', text);
 
@@ -532,10 +540,9 @@ export default function NFCScanScreen() {
         // Stop scanning
         await NfcManager.cancelTechnologyRequest();
       }
-
     } catch (error) {
       console.log('NFC scan error:', error);
-      
+
       // Don't show error toast if we're intentionally leaving the page or page is not focused
       if (isLeavingPageRef.current || !isPageFocusedRef.current) {
         console.log('Scan cancelled due to page navigation or unfocus - skipping error toast');
@@ -556,8 +563,8 @@ export default function NFCScanScreen() {
       const errorMessage = errorString.includes('cancelled')
         ? 'Scan was cancelled'
         : errorString.includes('timeout')
-        ? 'Scan timed out - please try again'
-        : 'NFC scan failed - please try again';
+          ? 'Scan timed out - please try again'
+          : 'NFC scan failed - please try again';
 
       showToast(errorMessage, 'error');
 
@@ -662,10 +669,13 @@ export default function NFCScanScreen() {
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
       {/* Header */}
       <ThemedView style={styles.header}>
-        <TouchableOpacity onPress={() => {
-          isLeavingPageRef.current = true;
-          router.replace('/(tabs)');
-        }} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={() => {
+            isLeavingPageRef.current = true;
+            router.replace('/(tabs)');
+          }}
+          style={styles.backButton}
+        >
           <ArrowLeft size={24} color={primaryTextColor} />
         </TouchableOpacity>
         <ThemedText style={[styles.headerText, { color: primaryTextColor }]}>
@@ -684,12 +694,11 @@ export default function NFCScanScreen() {
                 ? scanState === 'scanning'
                   ? 'Scanning...'
                   : scanState === 'success'
-                  ? 'Scan Successful'
-                  : scanState === 'error'
-                  ? 'Scan Failed'
-                  : 'NFC Ready'
-                : 'NFC Required'
-            }
+                    ? 'Scan Successful'
+                    : scanState === 'error'
+                      ? 'Scan Failed'
+                      : 'NFC Ready'
+                : 'NFC Required'}
           </ThemedText>
           <ThemedText style={[styles.statusMessage, { color: secondaryTextColor }]}>
             {scanMessage}
@@ -713,7 +722,9 @@ export default function NFCScanScreen() {
             <View style={[styles.corner, styles.topLeft, { borderColor: getScanAreaColor() }]} />
             <View style={[styles.corner, styles.topRight, { borderColor: getScanAreaColor() }]} />
             <View style={[styles.corner, styles.bottomLeft, { borderColor: getScanAreaColor() }]} />
-            <View style={[styles.corner, styles.bottomRight, { borderColor: getScanAreaColor() }]} />
+            <View
+              style={[styles.corner, styles.bottomRight, { borderColor: getScanAreaColor() }]}
+            />
 
             {/* Scan Line Animation - only show during scanning */}
             {scanState === 'scanning' && isNFCEnabled && (
@@ -736,21 +747,21 @@ export default function NFCScanScreen() {
             )}
 
             {/* Center Icon */}
-            <View style={styles.centerIcon}>
-              {getScanIcon()}
-            </View>
+            <View style={styles.centerIcon}>{getScanIcon()}</View>
           </View>
         </View>
 
         {/* Instructions */}
         <ThemedView style={[styles.instructionsCard, { backgroundColor: cardBackgroundColor }]}>
-          <ThemedText type="defaultSemiBold" style={[styles.instructionsTitle, { color: primaryTextColor }]}>
+          <ThemedText
+            type="defaultSemiBold"
+            style={[styles.instructionsTitle, { color: primaryTextColor }]}
+          >
             {isNFCEnabled
               ? scanState === 'error'
                 ? 'Scan Failed - Try Again:'
                 : 'How to Scan Portal NFC Tags:'
-              : 'How to Enable NFC:'
-            }
+              : 'How to Enable NFC:'}
           </ThemedText>
           {isNFCEnabled ? (
             <>
@@ -780,11 +791,7 @@ export default function NFCScanScreen() {
         </ThemedView>
 
         {/* Action Button */}
-        {getActionButton() && (
-          <View style={styles.actionContainer}>
-            {getActionButton()}
-          </View>
-        )}
+        {getActionButton() && <View style={styles.actionContainer}>{getActionButton()}</View>}
       </ThemedView>
     </SafeAreaView>
   );
