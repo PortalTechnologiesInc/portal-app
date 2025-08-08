@@ -662,12 +662,11 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         app
           .listenForPaymentRequest(
             new LocalPaymentRequestListener(
-              async (event: SinglePaymentRequest, notifier: PaymentStatusNotifier) => {
+              (event: SinglePaymentRequest, notifier: PaymentStatusNotifier) => {
                 const id = event.eventId;
 
                 console.log(`Single payment request with id ${id} received`, event);
 
-                const serviceName = (await getServiceName(event.serviceKey)) || 'Unknown Service';
                 return new Promise<void>(resolve => {
                   // Immediately resolve the promise, we use the notifier to notify the payment status
                   resolve();
@@ -681,7 +680,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                     });
                   };
 
-                  handleSinglePaymentRequest(serviceName, event, DB, resolver).then(askUser => {
+                  handleSinglePaymentRequest(event, DB, resolver, getServiceName, app).then(askUser => {
                     if (askUser) {
                       const newRequest: PendingRequest = {
                         id,
@@ -895,8 +894,12 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
   // Get service name with database caching
   const getServiceName = useCallback(
-    async (pubKey: string): Promise<string | null> => {
-      if (!portalApp) {
+    async (pubKey: string, app?: PortalAppInterface | null): Promise<string | null> => {
+      let appToUse = app;
+      if (!appToUse) {
+        appToUse = portalApp;
+      }
+      if (!appToUse) {
         throw new Error('PortalApp not initialized');
       }
 
@@ -938,7 +941,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         console.log('DEBUG: Connected relays:', connectedCount, '/', relayStatuses.length);
 
         // Step 3: Fetch from network
-        const profile = await portalApp.fetchProfile(pubKey);
+        const profile = await appToUse.fetchProfile(pubKey);
         console.log('DEBUG: portalApp.fetchProfile returned:', profile);
 
         // Step 4: Extract service name from profile
