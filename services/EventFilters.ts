@@ -1,4 +1,4 @@
-import { AuthChallengeEvent, AuthResponseStatus, CloseRecurringPaymentResponse, PaymentResponseContent, RecurringPaymentRequest, RecurringPaymentResponseContent, SinglePaymentRequest, PaymentStatus, Nwc, parseCalendar } from "portal-app-lib";
+import { AuthChallengeEvent, AuthResponseStatus, CloseRecurringPaymentResponse, PaymentResponseContent, RecurringPaymentRequest, RecurringPaymentResponseContent, SinglePaymentRequest, PaymentStatus, Nwc, parseCalendar, PortalAppInterface } from "portal-app-lib";
 import { DatabaseService, fromUnixSeconds, SubscriptionWithDates } from "./database";
 import { getWalletUrl } from "./SecureStorageService";
 
@@ -6,7 +6,7 @@ export async function handleAuthChallenge(event: AuthChallengeEvent, database: D
   return true;
 }
 
-export async function handleSinglePaymentRequest(serviceName: string, request: SinglePaymentRequest, database: DatabaseService, resolve: (status: PaymentStatus) => void): Promise<boolean> {
+export async function handleSinglePaymentRequest(request: SinglePaymentRequest, database: DatabaseService, resolve: (status: PaymentStatus) => void, getServiceName: (serviceKey: string, app?: PortalAppInterface | null) => Promise<string | null>, app: PortalAppInterface): Promise<boolean> {
   const walletUrl = await getWalletUrl();
   try {
     let wallet: Nwc | undefined;
@@ -44,32 +44,45 @@ export async function handleSinglePaymentRequest(serviceName: string, request: S
       return false;
     }
 
-    if (request.content.amount != BigInt(subscription.amount)) {
+    let serviceName = "Unknown Service";
+    try {
+      serviceName = await getServiceName(request.serviceKey, app) || "Unknown Service";
+    } catch (e) {
+      console.error('Error getting service name:', e);
+    }
+
+    // TODO: take into account other currencies
+    const amountSats = request.content.amount / 1000n;
+    if (amountSats != BigInt(subscription.amount)) {
       resolve(new PaymentStatus.Rejected({
-        reason: `Payment amount does not match subscription amount.\nExpected: ${subscription.amount} ${subscription.currency}\nReceived: ${request.content.amount} ${request.content.currency}`
+        reason: `Payment amount does not match subscription amount.\nExpected: ${subscription.amount} ${subscription.currency}\nReceived: ${amountSats} ${request.content.currency}`
       }));
       return false;
     }
 
-    // we assume that if the last_payment_date is null no payment has been executed yet, so we look for the first payment due.
-    let lastPayment = BigInt((subscription.last_payment_date?.getTime() ?? subscription.recurrence_first_payment_due.getTime()) / 1000);
-    let nextOccurence = parseCalendar(subscription.recurrence_calendar).nextOccurrence(lastPayment)
+    // If no payment has been executed, the nextOccurrence is the first payment due time
+    let nextOccurrence: bigint | undefined = BigInt(subscription.recurrence_first_payment_due.getTime() / 1000);
+    if (subscription.last_payment_date) {
+      let lastPayment = BigInt(subscription.last_payment_date.getTime() / 1000);
+      nextOccurrence = parseCalendar(subscription.recurrence_calendar).nextOccurrence(lastPayment);
+    }
+    console.log('next occurrence', nextOccurrence);
 
-    if (!nextOccurence || fromUnixSeconds(nextOccurence) > new Date()) {
+    if (!nextOccurrence || fromUnixSeconds(nextOccurrence) > new Date()) {
       resolve(new PaymentStatus.Rejected({
         reason: 'Payment is not due yet. Please wait till the next payment is scheduled.'
       }));
       return false
     }
 
-    if (balance && request.content.amount < balance) {
+    if (balance && request.content.amount > balance) {
       database.addActivity({
         type: 'pay',
         service_key: request.serviceKey,
         service_name: serviceName,
         detail: 'Recurrent payment failed: insufficient wallet balance.',
         date: new Date(),
-        amount: Number(request.content.amount),
+        amount: Number(amountSats),
         currency: request.content.currency.tag,
         request_id: request.eventId,
         status: 'negative',
@@ -86,17 +99,85 @@ export async function handleSinglePaymentRequest(serviceName: string, request: S
     }
 
     if (wallet) {
+      // Save the payment
+      const id = await database.addActivity({
+        type: 'pay',
+        service_key: request.serviceKey,
+        service_name: serviceName,
+        detail: 'Recurrent payment',
+        date: new Date(),
+        amount: Number(amountSats),
+        currency: request.content.currency.tag,
+        request_id: request.eventId,
+        status: 'pending',
+        subscription_id: request.content.subscriptionId || null,
+      });
+
+      resolve(
+        new PaymentStatus.Approved,
+      );
+
+      await database.addPaymentStatusEntry(
+        request.content.invoice,
+        'payment_started',
+      );
+
       // make the payment with nwc
-      await wallet.payInvoice(request.content.invoice);
+      try {
+        const preimage = await wallet.payInvoice(request.content.invoice);
+
+        await database.addPaymentStatusEntry(
+          request.content.invoice,
+          'payment_completed',
+        );
+
+        // Update the subscription last payment date
+        await database.updateSubscriptionLastPayment(subscription.id, new Date());
+
+        // Update the activity status to positive
+        await database.updateActivityStatus(id, 'positive');
+
+        resolve(new PaymentStatus.Success({
+          preimage,
+        }));
+      } catch (error) {
+        console.error('Error paying invoice:', error);
+
+        await database.addPaymentStatusEntry(
+          request.content.invoice,
+          'payment_failed',
+        );
+
+        // Update the activity status to negative
+        await database.updateActivityStatus(id, 'negative');
+
+        resolve(new PaymentStatus.Failed({
+          reason: 'Payment failed: ' + error,
+        }));
+      }
+    } else {
+      database.addActivity({
+        type: 'pay',
+        service_key: request.serviceKey,
+        service_name: serviceName,
+        detail: 'Recurrent payment failed: no wallet is connected.',
+        date: new Date(),
+        amount: Number(amountSats),
+        currency: request.content.currency.tag,
+        request_id: request.eventId,
+        status: 'negative',
+        subscription_id: request.content.subscriptionId || null,
+      });
+
+      resolve(
+        new PaymentStatus.Rejected({
+          reason: 'Recurring payment failed: user has no wallet linked'
+        })
+      );
+
+      return false;
     }
 
-    // if the payment is succesful then update the sub last payment
-    database.updateSubscriptionLastPayment(subscription.id, Date.now());
-
-
-    resolve(
-      new PaymentStatus.Approved,
-    );
     return false;
   } catch (e) {
     resolve(
