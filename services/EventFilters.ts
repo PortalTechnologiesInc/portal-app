@@ -77,7 +77,7 @@ export async function handleSinglePaymentRequest(wallet: Nwc | null, request: Si
         type: 'pay',
         service_key: request.serviceKey,
         service_name: serviceName,
-        detail: 'Recurrent payment failed: wallet not initialized or insufficient balance.',
+        detail: 'Recurrent payment failed: insufficient wallet balance.',
         date: new Date(),
         amount: Number(amountSats),
         currency: request.content.currency.tag,
@@ -88,7 +88,7 @@ export async function handleSinglePaymentRequest(wallet: Nwc | null, request: Si
 
       resolve(
         new PaymentStatus.Rejected({
-          reason: 'Recurrent payment failed: wallet not initialized or insufficient balance.'
+          reason: 'Recurrent payment failed: insufficient wallet balance.'
         })
       );
 
