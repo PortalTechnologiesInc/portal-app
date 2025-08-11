@@ -87,6 +87,7 @@ export function ECashProvider({ children, mnemonic }: { children: ReactNode; mne
     const seed = new Mnemonic(mnemonic).deriveCashu();
     const storage = new CashuStorage(DB);
     const wallet = await CashuWallet.create(mintUrl, unit, seed, storage);
+    console.log('Restored proofs:', await wallet.restoreProofs());
 
     try {
       setWallets(prev => {
