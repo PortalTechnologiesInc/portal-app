@@ -275,6 +275,42 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
       const statusString = mapNumericStatusToString(status);
       console.log('💰 [NWC STATUS UPDATE] Relay:', relay_url, '→', statusString, `(${status})`);
 
+      // Reset reconnection attempts tracker when relay connects successfully
+      if (status === 3) {
+        // Connected - clear both manual and auto reconnection attempts
+        lastReconnectAttempts.current.delete(`nwc_${relay_url}`);
+        lastReconnectAttempts.current.delete(`nwc_auto_${relay_url}`);
+      }
+
+      // Auto-reconnect logic for terminated/disconnected relays
+      if (status === 5 || status === 4) {
+        // Terminated or Disconnected
+        const now = Date.now();
+        const lastAutoAttempt = lastReconnectAttempts.current.get(`nwc_auto_${relay_url}`) || 0;
+        const timeSinceLastAutoAttempt = now - lastAutoAttempt;
+
+        // Only attempt auto-reconnection if more than 10 seconds have passed since last auto-attempt
+        if (timeSinceLastAutoAttempt > 10000) {
+          lastReconnectAttempts.current.set(`nwc_auto_${relay_url}`, now);
+
+          // Use setTimeout to avoid blocking the status update
+          setTimeout(async () => {
+            try {
+              const currentWallet = nwcWalletRef.current;
+              if (currentWallet && typeof currentWallet.reconnectRelay === 'function') {
+                console.log('🔄 Attempting NWC relay reconnection for:', relay_url);
+                await currentWallet.reconnectRelay(relay_url);
+                console.log('✅ NWC relay reconnected successfully:', relay_url);
+              } else {
+                console.log('⚠️ NWC wallet or reconnectRelay method not available for:', relay_url);
+              }
+            } catch (error) {
+              console.error('❌ NWC auto-reconnect failed for relay:', relay_url, error);
+            }
+          }, 2000);
+        }
+      }
+
       // Update NWC relay status state
       setNwcRelayStatus({
         url: relay_url,
