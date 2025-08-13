@@ -18,8 +18,9 @@ import { DatabaseService } from '@/services/database';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useDatabaseStatus } from '@/services/database/DatabaseProvider';
 
-import popularRelayListFile from '../assets/RelayListist.json';
+import popularRelayListFile from '../assets/RelayList.json';
 import { useNostrService } from '@/context/NostrServiceContext';
+import { RelayInfo } from '@/utils';
 
 function makeList(text: string): string[] {
   return text
@@ -79,7 +80,7 @@ export default function NostrRelayManagementScreen() {
   useEffect(() => {
     const loadRelaysList = async () => {
       try {
-        let relaysList: string[] = [];
+        let relaysSet: Set<string> = new Set();
 
         // Check if database is ready before accessing it
         if (!dbStatus.isDbInitialized) {
@@ -91,17 +92,17 @@ export default function NostrRelayManagementScreen() {
 
         activeRelays.forEach(relayUrl => {
           if (!popularRelayListFile.includes(relayUrl)) {
-            relaysList.push(relayUrl);
+            relaysSet.add(relayUrl);
           }
         });
 
         popularRelayListFile.forEach(relayUrl => {
-          relaysList.push(relayUrl);
+          relaysSet.add(relayUrl);
         });
 
         setActiveRelaysList(activeRelays);
         setSelectedRelays(activeRelays);
-        setPopularRelayList(Array.from(relaysList));
+        setPopularRelayList(Array.from(relaysSet));
       } catch (error) {
         console.error('Error loading relays data:', error);
       } finally {
