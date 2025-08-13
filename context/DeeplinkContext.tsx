@@ -32,7 +32,6 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
   // Handle deeplink URLs
   const handleDeepLink = useCallback(
     (url: string) => {
-
       // Implement a cooldown period (3 seconds) to prevent multiple rapid processing
       const now = Date.now();
       const lastTime = lastProcessTime.current[url] || 0;
@@ -55,6 +54,9 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
 
         const parsedUrl = parseKeyHandshakeUrl(url);
         console.log('Parsed deeplink URL:', parsedUrl);
+
+        // Check and reconnect relays if needed (Android background kill scenario)
+        nostrService.checkAndReconnectRelays();
 
         // Show the skeleton loader
         showSkeletonLoader(parsedUrl);
@@ -92,7 +94,7 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     // Don't handle initial URL here - let [...deeplink].tsx handle cold start deeplinks
     // This prevents double navigation when app is opened with deeplink
-    
+
     // Only add event listener for URL events that happen while the app is running
     const subscription = Linking.addEventListener('url', event => {
       console.log('Got URL event while app running:', event.url);

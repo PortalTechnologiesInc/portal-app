@@ -17,11 +17,10 @@ import { Asset } from 'expo-asset';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 import { CurrencyProvider } from '@/context/CurrencyContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import registerPubkeysForPushNotificationsAsync from '@/services/NotificationService'
+import registerPubkeysForPushNotificationsAsync from '@/services/NotificationService';
 import { keyToHex } from 'portal-app-lib';
 import * as Notifications from 'expo-notifications';
 import { ECashProvider } from '@/context/ECashContext';
-
 
 // Prevent splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();

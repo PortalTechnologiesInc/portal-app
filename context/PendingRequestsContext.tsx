@@ -246,10 +246,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           const metadata = request.metadata as SinglePaymentRequest;
 
           (async () => {
-            const serviceName = await getServiceNameWithFallback(
-              nostrService,
-              metadata.serviceKey
-            );
+            const serviceName = await getServiceNameWithFallback(nostrService, metadata.serviceKey);
 
             // Convert BigInt to number if needed
             const amount =
@@ -287,47 +284,40 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             await notifier(new PaymentStatus.Approved());
 
             // Insert into payment_status table
-            await db!.addPaymentStatusEntry(
-              metadata.content.invoice,
-              'payment_started',
-            );
+            await db!.addPaymentStatusEntry(metadata.content.invoice, 'payment_started');
 
             try {
               const preimage = await nostrService.payInvoice(metadata.content.invoice);
 
-              await db!.addPaymentStatusEntry(
-                metadata.content.invoice,
-                'payment_completed',
-              );
+              await db!.addPaymentStatusEntry(metadata.content.invoice, 'payment_completed');
 
               // Update the activity status to positive
               await db!.updateActivityStatus(activityId, 'positive');
               refreshData();
 
-              await notifier(new PaymentStatus.Success({
-                preimage,
-              }));
-
+              await notifier(
+                new PaymentStatus.Success({
+                  preimage,
+                })
+              );
             } catch (err) {
               console.log('Error paying invoice:', err);
 
-              await db!.addPaymentStatusEntry(
-                metadata.content.invoice,
-                'payment_failed',
-              );
+              await db!.addPaymentStatusEntry(metadata.content.invoice, 'payment_failed');
 
               // Update the activity status to negative
               await db!.updateActivityStatus(activityId, 'negative');
               refreshData();
 
-              await notifier(new PaymentStatus.Failed({
-                reason: 'Payment failed: ' + err,
-              }));
+              await notifier(
+                new PaymentStatus.Failed({
+                  reason: 'Payment failed: ' + err,
+                })
+              );
             }
-          })()
-            .catch(err => {
-              console.log('Error processing payment:', err);
-            });
+          })().catch(err => {
+            console.log('Error processing payment:', err);
+          });
           break;
         case 'subscription':
           // Add subscription activity
@@ -349,55 +339,55 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               );
 
               const subscriptionId = await addSubscriptionWithFallback({
-                  request_id: id,
-                  service_name: serviceName,
-                  service_key: (request.metadata as RecurringPaymentRequest).serviceKey,
-                  amount: Number(amount) / 1000,
-                  currency: 'sats',
-                  status: 'active',
-                  recurrence_until: req.content.recurrence.until
-                    ? fromUnixSeconds(req.content.recurrence.until)
-                    : null,
-                  recurrence_first_payment_due: fromUnixSeconds(
-                    req.content.recurrence.firstPaymentDue
-                  ),
-                  last_payment_date: null,
-                  next_payment_date: fromUnixSeconds(req.content.recurrence.firstPaymentDue),
-                  recurrence_calendar: req.content.recurrence.calendar.inner.toCalendarString(),
-                  recurrence_max_payments: req.content.recurrence.maxPayments || null,
-                });
-
-                // TODO: we should not add a "pay" activity here, we need a new "subscription" type
-                // if (subscriptionId) {
-                //   await addActivityWithFallback({
-                //     type: 'pay',
-                //     service_key: (request.metadata as RecurringPaymentRequest).serviceKey,
-                //     service_name: serviceName,
-                //     detail: 'Subscription approved',
-                //     date: new Date(),
-                //     amount: Number(amount) / 1000,
-                //     currency: 'sats',
-                //     request_id: id,
-                //     subscription_id: subscriptionId,
-                //     status: 'positive',
-                //   });
-                // }
-
-                // Return the result with the subscriptionId
-                request.result({
-                  status: new RecurringPaymentStatus.Confirmed({
-                    subscriptionId: subscriptionId || 'randomsubscriptionid',
-                    authorizedAmount: (request.metadata as RecurringPaymentRequest).content.amount,
-                    authorizedCurrency: (request.metadata as RecurringPaymentRequest).content
-                      .currency,
-                    authorizedRecurrence: (request.metadata as RecurringPaymentRequest).content
-                      .recurrence,
-                  }),
-                  requestId: (request.metadata as RecurringPaymentRequest).content.requestId,
-                });
-            })().catch(err => {
-                console.log('Error processing subscription:', err);
+                request_id: id,
+                service_name: serviceName,
+                service_key: (request.metadata as RecurringPaymentRequest).serviceKey,
+                amount: Number(amount) / 1000,
+                currency: 'sats',
+                status: 'active',
+                recurrence_until: req.content.recurrence.until
+                  ? fromUnixSeconds(req.content.recurrence.until)
+                  : null,
+                recurrence_first_payment_due: fromUnixSeconds(
+                  req.content.recurrence.firstPaymentDue
+                ),
+                last_payment_date: null,
+                next_payment_date: fromUnixSeconds(req.content.recurrence.firstPaymentDue),
+                recurrence_calendar: req.content.recurrence.calendar.inner.toCalendarString(),
+                recurrence_max_payments: req.content.recurrence.maxPayments || null,
               });
+
+              // TODO: we should not add a "pay" activity here, we need a new "subscription" type
+              // if (subscriptionId) {
+              //   await addActivityWithFallback({
+              //     type: 'pay',
+              //     service_key: (request.metadata as RecurringPaymentRequest).serviceKey,
+              //     service_name: serviceName,
+              //     detail: 'Subscription approved',
+              //     date: new Date(),
+              //     amount: Number(amount) / 1000,
+              //     currency: 'sats',
+              //     request_id: id,
+              //     subscription_id: subscriptionId,
+              //     status: 'positive',
+              //   });
+              // }
+
+              // Return the result with the subscriptionId
+              request.result({
+                status: new RecurringPaymentStatus.Confirmed({
+                  subscriptionId: subscriptionId || 'randomsubscriptionid',
+                  authorizedAmount: (request.metadata as RecurringPaymentRequest).content.amount,
+                  authorizedCurrency: (request.metadata as RecurringPaymentRequest).content
+                    .currency,
+                  authorizedRecurrence: (request.metadata as RecurringPaymentRequest).content
+                    .recurrence,
+                }),
+                requestId: (request.metadata as RecurringPaymentRequest).content.requestId,
+              });
+            })().catch(err => {
+              console.log('Error processing subscription:', err);
+            });
           } catch (err) {
             console.log('Error adding subscription activity:', err);
           }
@@ -589,7 +579,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                   status: 'negative',
                   invoice: (request.metadata as SinglePaymentRequest).content.invoice,
                 });
-              })
+              }),
             ]);
           } catch (err) {
             console.log('Error adding denied payment activity:', err);

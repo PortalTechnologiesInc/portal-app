@@ -12,6 +12,7 @@ import {
   isWalletConnected,
 } from '@/services/SecureStorageService';
 import { generateMnemonic } from 'portal-app-lib';
+import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 
 type MnemonicContextType = {
   mnemonic: string | null;
@@ -24,6 +25,7 @@ type MnemonicContextType = {
   setWalletUrl: (url: string) => Promise<void>;
   clearWalletUrl: () => Promise<void>;
   setWalletConnected: (connected: boolean) => Promise<void>;
+  resetMnemonic: () => void; // Add reset method to clear all mnemonic state
 };
 
 const MnemonicContext = createContext<MnemonicContextType | null>(null);
@@ -33,6 +35,29 @@ export const MnemonicProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [walletUrl, setWalletUrlState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isWalletConnectedState, setIsWalletConnectedState] = useState(false);
+
+  // Reset all mnemonic state to initial values
+  // This is called during app reset to ensure clean state
+  const resetMnemonic = () => {
+    console.log('🔄 Resetting Mnemonic state...');
+
+    // Reset local state to initial values
+    setMnemonicState(null);
+    setWalletUrlState(null);
+    setIsWalletConnectedState(false);
+    // Note: isLoading is not reset as it will be managed by data loading
+
+    console.log('✅ Mnemonic state reset completed');
+  };
+
+  // Register/unregister context reset function
+  useEffect(() => {
+    registerContextReset(resetMnemonic);
+
+    return () => {
+      unregisterContextReset(resetMnemonic);
+    };
+  }, []);
 
   // Load the mnemonic and wallet URL from secure storage on mount
   useEffect(() => {
@@ -185,6 +210,7 @@ export const MnemonicProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setWalletUrl,
         clearWalletUrl,
         setWalletConnected,
+        resetMnemonic,
       }}
     >
       {children}

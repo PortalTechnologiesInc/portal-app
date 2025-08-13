@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, TouchableOpacity, Alert, TextInput, View, ToastAndroid, ScrollView } from 'react-native';
+import {
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  TextInput,
+  View,
+  ToastAndroid,
+  ScrollView,
+} from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useRouter } from 'expo-router';
@@ -8,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSQLiteContext } from 'expo-sqlite';
 import { DatabaseService } from '@/services/database';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { useDatabaseStatus } from '@/services/database/DatabaseProvider';
 
 import popularRelayListFile from '../assets/RelayListist.json';
 import { useNostrService } from '@/context/NostrServiceContext';
@@ -64,6 +73,7 @@ export default function NostrRelayManagementScreen() {
   const nostrService = useNostrService();
   const sqliteContext = useSQLiteContext();
   const DB = new DatabaseService(sqliteContext);
+  const dbStatus = useDatabaseStatus();
 
   // Load relay data on mount
   useEffect(() => {
@@ -71,17 +81,23 @@ export default function NostrRelayManagementScreen() {
       try {
         let relaysList: string[] = [];
 
+        // Check if database is ready before accessing it
+        if (!dbStatus.isDbInitialized) {
+          console.log('Database not ready yet, skipping relay loading');
+          return;
+        }
+
         const activeRelays = (await DB.getRelays()).map(value => value.ws_uri);
 
-        activeRelays.forEach((relayUrl) => {
+        activeRelays.forEach(relayUrl => {
           if (!popularRelayListFile.includes(relayUrl)) {
             relaysList.push(relayUrl);
           }
-        })
+        });
 
-        popularRelayListFile.forEach((relayUrl) => {
+        popularRelayListFile.forEach(relayUrl => {
           relaysList.push(relayUrl);
-        })
+        });
 
         setActiveRelaysList(activeRelays);
         setSelectedRelays(activeRelays);
@@ -93,7 +109,7 @@ export default function NostrRelayManagementScreen() {
       }
     };
     loadRelaysList();
-  }, []);
+  }, [dbStatus.isDbInitialized]); // Add database status as dependency
 
   const handleAddCustomRelay = () => {
     const customRelay = customRelayTextFieldValue.trim();
@@ -201,9 +217,7 @@ export default function NostrRelayManagementScreen() {
       <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
         <ThemedView style={styles.container}>
           <ThemedView style={styles.header}>
-            <ThemedText style={styles.headerText}>
-              Nostr Management
-            </ThemedText>
+            <ThemedText style={styles.headerText}>Nostr Management</ThemedText>
           </ThemedView>
           <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
             <ThemedText>Loading...</ThemedText>
@@ -222,7 +236,7 @@ export default function NostrRelayManagementScreen() {
 
   filteredRelays.forEach((item, index) => {
     itemRows[index % itemRows.length].push(item);
-  })
+  });
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
@@ -244,9 +258,7 @@ export default function NostrRelayManagementScreen() {
           </ThemedText>
 
           {/* Add Relays Input */}
-          <ThemedText style={styles.titleText}>
-            Popular relays:
-          </ThemedText>
+          <ThemedText style={styles.titleText}>Popular relays:</ThemedText>
           <View style={[styles.filterContainer, { borderBottomColor: inputBorderColor }]}>
             <TextInput
               style={[styles.filterInput, { color: primaryTextColor }]}
@@ -270,9 +282,11 @@ export default function NostrRelayManagementScreen() {
                       style={[
                         styles.relayItem,
                         {
-                          backgroundColor: selectedRelays.includes(relay) ? buttonPrimaryColor : inputBackgroundColor,
-                          borderColor: inputBorderColor
-                        }
+                          backgroundColor: selectedRelays.includes(relay)
+                            ? buttonPrimaryColor
+                            : inputBackgroundColor,
+                          borderColor: inputBorderColor,
+                        },
                       ]}
                       onPress={() => {
                         if (selectedRelays.includes(relay)) {
@@ -285,7 +299,11 @@ export default function NostrRelayManagementScreen() {
                       <ThemedText
                         style={[
                           styles.relayItemText,
-                          { color: selectedRelays.includes(relay) ? buttonPrimaryTextColor : primaryTextColor }
+                          {
+                            color: selectedRelays.includes(relay)
+                              ? buttonPrimaryTextColor
+                              : primaryTextColor,
+                          },
                         ]}
                       >
                         {relay}
@@ -308,13 +326,17 @@ export default function NostrRelayManagementScreen() {
               onPress={() => setShowCustomRelayInput(true)}
             >
               <Plus size={20} color={buttonPrimaryTextColor} />
-              <ThemedText style={[styles.addCustomRelayButtonText, { color: buttonPrimaryTextColor }]}>
+              <ThemedText
+                style={[styles.addCustomRelayButtonText, { color: buttonPrimaryTextColor }]}
+              >
                 Add custom relay
               </ThemedText>
             </TouchableOpacity>
           ) : (
             <View style={styles.customRelaysUrlContainer}>
-              <View style={[styles.relaysUrlInputContainer, { borderBottomColor: inputBorderColor }]}>
+              <View
+                style={[styles.relaysUrlInputContainer, { borderBottomColor: inputBorderColor }]}
+              >
                 <TextInput
                   style={[styles.relaysUrlInput, { color: primaryTextColor }]}
                   value={customRelayTextFieldValue}
@@ -322,7 +344,10 @@ export default function NostrRelayManagementScreen() {
                   placeholder="Enter relay URL (e.g., wss://relay.example.com)"
                   placeholderTextColor={inputPlaceholderColor}
                 />
-                <TouchableOpacity style={styles.textFieldAction} onPress={() => setShowCustomRelayInput(false)}>
+                <TouchableOpacity
+                  style={styles.textFieldAction}
+                  onPress={() => setShowCustomRelayInput(false)}
+                >
                   <X size={20} color={primaryTextColor} />
                 </TouchableOpacity>
               </View>
@@ -330,7 +355,9 @@ export default function NostrRelayManagementScreen() {
                 style={[styles.confirmCustomRelayButton, { backgroundColor: buttonPrimaryColor }]}
                 onPress={handleAddCustomRelay}
               >
-                <ThemedText style={[styles.confirmCustomRelayButtonText, { color: buttonPrimaryTextColor }]}>
+                <ThemedText
+                  style={[styles.confirmCustomRelayButtonText, { color: buttonPrimaryTextColor }]}
+                >
                   Add
                 </ThemedText>
               </TouchableOpacity>

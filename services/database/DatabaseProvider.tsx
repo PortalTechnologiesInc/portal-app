@@ -20,33 +20,6 @@ const DatabaseContext = createContext<DatabaseContextType>({
 // Hook to consume the database context
 export const useDatabaseStatus = () => useContext(DatabaseContext);
 
-// Utility function to reset database tables
-export const resetDatabase = async (): Promise<void> => {
-  try {
-    console.log('Attempting to reset database tables');
-    const db = await openDatabaseAsync(DATABASE_NAME);
-
-    // Execute direct SQL to drop tables
-    await db.execAsync(`
-      		DROP TABLE IF EXISTS activities;
-      		DROP TABLE IF EXISTS subscriptions;
-      		DROP TABLE IF EXISTS name_cache;
-      		DROP INDEX IF EXISTS idx_activities_date;
-      		DROP INDEX IF EXISTS idx_activities_type;
-      		DROP INDEX IF EXISTS idx_activities_subscription;
-      		DROP INDEX IF EXISTS idx_subscriptions_next_payment;
-      		DROP INDEX IF EXISTS idx_name_cache_expires;
-      		DROP TABLE IF EXISTS subscriptions;
-      		PRAGMA user_version = 0;
-    	`);
-
-    console.log('Database reset completed successfully');
-    await db.closeAsync();
-  } catch (error) {
-    console.error('Failed to reset database:', error);
-  }
-};
-
 interface DatabaseProviderProps {
   children: ReactNode;
 }
@@ -402,7 +375,9 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
           CREATE INDEX IF NOT EXISTS idx_activities_status ON activities(status);
         `);
         currentDbVersion = 12;
-        console.log('Created payment_status table and added status column to activities - now at version 12');
+        console.log(
+          'Created payment_status table and added status column to activities - now at version 12'
+        );
       }
 
       if (currentDbVersion <= 12) {
@@ -420,7 +395,11 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
       setDbInitialized(true);
     } catch (error) {
       console.error('Database migration failed:', error);
-      setDbInitialized(false);
+      // Even if migration fails, try to set as initialized to prevent blocking the app
+      console.warn(
+        'Setting database as initialized despite migration errors to prevent app blocking'
+      );
+      setDbInitialized(true);
     } finally {
       setIsDbInitializing(false);
     }

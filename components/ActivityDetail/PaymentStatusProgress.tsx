@@ -1,11 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import {
-  View,
-  StyleSheet,
-  Animated,
-  Easing,
-  TouchableOpacity,
-} from 'react-native';
+import { View, StyleSheet, Animated, Easing, TouchableOpacity } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { useThemeColor } from '@/hooks/useThemeColor';
 
@@ -176,7 +170,7 @@ export function PaymentStatusProgress({ steps, onRetry }: PaymentStatusProgressP
         })
       );
       rotateAnimation.start();
-      
+
       return () => {
         rotateAnimation.stop();
       };
@@ -221,7 +215,9 @@ export function PaymentStatusProgress({ steps, onRetry }: PaymentStatusProgressP
             <View style={[styles.completedDotOuter, { borderColor: primaryColor }]}>
               <View style={[styles.completedDotInner, { backgroundColor: primaryColor }]} />
             </View>
-            {!isLast && <View style={[styles.connectingLine, { backgroundColor: getLineColor(nextStep) }]} />}
+            {!isLast && (
+              <View style={[styles.connectingLine, { backgroundColor: getLineColor(nextStep) }]} />
+            )}
           </View>
         );
 
@@ -231,7 +227,9 @@ export function PaymentStatusProgress({ steps, onRetry }: PaymentStatusProgressP
             <View style={[styles.completedDotOuter, { borderColor: statusConnectedColor }]}>
               <View style={[styles.completedDotInner, { backgroundColor: statusConnectedColor }]} />
             </View>
-            {!isLast && <View style={[styles.connectingLine, { backgroundColor: getLineColor(nextStep) }]} />}
+            {!isLast && (
+              <View style={[styles.connectingLine, { backgroundColor: getLineColor(nextStep) }]} />
+            )}
           </View>
         );
 
@@ -241,7 +239,9 @@ export function PaymentStatusProgress({ steps, onRetry }: PaymentStatusProgressP
             <View style={[styles.completedDotOuter, { borderColor: statusErrorColor }]}>
               <View style={[styles.completedDotInner, { backgroundColor: statusErrorColor }]} />
             </View>
-            {!isLast && <View style={[styles.connectingLine, { backgroundColor: getLineColor(nextStep) }]} />}
+            {!isLast && (
+              <View style={[styles.connectingLine, { backgroundColor: getLineColor(nextStep) }]} />
+            )}
           </View>
         );
 
@@ -254,17 +254,19 @@ export function PaymentStatusProgress({ steps, onRetry }: PaymentStatusProgressP
                 key={`loading-${step.id}`}
                 style={[
                   styles.loadingDot,
-                  { 
+                  {
                     borderTopColor: primaryColor,
                     borderRightColor: `${primaryColor}40`,
                     borderBottomColor: `${primaryColor}20`,
                     borderLeftColor: `${primaryColor}60`,
                   },
-                  { transform: [{ rotate: rotateInterpolate }] }
+                  { transform: [{ rotate: rotateInterpolate }] },
                 ]}
               />
             </View>
-            {!isLast && <View style={[styles.connectingLine, { backgroundColor: getLineColor(nextStep) }]} />}
+            {!isLast && (
+              <View style={[styles.connectingLine, { backgroundColor: getLineColor(nextStep) }]} />
+            )}
           </View>
         );
     }
@@ -289,24 +291,26 @@ export function PaymentStatusProgress({ steps, onRetry }: PaymentStatusProgressP
       {currentSteps.map((step, index) => {
         const isLast = index === currentSteps.length - 1;
         const nextStep = index < currentSteps.length - 1 ? currentSteps[index + 1] : undefined;
-        const displayTitle = step.status === 'error' && step.errorType 
-          ? getErrorMessage(step.errorType) 
-          : step.title;
+        const displayTitle =
+          step.status === 'error' && step.errorType ? getErrorMessage(step.errorType) : step.title;
 
         return (
           <View key={step.id} style={styles.statusRow}>
             {renderDot(step, isLast, nextStep)}
             <View style={styles.textContainer}>
-              <ThemedText style={[
-                styles.statusText, 
-                { 
-                  color: step.status === 'error' 
-                    ? statusErrorColor 
-                    : step.status === 'success' 
-                      ? statusConnectedColor 
-                      : primaryTextColor 
-                }
-              ]}>
+              <ThemedText
+                style={[
+                  styles.statusText,
+                  {
+                    color:
+                      step.status === 'error'
+                        ? statusErrorColor
+                        : step.status === 'success'
+                          ? statusConnectedColor
+                          : primaryTextColor,
+                  },
+                ]}
+              >
                 {displayTitle}
               </ThemedText>
               <ThemedText style={[styles.statusSubtext, { color: secondaryTextColor }]}>
@@ -393,4 +397,4 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-}); 
+});

@@ -2,7 +2,11 @@ import { AuthChallengeEvent, AuthResponseStatus, CloseRecurringPaymentResponse, 
 import { DatabaseService, fromUnixSeconds, SubscriptionWithDates } from "./database";
 import { getWalletUrl } from "./SecureStorageService";
 
-export async function handleAuthChallenge(event: AuthChallengeEvent, database: DatabaseService, resolve: (status: AuthResponseStatus) => void): Promise<boolean> {
+export async function handleAuthChallenge(
+  event: AuthChallengeEvent,
+  database: DatabaseService,
+  resolve: (status: AuthResponseStatus) => void
+): Promise<boolean> {
   return true;
 }
 
@@ -19,7 +23,7 @@ export async function handleSinglePaymentRequest(wallet: Nwc | null, request: Si
       if (!subscriptionFromDb) {
         resolve(
           new PaymentStatus.Rejected({
-            reason: `Subscription with ID ${subId} not found in database`
+            reason: `Subscription with ID ${subId} not found in database`,
           })
         );
         return false;
@@ -28,7 +32,8 @@ export async function handleSinglePaymentRequest(wallet: Nwc | null, request: Si
     } catch (e) {
       resolve(
         new PaymentStatus.Rejected({
-          reason: 'Failed to retrieve subscription from database. Please try again or contact support if the issue persists.'
+          reason:
+            'Failed to retrieve subscription from database. Please try again or contact support if the issue persists.',
         })
       );
       return false;
@@ -88,7 +93,7 @@ export async function handleSinglePaymentRequest(wallet: Nwc | null, request: Si
 
       resolve(
         new PaymentStatus.Rejected({
-          reason: 'Recurrent payment failed: insufficient wallet balance.'
+          reason: 'Recurrent payment failed: insufficient wallet balance.',
         })
       );
 
@@ -179,18 +184,26 @@ export async function handleSinglePaymentRequest(wallet: Nwc | null, request: Si
   } catch (e) {
     resolve(
       new PaymentStatus.Rejected({
-        reason: `An unexpected error occurred while processing the payment: ${e}.\nPlease try again or contact support if the issue persists.`
+        reason: `An unexpected error occurred while processing the payment: ${e}.\nPlease try again or contact support if the issue persists.`,
       })
     );
     return false;
   }
 }
 
-export async function handleRecurringPaymentRequest(request: RecurringPaymentRequest, database: DatabaseService, resolve: (status: RecurringPaymentResponseContent) => void): Promise<boolean> {
+export async function handleRecurringPaymentRequest(
+  request: RecurringPaymentRequest,
+  database: DatabaseService,
+  resolve: (status: RecurringPaymentResponseContent) => void
+): Promise<boolean> {
   return true;
 }
 
-export async function handleCloseRecurringPaymentResponse(response: CloseRecurringPaymentResponse, database: DatabaseService, resolve: () => void): Promise<boolean> {
+export async function handleCloseRecurringPaymentResponse(
+  response: CloseRecurringPaymentResponse,
+  database: DatabaseService,
+  resolve: () => void
+): Promise<boolean> {
   try {
     await database.updateSubscriptionStatus(response.content.subscriptionId, 'cancelled');
 
@@ -200,7 +213,7 @@ export async function handleCloseRecurringPaymentResponse(response: CloseRecurri
     const { globalEvents } = await import('@/utils/index');
     globalEvents.emit('subscriptionStatusChanged', {
       subscriptionId: response.content.subscriptionId,
-      status: 'cancelled'
+      status: 'cancelled',
     });
   } catch (error) {
     console.error('Error setting closed recurring payment', error);
