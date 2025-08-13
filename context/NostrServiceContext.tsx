@@ -34,10 +34,6 @@ import {
   CashuResponseStatus,
   PaymentStatusNotifier,
   PaymentStatus,
-  LogCallback,
-  LogEntry,
-  LogLevel,
-  initLogger,
 } from 'portal-app-lib';
 import { DatabaseService } from '@/services/database';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -174,7 +170,7 @@ export class LocalClosedRecurringPaymentListener implements ClosedRecurringPayme
 // Note: WalletInfo and WalletInfoState are now imported from centralized types
 
 // Context type definition
-interface NostrServiceContextType {
+export interface NostrServiceContextType {
   isInitialized: boolean;
   isWalletConnected: boolean;
   publicKey: string | null;
@@ -185,7 +181,7 @@ interface NostrServiceContextType {
   lookupInvoice: (invoice: string) => Promise<LookupInvoiceResponse>;
   disconnectWallet: () => void;
   sendKeyHandshake: (url: KeyHandshakeUrl) => Promise<void>;
-  getServiceName: (publicKey: string) => Promise<string | null>;
+  getServiceName: (app: PortalAppInterface, publicKey: string) => Promise<string | null>;
   dismissPendingRequest: (id: string) => void;
   setUserProfile: (profile: Profile) => Promise<void>;
   submitNip05: (nip05: string) => Promise<void>;
@@ -257,6 +253,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   const [publicKey, setPublicKey] = useState<string | null>(null);
   const [pendingRequests, setPendingRequests] = useState<{ [key: string]: PendingRequest }>({});
   const [nwcWallet, setNwcWallet] = useState<Nwc | null>(null);
+  const nwcWalletRef = useRef<Nwc | null>(null);
   const [appIsActive, setAppIsActive] = useState(true);
   const [walletInfo, setWalletInfo] = useState<WalletInfoState>({
     data: null,
@@ -662,12 +659,11 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         app
           .listenForPaymentRequest(
             new LocalPaymentRequestListener(
-              async (event: SinglePaymentRequest, notifier: PaymentStatusNotifier) => {
+              (event: SinglePaymentRequest, notifier: PaymentStatusNotifier) => {
                 const id = event.eventId;
 
                 console.log(`Single payment request with id ${id} received`, event);
 
-                const serviceName = (await getServiceName(event.serviceKey)) || 'Unknown Service';
                 return new Promise<void>(resolve => {
                   // Immediately resolve the promise, we use the notifier to notify the payment status
                   resolve();
@@ -681,7 +677,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                     });
                   };
 
-                  handleSinglePaymentRequest(serviceName, event, DB, resolver).then(askUser => {
+                  handleSinglePaymentRequest(nwcWalletRef.current, event, DB, resolver, getServiceName, app).then(askUser => {
                     if (askUser) {
                       const newRequest: PendingRequest = {
                         id,
@@ -807,6 +803,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         const wallet = new Nwc(walletUrl, new NwcRelayStatusListener());
 
         if (isCancelled) return;
+        nwcWalletRef.current = wallet;
         setNwcWallet(wallet);
         console.log('Wallet connected successfully');
 
@@ -895,11 +892,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
   // Get service name with database caching
   const getServiceName = useCallback(
-    async (pubKey: string): Promise<string | null> => {
-      if (!portalApp) {
-        throw new Error('PortalApp not initialized');
-      }
-
+    async (app: PortalAppInterface, pubKey: string): Promise<string | null> => {
       try {
         // Step 1: Check for valid cached entry (not expired)
         const cachedName = await DB.getCachedServiceName(pubKey);
@@ -909,36 +902,18 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         }
 
         // Step 2: Check relay connection status before attempting network fetch
-        if (!relayStatuses.length || relayStatuses.every(r => r.status === 'Disconnected')) {
+        if (!relayStatusesRef.current.length || relayStatusesRef.current.every(r => r.status != 'Connected')) {
           console.warn('DEBUG: No relays connected, cannot fetch service profile for:', pubKey);
           throw new Error(
             'No relay connections available. Please check your internet connection and try again.'
           );
         }
 
-        // Check if at least one relay is connected
-        let connectedCount = 0;
-        for (const relay of relayStatuses) {
-          if (relay.status === 'Connected') {
-            connectedCount++;
-          }
-        }
-
-        if (connectedCount === 0) {
-          console.warn(
-            'DEBUG: No relays in Connected state, cannot fetch service profile for:',
-            pubKey
-          );
-          throw new Error(
-            'No relay connections available. Please check your internet connection and try again.'
-          );
-        }
-
         console.log('DEBUG: NostrService.getServiceName fetching from network for pubKey:', pubKey);
-        console.log('DEBUG: Connected relays:', connectedCount, '/', relayStatuses.length);
+        console.log('DEBUG: Connected relays:', connectedCount, '/', relayStatusesRef.current.length);
 
         // Step 3: Fetch from network
-        const profile = await portalApp.fetchProfile(pubKey);
+        const profile = await app.fetchProfile(pubKey);
         console.log('DEBUG: portalApp.fetchProfile returned:', profile);
 
         // Step 4: Extract service name from profile

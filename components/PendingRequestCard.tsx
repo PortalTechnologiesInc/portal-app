@@ -10,6 +10,7 @@ import type { PendingRequest } from '@/utils/types';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { Layout } from '@/constants/Layout';
 import { SkeletonPulse } from './PendingRequestSkeletonCard';
+import { PortalAppManager } from '@/services/PortalAppManager';
 
 interface PendingRequestCardProps {
   request: PendingRequest;
@@ -93,7 +94,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
 
         try {
           setIsServiceNameLoading(true);
-          const name = await nostrService.getServiceName(serviceKey);
+          const name = await nostrService.getServiceName(PortalAppManager.tryGetInstance(), serviceKey);
           if (isMounted.current) {
             setServiceName(name);
             setIsServiceNameLoading(false);
