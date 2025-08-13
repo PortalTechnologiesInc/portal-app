@@ -71,6 +71,15 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if (!isFirstLaunch) return
+
+    const sortedRequests = Object.values(nostrService.pendingRequests)
+    if (sortedRequests.length > 0) {
+      markWelcomeAsViewed()
+    }
+  }, [nostrService.pendingRequests]);
+
+  useEffect(() => {
     // Cleanup function to set mounted state to false
     return () => {
       isMounted.current = false;
