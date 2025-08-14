@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   TouchableOpacity,
-  Alert,
   TextInput,
   View,
   ToastAndroid,
@@ -20,23 +19,6 @@ import { useDatabaseStatus } from '@/services/database/DatabaseProvider';
 
 import popularRelayListFile from '../assets/RelayList.json';
 import { useNostrService } from '@/context/NostrServiceContext';
-import { RelayInfo } from '@/utils';
-
-function makeList(text: string): string[] {
-  return text
-    .split(/\r?\n/)
-    .map((line: string) => line.trim())
-    .filter((line: string) => line.length > 0);
-}
-
-function splitArray<T>(arr: T[], predicate: (item: T) => boolean): [T[], T[]] {
-  const pass: T[] = [];
-  const fail: T[] = [];
-  for (const item of arr) {
-    (predicate(item) ? pass : fail).push(item);
-  }
-  return [pass, fail];
-}
 
 function isWebsocketUri(uri: string): boolean {
   const regex = /^wss?:\/\/([a-zA-Z0-9.-]+)(:\d+)?(\/[^\s]*)?$/;
@@ -91,9 +73,7 @@ export default function NostrRelayManagementScreen() {
         const activeRelays = (await DB.getRelays()).map(value => value.ws_uri);
 
         activeRelays.forEach(relayUrl => {
-          if (!popularRelayListFile.includes(relayUrl)) {
-            relaysSet.add(relayUrl);
-          }
+          relaysSet.add(relayUrl);
         });
 
         popularRelayListFile.forEach(relayUrl => {
