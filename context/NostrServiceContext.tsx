@@ -780,8 +780,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                   // Immediately resolve the promise, we use the notifier to notify the payment status
                   resolve();
 
-                  // TODO: validate amount against the invoice. If it doesn't match, reject immediately
-
                   const resolver = async (status: PaymentStatus) => {
                     await notifier.notify({
                       status,

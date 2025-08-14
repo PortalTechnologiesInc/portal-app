@@ -1,6 +1,5 @@
-import { AuthChallengeEvent, AuthResponseStatus, CloseRecurringPaymentResponse, PaymentResponseContent, RecurringPaymentRequest, RecurringPaymentResponseContent, SinglePaymentRequest, PaymentStatus, Nwc, parseCalendar, PortalAppInterface } from "portal-app-lib";
+import { AuthChallengeEvent, AuthResponseStatus, CloseRecurringPaymentResponse, RecurringPaymentRequest, RecurringPaymentResponseContent, SinglePaymentRequest, PaymentStatus, Nwc, parseCalendar, PortalAppInterface, parseBolt11 } from "portal-app-lib";
 import { DatabaseService, fromUnixSeconds, SubscriptionWithDates } from "./database";
-import { getWalletUrl } from "./SecureStorageService";
 
 export async function handleAuthChallenge(
   event: AuthChallengeEvent,
@@ -12,6 +11,18 @@ export async function handleAuthChallenge(
 
 export async function handleSinglePaymentRequest(wallet: Nwc | null, request: SinglePaymentRequest, database: DatabaseService, resolve: (status: PaymentStatus) => void, getServiceName: (app: PortalAppInterface, serviceKey: string) => Promise<string | null>, app: PortalAppInterface): Promise<boolean> {
   try {
+
+    let invoiceData = parseBolt11(request.content.invoice);
+
+    if (invoiceData.amountMsat != request.content.amount) {
+      resolve(
+        new PaymentStatus.Rejected({
+          reason: `Invoice amount does not match the requested amount.`,
+        })
+      );
+      return false;
+    }
+
     let subId = request.content.subscriptionId;
     if (!subId) {
       return true;
