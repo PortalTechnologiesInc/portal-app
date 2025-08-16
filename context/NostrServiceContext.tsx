@@ -787,7 +787,14 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                     });
                   };
 
-                  handleSinglePaymentRequest(nwcWalletRef.current, event, DB, resolver, getServiceName, app).then(askUser => {
+                  handleSinglePaymentRequest(
+                    nwcWalletRef.current,
+                    event,
+                    DB,
+                    resolver,
+                    getServiceName,
+                    app
+                  ).then(askUser => {
                     if (askUser) {
                       const newRequest: PendingRequest = {
                         id,
@@ -986,7 +993,9 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
       // let's try for 30 times. One every .5 sec should timeout after 15 secs.
       let attempt = 0;
       while (
-        relayStatusesRef.current.every(r => !url.relays.includes(r.url) || r.status != 'Connected')
+        !url.relays.some(urlRelay =>
+          relayStatusesRef.current.some(r => r.url === urlRelay && r.status === 'Connected')
+        )
       ) {
         if (attempt >= 30) {
           return;
@@ -1014,7 +1023,10 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         }
 
         // Step 2: Check relay connection status before attempting network fetch
-        if (!relayStatusesRef.current.length || relayStatusesRef.current.every(r => r.status != 'Connected')) {
+        if (
+          !relayStatusesRef.current.length ||
+          relayStatusesRef.current.every(r => r.status != 'Connected')
+        ) {
           console.warn('DEBUG: No relays connected, cannot fetch service profile for:', pubKey);
           throw new Error(
             'No relay connections available. Please check your internet connection and try again.'
@@ -1022,7 +1034,12 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         }
 
         console.log('DEBUG: NostrService.getServiceName fetching from network for pubKey:', pubKey);
-        console.log('DEBUG: Connected relays:', connectedCount, '/', relayStatusesRef.current.length);
+        console.log(
+          'DEBUG: Connected relays:',
+          connectedCount,
+          '/',
+          relayStatusesRef.current.length
+        );
 
         // Step 3: Fetch from network
         const profile = await app.fetchProfile(pubKey);
