@@ -342,13 +342,21 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
           setTimeout(async () => {
             try {
               const currentWallet = nwcWalletRef.current;
-              if (currentWallet && typeof currentWallet.reconnectRelay === 'function') {
-                console.log('🔄 Attempting NWC relay reconnection for:', relay_url);
-                await currentWallet.reconnectRelay(relay_url);
-                console.log('✅ NWC relay reconnected successfully:', relay_url);
-              } else {
-                console.log('⚠️ NWC wallet or reconnectRelay method not available for:', relay_url);
-              }
+              // TODO: Uncomment when portal-app-lib supports reconnectRelay on NWC wallets
+              // if (currentWallet && typeof currentWallet.reconnectRelay === 'function') {
+              //   console.log('🔄 Attempting NWC relay reconnection for:', relay_url);
+              //   await currentWallet.reconnectRelay(relay_url);
+              //   console.log('✅ NWC relay reconnected successfully:', relay_url);
+              // } else {
+              //   console.log('⚠️ NWC wallet or reconnectRelay method not available for:', relay_url);
+              // }
+
+              // Temporary: Just log the disconnection until reconnectRelay is available
+              console.log(
+                '⚠️ NWC relay disconnected:',
+                relay_url,
+                '- reconnectRelay not yet supported'
+              );
             } catch (error) {
               console.error('❌ NWC auto-reconnect failed for relay:', relay_url, error);
             }
