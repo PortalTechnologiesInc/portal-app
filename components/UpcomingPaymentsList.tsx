@@ -1,10 +1,9 @@
 import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { ThemedText } from './ThemedText';
 import type { UpcomingPayment } from '@/utils/types';
-import { formatRelativeTime } from '@/utils';
 import { useActivities } from '@/context/ActivitiesContext';
 import { parseCalendar } from 'portal-app-lib';
 import { fromUnixSeconds } from '@/services/database';
@@ -14,6 +13,8 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 export const UpcomingPaymentsList: React.FC = () => {
   // Initialize with empty array - will be populated with real data later
   const [upcomingPayments, SetUpcomingPayments] = useState<UpcomingPayment[]>([]);
+  const [totalAmount, setTotalAmount] = useState<number>(0);
+  const [currency, setCurrency] = useState<string>('USD');
 
   const { activeSubscriptions } = useActivities();
 
@@ -31,63 +32,43 @@ export const UpcomingPaymentsList: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    SetUpcomingPayments(
-      activeSubscriptions
-        .map(sub => {
-          const parsedCalendar = parseCalendar(sub.recurrence_calendar);
-          const nextPayment =
-            sub.recurrence_first_payment_due > new Date() || !sub.last_payment_date
-              ? sub.recurrence_first_payment_due
-              : fromUnixSeconds(
-                  parsedCalendar.nextOccurrence(
-                    BigInt((sub.last_payment_date?.getTime() ?? 0) / 1000)
-                  ) ?? 0
-                );
+    const payments = activeSubscriptions
+      .map(sub => {
+        const parsedCalendar = parseCalendar(sub.recurrence_calendar);
+        const nextPayment =
+          sub.recurrence_first_payment_due > new Date() || !sub.last_payment_date
+            ? sub.recurrence_first_payment_due
+            : fromUnixSeconds(
+                parsedCalendar.nextOccurrence(
+                  BigInt((sub.last_payment_date?.getTime() ?? 0) / 1000)
+                ) ?? 0
+              );
 
-          return {
-            id: sub.id,
-            serviceName: sub.service_name,
-            dueDate: nextPayment,
-            amount: sub.amount,
-            currency: sub.currency,
-          };
-        })
-        .filter(sub => {
-          return sub.dueDate < new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
-        })
-    );
+        return {
+          id: sub.id,
+          serviceName: sub.service_name,
+          dueDate: nextPayment,
+          amount: sub.amount,
+          currency: sub.currency,
+        };
+      })
+      .filter(sub => {
+        return sub.dueDate < new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+      });
+
+    SetUpcomingPayments(payments);
+    
+    // Calculate total amount and set currency
+    if (payments.length > 0) {
+      const total = payments.reduce((sum, payment) => sum + payment.amount, 0);
+      setTotalAmount(total);
+      // Use the first payment's currency as the display currency
+      setCurrency(payments[0].currency);
+    } else {
+      setTotalAmount(0);
+      setCurrency('USD');
+    }
   }, [activeSubscriptions]);
-
-  const renderPaymentItem = useCallback(
-    ({ item }: { item: UpcomingPayment }) => (
-      <TouchableOpacity
-        style={[styles.paymentCard, { backgroundColor: cardBackgroundColor }]}
-        activeOpacity={0.7}
-        onPress={() => router.push(`/subscription/${item.id}`)}
-      >
-        <View style={[styles.iconContainer, { backgroundColor: iconBackgroundColor }]}>
-          <BanknoteIcon size={20} color={iconColor} />
-        </View>
-        <View style={styles.paymentInfo}>
-          <ThemedText type="subtitle" style={{ color: primaryTextColor }}>
-            {item.serviceName}
-          </ThemedText>
-          <ThemedText style={[styles.typeText, { color: secondaryTextColor }]}>
-            Upcoming payment
-          </ThemedText>
-        </View>
-        <View style={styles.paymentDetails}>
-          <ThemedText style={[styles.amount, { color: primaryTextColor }]}>
-            {item.amount} {item.currency}
-          </ThemedText>
-          <ThemedText style={[styles.dueDate, { color: secondaryTextColor }]}>
-            {formatRelativeTime(item.dueDate)}
-          </ThemedText>
-        </View>
-      </TouchableOpacity>
-    ),
-    [cardBackgroundColor, iconBackgroundColor, primaryTextColor, secondaryTextColor, iconColor]
-  );
 
   return (
     <View style={styles.container}>
@@ -102,20 +83,26 @@ export const UpcomingPaymentsList: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {upcomingPayments.length === 0 ? (
-        <View style={[styles.emptyContainer, { backgroundColor: cardBackgroundColor }]}>
-          <ThemedText style={[styles.emptyText, { color: secondaryTextColor }]}>
-            No upcoming payments
+      <TouchableOpacity
+        style={[styles.summaryCard, { backgroundColor: cardBackgroundColor }]}
+        activeOpacity={0.7}
+        onPress={() => router.push('/(tabs)/Subscriptions')}
+      >
+        <View style={[styles.iconContainer, { backgroundColor: iconBackgroundColor }]}>
+          <BanknoteIcon size={24} color={iconColor} />
+        </View>
+        <View style={styles.summaryInfo}>
+          <ThemedText type="subtitle" style={{ color: primaryTextColor }}>
+            {totalAmount > 0 ? `$${totalAmount.toFixed(2)} expected in the next two weeks` : 'No upcoming payments'}
+          </ThemedText>
+          <ThemedText style={[styles.summarySubtext, { color: secondaryTextColor }]}>
+            {upcomingPayments.length > 0 
+              ? `${upcomingPayments.length} payment${upcomingPayments.length === 1 ? '' : 's'} due`
+              : 'All caught up on payments'
+            }
           </ThemedText>
         </View>
-      ) : (
-        <FlatList
-          data={upcomingPayments}
-          keyExtractor={item => item.id}
-          renderItem={renderPaymentItem}
-          scrollEnabled={false}
-        />
-      )}
+      </TouchableOpacity>
     </View>
   );
 };
@@ -135,60 +122,34 @@ const styles = StyleSheet.create({
   seeAll: {
     fontSize: 14,
   },
-  paymentCard: {
+  summaryCard: {
     flexDirection: 'row',
     // backgroundColor handled by theme
     borderRadius: 20,
-    padding: 14,
-    marginBottom: 10,
-    minHeight: 72,
+    padding: 16,
+    minHeight: 80,
     alignItems: 'center',
   },
   iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     // backgroundColor handled by theme
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 10,
+    marginRight: 12,
     alignSelf: 'center',
   },
-  paymentInfo: {
+  summaryInfo: {
     flex: 1,
     justifyContent: 'center',
-  },
-  paymentDetails: {
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    minWidth: 80,
   },
   title: {
     fontSize: 24,
     fontWeight: '600',
   },
-  amount: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  dueDate: {
-    fontSize: 12,
-  },
-  typeText: {
-    fontSize: 12,
+  summarySubtext: {
+    fontSize: 14,
     marginTop: 4,
-  },
-  emptyContainer: {
-    // backgroundColor handled by theme
-    borderRadius: 20,
-    padding: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 100,
-  },
-  emptyText: {
-    fontSize: 16,
-    textAlign: 'center',
   },
 });
