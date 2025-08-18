@@ -520,10 +520,14 @@ export class DatabaseService {
 
   async updateActivityStatus(
     id: string,
-    status: 'neutral' | 'positive' | 'negative' | 'pending'
+    status: 'neutral' | 'positive' | 'negative' | 'pending',
+    statusDetail: string,
   ): Promise<void> {
     try {
-      await this.db.runAsync('UPDATE activities SET status = ? WHERE id = ?', [status, id]);
+      await this.db.runAsync(
+        'UPDATE activities SET status = ?, detail = ? WHERE id = ?', 
+        [status, statusDetail, id]
+      );
     } catch (error) {
       console.error('Error updating activity status:', error);
       throw error;

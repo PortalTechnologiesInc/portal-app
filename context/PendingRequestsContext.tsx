@@ -292,7 +292,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               await db!.addPaymentStatusEntry(metadata.content.invoice, 'payment_completed');
 
               // Update the activity status to positive
-              await db!.updateActivityStatus(activityId, 'positive');
+              await db!.updateActivityStatus(activityId, 'positive', "Payment completed");
               refreshData();
 
               await notifier(
@@ -305,8 +305,11 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
               await db!.addPaymentStatusEntry(metadata.content.invoice, 'payment_failed');
 
-              // Update the activity status to negative
-              await db!.updateActivityStatus(activityId, 'negative');
+              await db!.updateActivityStatus(
+                activityId,
+                'negative',
+                'Payment approved by user but failed to process'
+              );
               refreshData();
 
               await notifier(

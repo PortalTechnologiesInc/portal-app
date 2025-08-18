@@ -148,7 +148,7 @@ export async function handleSinglePaymentRequest(wallet: Nwc | null, request: Si
         await database.updateSubscriptionLastPayment(subscription.id, new Date());
 
         // Update the activity status to positive
-        await database.updateActivityStatus(id, 'positive');
+        await database.updateActivityStatus(id, 'positive', 'Payment completed');
 
         resolve(new PaymentStatus.Success({
           preimage,
@@ -162,7 +162,11 @@ export async function handleSinglePaymentRequest(wallet: Nwc | null, request: Si
         );
 
         // Update the activity status to negative
-        await database.updateActivityStatus(id, 'negative');
+        await database.updateActivityStatus(
+          id,
+          'negative',
+          'Payment approved by user but failed to process'
+        );
 
         resolve(new PaymentStatus.Failed({
           reason: 'Payment failed: ' + error,
