@@ -1,25 +1,22 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, FlatList } from 'react-native';
 import { usePendingRequests } from '../context/PendingRequestsContext';
 import { PendingRequestCard } from './PendingRequestCard';
 import { PendingRequestSkeletonCard } from './PendingRequestSkeletonCard';
 import { FailedRequestCard } from './FailedRequestCard';
-import type { PendingRequest, PendingRequestType } from '@/utils/types';
-import type { AuthChallengeEvent, SinglePaymentRequest } from 'portal-app-lib';
+import type { PendingRequest } from '@/utils/types';
+import type { SinglePaymentRequest } from 'portal-app-lib';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { ThemedText } from './ThemedText';
-import { useEffect, useState } from 'react';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { Layout } from '@/constants/Layout';
-import { DatabaseService } from '@/services/database';
-import { useSQLiteContext } from 'expo-sqlite';
-import { useDatabaseStatus } from '@/services/database/DatabaseProvider';
+import { useSafeDatabaseService, useDatabaseStatus } from '@/services/database';
 
 // Create a skeleton request that adheres to the PendingRequest interface
 const createSkeletonRequest = (): PendingRequest => ({
   id: 'skeleton',
-  metadata: {} as AuthChallengeEvent,
-  type: 'login',
+  metadata: {} as any,
+  type: 'login' as const,
   timestamp: new Date(),
   result: () => {},
 });
@@ -30,23 +27,9 @@ export const PendingRequestsList: React.FC = React.memo(() => {
   const nostrService = useNostrService();
   const [data, setData] = useState<PendingRequest[]>([]);
 
-  // Only try to access SQLite context if the database is initialized
-  let sqliteContext = null;
-  try {
-    // This will throw an error if SQLiteProvider is not available
-    sqliteContext = useSQLiteContext();
-  } catch (error) {
-    // SQLiteContext is not available, which is expected sometimes
-    console.log('SQLite context not available yet, activity tracking will be delayed');
-  }
-
-  if (!sqliteContext) {
-    console.log('SQLite context is null');
-    return;
-  }
-
-  // Get database initialization status
+  // All hooks must be at top level
   const dbStatus = useDatabaseStatus();
+  const db = useSafeDatabaseService();
 
   // Theme colors
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');
@@ -54,8 +37,6 @@ export const PendingRequestsList: React.FC = React.memo(() => {
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
 
   useEffect(() => {
-    const db = new DatabaseService(sqliteContext);
-
     const processData = async () => {
       // Check if database is ready before accessing it
       if (!dbStatus.isDbInitialized) {
@@ -87,6 +68,9 @@ export const PendingRequestsList: React.FC = React.memo(() => {
 
           // For other request types, check if they're stored
           try {
+            if (!db) {
+              return request; // Keep request if DB not available
+            }
             if (
               await db.isPendingRequestStored((request.metadata as SinglePaymentRequest).eventId)
             ) {
@@ -113,13 +97,7 @@ export const PendingRequestsList: React.FC = React.memo(() => {
     };
 
     processData();
-  }, [
-    nostrService.pendingRequests,
-    isLoadingRequest,
-    requestFailed,
-    sqliteContext,
-    dbStatus.isDbInitialized,
-  ]);
+  }, [nostrService.pendingRequests, isLoadingRequest, requestFailed, dbStatus.isDbInitialized]);
 
   const handleRetry = () => {
     setRequestFailed(false);

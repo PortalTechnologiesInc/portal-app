@@ -16,12 +16,12 @@ import { formatDayAndDate } from '@/utils';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { useActivities } from '@/context/ActivitiesContext';
 import { parseCalendar } from 'portal-app-lib';
-import { useSQLiteContext } from 'expo-sqlite';
+
 import { DatabaseService, fromUnixSeconds, type SubscriptionWithDates } from '@/services/database';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { PortalAppManager } from '@/services/PortalAppManager';
 import { CircleX, Hourglass } from 'lucide-react-native';
-import { useDatabaseStatus } from '@/services/database/DatabaseProvider';
+import { useDatabaseStatus, useSafeDatabaseService } from '@/services/database';
 
 // Mock payment history for a subscription
 interface PaymentHistory {
@@ -51,10 +51,8 @@ export default function SubscriptionDetailScreen() {
   const statusErrorColor = useThemeColor({}, 'statusError');
   const orangeColor = Colors.orange;
 
-  const sqliteContext = useSQLiteContext();
   const dbStatus = useDatabaseStatus();
-
-  const DB = useMemo(() => new DatabaseService(sqliteContext), [sqliteContext]);
+  const DB = useSafeDatabaseService();
 
   useEffect(() => {
     const refreshData = async () => {
@@ -73,6 +71,10 @@ export default function SubscriptionDetailScreen() {
         setSubscription(foundSubscription);
 
         try {
+          if (!DB) {
+            console.log('Database service not ready');
+            return;
+          }
           const payments = await DB.getSubscriptionPayments(id as string);
           setPaymentHistory(
             payments.map(payment => ({
@@ -113,6 +115,10 @@ export default function SubscriptionDetailScreen() {
           text: 'Yes, Cancel',
           onPress: async () => {
             try {
+              if (!DB) {
+                console.error('Database service not available');
+                return;
+              }
               await DB.updateSubscriptionStatus(subscription.id, 'cancelled');
               refreshData();
               PortalAppManager.tryGetInstance().closeRecurringPayment(

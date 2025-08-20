@@ -71,11 +71,11 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!isFirstLaunch) return
+    if (!isFirstLaunch) return;
 
-    const sortedRequests = Object.values(nostrService.pendingRequests)
+    const sortedRequests = Object.values(nostrService.pendingRequests);
     if (sortedRequests.length > 0) {
-      markWelcomeAsViewed()
+      markWelcomeAsViewed();
     }
   }, [nostrService.pendingRequests]);
 

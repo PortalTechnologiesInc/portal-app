@@ -13,7 +13,7 @@ import { useRouter } from 'expo-router';
 import { ArrowLeft, X, Plus } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSQLiteContext } from 'expo-sqlite';
-import { DatabaseService } from '@/services/database';
+import { useSafeDatabaseService } from '@/services/database';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useDatabaseStatus } from '@/services/database/DatabaseProvider';
 
@@ -54,8 +54,7 @@ export default function NostrRelayManagementScreen() {
   const buttonPrimaryTextColor = useThemeColor({}, 'buttonPrimaryText');
 
   const nostrService = useNostrService();
-  const sqliteContext = useSQLiteContext();
-  const DB = new DatabaseService(sqliteContext);
+  const DB = useSafeDatabaseService();
   const dbStatus = useDatabaseStatus();
 
   // Load relay data on mount
@@ -70,6 +69,10 @@ export default function NostrRelayManagementScreen() {
           return;
         }
 
+        if (!DB) {
+          console.log('Database service not ready');
+          return;
+        }
         const activeRelays = (await DB.getRelays()).map(value => value.ws_uri);
 
         activeRelays.forEach(relayUrl => {
@@ -178,6 +181,10 @@ export default function NostrRelayManagementScreen() {
 
       // Finally update the database
       console.log('💾 Updating database...');
+      if (!DB) {
+        console.error('Database service not available for relay update');
+        return;
+      }
       await DB.updateRelays(newlySelectedRelays);
 
       setActiveRelaysList(newlySelectedRelays);

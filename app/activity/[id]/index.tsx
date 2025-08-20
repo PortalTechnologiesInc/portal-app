@@ -18,9 +18,9 @@ import {
   Link,
   Ticket,
 } from 'lucide-react-native';
-import { DatabaseService } from '@/services/database';
+import { useSafeDatabaseService } from '@/services/database';
 import type { ActivityWithDates } from '@/services/database';
-import { useSQLiteContext } from 'expo-sqlite';
+
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { getActivityStatus } from '@/utils/activityHelpers';
 import { ActivityHeader } from '@/components/ActivityDetail/ActivityHeader';
@@ -40,7 +40,7 @@ export default function ActivityDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [paymentSteps, setPaymentSteps] = useState<PaymentStep[]>([]);
-  const db = useSQLiteContext();
+  const dbService = useSafeDatabaseService();
   const { activities } = useActivities();
 
   // Theme colors
@@ -57,7 +57,10 @@ export default function ActivityDetailScreen() {
     const fetchActivity = async () => {
       try {
         setLoading(true);
-        const dbService = new DatabaseService(db);
+        if (!dbService) {
+          console.error('Database service not available');
+          return;
+        }
         const activityData = await dbService.getActivity(id as string);
 
         if (activityData) {
@@ -91,7 +94,7 @@ export default function ActivityDetailScreen() {
     if (id) {
       fetchActivity();
     }
-  }, [id, db, activities]);
+  }, [id, dbService, activities]);
 
   const handleBackPress = () => {
     router.back();
