@@ -19,9 +19,13 @@ import {
   AuthResponseStatus,
   CashuResponseStatus,
 } from 'portal-app-lib';
-import { useSQLiteContext } from 'expo-sqlite';
-import { DatabaseService, fromUnixSeconds } from '@/services/database';
-import { useDatabaseStatus } from '@/services/database/DatabaseProvider';
+
+import {
+  fromUnixSeconds,
+  useDatabaseStatus,
+  useSafeDatabaseService,
+  useRobustDatabaseService,
+} from '@/services/database';
 import { useActivities } from '@/context/ActivitiesContext';
 import { NostrServiceContextType, useNostrService } from '@/context/NostrServiceContext';
 import { useECash } from '@/context/ECashContext';
@@ -70,8 +74,9 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
   const [requestFailed, setRequestFailed] = useState(false);
   const [timeoutId, setTimeoutId] = useState<number | null>(null);
 
-  // Create database instance for adding activities, but handle case where it's not ready
-  const [db, setDb] = useState<DatabaseService | null>(null);
+  // Use centralized database service
+  const db = useSafeDatabaseService();
+  const robustDB = useRobustDatabaseService(); // For error-prone operations
 
   // Queue for activities that couldn't be recorded due to DB not being ready
   const [pendingActivities, setPendingActivities] = useState<PendingActivity[]>([]);
@@ -81,34 +86,20 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
   const nostrService = useNostrService();
   const eCashContext = useECash();
 
-  // Get SQLite context - this is now safe because we've reordered the providers in _layout.tsx
-  let sqliteContext = null;
-  try {
-    // This will only be accessed when the SQLiteProvider is available
-    sqliteContext = dbStatus.shouldInitDb && dbStatus.isDbInitialized ? useSQLiteContext() : null;
-  } catch (error) {
-    console.log('SQLite context not available yet:', error);
-  }
+  // Database readiness check
+  const isDbReady = dbStatus.isDbInitialized && db !== null;
 
   // Get the refreshData function from ActivitiesContext
   const { refreshData } = useActivities();
 
-  // Initialize DB when SQLite context is available
+  // Log database readiness for debugging
   useEffect(() => {
-    if (!sqliteContext || !dbStatus.shouldInitDb || !dbStatus.isDbInitialized) {
-      console.log('Database prerequisites not met, waiting...');
-      return;
+    if (isDbReady) {
+      console.log('PendingRequestsContext: Database service is ready');
+    } else {
+      console.log('PendingRequestsContext: Database service not ready yet');
     }
-
-    try {
-      console.log('Initializing DatabaseService in PendingRequestsContext');
-      const databaseService = new DatabaseService(sqliteContext);
-      setDb(databaseService);
-    } catch (error) {
-      console.error('Failed to initialize DatabaseService:', error);
-      setDb(null);
-    }
-  }, [sqliteContext, dbStatus.shouldInitDb, dbStatus.isDbInitialized]);
+  }, [isDbReady]);
 
   // Process any pending activities when DB becomes available
   useEffect(() => {
@@ -292,7 +283,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               await db!.addPaymentStatusEntry(metadata.content.invoice, 'payment_completed');
 
               // Update the activity status to positive
-              await db!.updateActivityStatus(activityId, 'positive', "Payment completed");
+              await db!.updateActivityStatus(activityId, 'positive', 'Payment completed');
               refreshData();
 
               await notifier(
@@ -407,7 +398,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               // Get the wallet from ECash context
               const wallet = await eCashContext.getWallet(
                 cashuEvent.inner.mintUrl,
-                cashuEvent.inner.unit
+                cashuEvent.inner.unit.toLowerCase() // Normalize unit name
               );
               if (!wallet) {
                 console.error('No wallet available for Cashu request');
@@ -430,7 +421,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               const { globalEvents } = await import('@/utils/index');
               globalEvents.emit('walletBalancesChanged', {
                 mintUrl: cashuEvent.inner.mintUrl,
-                unit: cashuEvent.inner.unit,
+                unit: cashuEvent.inner.unit.toLowerCase(),
               });
               console.log('walletBalancesChanged event emitted for Cashu send');
 

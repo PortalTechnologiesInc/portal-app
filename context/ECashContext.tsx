@@ -9,6 +9,7 @@ import {
 import { useSQLiteContext } from 'expo-sqlite';
 import { DatabaseService } from '@/services/database';
 import { useDatabaseStatus } from '@/services/database/DatabaseProvider';
+import { useSafeDatabaseService, useRobustDatabaseService } from '@/services/database';
 
 interface WalletKey {
   mintUrl: string;
@@ -36,8 +37,8 @@ const ECashContext = createContext<ECashContextType | undefined>(undefined);
 export function ECashProvider({ children, mnemonic }: { children: ReactNode; mnemonic: string }) {
   const [wallets, setWallets] = useState<{ [key: string]: CashuWalletInterface }>({});
   const [isLoading, setIsLoading] = useState(false);
-  const sqliteContext = useSQLiteContext();
-  const DB = new DatabaseService(sqliteContext);
+  const DB = useSafeDatabaseService();
+  const robustDB = useRobustDatabaseService();
   const dbStatus = useDatabaseStatus();
 
   useEffect(() => {
@@ -46,29 +47,51 @@ export function ECashProvider({ children, mnemonic }: { children: ReactNode; mne
       setIsLoading(true);
       try {
         // Check if database is ready before accessing it
-        if (!dbStatus.isDbInitialized) {
-          console.log('ECashContext: Database not ready yet, skipping wallet fetch');
+        if (!dbStatus.isDbInitialized || !DB) {
+          console.log('ECashContext: Database service not ready yet, skipping wallet fetch');
           return;
         }
 
-        const pairList = await DB.getMintUnitPairs();
+        // Use robust database service to handle connection errors
+        const pairList = await robustDB.executeWithRetry(
+          async db => db.getMintUnitPairs(),
+          'Mint unit pairs fetch'
+        );
+
+        if (!pairList) {
+          console.log('ECashContext: Failed to fetch wallet pairs from database');
+          return;
+        }
         console.log('ECashContext: Loading wallets from pairs:', pairList);
 
         if (pairList.length === 0) {
           console.log('ECashContext: No wallet pairs found in database');
         }
 
-        // Use Promise.all to properly await all wallet additions
-        await Promise.all(
-          pairList.map(async ([mintUrl, unit]) => {
-            try {
-              await addWallet(mintUrl, unit);
-              console.log(`ECashContext: Added wallet for ${mintUrl}-${unit}`);
-            } catch (error) {
-              console.error(`ECashContext: Error adding wallet for ${mintUrl}-${unit}:`, error);
+        // Create wallets sequentially to avoid database conflicts
+        // Also handle existing duplicate wallets with different casing
+        const processedKeys = new Set<string>();
+
+        for (const [mintUrl, unit] of pairList) {
+          try {
+            const normalizedKey = `${mintUrl}-${unit.toLowerCase()}`;
+
+            // Skip if we already processed this normalized key
+            if (processedKeys.has(normalizedKey)) {
+              console.log(
+                `ECashContext: Skipping duplicate wallet for ${normalizedKey} (already processed)`
+              );
+              continue;
             }
-          })
-        );
+
+            await addWallet(mintUrl, unit);
+            processedKeys.add(normalizedKey);
+            console.log(`ECashContext: Added wallet for ${mintUrl}-${unit}`);
+          } catch (error) {
+            console.error(`ECashContext: Error adding wallet for ${mintUrl}-${unit}:`, error);
+            // Continue with next wallet instead of failing everything
+          }
+        }
 
         console.log('ECashContext: Wallets loaded:', Object.keys(wallets));
       } catch (e) {
@@ -78,35 +101,80 @@ export function ECashProvider({ children, mnemonic }: { children: ReactNode; mne
     };
 
     fetchWallets();
-  }, [dbStatus.isDbInitialized]); // Add database status as dependency
+  }, [dbStatus.isDbInitialized, DB]); // Add database service as dependency
 
-  // Add a new wallet
+  // Add a new wallet with comprehensive error handling
   const addWallet = async (mintUrl: string, unit: string): Promise<CashuWalletInterface> => {
-    console.log(`Adding wallet for ${mintUrl}-${unit}`);
+    // Normalize unit to lowercase to prevent duplicate wallets due to casing differences
+    const normalizedUnit = unit.toLowerCase();
+    console.log(
+      `Adding wallet for ${mintUrl}-${normalizedUnit}` +
+        (unit !== normalizedUnit ? ` (normalized from ${unit})` : '')
+    );
 
-    const walletInMap = wallets[`${mintUrl}-${unit}`];
+    const walletInMap = wallets[`${mintUrl}-${normalizedUnit}`];
     if (walletInMap) {
-      console.log(`Wallet already exists for ${mintUrl}-${unit}`);
+      console.log(`Wallet already exists for ${mintUrl}-${normalizedUnit}`);
       return walletInMap;
     }
 
-    console.log(`Creating new wallet for ${mintUrl}-${unit}`);
-    const seed = new Mnemonic(mnemonic).deriveCashu();
-    const storage = new CashuStorage(DB);
-    const wallet = await CashuWallet.create(mintUrl, unit, seed, storage);
-    console.log('Restored proofs:', await wallet.restoreProofs());
+    console.log(`Creating new wallet for ${mintUrl}-${normalizedUnit}`);
+
+    // Ensure database service is available
+    if (!DB || !dbStatus.isDbInitialized) {
+      throw new Error('Database service not available or not initialized');
+    }
 
     try {
+      const seed = new Mnemonic(mnemonic).deriveCashu();
+      const storage = new CashuStorage(DB);
+
+      // Add timeout and retry logic for wallet creation
+      let wallet: CashuWalletInterface | null = null;
+      let retries = 3;
+
+      while (retries > 0 && !wallet) {
+        try {
+          wallet = (await Promise.race([
+            CashuWallet.create(mintUrl, normalizedUnit, seed, storage),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('Wallet creation timeout')), 10000)
+            ),
+          ])) as CashuWalletInterface;
+          break;
+        } catch (error) {
+          retries--;
+          if (retries === 0) {
+            console.error(`Failed to create wallet after all retries: ${error}`);
+            throw error;
+          }
+          console.warn(`Wallet creation failed, retrying... (${retries} retries left)`);
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s before retry
+        }
+      }
+
+      if (!wallet) {
+        throw new Error('Failed to create wallet after all retries');
+      }
+
+      // Restore proofs with error handling
+      try {
+        const restoredProofs = await wallet.restoreProofs();
+        console.log('Restored proofs:', restoredProofs);
+      } catch (error) {
+        console.warn('Error restoring proofs (continuing anyway):', error);
+      }
+
       setWallets(prev => {
         const newMap = { ...prev };
-        newMap[`${mintUrl}-${unit}`] = wallet;
-        console.log(`Wallet added to state: ${mintUrl}-${unit}`);
+        newMap[`${mintUrl}-${normalizedUnit}`] = wallet;
+        console.log(`Wallet added to state: ${mintUrl}-${normalizedUnit}`);
         return newMap;
       });
 
       return wallet;
     } catch (error) {
-      console.error('Error adding wallet:', error);
+      console.error(`Error creating wallet for ${mintUrl}-${normalizedUnit}:`, error);
       throw error;
     }
   };
@@ -114,9 +182,11 @@ export function ECashProvider({ children, mnemonic }: { children: ReactNode; mne
   // Remove a wallet
   const removeWallet = async (mintUrl: string, unit: string) => {
     try {
+      // Normalize unit to lowercase to match stored wallet keys
+      const normalizedUnit = unit.toLowerCase();
       setWallets(prev => {
         const newMap = { ...prev };
-        delete newMap[`${mintUrl}-${unit}`];
+        delete newMap[`${mintUrl}-${normalizedUnit}`];
         return newMap;
       });
     } catch (error) {
@@ -125,7 +195,9 @@ export function ECashProvider({ children, mnemonic }: { children: ReactNode; mne
   };
 
   const getWallet = (mintUrl: string, unit: string): CashuWalletInterface | null => {
-    return wallets[`${mintUrl}-${unit}`] || null;
+    // Normalize unit to lowercase to match stored wallet keys
+    const normalizedUnit = unit.toLowerCase();
+    return wallets[`${mintUrl}-${normalizedUnit}`] || null;
   };
 
   return (
