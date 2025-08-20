@@ -117,7 +117,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
       return () => {
         isMounted.current = false;
       };
-    }, [serviceKey, nostrService, type, metadata, wallets, request.ticketTitle]);
+    }, [serviceKey, nostrService.relayStatuses, type, metadata, wallets, request.ticketTitle]);
 
     const recipientPubkey = (metadata as SinglePaymentRequest).recipient;
 
