@@ -1,5 +1,17 @@
-import { AuthChallengeEvent, AuthResponseStatus, CloseRecurringPaymentResponse, RecurringPaymentRequest, RecurringPaymentResponseContent, SinglePaymentRequest, PaymentStatus, Nwc, parseCalendar, PortalAppInterface, parseBolt11 } from "portal-app-lib";
-import { DatabaseService, fromUnixSeconds, SubscriptionWithDates } from "./database";
+import {
+  AuthChallengeEvent,
+  AuthResponseStatus,
+  CloseRecurringPaymentResponse,
+  RecurringPaymentRequest,
+  RecurringPaymentResponseContent,
+  SinglePaymentRequest,
+  PaymentStatus,
+  Nwc,
+  parseCalendar,
+  PortalAppInterface,
+  parseBolt11,
+} from 'portal-app-lib';
+import { DatabaseService, fromUnixSeconds, SubscriptionWithDates } from './database';
 
 export async function handleAuthChallenge(
   event: AuthChallengeEvent,
@@ -9,9 +21,15 @@ export async function handleAuthChallenge(
   return true;
 }
 
-export async function handleSinglePaymentRequest(wallet: Nwc | null, request: SinglePaymentRequest, database: DatabaseService, resolve: (status: PaymentStatus) => void, getServiceName: (app: PortalAppInterface, serviceKey: string) => Promise<string | null>, app: PortalAppInterface): Promise<boolean> {
+export async function handleSinglePaymentRequest(
+  wallet: Nwc | null,
+  request: SinglePaymentRequest,
+  database: DatabaseService,
+  resolve: (status: PaymentStatus) => void,
+  getServiceName: (app: PortalAppInterface, serviceKey: string) => Promise<string | null>,
+  app: PortalAppInterface
+): Promise<boolean> {
   try {
-
     let invoiceData = parseBolt11(request.content.invoice);
 
     if (invoiceData.amountMsat != request.content.amount) {
@@ -50,9 +68,9 @@ export async function handleSinglePaymentRequest(wallet: Nwc | null, request: Si
       return false;
     }
 
-    let serviceName = "Unknown Service";
+    let serviceName = 'Unknown Service';
     try {
-      serviceName = await getServiceName(app, request.serviceKey) || "Unknown Service";
+      serviceName = (await getServiceName(app, request.serviceKey)) || 'Unknown Service';
     } catch (e) {
       console.error('Error getting service name:', e);
     }
@@ -60,14 +78,18 @@ export async function handleSinglePaymentRequest(wallet: Nwc | null, request: Si
     // TODO: take into account other currencies
     const amountSats = request.content.amount / 1000n;
     if (amountSats != BigInt(subscription.amount)) {
-      resolve(new PaymentStatus.Rejected({
-        reason: `Payment amount does not match subscription amount.\nExpected: ${subscription.amount} ${subscription.currency}\nReceived: ${amountSats} ${request.content.currency}`
-      }));
+      resolve(
+        new PaymentStatus.Rejected({
+          reason: `Payment amount does not match subscription amount.\nExpected: ${subscription.amount} ${subscription.currency}\nReceived: ${amountSats} ${request.content.currency}`,
+        })
+      );
       return false;
     }
 
     // If no payment has been executed, the nextOccurrence is the first payment due time
-    let nextOccurrence: bigint | undefined = BigInt(subscription.recurrence_first_payment_due.getTime() / 1000);
+    let nextOccurrence: bigint | undefined = BigInt(
+      subscription.recurrence_first_payment_due.getTime() / 1000
+    );
     if (subscription.last_payment_date) {
       let lastPayment = BigInt(subscription.last_payment_date.getTime() / 1000);
       nextOccurrence = parseCalendar(subscription.recurrence_calendar).nextOccurrence(lastPayment);
@@ -75,17 +97,19 @@ export async function handleSinglePaymentRequest(wallet: Nwc | null, request: Si
     console.log('next occurrence', nextOccurrence);
 
     if (!nextOccurrence || fromUnixSeconds(nextOccurrence) > new Date()) {
-      resolve(new PaymentStatus.Rejected({
-        reason: 'Payment is not due yet. Please wait till the next payment is scheduled.'
-      }));
-      return false
+      resolve(
+        new PaymentStatus.Rejected({
+          reason: 'Payment is not due yet. Please wait till the next payment is scheduled.',
+        })
+      );
+      return false;
     }
 
     let balance: number | undefined;
 
     if (wallet) {
       await wallet.getInfo();
-      balance = Number((await wallet.getBalance()));
+      balance = Number(await wallet.getBalance());
     }
 
     if (balance && request.content.amount > balance) {
@@ -126,23 +150,15 @@ export async function handleSinglePaymentRequest(wallet: Nwc | null, request: Si
         subscription_id: request.content.subscriptionId || null,
       });
 
-      resolve(
-        new PaymentStatus.Approved,
-      );
+      resolve(new PaymentStatus.Approved());
 
-      await database.addPaymentStatusEntry(
-        request.content.invoice,
-        'payment_started',
-      );
+      await database.addPaymentStatusEntry(request.content.invoice, 'payment_started');
 
       // make the payment with nwc
       try {
         const preimage = await wallet.payInvoice(request.content.invoice);
 
-        await database.addPaymentStatusEntry(
-          request.content.invoice,
-          'payment_completed',
-        );
+        await database.addPaymentStatusEntry(request.content.invoice, 'payment_completed');
 
         // Update the subscription last payment date
         await database.updateSubscriptionLastPayment(subscription.id, new Date());
@@ -150,16 +166,15 @@ export async function handleSinglePaymentRequest(wallet: Nwc | null, request: Si
         // Update the activity status to positive
         await database.updateActivityStatus(id, 'positive', 'Payment completed');
 
-        resolve(new PaymentStatus.Success({
-          preimage,
-        }));
+        resolve(
+          new PaymentStatus.Success({
+            preimage,
+          })
+        );
       } catch (error) {
         console.error('Error paying invoice:', error);
 
-        await database.addPaymentStatusEntry(
-          request.content.invoice,
-          'payment_failed',
-        );
+        await database.addPaymentStatusEntry(request.content.invoice, 'payment_failed');
 
         // Update the activity status to negative
         await database.updateActivityStatus(
@@ -168,9 +183,11 @@ export async function handleSinglePaymentRequest(wallet: Nwc | null, request: Si
           'Payment approved by user but failed to process'
         );
 
-        resolve(new PaymentStatus.Failed({
-          reason: 'Payment failed: ' + error,
-        }));
+        resolve(
+          new PaymentStatus.Failed({
+            reason: 'Payment failed: ' + error,
+          })
+        );
       }
     } else {
       database.addActivity({
@@ -188,7 +205,7 @@ export async function handleSinglePaymentRequest(wallet: Nwc | null, request: Si
 
       resolve(
         new PaymentStatus.Rejected({
-          reason: 'Recurring payment failed: user has no wallet linked'
+          reason: 'Recurring payment failed: user has no wallet linked',
         })
       );
 
