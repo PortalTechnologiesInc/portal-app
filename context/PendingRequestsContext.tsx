@@ -32,6 +32,7 @@ import type {
   PendingSubscription,
 } from '@/utils/types';
 import { PortalAppManager } from '@/services/PortalAppManager';
+import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 
 // Helper function to get service name with fallback
 const getServiceNameWithFallback = async (
@@ -81,6 +82,36 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
   // Get the refreshData function from ActivitiesContext
   const { refreshData } = useActivities();
+
+  // Reset all PendingRequests state to initial values
+  // This is called during app reset to ensure clean state
+  const resetPendingRequests = () => {
+    console.log('🔄 Resetting PendingRequests state...');
+
+    // Reset all state to initial values
+    setIsLoadingRequest(false);
+    setPendingUrl(undefined);
+    setRequestFailed(false);
+    setPendingActivities([]);
+    setPendingSubscriptions([]);
+
+    // Clear any active timeouts
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      setTimeoutId(null);
+    }
+
+    console.log('✅ PendingRequests state reset completed');
+  };
+
+  // Register/unregister context reset function
+  useEffect(() => {
+    registerContextReset(resetPendingRequests);
+
+    return () => {
+      unregisterContextReset(resetPendingRequests);
+    };
+  }, []);
 
   // Process any pending activities when available
   useEffect(() => {

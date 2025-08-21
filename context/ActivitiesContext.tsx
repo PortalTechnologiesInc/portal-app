@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { type ActivityWithDates, type SubscriptionWithDates } from '@/services/database';
 import { useDatabase } from '@/context/DatabaseContextProvider';
+import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 
 interface ActivitiesContextType {
   // Activity management
@@ -49,6 +50,35 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
 
   // Simple database access
   const { executeOperation } = useDatabase();
+
+  // Reset all Activities state to initial values
+  // This is called during app reset to ensure clean state
+  const resetActivities = () => {
+    console.log('🔄 Resetting Activities state...');
+
+    // Reset all state to initial values
+    setActivities([]);
+    setSubscriptions([]);
+    setActiveSubscriptions([]);
+    setHasMoreActivities(true);
+    setIsLoadingMore(false);
+    setCurrentOffset(0);
+    setTotalActivities(0);
+
+    // Reset the current offset ref as well
+    currentOffsetRef.current = 0;
+
+    console.log('✅ Activities state reset completed');
+  };
+
+  // Register/unregister context reset function
+  useEffect(() => {
+    registerContextReset(resetActivities);
+
+    return () => {
+      unregisterContextReset(resetActivities);
+    };
+  }, []);
 
   const fetchActivities = useCallback(
     async (reset = false) => {

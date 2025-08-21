@@ -9,6 +9,7 @@ import {
 import { useSQLiteContext } from 'expo-sqlite';
 import { DatabaseService } from '@/services/database';
 import { useDatabase } from '@/context/DatabaseContextProvider';
+import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 
 interface WalletKey {
   mintUrl: string;
@@ -38,6 +39,27 @@ export function ECashProvider({ children, mnemonic }: { children: ReactNode; mne
   const [isLoading, setIsLoading] = useState(false);
   const { executeOperation } = useDatabase();
   const sqliteContext = useSQLiteContext();
+
+  // Reset all ECash state to initial values
+  // This is called during app reset to ensure clean state
+  const resetECash = () => {
+    console.log('🔄 Resetting ECash state...');
+
+    // Clear all wallets
+    setWallets({});
+    setIsLoading(false);
+
+    console.log('✅ ECash state reset completed');
+  };
+
+  // Register/unregister context reset function
+  useEffect(() => {
+    registerContextReset(resetECash);
+
+    return () => {
+      unregisterContextReset(resetECash);
+    };
+  }, []);
 
   useEffect(() => {
     const fetchWallets = async () => {
