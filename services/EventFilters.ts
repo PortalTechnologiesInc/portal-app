@@ -181,10 +181,12 @@ export async function handleSinglePaymentRequest(
         );
 
         // Update the activity status to positive
-        await executeOperation(
-          db => db.updateActivityStatus(id, 'positive', 'Payment completed'),
-          null
-        );
+        if (id) {
+          await executeOperation(
+            db => db.updateActivityStatus(id, 'positive', 'Payment completed'),
+            null
+          );
+        }
 
         resolve(
           new PaymentStatus.Success({
@@ -200,15 +202,17 @@ export async function handleSinglePaymentRequest(
         );
 
         // Update the activity status to negative
-        await executeOperation(
-          db =>
-            db.updateActivityStatus(
-              id,
-              'negative',
-              'Payment approved by user but failed to process'
-            ),
-          null
-        );
+        if (id) {
+          await executeOperation(
+            db =>
+              db.updateActivityStatus(
+                id,
+                'negative',
+                'Payment approved by user but failed to process'
+              ),
+            null
+          );
+        }
 
         resolve(
           new PaymentStatus.Failed({
