@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   CheckCircle,
   XCircle,
+  Trash2,
 } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -367,24 +368,56 @@ export default function WalletManagementScreen() {
                 scrollEnabled={false}
                 editable={isEditing}
               />
-              <TouchableOpacity
-                style={[
-                  styles.walletUrlAction,
-                  {
-                    backgroundColor:
-                      isEditing && hasChanged ? statusConnectedColor : surfaceSecondaryColor,
-                  },
-                ]}
-                onPress={handleIconPress}
-              >
-                {!isEditing ? (
-                  <Pencil size={18} color={primaryTextColor} />
-                ) : hasChanged ? (
-                  <Check size={18} color="white" />
-                ) : (
-                  <X size={18} color={primaryTextColor} />
+              <View style={styles.walletUrlActions}>
+                <TouchableOpacity
+                  style={[
+                    styles.walletUrlAction,
+                    {
+                      backgroundColor:
+                        isEditing && hasChanged ? statusConnectedColor : surfaceSecondaryColor,
+                    },
+                  ]}
+                  onPress={handleIconPress}
+                >
+                  {!isEditing ? (
+                    <Pencil size={18} color={primaryTextColor} />
+                  ) : hasChanged ? (
+                    <Check size={18} color="white" />
+                  ) : (
+                    <X size={18} color={primaryTextColor} />
+                  )}
+                </TouchableOpacity>
+                {walletUrl && !isEditing && (
+                  <TouchableOpacity
+                    style={[
+                      styles.walletUrlAction,
+                      styles.deleteButton,
+                      {
+                        backgroundColor: statusErrorColor,
+                      },
+                    ]}
+                    onPress={() => {
+                      Alert.alert(
+                        'Remove Wallet',
+                        'Are you sure you want to remove the configured wallet? This will disconnect your wallet from the app.',
+                        [
+                          {
+                            text: 'Cancel',
+                            style: 'cancel',
+                          },
+                          {
+                            text: 'Remove',
+                            style: 'destructive',
+                            onPress: handleClearInput,
+                          },
+                        ]
+                      );
+                    }}
+                  >
+                    <Trash2 size={18} color="white" />
+                  </TouchableOpacity>
                 )}
-              </TouchableOpacity>
+              </View>
             </View>
 
             {/* Helper text */}
@@ -395,7 +428,7 @@ export default function WalletManagementScreen() {
                   ? 'Tap the check icon to save your changes'
                   : isEditing
                     ? 'Tap the X to cancel editing'
-                    : 'Your wallet connection URL is configured'}
+                    : 'Your wallet connection URL is configured. Use the trash icon to remove it.'}
             </ThemedText>
           </View>
 
@@ -637,6 +670,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     // backgroundColor handled by theme
+  },
+  walletUrlActions: {
+    flexDirection: 'column',
+    gap: 8,
+  },
+  deleteButton: {
+    marginTop: 4,
   },
   walletUrlHelper: {
     fontSize: 12,
