@@ -54,13 +54,13 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const { id, metadata, type } = request;
     const nostrService = useNostrService();
     const { wallets } = useECash();
-    const { 
-      isFullyConfigured, 
-      hasAnyWallet, 
+    const {
+      isFullyConfigured,
+      hasAnyWallet,
       isLoading: walletStatusLoading,
       hasECashWallets,
       isLightningConnected,
-      nwcStatus 
+      nwcStatus,
     } = useWalletStatus();
     const [serviceName, setServiceName] = useState<string | null>(null);
     const [isServiceNameLoading, setIsServiceNameLoading] = useState(true);
@@ -157,7 +157,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
         }
 
         // If no wallet configured, insufficient balance check is irrelevant
-        const hasWorkingWallet = hasECashWallets || (nwcStatus === true);
+        const hasWorkingWallet = hasECashWallets || nwcStatus === true;
         if (!hasWorkingWallet) {
           setHasInsufficientBalance(false);
           return;
@@ -201,7 +201,15 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
       };
 
       checkBalance();
-    }, [isPaymentRequest, isSubscriptionRequest, hasECashWallets, nwcStatus, metadata, amount, wallets]);
+    }, [
+      isPaymentRequest,
+      isSubscriptionRequest,
+      hasECashWallets,
+      nwcStatus,
+      metadata,
+      amount,
+      wallets,
+    ]);
 
     // For Ticket requests, only show sending tokens (not receiving)
     const isTicketSending =
@@ -230,8 +238,8 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
 
       // Check if user has any functional wallet
       // For eCash: must have wallets, for Lightning: must be actually connected (not just configured)
-      const hasWorkingWallet = hasECashWallets || (nwcStatus === true);
-      
+      const hasWorkingWallet = hasECashWallets || nwcStatus === true;
+
       if (!hasWorkingWallet) {
         return {
           type: 'no-wallet',

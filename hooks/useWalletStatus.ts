@@ -22,8 +22,8 @@ export const useWalletStatus = () => {
   const isFullyConfigured = hasSeed && hasAnyWallet;
   const isActivelyConnected = hasSeed && (hasECashWallets || isLightningConnected);
 
-  // Loading states - include both eCash and Lightning wallet loading
-  const isLoading = eCashLoading || (Boolean(mnemonic) && nwcConnectionStatus === null);
+  // Loading states
+  const isLoading = eCashLoading;
 
   return {
     // Basic components
