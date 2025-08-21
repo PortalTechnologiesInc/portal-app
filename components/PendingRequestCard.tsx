@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { FC } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { AlertTriangle } from 'lucide-react-native';
 import { usePendingRequests } from '../context/PendingRequestsContext';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { useECash } from '@/context/ECashContext';
@@ -12,6 +13,7 @@ import {
 } from 'portal-app-lib';
 import type { PendingRequest } from '@/utils/types';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { useWalletStatus } from '@/hooks/useWalletStatus';
 import { Layout } from '@/constants/Layout';
 import { SkeletonPulse } from './PendingRequestSkeletonCard';
 import { PortalAppManager } from '@/services/PortalAppManager';
@@ -52,8 +54,10 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const { id, metadata, type } = request;
     const nostrService = useNostrService();
     const { wallets } = useECash();
+    const { isFullyConfigured, hasAnyWallet } = useWalletStatus();
     const [serviceName, setServiceName] = useState<string | null>(null);
     const [isServiceNameLoading, setIsServiceNameLoading] = useState(true);
+    const [hasInsufficientBalance, setHasInsufficientBalance] = useState(false);
     const isMounted = useRef(true);
 
     // Theme colors
@@ -63,6 +67,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const borderColor = useThemeColor({}, 'borderPrimary');
     const shadowColor = useThemeColor({}, 'shadowColor');
     const skeletonBaseColor = useThemeColor({}, 'skeletonBase');
+    const warningColor = useThemeColor({}, 'statusError');
 
     // Add debug logging when a card is rendered
     console.log(
@@ -119,18 +124,73 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
       };
     }, [serviceKey, nostrService.relayStatuses, type, metadata, wallets, request.ticketTitle]);
 
+    // Extract payment information - needed for balance checking
     const recipientPubkey = (metadata as SinglePaymentRequest).recipient;
-
-    // Extract payment information if this is a payment request
     const isPaymentRequest = type === 'payment';
     const isSubscriptionRequest = type === 'subscription';
     const isTicketRequest = type === 'ticket';
-
     const content = (metadata as SinglePaymentRequest)?.content;
     const amount =
       content?.amount ||
       content?.amount ||
       (isTicketRequest ? (metadata as any)?.inner?.amount : null);
+
+    // Check for insufficient balance on payment requests
+    useEffect(() => {
+      const checkBalance = async () => {
+        if (!isMounted.current) return;
+        
+        // Only check balance for payment and subscription requests
+        if (!isPaymentRequest && !isSubscriptionRequest) {
+          setHasInsufficientBalance(false);
+          return;
+        }
+
+        // If no wallet configured, insufficient balance check is irrelevant
+        if (!hasAnyWallet) {
+          setHasInsufficientBalance(false);
+          return;
+        }
+
+        const content = (metadata as SinglePaymentRequest)?.content;
+        if (!content || !amount) {
+          setHasInsufficientBalance(false);
+          return;
+        }
+
+        try {
+          // For Lightning/fiat payments, we assume NWC wallet handles this
+          // The NWC wallet connection status is handled by the "no wallet configured" warning
+          if (content.currency.tag === Currency_Tags.Fiat) {
+            setHasInsufficientBalance(false);
+          } else {
+            // For eCash/sats payments, check if we have a wallet with sufficient balance
+            const requiredAmount = Number(amount);
+            let canPay = false;
+
+            for (const [walletKey, wallet] of Object.entries(wallets)) {
+              try {
+                const balance = await wallet.getBalance();
+                if (balance >= requiredAmount) {
+                  canPay = true;
+                  break;
+                }
+              } catch (error) {
+                console.error('Error checking wallet balance:', error);
+                continue;
+              }
+            }
+
+            setHasInsufficientBalance(!canPay);
+          }
+        } catch (error) {
+          console.error('Error checking payment balance:', error);
+          setHasInsufficientBalance(false);
+        }
+      };
+
+      checkBalance();
+    }, [isPaymentRequest, isSubscriptionRequest, hasAnyWallet, metadata, amount, wallets]);
 
     // For Ticket requests, only show sending tokens (not receiving)
     const isTicketSending =
@@ -144,6 +204,34 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
       }
       return serviceName || 'Unknown Service';
     };
+
+    // Determine what warning to show (if any)
+    const getWarningInfo = () => {
+      // Only show warnings for payment and subscription requests
+      if (!isPaymentRequest && !isSubscriptionRequest) {
+        return null;
+      }
+
+      if (!isFullyConfigured) {
+        return {
+          type: 'no-wallet',
+          message: 'No wallet configured',
+          description: 'Configure a wallet to make payments'
+        };
+      }
+
+      if (hasInsufficientBalance) {
+        return {
+          type: 'insufficient-balance', 
+          message: 'Insufficient balance',
+          description: 'Not enough funds to complete this payment'
+        };
+      }
+
+      return null;
+    };
+
+    const warningInfo = getWarningInfo();
 
     return (
       <View style={[styles.card, { backgroundColor: cardBackgroundColor, shadowColor }]}>
@@ -191,6 +279,20 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
                   : `${Number(amount) / 1000} sats`}
               </Text>
             )}
+          </View>
+        )}
+
+        {warningInfo && (
+          <View style={[styles.warningContainer, { backgroundColor: warningColor + '15', borderColor: warningColor + '40' }]}>
+            <AlertTriangle size={16} color={warningColor} />
+            <View style={styles.warningTextContainer}>
+              <Text style={[styles.warningMessage, { color: warningColor }]}>
+                {warningInfo.message}
+              </Text>
+              <Text style={[styles.warningDescription, { color: secondaryTextColor }]}>
+                {warningInfo.description}
+              </Text>
+            </View>
           </View>
         )}
 
@@ -330,5 +432,26 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     width: '80%',
     height: 20,
+  },
+  warningContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 16,
+    gap: 10,
+  },
+  warningTextContainer: {
+    flex: 1,
+    gap: 2,
+  },
+  warningMessage: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  warningDescription: {
+    fontSize: 12,
+    fontWeight: '400',
   },
 });
