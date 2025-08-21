@@ -506,7 +506,9 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
         try {
           // Try to get relays from database first
-          const dbRelays = (await executeOperation(db => db.getRelays(), [])).map(relay => relay.ws_uri);
+          const dbRelays = (await executeOperation(db => db.getRelays(), [])).map(
+            relay => relay.ws_uri
+          );
           if (dbRelays.length > 0) {
             relays = dbRelays;
           } else {
@@ -548,12 +550,13 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
                 // Use database service to handle connection errors
                 const isProcessed = await executeOperation(
-                  db => db.markCashuTokenAsProcessed(
-                    token,
-                    tokenInfo.mintUrl,
-                    tokenInfo.unit,
-                    tokenInfo.amount ? Number(tokenInfo.amount) : 0
-                  ),
+                  db =>
+                    db.markCashuTokenAsProcessed(
+                      token,
+                      tokenInfo.mintUrl,
+                      tokenInfo.unit,
+                      tokenInfo.amount ? Number(tokenInfo.amount) : 0
+                    ),
                   false
                 );
 
@@ -605,10 +608,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                   };
 
                   // Use database service for activity recording
-                  const activityId = await executeOperation(
-                    db => db.addActivity(activity),
-                    null
-                  );
+                  const activityId = await executeOperation(db => db.addActivity(activity), null);
 
                   if (activityId) {
                     console.log('Activity added to database with ID:', activityId);
