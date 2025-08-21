@@ -1389,9 +1389,3 @@ export class DatabaseService {
 }
 
 export { DatabaseProvider, useDatabaseStatus, DATABASE_NAME } from './DatabaseProvider';
-export {
-  DatabaseServiceProvider,
-  useDatabaseService,
-  useSafeDatabaseService,
-  useRobustDatabaseService,
-} from './DatabaseServiceProvider';

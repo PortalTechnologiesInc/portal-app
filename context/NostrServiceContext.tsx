@@ -55,7 +55,7 @@ import {
 } from '@/services/EventFilters';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 import { useDatabaseStatus } from '@/services/database/DatabaseProvider';
-import { useSafeDatabaseService, useRobustDatabaseService } from '@/services/database';
+import { useDatabase } from '@/context/DatabaseContextProvider';
 
 // Constants and helper classes from original NostrService
 const DEFAULT_RELAYS = [
@@ -452,8 +452,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   const removedRelaysRef = useRef<Set<string>>(new Set());
 
   const eCashContext = useECash();
-  const DB = useSafeDatabaseService();
-  const robustDB = useRobustDatabaseService();
+  const { executeOperation } = useDatabase();
 
   // Add reinit logic
   const triggerReinit = useCallback(() => {
@@ -507,30 +506,21 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
         try {
           // Try to get relays from database first
-          if (!DB) {
-            console.warn('Database service not available, using default relays');
-            relays = [...DEFAULT_RELAYS];
+          const dbRelays = (await executeOperation(db => db.getRelays(), [])).map(relay => relay.ws_uri);
+          if (dbRelays.length > 0) {
+            relays = dbRelays;
           } else {
-            const dbRelays = (await DB.getRelays()).map(relay => relay.ws_uri);
-            if (dbRelays.length > 0) {
-              relays = dbRelays;
-            } else {
-              // If no relays in database, use defaults and update database
-              relays = [...DEFAULT_RELAYS];
-              await DB.updateRelays(DEFAULT_RELAYS);
-            }
+            // If no relays in database, use defaults and update database
+            relays = [...DEFAULT_RELAYS];
+            await executeOperation(db => db.updateRelays(DEFAULT_RELAYS), null);
           }
         } catch (error) {
           console.warn('Failed to get relays from database, using defaults:', error);
           // Fallback to default relays if database access fails
           relays = [...DEFAULT_RELAYS];
           // Don't try to update database if it's not ready
-          if (dbStatus.isDbInitialized && DB) {
-            try {
-              await DB.updateRelays(DEFAULT_RELAYS);
-            } catch (updateError) {
-              console.warn('Failed to update relays in database:', updateError);
-            }
+          if (dbStatus.isDbInitialized) {
+            await executeOperation(db => db.updateRelays(DEFAULT_RELAYS), null);
           }
         }
 
@@ -556,16 +546,15 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                 // Check if we've already processed this token
                 const tokenInfo = await parseCashuToken(token);
 
-                // Use robust database service to handle connection errors
-                const isProcessed = await robustDB.executeWithRetry(
-                  async db =>
-                    db.markCashuTokenAsProcessed(
-                      token,
-                      tokenInfo.mintUrl,
-                      tokenInfo.unit,
-                      tokenInfo.amount ? Number(tokenInfo.amount) : 0
-                    ),
-                  'Cashu token deduplication check'
+                // Use database service to handle connection errors
+                const isProcessed = await executeOperation(
+                  db => db.markCashuTokenAsProcessed(
+                    token,
+                    tokenInfo.mintUrl,
+                    tokenInfo.unit,
+                    tokenInfo.amount ? Number(tokenInfo.amount) : 0
+                  ),
+                  false
                 );
 
                 if (isProcessed === true) {
@@ -615,10 +604,10 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                     status: 'neutral' as 'neutral',
                   };
 
-                  // Use robust database service for activity recording
-                  const activityId = await robustDB.executeWithRetry(
-                    async db => db.addActivity(activity),
-                    'Cashu token activity recording'
+                  // Use database service for activity recording
+                  const activityId = await executeOperation(
+                    db => db.addActivity(activity),
+                    null
                   );
 
                   if (activityId) {
@@ -776,14 +765,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
               console.log(`Auth challenge with id ${id} received`, event);
 
               return new Promise<AuthResponseStatus>(resolve => {
-                if (!DB) {
-                  console.warn('Database service not available for auth challenge');
-                  resolve(
-                    new AuthResponseStatus.Declined({ reason: 'Database service unavailable' })
-                  );
-                  return;
-                }
-                handleAuthChallenge(event, DB, resolve).then(askUser => {
+                handleAuthChallenge(event, executeOperation, resolve).then(askUser => {
                   if (askUser) {
                     const newRequest: PendingRequest = {
                       id,
@@ -836,14 +818,10 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                     });
                   };
 
-                  if (!DB) {
-                    console.warn('Database service not available for single payment request');
-                    return;
-                  }
                   handleSinglePaymentRequest(
                     nwcWalletRef.current,
                     event,
-                    DB,
+                    executeOperation,
                     resolver,
                     getServiceName,
                     app
@@ -877,12 +855,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                 console.log(`Recurring payment request with id ${id} received`, event);
 
                 return new Promise<RecurringPaymentResponseContent>(resolve => {
-                  if (!DB) {
-                    console.warn('Database service not available for recurring payment request');
-                    resolve({} as RecurringPaymentResponseContent);
-                    return;
-                  }
-                  handleRecurringPaymentRequest(event, DB, resolve).then(askUser => {
+                  handleRecurringPaymentRequest(event, executeOperation, resolve).then(askUser => {
                     if (askUser) {
                       const newRequest: PendingRequest = {
                         id,
@@ -922,14 +895,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
             new LocalClosedRecurringPaymentListener((event: CloseRecurringPaymentResponse) => {
               console.log('Closed subscription received', event);
               return new Promise<void>(resolve => {
-                if (!DB) {
-                  console.warn(
-                    'Database service not available for close recurring payment response'
-                  );
-                  resolve();
-                  return;
-                }
-                handleCloseRecurringPaymentResponse(event, DB, resolve);
+                handleCloseRecurringPaymentResponse(event, executeOperation, resolve);
               });
             })
           )
@@ -1081,11 +1047,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     async (app: PortalAppInterface, pubKey: string): Promise<string | null> => {
       try {
         // Step 1: Check for valid cached entry (not expired)
-        if (!DB) {
-          console.warn('Database service not available for service name lookup');
-          return null;
-        }
-        const cachedName = await DB.getCachedServiceName(pubKey);
+        const cachedName = await executeOperation(db => db.getCachedServiceName(pubKey), null);
         if (cachedName) {
           console.log('DEBUG: Using cached service name for:', pubKey, '->', cachedName);
           return cachedName;
@@ -1119,9 +1081,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
         if (serviceName) {
           // Step 5: Cache the result
-          if (DB) {
-            await DB.setCachedServiceName(pubKey, serviceName);
-          }
+          await executeOperation(db => db.setCachedServiceName(pubKey, serviceName), null);
           console.log('DEBUG: Cached new service name for:', pubKey, '->', serviceName);
           return serviceName;
         } else {
