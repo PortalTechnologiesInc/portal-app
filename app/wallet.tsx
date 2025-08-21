@@ -17,11 +17,7 @@ import {
   Trash2,
 } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  getWalletUrl,
-  saveWalletUrl,
-  walletUrlEvents,
-} from '@/services/SecureStorageService';
+import { getWalletUrl, saveWalletUrl, walletUrlEvents } from '@/services/SecureStorageService';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useWalletStatus } from '@/hooks/useWalletStatus';
@@ -117,7 +113,7 @@ export default function WalletManagementScreen() {
 
   const { walletInfo, refreshWalletInfo, nwcConnectionStatus, nwcConnectionError } =
     useNostrService();
-  
+
   const { hasLightningWallet, isLightningConnected, isLoading } = useWalletStatus();
 
   // Theme colors
@@ -393,7 +389,7 @@ export default function WalletManagementScreen() {
                       styles.walletUrlAction,
                       styles.deleteButton,
                       {
-                        backgroundColor: statusErrorColor,
+                        backgroundColor: surfaceSecondaryColor,
                       },
                     ]}
                     onPress={() => {
@@ -414,22 +410,11 @@ export default function WalletManagementScreen() {
                       );
                     }}
                   >
-                    <Trash2 size={18} color="white" />
+                    <Trash2 size={18} color={statusErrorColor} />
                   </TouchableOpacity>
                 )}
               </View>
             </View>
-
-            {/* Helper text */}
-            <ThemedText style={[styles.walletUrlHelper, { color: secondaryTextColor }]}>
-              {!isEditing && !walletUrl
-                ? 'Tap the pencil icon to enter your wallet URL or use the QR scanner'
-                : isEditing && hasChanged
-                  ? 'Tap the check icon to save your changes'
-                  : isEditing
-                    ? 'Tap the X to cancel editing'
-                    : 'Your wallet connection URL is configured. Use the trash icon to remove it.'}
-            </ThemedText>
           </View>
 
           {/* Wallet Status & Info Container */}
@@ -677,12 +662,6 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     marginTop: 4,
-  },
-  walletUrlHelper: {
-    fontSize: 12,
-    fontStyle: 'italic',
-    lineHeight: 16,
-    // color handled by theme
   },
   qrCodeButton: {
     // backgroundColor handled by theme
