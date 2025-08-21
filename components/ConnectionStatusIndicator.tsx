@@ -15,6 +15,7 @@ import { useNostrService } from '@/context/NostrServiceContext';
 import type { RelayInfo, ConnectionSummary } from '@/utils/types';
 import { Wifi, Wallet, X, CheckCircle, XCircle, AlertCircle } from 'lucide-react-native';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { useWalletStatus } from '@/hooks/useWalletStatus';
 
 type ConnectionStatus = 'connected' | 'partial' | 'disconnected';
 
@@ -24,22 +25,7 @@ interface ConnectionStatusIndicatorProps {
   triggerRefresh?: number; // When this value changes, trigger an immediate refresh
 }
 
-// Pure function for wallet status derivation - using event-driven status
-const deriveWalletStatus = (
-  nwcWallet: any,
-  nwcConnectionStatus: boolean | null,
-  isWalletConnectedState: boolean
-) => {
-  const isConfigured = Boolean(nwcWallet);
-  if (!isConfigured) {
-    return { configured: false, connected: false };
-  }
 
-  // Use event-driven NWC connection status if available, otherwise fall back to wallet connected state
-  const realConnectionStatus =
-    nwcConnectionStatus !== null ? nwcConnectionStatus : isWalletConnectedState;
-  return { configured: true, connected: realConnectionStatus };
-};
 
 export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps> = ({
   size = 12,
@@ -63,7 +49,6 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
   const prevStatus = useRef<ConnectionStatus | null>(null);
 
   const {
-    isWalletConnected: isWalletConnectedState,
     nwcWallet,
     nwcConnectionStatus,
     nwcConnectionError,
@@ -74,6 +59,8 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
     refreshWalletInfo,
     checkAndReconnectRelays,
   } = useNostrService();
+
+  const { hasLightningWallet, isLightningConnected } = useWalletStatus();
 
   // Filter out removed relays from relay statuses (defensive programming)
   const filteredRelayStatuses = useMemo(() => {
@@ -135,10 +122,16 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
     }
   }, [triggerRefresh, refreshWalletInfo]);
 
-  // Memoized wallet status - using event-driven status
+  // Memoized wallet status - using useWalletStatus hook
   const walletStatus = useMemo(() => {
-    return deriveWalletStatus(nwcWallet, nwcConnectionStatus, isWalletConnectedState);
-  }, [nwcWallet, nwcConnectionStatus, isWalletConnectedState]);
+    const isConfigured = Boolean(nwcWallet) || hasLightningWallet;
+    const realConnectionStatus = nwcConnectionStatus !== null ? nwcConnectionStatus : isLightningConnected;
+    
+    return {
+      configured: isConfigured,
+      connected: isConfigured ? realConnectionStatus : false
+    };
+  }, [nwcWallet, nwcConnectionStatus, hasLightningWallet, isLightningConnected]);
 
   // Optimized overall status calculation with fewer dependencies
   const overallConnectionStatus: ConnectionStatus = useMemo(() => {

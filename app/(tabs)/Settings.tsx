@@ -29,7 +29,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { useSQLiteContext } from 'expo-sqlite';
 import {
-  isWalletConnected,
   walletUrlEvents,
   getMnemonic,
   getWalletUrl,
@@ -42,6 +41,7 @@ import { useTheme, ThemeMode } from '@/context/ThemeContext';
 import { useCurrency } from '@/context/CurrencyContext';
 import { Currency, CurrencyHelpers } from '@/utils/currency';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { useWalletStatus } from '@/hooks/useWalletStatus';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -55,11 +55,12 @@ export default function SettingsScreen() {
     getCurrentCurrencyDisplayName,
     getCurrentCurrencySymbol,
   } = useCurrency();
-  const [isWalletConnectedState, setIsWalletConnectedState] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isCurrencyModalVisible, setIsCurrencyModalVisible] = useState(false);
   const [walletUrl, setWalletUrl] = useState('');
+
+  // Unified wallet status
+  const { hasLightningWallet, isLightningConnected, isLoading } = useWalletStatus();
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -76,44 +77,25 @@ export default function SettingsScreen() {
   // Get event-driven NWC connection status
   const { nwcConnectionStatus, nwcConnectionError } = nostrService;
 
-  // Initialize wallet connection status
+  // Subscribe to wallet URL changes for display purposes
   useEffect(() => {
-    const checkWalletConnection = async () => {
+    const loadWalletUrl = async () => {
       try {
         const url = await getWalletUrl();
         setWalletUrl(url);
-        const walletConnected = await isWalletConnected();
-        // Use event-driven NWC connection status if available, otherwise fall back to URL existence
-        const realConnectionStatus =
-          nwcConnectionStatus !== null ? nwcConnectionStatus : walletConnected;
-        setIsWalletConnectedState(realConnectionStatus);
       } catch (error) {
-        console.error('Error checking connection:', error);
+        console.error('Error loading wallet URL:', error);
       }
     };
 
-    const initializeSettings = async () => {
-      await checkWalletConnection();
-      setIsLoading(false);
-    };
+    loadWalletUrl();
 
-    initializeSettings();
-
-    // Subscribe to wallet URL changes
     const subscription = walletUrlEvents.addListener('walletUrlChanged', async newUrl => {
       setWalletUrl(newUrl || '');
-      setIsWalletConnectedState(Boolean(newUrl?.trim()));
     });
 
     return () => subscription.remove();
-  }, [nwcConnectionStatus]);
-
-  // Update wallet connection status when nwcConnectionStatus changes
-  useEffect(() => {
-    if (nwcConnectionStatus !== null) {
-      setIsWalletConnectedState(nwcConnectionStatus);
-    }
-  }, [nwcConnectionStatus]);
+  }, []);
 
   const handleWalletCardPress = () => {
     router.push({
@@ -245,7 +227,7 @@ export default function SettingsScreen() {
     if (nwcConnectionStatus === false) {
       return nwcConnectionError ? `Error: ${nwcConnectionError}` : 'Disconnected';
     }
-    if (nwcConnectionStatus === null && isWalletConnectedState) return 'Connecting...';
+    if (nwcConnectionStatus === null && hasLightningWallet) return 'Connecting...';
     return 'Not configured';
   }
 
@@ -359,7 +341,7 @@ export default function SettingsScreen() {
                             style={[
                               styles.statusIndicator,
                               {
-                                backgroundColor: isWalletConnectedState
+                                backgroundColor: isLightningConnected
                                   ? statusConnectedColor
                                   : secondaryTextColor,
                               },

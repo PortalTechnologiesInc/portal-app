@@ -4,6 +4,7 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { useWalletStatus } from '@/hooks/useWalletStatus';
 import { Ticket } from '@/utils/types';
 import { Colors } from '@/constants/Colors';
 import { Nfc, CheckCircle, XCircle } from 'lucide-react-native';
@@ -21,6 +22,7 @@ export default function TicketsScreen() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const scrollViewRef = useRef<ScrollView>(null);
   const { wallets } = useECash();
+  const { hasECashWallets, eCashWalletCount } = useWalletStatus();
   const [walletUpdateTrigger, setWalletUpdateTrigger] = useState(0);
 
   // Listen for wallet balance changes
@@ -58,7 +60,7 @@ export default function TicketsScreen() {
 
   useEffect(() => {
     async function mapWallets() {
-      console.log('Tickets: mapping wallets, count:', Object.keys(wallets).length);
+      console.log('Tickets: mapping wallets, count:', eCashWalletCount);
       const allTickets: Ticket[] = [];
 
       for (const [_, wallet] of Object.entries(wallets)) {

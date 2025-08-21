@@ -19,11 +19,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   getWalletUrl,
   saveWalletUrl,
-  isWalletConnected,
   walletUrlEvents,
 } from '@/services/SecureStorageService';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { useWalletStatus } from '@/hooks/useWalletStatus';
 
 // NWC connection states
 type NwcConnectionState = 'none' | 'connecting' | 'connected' | 'disconnected' | 'error';
@@ -109,7 +109,6 @@ export default function WalletManagementScreen() {
   const [inputValue, setInputValue] = useState('');
   const [isEditing, setIsEditing] = useState(false);
 
-  const [isLoading, setIsLoading] = useState(true);
   const [isValidating, setIsValidating] = useState(false);
   const hasChanged = inputValue !== walletUrl;
   const params = useLocalSearchParams();
@@ -117,6 +116,8 @@ export default function WalletManagementScreen() {
 
   const { walletInfo, refreshWalletInfo, nwcConnectionStatus, nwcConnectionError } =
     useNostrService();
+  
+  const { hasLightningWallet, isLightningConnected, isLoading } = useWalletStatus();
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -135,18 +136,15 @@ export default function WalletManagementScreen() {
     return deriveConnectionState(walletUrl, nwcConnectionStatus, nwcConnectionError, isValidating);
   }, [walletUrl, nwcConnectionStatus, nwcConnectionError, isValidating]);
 
-  // Optimized wallet data loading with better error handling
+  // Simplified wallet data loading - connection status comes from hook
   const loadWalletData = useCallback(async () => {
     try {
-      const [url, connected] = await Promise.all([getWalletUrl(), isWalletConnected()]);
-
+      const url = await getWalletUrl();
       setWalletUrlState(url);
       setInputValue(url);
     } catch (error) {
       console.error('Error loading wallet data:', error);
       // Error state is handled by connectionState derivation
-    } finally {
-      setIsLoading(false);
     }
   }, []);
 
