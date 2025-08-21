@@ -10,7 +10,7 @@ import { useNostrService } from '@/context/NostrServiceContext';
 import { ThemedText } from './ThemedText';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { Layout } from '@/constants/Layout';
-import { useSafeDatabaseService, useDatabaseStatus } from '@/services/database';
+import { useDatabase } from '@/context/DatabaseContextProvider';
 
 // Create a skeleton request that adheres to the PendingRequest interface
 const createSkeletonRequest = (): PendingRequest => ({
@@ -27,9 +27,8 @@ export const PendingRequestsList: React.FC = React.memo(() => {
   const nostrService = useNostrService();
   const [data, setData] = useState<PendingRequest[]>([]);
 
-  // All hooks must be at top level
-  const dbStatus = useDatabaseStatus();
-  const db = useSafeDatabaseService();
+  // Simple database access
+  const { executeOperation } = useDatabase();
 
   // Theme colors
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');
@@ -38,12 +37,6 @@ export const PendingRequestsList: React.FC = React.memo(() => {
 
   useEffect(() => {
     const processData = async () => {
-      // Check if database is ready before accessing it
-      if (!dbStatus.isDbInitialized) {
-        console.log('Database not ready yet, skipping pending requests processing');
-        return;
-      }
-
       // Get sorted requests
       const sortedRequests = Object.values(nostrService.pendingRequests)
         .filter(request => {
@@ -68,12 +61,12 @@ export const PendingRequestsList: React.FC = React.memo(() => {
 
           // For other request types, check if they're stored
           try {
-            if (!db) {
-              return request; // Keep request if DB not available
-            }
-            if (
-              await db.isPendingRequestStored((request.metadata as SinglePaymentRequest).eventId)
-            ) {
+            const isStored = await executeOperation(
+              db => db.isPendingRequestStored((request.metadata as SinglePaymentRequest).eventId),
+              false // fallback to false if operation fails
+            );
+
+            if (isStored) {
               return null; // Request is stored, so filter it out
             }
             return request; // Request is not stored, so keep it
@@ -97,7 +90,7 @@ export const PendingRequestsList: React.FC = React.memo(() => {
     };
 
     processData();
-  }, [nostrService.pendingRequests, isLoadingRequest, requestFailed, dbStatus.isDbInitialized]);
+  }, [nostrService.pendingRequests, isLoadingRequest, requestFailed, executeOperation]);
 
   const handleRetry = () => {
     setRequestFailed(false);

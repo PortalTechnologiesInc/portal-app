@@ -8,7 +8,8 @@ import { UserProfileProvider } from '@/context/UserProfileContext';
 import { PendingRequestsProvider } from '@/context/PendingRequestsContext';
 import { DeeplinkProvider } from '@/context/DeeplinkContext';
 import { ActivitiesProvider } from '@/context/ActivitiesContext';
-import { DatabaseProvider, DatabaseServiceProvider } from '@/services/database';
+import { DatabaseProvider } from '@/services/database';
+import { DatabaseContextProvider } from '@/context/DatabaseContextProvider';
 import { MnemonicProvider, useMnemonic } from '@/context/MnemonicContext';
 import NostrServiceProvider, { useNostrService } from '@/context/NostrServiceContext';
 import { StatusBar } from 'expo-status-bar';
@@ -161,13 +162,13 @@ export default function RootLayout() {
 
   return (
     <DatabaseProvider>
-      <DatabaseServiceProvider>
+      <DatabaseContextProvider>
         <ThemeProvider>
           <CurrencyProvider>
             <ThemedRootView />
           </CurrencyProvider>
         </ThemeProvider>
-      </DatabaseServiceProvider>
+      </DatabaseContextProvider>
     </DatabaseProvider>
   );
 }

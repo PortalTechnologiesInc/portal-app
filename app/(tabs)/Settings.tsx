@@ -27,7 +27,7 @@ import {
 import { Moon, Sun, Smartphone } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useOnboarding } from '@/context/OnboardingContext';
-import { useSafeDatabaseService } from '@/services/database';
+
 import { useSQLiteContext } from 'expo-sqlite';
 import {
   walletUrlEvents,
@@ -47,7 +47,7 @@ import { useWalletStatus } from '@/hooks/useWalletStatus';
 export default function SettingsScreen() {
   const router = useRouter();
   const { resetOnboarding } = useOnboarding();
-  const dbService = useSafeDatabaseService();
+
   const rawSqliteContext = useSQLiteContext();
   const nostrService = useNostrService();
   const { themeMode, setThemeMode } = useTheme();

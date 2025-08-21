@@ -18,7 +18,7 @@ import {
   Link,
   Ticket,
 } from 'lucide-react-native';
-import { useSafeDatabaseService } from '@/services/database';
+import { useDatabase } from '@/context/DatabaseContextProvider';
 import type { ActivityWithDates } from '@/services/database';
 
 import { useThemeColor } from '@/hooks/useThemeColor';
@@ -40,7 +40,7 @@ export default function ActivityDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [paymentSteps, setPaymentSteps] = useState<PaymentStep[]>([]);
-  const dbService = useSafeDatabaseService();
+  const { executeOperation } = useDatabase();
   const { activities } = useActivities();
 
   // Theme colors
@@ -57,11 +57,8 @@ export default function ActivityDetailScreen() {
     const fetchActivity = async () => {
       try {
         setLoading(true);
-        if (!dbService) {
-          console.error('Database service not available');
-          return;
-        }
-        const activityData = await dbService.getActivity(id as string);
+
+        const activityData = await executeOperation(db => db.getActivity(id as string), null);
 
         if (activityData) {
           setActivity(activityData);
@@ -69,8 +66,9 @@ export default function ActivityDetailScreen() {
           // If this is a payment activity, fetch payment status entries
           if (activityData.type === 'pay' && activityData.invoice) {
             try {
-              const paymentStatusEntries = await dbService.getPaymentStatusEntries(
-                activityData.invoice
+              const paymentStatusEntries = await executeOperation(
+                db => db.getPaymentStatusEntries(activityData.invoice!),
+                []
               );
               console.log('paymentStatusEntries', paymentStatusEntries);
               const steps = convertPaymentStatusToSteps(paymentStatusEntries);
@@ -94,7 +92,7 @@ export default function ActivityDetailScreen() {
     if (id) {
       fetchActivity();
     }
-  }, [id, dbService, activities]);
+  }, [id, executeOperation, activities]);
 
   const handleBackPress = () => {
     router.back();

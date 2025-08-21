@@ -8,8 +8,7 @@ import {
 } from 'portal-app-lib';
 import { useSQLiteContext } from 'expo-sqlite';
 import { DatabaseService } from '@/services/database';
-import { useDatabaseStatus } from '@/services/database/DatabaseProvider';
-import { useSafeDatabaseService, useRobustDatabaseService } from '@/services/database';
+import { useDatabase } from '@/context/DatabaseContextProvider';
 
 interface WalletKey {
   mintUrl: string;
@@ -37,31 +36,16 @@ const ECashContext = createContext<ECashContextType | undefined>(undefined);
 export function ECashProvider({ children, mnemonic }: { children: ReactNode; mnemonic: string }) {
   const [wallets, setWallets] = useState<{ [key: string]: CashuWalletInterface }>({});
   const [isLoading, setIsLoading] = useState(false);
-  const DB = useSafeDatabaseService();
-  const robustDB = useRobustDatabaseService();
-  const dbStatus = useDatabaseStatus();
+  const { executeOperation } = useDatabase();
+  const sqliteContext = useSQLiteContext();
 
   useEffect(() => {
     const fetchWallets = async () => {
       console.log('ECashContext: Starting wallet fetch...');
       setIsLoading(true);
       try {
-        // Check if database is ready before accessing it
-        if (!dbStatus.isDbInitialized || !DB) {
-          console.log('ECashContext: Database service not ready yet, skipping wallet fetch');
-          return;
-        }
-
-        // Use robust database service to handle connection errors
-        const pairList = await robustDB.executeWithRetry(
-          async db => db.getMintUnitPairs(),
-          'Mint unit pairs fetch'
-        );
-
-        if (!pairList) {
-          console.log('ECashContext: Failed to fetch wallet pairs from database');
-          return;
-        }
+        // Get wallet pairs from database
+        const pairList = await executeOperation(db => db.getMintUnitPairs(), []);
         console.log('ECashContext: Loading wallets from pairs:', pairList);
 
         if (pairList.length === 0) {
@@ -101,7 +85,7 @@ export function ECashProvider({ children, mnemonic }: { children: ReactNode; mne
     };
 
     fetchWallets();
-  }, [dbStatus.isDbInitialized, DB]); // Add database service as dependency
+  }, [executeOperation]); // Simplified dependency
 
   // Add a new wallet with comprehensive error handling
   const addWallet = async (mintUrl: string, unit: string): Promise<CashuWalletInterface> => {
@@ -120,14 +104,12 @@ export function ECashProvider({ children, mnemonic }: { children: ReactNode; mne
 
     console.log(`Creating new wallet for ${mintUrl}-${normalizedUnit}`);
 
-    // Ensure database service is available
-    if (!DB || !dbStatus.isDbInitialized) {
-      throw new Error('Database service not available or not initialized');
-    }
-
     try {
       const seed = new Mnemonic(mnemonic).deriveCashu();
-      const storage = new CashuStorage(DB);
+
+      // Create a temporary database service for CashuStorage
+      // This is needed because CashuStorage requires a DatabaseService instance
+      const storage = new CashuStorage(new DatabaseService(sqliteContext));
 
       // Add timeout and retry logic for wallet creation
       let wallet: CashuWalletInterface | null = null;

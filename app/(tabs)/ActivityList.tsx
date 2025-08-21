@@ -14,7 +14,6 @@ import { ActivityType } from '@/utils';
 const ItemList: React.FC = () => {
   const {
     activities,
-    isDbReady,
     refreshData,
     loadMoreActivities,
     hasMoreActivities,
@@ -40,9 +39,7 @@ const ItemList: React.FC = () => {
   useFocusEffect(
     useCallback(() => {
       // When page comes into focus - reset to first 20 activities (fresh data)
-      if (isDbReady) {
-        resetToFirstPage();
-      }
+      resetToFirstPage();
 
       // Return cleanup function that runs when page loses focus
       return () => {
@@ -50,7 +47,7 @@ const ItemList: React.FC = () => {
         flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
         resetToFirstPage();
       };
-    }, [isDbReady, resetToFirstPage])
+    }, [resetToFirstPage])
   );
 
   // Memoize filtered items to prevent recalculation on every render
@@ -156,23 +153,7 @@ const ItemList: React.FC = () => {
     [renderSectionHeader, handleLinkPress]
   );
 
-  // Show a database initialization message when database isn't ready
-  if (!isDbReady) {
-    return (
-      <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
-        <ThemedView style={styles.container}>
-          <ThemedText type="title" style={{ color: primaryTextColor }}>
-            Your activities
-          </ThemedText>
-          <View style={[styles.emptyContainer, { backgroundColor: surfaceSecondaryColor }]}>
-            <ThemedText style={[styles.emptyText, { color: secondaryTextColor }]}>
-              Activities will be available after setup is complete
-            </ThemedText>
-          </View>
-        </ThemedView>
-      </SafeAreaView>
-    );
-  }
+  // Activities are automatically loaded - no manual readiness check needed
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
