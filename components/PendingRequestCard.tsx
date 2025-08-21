@@ -54,7 +54,14 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const { id, metadata, type } = request;
     const nostrService = useNostrService();
     const { wallets } = useECash();
-    const { isFullyConfigured, hasAnyWallet } = useWalletStatus();
+    const { 
+      isFullyConfigured, 
+      hasAnyWallet, 
+      isLoading: walletStatusLoading,
+      hasECashWallets,
+      isLightningConnected,
+      nwcStatus 
+    } = useWalletStatus();
     const [serviceName, setServiceName] = useState<string | null>(null);
     const [isServiceNameLoading, setIsServiceNameLoading] = useState(true);
     const [hasInsufficientBalance, setHasInsufficientBalance] = useState(false);
@@ -103,7 +110,10 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
 
         try {
           setIsServiceNameLoading(true);
-          const name = await nostrService.getServiceName(PortalAppManager.tryGetInstance(), serviceKey);
+          const name = await nostrService.getServiceName(
+            PortalAppManager.tryGetInstance(),
+            serviceKey
+          );
           if (isMounted.current) {
             setServiceName(name);
             setIsServiceNameLoading(false);
@@ -139,7 +149,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     useEffect(() => {
       const checkBalance = async () => {
         if (!isMounted.current) return;
-        
+
         // Only check balance for payment and subscription requests
         if (!isPaymentRequest && !isSubscriptionRequest) {
           setHasInsufficientBalance(false);
@@ -147,7 +157,8 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
         }
 
         // If no wallet configured, insufficient balance check is irrelevant
-        if (!hasAnyWallet) {
+        const hasWorkingWallet = hasECashWallets || (nwcStatus === true);
+        if (!hasWorkingWallet) {
           setHasInsufficientBalance(false);
           return;
         }
@@ -190,7 +201,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
       };
 
       checkBalance();
-    }, [isPaymentRequest, isSubscriptionRequest, hasAnyWallet, metadata, amount, wallets]);
+    }, [isPaymentRequest, isSubscriptionRequest, hasECashWallets, nwcStatus, metadata, amount, wallets]);
 
     // For Ticket requests, only show sending tokens (not receiving)
     const isTicketSending =
@@ -212,19 +223,28 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
         return null;
       }
 
-      if (!isFullyConfigured) {
+      // Don't show warnings while wallet status is still loading
+      if (walletStatusLoading) {
+        return null;
+      }
+
+      // Check if user has any functional wallet
+      // For eCash: must have wallets, for Lightning: must be actually connected (not just configured)
+      const hasWorkingWallet = hasECashWallets || (nwcStatus === true);
+      
+      if (!hasWorkingWallet) {
         return {
           type: 'no-wallet',
           message: 'No wallet configured',
-          description: 'Configure a wallet to make payments'
+          description: 'Configure a wallet to make payments',
         };
       }
 
       if (hasInsufficientBalance) {
         return {
-          type: 'insufficient-balance', 
+          type: 'insufficient-balance',
           message: 'Insufficient balance',
-          description: 'Not enough funds to complete this payment'
+          description: 'Not enough funds to complete this payment',
         };
       }
 
@@ -283,7 +303,12 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
         )}
 
         {warningInfo && (
-          <View style={[styles.warningContainer, { backgroundColor: warningColor + '15', borderColor: warningColor + '40' }]}>
+          <View
+            style={[
+              styles.warningContainer,
+              { backgroundColor: warningColor + '15', borderColor: warningColor + '40' },
+            ]}
+          >
             <AlertTriangle size={16} color={warningColor} />
             <View style={styles.warningTextContainer}>
               <Text style={[styles.warningMessage, { color: warningColor }]}>
