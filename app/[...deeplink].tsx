@@ -66,25 +66,50 @@ export default function DeeplinkHandler() {
 
     // Process the deeplink if we have a valid URL
     if (reconstructedUrl && reconstructedUrl !== 'portal://') {
-      try {
-        // Process the deeplink
-        handleDeepLink(reconstructedUrl);
-        // Navigate after processing with clean history
-        navigateWithClearHistory();
-      } catch (error) {
-        console.error('Failed to process deeplink, storing for later:', error);
-        // Store for later processing if DeeplinkContext fails
-        SecureStore.setItemAsync(PENDING_DEEPLINK_KEY, reconstructedUrl)
-          .then(() => {
-            console.log('Stored deeplink for later processing');
+      // Store this URL to prevent the runtime handler from processing it again
+      SecureStore.setItemAsync('cold_start_processed_url', reconstructedUrl)
+        .then(() => {
+          try {
+            // Process the deeplink
+            handleDeepLink(reconstructedUrl);
+            // Navigate after processing with clean history
             navigateWithClearHistory();
-          })
-          .catch(storeError => {
-            console.error('Failed to store deeplink:', storeError);
+
+            // Clear the marker after a short delay to allow runtime handler to check it
+            setTimeout(async () => {
+              try {
+                await SecureStore.deleteItemAsync('cold_start_processed_url');
+              } catch (error) {
+                console.log('Failed to clear cold start marker:', error);
+              }
+            }, 5000); // 5 second window to prevent duplicates
+          } catch (error) {
+            console.error('Failed to process deeplink:', error);
             // Navigate anyway to prevent the user from being stuck
             navigateWithClearHistory();
-          });
-      }
+          }
+        })
+        .catch(error => {
+          console.error('Failed to set cold start marker, processing anyway:', error);
+          try {
+            // Process the deeplink even if we couldn't set the marker
+            handleDeepLink(reconstructedUrl);
+            navigateWithClearHistory();
+          } catch (processError) {
+            console.error('Failed to process deeplink, storing for later:', processError);
+            // Store for later processing if DeeplinkContext fails
+            SecureStore.setItemAsync(PENDING_DEEPLINK_KEY, reconstructedUrl)
+              .then(() => {
+                console.log('Stored deeplink for later processing');
+                navigateWithClearHistory();
+              })
+              .catch(storeError => {
+                console.error('Failed to store deeplink:', storeError);
+                // Navigate anyway to prevent the user from being stuck
+                navigateWithClearHistory();
+              });
+          }
+        });
     } else {
       // No valid deeplink, just navigate
       navigateWithClearHistory();

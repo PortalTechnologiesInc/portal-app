@@ -1,25 +1,22 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, FlatList } from 'react-native';
 import { usePendingRequests } from '../context/PendingRequestsContext';
 import { PendingRequestCard } from './PendingRequestCard';
 import { PendingRequestSkeletonCard } from './PendingRequestSkeletonCard';
 import { FailedRequestCard } from './FailedRequestCard';
-import type { PendingRequest, PendingRequestType } from '@/utils/types';
-import type { AuthChallengeEvent, SinglePaymentRequest } from 'portal-app-lib';
+import type { PendingRequest } from '@/utils/types';
+import type { SinglePaymentRequest } from 'portal-app-lib';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { ThemedText } from './ThemedText';
-import { useEffect, useState } from 'react';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { Layout } from '@/constants/Layout';
-import { DatabaseService } from '@/services/database';
-import { useSQLiteContext } from 'expo-sqlite';
-import { useDatabaseStatus } from '@/services/database/DatabaseProvider';
+import { useDatabase } from '@/context/DatabaseContextProvider';
 
 // Create a skeleton request that adheres to the PendingRequest interface
 const createSkeletonRequest = (): PendingRequest => ({
   id: 'skeleton',
-  metadata: {} as AuthChallengeEvent,
-  type: 'login',
+  metadata: {} as any,
+  type: 'login' as const,
   timestamp: new Date(),
   result: () => {},
 });
@@ -30,23 +27,8 @@ export const PendingRequestsList: React.FC = React.memo(() => {
   const nostrService = useNostrService();
   const [data, setData] = useState<PendingRequest[]>([]);
 
-  // Only try to access SQLite context if the database is initialized
-  let sqliteContext = null;
-  try {
-    // This will throw an error if SQLiteProvider is not available
-    sqliteContext = useSQLiteContext();
-  } catch (error) {
-    // SQLiteContext is not available, which is expected sometimes
-    console.log('SQLite context not available yet, activity tracking will be delayed');
-  }
-
-  if (!sqliteContext) {
-    console.log('SQLite context is null');
-    return;
-  }
-
-  // Get database initialization status
-  const dbStatus = useDatabaseStatus();
+  // Simple database access
+  const { executeOperation } = useDatabase();
 
   // Theme colors
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');
@@ -54,15 +36,7 @@ export const PendingRequestsList: React.FC = React.memo(() => {
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
 
   useEffect(() => {
-    const db = new DatabaseService(sqliteContext);
-
     const processData = async () => {
-      // Check if database is ready before accessing it
-      if (!dbStatus.isDbInitialized) {
-        console.log('Database not ready yet, skipping pending requests processing');
-        return;
-      }
-
       // Get sorted requests
       const sortedRequests = Object.values(nostrService.pendingRequests)
         .filter(request => {
@@ -87,9 +61,12 @@ export const PendingRequestsList: React.FC = React.memo(() => {
 
           // For other request types, check if they're stored
           try {
-            if (
-              await db.isPendingRequestStored((request.metadata as SinglePaymentRequest).eventId)
-            ) {
+            const isStored = await executeOperation(
+              db => db.isPendingRequestStored((request.metadata as SinglePaymentRequest).eventId),
+              false // fallback to false if operation fails
+            );
+
+            if (isStored) {
               return null; // Request is stored, so filter it out
             }
             return request; // Request is not stored, so keep it
@@ -113,13 +90,7 @@ export const PendingRequestsList: React.FC = React.memo(() => {
     };
 
     processData();
-  }, [
-    nostrService.pendingRequests,
-    isLoadingRequest,
-    requestFailed,
-    sqliteContext,
-    dbStatus.isDbInitialized,
-  ]);
+  }, [nostrService.pendingRequests, isLoadingRequest, requestFailed, executeOperation]);
 
   const handleRetry = () => {
     setRequestFailed(false);

@@ -55,6 +55,7 @@ import {
 } from '@/services/EventFilters';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 import { useDatabaseStatus } from '@/services/database/DatabaseProvider';
+import { useDatabase } from '@/context/DatabaseContextProvider';
 
 // Constants and helper classes from original NostrService
 const DEFAULT_RELAYS = [
@@ -451,8 +452,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   const removedRelaysRef = useRef<Set<string>>(new Set());
 
   const eCashContext = useECash();
-  const sqliteContext = useSQLiteContext();
-  const DB = new DatabaseService(sqliteContext);
+  const { executeOperation } = useDatabase();
 
   // Add reinit logic
   const triggerReinit = useCallback(() => {
@@ -506,13 +506,15 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
         try {
           // Try to get relays from database first
-          const dbRelays = (await DB.getRelays()).map(relay => relay.ws_uri);
+          const dbRelays = (await executeOperation(db => db.getRelays(), [])).map(
+            relay => relay.ws_uri
+          );
           if (dbRelays.length > 0) {
             relays = dbRelays;
           } else {
             // If no relays in database, use defaults and update database
             relays = [...DEFAULT_RELAYS];
-            await DB.updateRelays(DEFAULT_RELAYS);
+            await executeOperation(db => db.updateRelays(DEFAULT_RELAYS), null);
           }
         } catch (error) {
           console.warn('Failed to get relays from database, using defaults:', error);
@@ -520,11 +522,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
           relays = [...DEFAULT_RELAYS];
           // Don't try to update database if it's not ready
           if (dbStatus.isDbInitialized) {
-            try {
-              await DB.updateRelays(DEFAULT_RELAYS);
-            } catch (updateError) {
-              console.warn('Failed to update relays in database:', updateError);
-            }
+            await executeOperation(db => db.updateRelays(DEFAULT_RELAYS), null);
           }
         }
 
@@ -549,18 +547,33 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
                 // Check if we've already processed this token
                 const tokenInfo = await parseCashuToken(token);
-                const isProcessed = await DB.markCashuTokenAsProcessed(
-                  token,
-                  tokenInfo.mintUrl,
-                  tokenInfo.unit,
-                  tokenInfo.amount ? Number(tokenInfo.amount) : 0
+
+                // Use database service to handle connection errors
+                const isProcessed = await executeOperation(
+                  db =>
+                    db.markCashuTokenAsProcessed(
+                      token,
+                      tokenInfo.mintUrl,
+                      tokenInfo.unit,
+                      tokenInfo.amount ? Number(tokenInfo.amount) : 0
+                    ),
+                  false
                 );
-                if (isProcessed) {
+
+                if (isProcessed === true) {
                   console.log('Cashu token already processed, skipping');
                   return;
+                } else if (isProcessed === null) {
+                  console.warn(
+                    'Failed to check token processing status due to database issues, proceeding cautiously'
+                  );
+                  // Continue processing but log a warning
                 }
 
-                const wallet = await eCashContext.addWallet(tokenInfo.mintUrl, tokenInfo.unit);
+                const wallet = await eCashContext.addWallet(
+                  tokenInfo.mintUrl,
+                  tokenInfo.unit.toLowerCase()
+                );
                 await wallet.receiveToken(token);
 
                 console.log('Cashu token processed successfully');
@@ -569,7 +582,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                 const { globalEvents } = await import('@/utils/index');
                 globalEvents.emit('walletBalancesChanged', {
                   mintUrl: tokenInfo.mintUrl,
-                  unit: tokenInfo.unit,
+                  unit: tokenInfo.unit.toLowerCase(),
                 });
                 console.log('walletBalancesChanged event emitted');
 
@@ -594,17 +607,18 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                     status: 'neutral' as 'neutral',
                   };
 
-                  // Import and use ActivitiesContext directly
-                  const { useActivities } = await import('@/context/ActivitiesContext');
-                  // Note: We can't use hooks inside event listeners, so we'll use the database directly
-                  // but also emit the event for UI updates
-                  const activityId = await DB.addActivity(activity);
-                  console.log('Activity added to database with ID:', activityId);
+                  // Use database service for activity recording
+                  const activityId = await executeOperation(db => db.addActivity(activity), null);
 
-                  // Emit event for UI updates
-                  globalEvents.emit('activityAdded', activity);
-                  console.log('activityAdded event emitted');
-                  console.log('Cashu direct activity recorded successfully');
+                  if (activityId) {
+                    console.log('Activity added to database with ID:', activityId);
+                    // Emit event for UI updates
+                    globalEvents.emit('activityAdded', activity);
+                    console.log('activityAdded event emitted');
+                    console.log('Cashu direct activity recorded successfully');
+                  } else {
+                    console.warn('Failed to record Cashu token activity due to database issues');
+                  }
                 } catch (activityError) {
                   console.error('Error recording Cashu direct activity:', activityError);
                 }
@@ -626,16 +640,33 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
         app.listenCashuRequests(
           new LocalCashuRequestListener(async (event: CashuRequestContentWithKey) => {
-            const id = `cashu-request-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            // Use event-based ID for deduplication instead of random generation
+            const eventId = `${event.inner.mintUrl}-${event.inner.unit}-${event.inner.amount}-${event.mainKey}`;
+            const id = `cashu-request-${eventId}`;
 
             console.log(`Cashu request with id ${id} received`, event);
+
+            // Early deduplication check before processing
+            const existingRequest = pendingRequests[id];
+            if (existingRequest) {
+              console.log(`Duplicate Cashu request ${id} detected, ignoring duplicate event`);
+              // Return a promise that will resolve when the original request is resolved
+              return new Promise<CashuResponseStatus>(resolve => {
+                // Store the resolve function so it gets called when the original request completes
+                const originalResolve = existingRequest.result;
+                existingRequest.result = (status: CashuResponseStatus) => {
+                  resolve(status);
+                  if (originalResolve) originalResolve(status);
+                };
+              });
+            }
 
             // Declare wallet in outer scope
             let wallet;
             // Check if we have the required unit before creating pending request
             try {
               const requiredMintUrl = event.inner.mintUrl;
-              const requiredUnit = event.inner.unit;
+              const requiredUnit = event.inner.unit.toLowerCase(); // Normalize unit name
               const requiredAmount = event.inner.amount;
 
               console.log(
@@ -734,7 +765,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
               console.log(`Auth challenge with id ${id} received`, event);
 
               return new Promise<AuthResponseStatus>(resolve => {
-                handleAuthChallenge(event, DB, resolve).then(askUser => {
+                handleAuthChallenge(event, executeOperation, resolve).then(askUser => {
                   if (askUser) {
                     const newRequest: PendingRequest = {
                       id,
@@ -790,7 +821,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                   handleSinglePaymentRequest(
                     nwcWalletRef.current,
                     event,
-                    DB,
+                    executeOperation,
                     resolver,
                     getServiceName,
                     app
@@ -824,7 +855,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                 console.log(`Recurring payment request with id ${id} received`, event);
 
                 return new Promise<RecurringPaymentResponseContent>(resolve => {
-                  handleRecurringPaymentRequest(event, DB, resolve).then(askUser => {
+                  handleRecurringPaymentRequest(event, executeOperation, resolve).then(askUser => {
                     if (askUser) {
                       const newRequest: PendingRequest = {
                         id,
@@ -864,7 +895,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
             new LocalClosedRecurringPaymentListener((event: CloseRecurringPaymentResponse) => {
               console.log('Closed subscription received', event);
               return new Promise<void>(resolve => {
-                handleCloseRecurringPaymentResponse(event, DB, resolve);
+                handleCloseRecurringPaymentResponse(event, executeOperation, resolve);
               });
             })
           )
@@ -1016,7 +1047,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     async (app: PortalAppInterface, pubKey: string): Promise<string | null> => {
       try {
         // Step 1: Check for valid cached entry (not expired)
-        const cachedName = await DB.getCachedServiceName(pubKey);
+        const cachedName = await executeOperation(db => db.getCachedServiceName(pubKey), null);
         if (cachedName) {
           console.log('DEBUG: Using cached service name for:', pubKey, '->', cachedName);
           return cachedName;
@@ -1050,7 +1081,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
         if (serviceName) {
           // Step 5: Cache the result
-          await DB.setCachedServiceName(pubKey, serviceName);
+          await executeOperation(db => db.setCachedServiceName(pubKey, serviceName), null);
           console.log('DEBUG: Cached new service name for:', pubKey, '->', serviceName);
           return serviceName;
         } else {

@@ -31,7 +31,19 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
 
   // Handle deeplink URLs
   const handleDeepLink = useCallback(
-    (url: string) => {
+    async (url: string) => {
+      // Check if this URL was already processed by cold start handler
+      try {
+        const coldStartProcessedUrl = await SecureStore.getItemAsync('cold_start_processed_url');
+        if (coldStartProcessedUrl === url) {
+          console.log('URL already processed by cold start handler, skipping:', url);
+          return;
+        }
+      } catch (error) {
+        console.log('Could not check cold start marker:', error);
+        // Continue processing if we can't check - better to have potential duplicate than miss processing
+      }
+
       // Implement a cooldown period (3 seconds) to prevent multiple rapid processing
       const now = Date.now();
       const lastTime = lastProcessTime.current[url] || 0;
@@ -98,6 +110,16 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
     // Only add event listener for URL events that happen while the app is running
     const subscription = Linking.addEventListener('url', event => {
       console.log('Got URL event while app running:', event.url);
+
+      // Add extra protection: if we're still in the initial app load phase,
+      // let [...deeplink].tsx handle this instead to prevent duplicates
+      if (!initialUrlProcessed.current) {
+        console.log(
+          'Initial URL not yet processed by cold start handler, skipping runtime handler'
+        );
+        return;
+      }
+
       handleDeepLink(event.url);
     });
 

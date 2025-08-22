@@ -13,9 +13,8 @@ import { useRouter } from 'expo-router';
 import { ArrowLeft, X, Plus } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSQLiteContext } from 'expo-sqlite';
-import { DatabaseService } from '@/services/database';
+import { useDatabase } from '@/context/DatabaseContextProvider';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { useDatabaseStatus } from '@/services/database/DatabaseProvider';
 
 import popularRelayListFile from '../assets/RelayList.json';
 import { useNostrService } from '@/context/NostrServiceContext';
@@ -54,9 +53,7 @@ export default function NostrRelayManagementScreen() {
   const buttonPrimaryTextColor = useThemeColor({}, 'buttonPrimaryText');
 
   const nostrService = useNostrService();
-  const sqliteContext = useSQLiteContext();
-  const DB = new DatabaseService(sqliteContext);
-  const dbStatus = useDatabaseStatus();
+  const { executeOperation } = useDatabase();
 
   // Load relay data on mount
   useEffect(() => {
@@ -64,13 +61,10 @@ export default function NostrRelayManagementScreen() {
       try {
         let relaysSet: Set<string> = new Set();
 
-        // Check if database is ready before accessing it
-        if (!dbStatus.isDbInitialized) {
-          console.log('Database not ready yet, skipping relay loading');
-          return;
-        }
-
-        const activeRelays = (await DB.getRelays()).map(value => value.ws_uri);
+        const activeRelays = await executeOperation(
+          db => db.getRelays().then(relays => relays.map(value => value.ws_uri)),
+          []
+        );
 
         activeRelays.forEach(relayUrl => {
           relaysSet.add(relayUrl);
@@ -90,7 +84,7 @@ export default function NostrRelayManagementScreen() {
       }
     };
     loadRelaysList();
-  }, [dbStatus.isDbInitialized]); // Add database status as dependency
+  }, [executeOperation]); // Simplified dependency
 
   const handleAddCustomRelay = () => {
     const customRelay = customRelayTextFieldValue.trim();
@@ -178,7 +172,7 @@ export default function NostrRelayManagementScreen() {
 
       // Finally update the database
       console.log('💾 Updating database...');
-      await DB.updateRelays(newlySelectedRelays);
+      await executeOperation(db => db.updateRelays(newlySelectedRelays), null);
 
       setActiveRelaysList(newlySelectedRelays);
       console.log('✅ Relay update completed successfully');

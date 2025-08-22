@@ -14,7 +14,15 @@ import { ThemedText } from '@/components/ThemedText';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { useMnemonic } from '@/context/MnemonicContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { Shield, Key, Zap, Globe, AlertTriangle, ArrowRight, CheckCircle } from 'lucide-react-native';
+import {
+  Shield,
+  Key,
+  Zap,
+  Globe,
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle,
+} from 'lucide-react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { generateMnemonic, Mnemonic } from 'portal-app-lib';
@@ -26,16 +34,26 @@ const onboardingLogo = require('../assets/images/appLogo.png');
 // Key to track if seed was generated or imported
 const SEED_ORIGIN_KEY = 'portal_seed_origin';
 
-type OnboardingStep = 'welcome' | 'backup-warning' | 'choice' | 'generate' | 'verify' | 'import' | 'splash';
+type OnboardingStep =
+  | 'welcome'
+  | 'backup-warning'
+  | 'choice'
+  | 'generate'
+  | 'verify'
+  | 'import'
+  | 'splash';
 
 export default function Onboarding() {
   const { completeOnboarding } = useOnboarding();
   const { setMnemonic } = useMnemonic();
   const [currentStep, setCurrentStep] = useState<OnboardingStep>('welcome');
   const [seedPhrase, setSeedPhrase] = useState('');
-  const [verificationWords, setVerificationWords] = useState<{ word1: { index: number; value: string }, word2: { index: number; value: string } }>({ 
-    word1: { index: 0, value: '' }, 
-    word2: { index: 0, value: '' } 
+  const [verificationWords, setVerificationWords] = useState<{
+    word1: { index: number; value: string };
+    word2: { index: number; value: string };
+  }>({
+    word1: { index: 0, value: '' },
+    word2: { index: 0, value: '' },
   });
   const [userInputs, setUserInputs] = useState({ word1: '', word2: '' });
 
@@ -55,7 +73,7 @@ export default function Onboarding() {
       if (currentStep === 'welcome') {
         return false; // Let system handle default behavior
       }
-      
+
       // Navigate backwards through the flow
       switch (currentStep) {
         case 'backup-warning':
@@ -94,7 +112,7 @@ export default function Onboarding() {
     const words = seedPhrase.split(' ');
     const randomIndex1 = Math.floor(Math.random() * 12);
     let randomIndex2 = Math.floor(Math.random() * 12);
-    
+
     // Ensure the second word is different from the first
     while (randomIndex2 === randomIndex1) {
       randomIndex2 = Math.floor(Math.random() * 12);
@@ -105,12 +123,12 @@ export default function Onboarding() {
 
     setVerificationWords({
       word1: { index: firstIndex, value: words[firstIndex] },
-      word2: { index: secondIndex, value: words[secondIndex] }
+      word2: { index: secondIndex, value: words[secondIndex] },
     });
 
     // Reset user inputs
     setUserInputs({ word1: '', word2: '' });
-    
+
     setCurrentStep('verify');
   };
 
@@ -142,24 +160,26 @@ export default function Onboarding() {
 
   const handleVerificationComplete = async () => {
     // Check if the entered words match the expected words
-    const isWord1Correct = userInputs.word1.trim().toLowerCase() === verificationWords.word1.value.toLowerCase();
-    const isWord2Correct = userInputs.word2.trim().toLowerCase() === verificationWords.word2.value.toLowerCase();
+    const isWord1Correct =
+      userInputs.word1.trim().toLowerCase() === verificationWords.word1.value.toLowerCase();
+    const isWord2Correct =
+      userInputs.word2.trim().toLowerCase() === verificationWords.word2.value.toLowerCase();
 
     if (!isWord1Correct || !isWord2Correct) {
       Alert.alert(
         'Incorrect Words',
-        'The words you entered don\'t match your seed phrase. Please check your backup and try again.',
+        "The words you entered don't match your seed phrase. Please check your backup and try again.",
         [
           {
             text: 'Try Again',
             onPress: () => {
               setUserInputs({ word1: '', word2: '' });
-            }
+            },
           },
           {
             text: 'Go Back to Seed',
-            onPress: () => setCurrentStep('generate')
-          }
+            onPress: () => setCurrentStep('generate'),
+          },
         ]
       );
       return;
@@ -247,14 +267,15 @@ export default function Onboarding() {
 
         {/* Welcome Step */}
         {currentStep === 'welcome' && (
-          <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
             <View style={styles.pageContainer}>
               <ThemedText type="title" style={styles.mainTitle}>
                 Welcome to Portal
               </ThemedText>
-              <ThemedText style={styles.subtitle}>
-                Your sovereign digital identity app
-              </ThemedText>
+              <ThemedText style={styles.subtitle}>Your sovereign digital identity app</ThemedText>
 
               {/* Feature Cards */}
               <View style={styles.featureContainer}>
@@ -304,12 +325,15 @@ export default function Onboarding() {
 
         {/* Backup Warning Step */}
         {currentStep === 'backup-warning' && (
-          <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
             <View style={styles.pageContainer}>
               <View style={styles.warningIconContainer}>
                 <AlertTriangle size={64} color="#f39c12" />
               </View>
-              
+
               <ThemedText type="title" style={styles.warningTitle}>
                 Important Security Notice
               </ThemedText>
@@ -319,7 +343,8 @@ export default function Onboarding() {
                   Your seed phrase is your master key
                 </ThemedText>
                 <ThemedText style={styles.warningText}>
-                  Portal generates a unique 12-word seed phrase that gives you complete control over your digital identity and authentication.
+                  Portal generates a unique 12-word seed phrase that gives you complete control over
+                  your digital identity and authentication.
                 </ThemedText>
               </View>
 
@@ -327,28 +352,32 @@ export default function Onboarding() {
                 <View style={styles.warningPoint}>
                   <CheckCircle size={20} color="#27ae60" />
                   <ThemedText style={styles.warningPointText}>
-                    <ThemedText type="defaultSemiBold">Write it down</ThemedText> on paper and store it safely
+                    <ThemedText type="defaultSemiBold">Write it down</ThemedText> on paper and store
+                    it safely
                   </ThemedText>
                 </View>
 
                 <View style={styles.warningPoint}>
                   <CheckCircle size={20} color="#27ae60" />
                   <ThemedText style={styles.warningPointText}>
-                    <ThemedText type="defaultSemiBold">Never share it</ThemedText> with anyone - not even Portal support
+                    <ThemedText type="defaultSemiBold">Never share it</ThemedText> with anyone - not
+                    even Portal support
                   </ThemedText>
                 </View>
 
                 <View style={styles.warningPoint}>
                   <CheckCircle size={20} color="#27ae60" />
                   <ThemedText style={styles.warningPointText}>
-                    <ThemedText type="defaultSemiBold">Keep multiple copies</ThemedText> in secure, separate locations
+                    <ThemedText type="defaultSemiBold">Keep multiple copies</ThemedText> in secure,
+                    separate locations
                   </ThemedText>
                 </View>
 
                 <View style={styles.warningPoint}>
                   <AlertTriangle size={20} color="#e74c3c" />
                   <ThemedText style={styles.warningPointText}>
-                    <ThemedText type="defaultSemiBold">If you lose it, you lose access</ThemedText> - we cannot recover it
+                    <ThemedText type="defaultSemiBold">If you lose it, you lose access</ThemedText>{' '}
+                    - we cannot recover it
                   </ThemedText>
                 </View>
               </View>
@@ -454,11 +483,14 @@ export default function Onboarding() {
                 Enter word #{verificationWords.word1.index + 1}:
               </ThemedText>
               <TextInput
-                style={[styles.verificationInput, { backgroundColor: inputBackground, color: textPrimary }]}
+                style={[
+                  styles.verificationInput,
+                  { backgroundColor: inputBackground, color: textPrimary },
+                ]}
                 placeholder={`Word ${verificationWords.word1.index + 1}`}
                 placeholderTextColor={inputPlaceholder}
                 value={userInputs.word1}
-                onChangeText={(text) => setUserInputs(prev => ({ ...prev, word1: text }))}
+                onChangeText={text => setUserInputs(prev => ({ ...prev, word1: text }))}
                 autoCorrect={false}
                 autoCapitalize="none"
               />
@@ -467,11 +499,14 @@ export default function Onboarding() {
                 Enter word #{verificationWords.word2.index + 1}:
               </ThemedText>
               <TextInput
-                style={[styles.verificationInput, { backgroundColor: inputBackground, color: textPrimary }]}
+                style={[
+                  styles.verificationInput,
+                  { backgroundColor: inputBackground, color: textPrimary },
+                ]}
                 placeholder={`Word ${verificationWords.word2.index + 1}`}
                 placeholderTextColor={inputPlaceholder}
                 value={userInputs.word2}
-                onChangeText={(text) => setUserInputs(prev => ({ ...prev, word2: text }))}
+                onChangeText={text => setUserInputs(prev => ({ ...prev, word2: text }))}
                 autoCorrect={false}
                 autoCapitalize="none"
               />

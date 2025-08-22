@@ -8,30 +8,28 @@ import {
   type ReactNode,
   useRef,
 } from 'react';
-import { useSQLiteContext } from 'expo-sqlite';
-import {
-  DatabaseService,
-  type ActivityWithDates,
-  type SubscriptionWithDates,
-} from '@/services/database';
-import { useDatabaseStatus } from '@/services/database/DatabaseProvider';
+import { type ActivityWithDates, type SubscriptionWithDates } from '@/services/database';
+import { useDatabase } from '@/context/DatabaseContextProvider';
+import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 
 interface ActivitiesContextType {
+  // Activity management
   activities: ActivityWithDates[];
-  subscriptions: SubscriptionWithDates[];
-  activeSubscriptions: SubscriptionWithDates[];
-  fetchActivities: (reset?: boolean) => Promise<void>;
-  fetchSubscriptions: () => Promise<void>;
-  refreshData: () => void;
-  addActivity: (activity: Omit<ActivityWithDates, 'id' | 'created_at'>) => Promise<string | null>;
-  isDbReady: boolean;
-  // Pagination support
   loadMoreActivities: () => Promise<void>;
+  refreshData: () => Promise<void>;
+  resetToFirstPage: () => void;
   hasMoreActivities: boolean;
   isLoadingMore: boolean;
   totalActivities: number;
-  resetToFirstPage: () => Promise<void>;
-  // Optimized method for recent activities
+
+  // Subscription management
+  subscriptions: SubscriptionWithDates[];
+  activeSubscriptions: SubscriptionWithDates[];
+
+  // Helper functions
+  addActivityIfNotExists: (activity: ActivityWithDates) => void;
+
+  // Recent activities (limited to 5 for home screen)
   getRecentActivities: () => Promise<ActivityWithDates[]>;
 }
 
@@ -41,8 +39,6 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
   const [activities, setActivities] = useState<ActivityWithDates[]>([]);
   const [subscriptions, setSubscriptions] = useState<SubscriptionWithDates[]>([]);
   const [activeSubscriptions, setActiveSubscriptions] = useState<SubscriptionWithDates[]>([]);
-  const [isDbReady, setIsDbReady] = useState(false);
-  const [db, setDb] = useState<DatabaseService | null>(null);
 
   // Pagination state
   const [hasMoreActivities, setHasMoreActivities] = useState(true);
@@ -52,138 +48,87 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
 
   const ACTIVITIES_PER_PAGE = 20;
 
-  // Get database initialization status
-  const dbStatus = useDatabaseStatus();
+  // Simple database access
+  const { executeOperation } = useDatabase();
 
-  // Only try to access SQLite context if the database is initialized
-  let sqliteContext = null;
-  try {
-    // This will throw an error if SQLiteProvider is not available
-    if (dbStatus.isDbInitialized && dbStatus.shouldInitDb) {
-      sqliteContext = useSQLiteContext();
-    }
-  } catch (error) {
-    // SQLiteContext is not available, which is expected sometimes
-    console.log('SQLite context not available yet, activity tracking will be delayed');
-  }
+  // Reset all Activities state to initial values
+  // This is called during app reset to ensure clean state
+  const resetActivities = () => {
+    console.log('🔄 Resetting Activities state...');
 
-  // Initialize DB safely when the SQLite context becomes available
+    // Reset all state to initial values
+    setActivities([]);
+    setSubscriptions([]);
+    setActiveSubscriptions([]);
+    setHasMoreActivities(true);
+    setIsLoadingMore(false);
+    setCurrentOffset(0);
+    setTotalActivities(0);
+
+    // Reset the current offset ref as well
+    currentOffsetRef.current = 0;
+
+    console.log('✅ Activities state reset completed');
+  };
+
+  // Register/unregister context reset function
   useEffect(() => {
-    let isMounted = true;
-
-    const initDb = async () => {
-      // Skip if database is not ready or SQLite context is not available
-      if (!dbStatus.isDbInitialized || !sqliteContext) {
-        if (isMounted) {
-          setDb(null);
-          setIsDbReady(false);
-          if (!dbStatus.isDbInitialized) {
-            console.log('Database not yet initialized, skipping SQLite context access');
-          }
-        }
-        return;
-      }
-
-      try {
-        if (isMounted && sqliteContext) {
-          console.log('SQLite context obtained, initializing database service');
-          const newDb = new DatabaseService(sqliteContext);
-          setDb(newDb);
-          setIsDbReady(true);
-          console.log('Database service successfully initialized');
-        }
-      } catch (error) {
-        if (isMounted) {
-          setDb(null);
-          setIsDbReady(false);
-          console.error('Error initializing database service:', error);
-        }
-      }
-    };
-
-    initDb();
+    registerContextReset(resetActivities);
 
     return () => {
-      isMounted = false;
+      unregisterContextReset(resetActivities);
     };
-  }, [dbStatus.isDbInitialized, sqliteContext]);
+  }, []);
 
   const fetchActivities = useCallback(
     async (reset = false) => {
-      if (!db || !isDbReady) {
-        console.log('fetchActivities: db not ready', { db: !!db, isDbReady });
-        return;
-      }
+      const offset = reset ? 0 : currentOffsetRef.current;
+      console.log('fetchActivities: fetching with offset', offset);
 
-      try {
-        const offset = reset ? 0 : currentOffsetRef.current;
-        console.log('fetchActivities: fetching with offset', offset);
-        const fetchedActivities = await db.getActivities({
-          limit: ACTIVITIES_PER_PAGE,
-          offset: offset,
+      const fetchedActivities = await executeOperation(
+        db =>
+          db.getActivities({
+            limit: ACTIVITIES_PER_PAGE,
+            offset: offset,
+          }),
+        []
+      );
+
+      console.log('fetchActivities: fetched activities count', fetchedActivities.length);
+
+      if (reset) {
+        // Complete refresh - replace all activities
+        setActivities(fetchedActivities);
+        setCurrentOffset(ACTIVITIES_PER_PAGE);
+        currentOffsetRef.current = ACTIVITIES_PER_PAGE;
+      } else {
+        // Load more - append new activities, avoiding duplicates by ID
+        setActivities(prev => {
+          const existingIds = new Set(prev.map(activity => activity.id));
+          const newActivities = fetchedActivities.filter(activity => !existingIds.has(activity.id));
+          return [...prev, ...newActivities];
         });
-        console.log('fetchActivities: fetched activities count', fetchedActivities.length);
-
-        if (reset) {
-          setActivities(fetchedActivities);
-          setCurrentOffset(ACTIVITIES_PER_PAGE);
-          currentOffsetRef.current = ACTIVITIES_PER_PAGE;
-        } else {
-          // Deduplicate activities based on ID to prevent duplicate keys
-          setActivities(prev => {
-            const existingIds = new Set(prev.map(activity => activity.id));
-            const newActivities = fetchedActivities.filter(
-              activity => !existingIds.has(activity.id)
-            );
-            return [...prev, ...newActivities];
-          });
-          setCurrentOffset(prev => prev + ACTIVITIES_PER_PAGE);
-        }
-
-        // Update hasMore based on whether we got a full page
-        setHasMoreActivities(fetchedActivities.length === ACTIVITIES_PER_PAGE);
-
-        // Get total count for reference (optional)
-        const allActivities = await db.getActivities();
-        setTotalActivities(allActivities.length);
-        console.log('fetchActivities: total activities count', allActivities.length);
-      } catch (error) {
-        console.error('Failed to fetch activities:', error);
-        // If database is closed, reset the database state
-        if (
-          error instanceof Error &&
-          (error.message.includes('closed resource') || error.message.includes('has been rejected'))
-        ) {
-          setIsDbReady(false);
-          setDb(null);
-        }
+        setCurrentOffset(prev => prev + ACTIVITIES_PER_PAGE);
+        currentOffsetRef.current += ACTIVITIES_PER_PAGE;
       }
+
+      // Update hasMore flag based on whether we got a full page
+      setHasMoreActivities(fetchedActivities.length === ACTIVITIES_PER_PAGE);
+
+      // Get total count for reference (optional)
+      const allActivities = await executeOperation(db => db.getActivities(), []);
+      setTotalActivities(allActivities.length);
+      console.log('fetchActivities: total activities count', allActivities.length);
     },
-    [db, isDbReady, ACTIVITIES_PER_PAGE]
+    [executeOperation, ACTIVITIES_PER_PAGE]
   );
 
   const fetchSubscriptions = useCallback(async () => {
-    if (!db || !isDbReady) return;
+    const fetchedSubscriptions = await executeOperation(db => db.getSubscriptions(), []);
+    setSubscriptions(fetchedSubscriptions);
+    setActiveSubscriptions(fetchedSubscriptions.filter((s: any) => s.status === 'active'));
+  }, [executeOperation]);
 
-    try {
-      const fetchedSubscriptions = await db.getSubscriptions();
-      setSubscriptions(fetchedSubscriptions);
-      setActiveSubscriptions(fetchedSubscriptions.filter(s => s.status === 'active'));
-    } catch (error) {
-      console.error('Failed to fetch subscriptions:', error);
-      // If database is closed, reset the database state
-      if (
-        error instanceof Error &&
-        (error.message.includes('closed resource') || error.message.includes('has been rejected'))
-      ) {
-        setIsDbReady(false);
-        setDb(null);
-      }
-    }
-  }, [db, isDbReady]);
-
-  // Use ref to track if initial fetch has been done to prevent re-fetching
-  const hasInitialFetchRef = useRef(false);
   // Use ref to track current offset to avoid dependency issues
   const currentOffsetRef = useRef(0);
 
@@ -192,221 +137,117 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
     currentOffsetRef.current = currentOffset;
   }, [currentOffset]);
 
-  // Initial fetch - only run once when db becomes ready
+  // Initial data fetch - simplified
   useEffect(() => {
-    if (db && isDbReady && !hasInitialFetchRef.current) {
-      hasInitialFetchRef.current = true;
-      fetchActivities(true); // Reset pagination on initial load
-      fetchSubscriptions();
-    }
-  }, [db, isDbReady]); // Remove fetchActivities and fetchSubscriptions from dependencies
-
-  // Listen for subscription status changes from NostrService
-  useEffect(() => {
-    if (!isDbReady) return;
-
-    const handleSubscriptionStatusChange = async (data: {
-      subscriptionId: string;
-      status: string;
-    }) => {
-      console.log('Subscription status changed:', data);
-      await fetchSubscriptions();
-    };
-
-    const handleActivityAdded = async (activity: any) => {
-      console.log('Activity added event received:', activity);
-      console.log('Current db state:', { db: !!db, isDbReady });
-      await fetchActivities(true); // Reset and refresh activities list
-      console.log('Fetch activities completed');
-    };
-
-    // Import and setup event listener
-    const setupEventListener = async () => {
-      try {
-        const { globalEvents } = await import('@/utils/index');
-        console.log('Setting up event listeners...');
-        globalEvents.on('subscriptionStatusChanged', handleSubscriptionStatusChange);
-        globalEvents.on('activityAdded', handleActivityAdded);
-        console.log('Event listeners set up successfully');
-
-        return () => {
-          console.log('Cleaning up event listeners...');
-          globalEvents.off('subscriptionStatusChanged', handleSubscriptionStatusChange);
-          globalEvents.off('activityAdded', handleActivityAdded);
-        };
-      } catch (error) {
-        console.error('Error setting up event listeners:', error);
-        return () => {};
-      }
-    };
-
-    let cleanup: (() => void) | undefined;
-    setupEventListener().then(cleanupFn => {
-      cleanup = cleanupFn;
-      console.log('Event listener setup completed');
+    Promise.all([fetchActivities(true), fetchSubscriptions()]).catch(error => {
+      console.error('Initial data fetch failed:', error);
     });
-
-    return () => {
-      if (cleanup) {
-        cleanup();
-      }
-    };
-  }, [isDbReady, fetchSubscriptions, fetchActivities]);
-
-  // Create a refresh function that can be called from outside components
-  const refreshData = useCallback(() => {
-    if (db && isDbReady) {
-      setCurrentOffset(0);
-      currentOffsetRef.current = 0;
-      setHasMoreActivities(true);
-      hasInitialFetchRef.current = false; // Allow fresh fetch
-      fetchActivities(true); // Reset pagination on refresh
-      fetchSubscriptions();
-    }
-  }, [db, isDbReady, fetchActivities, fetchSubscriptions]);
-
-  // Add refresh function to the context value below
-
-  const addActivity = useCallback(
-    async (activity: Omit<ActivityWithDates, 'id' | 'created_at'>) => {
-      if (!db || !isDbReady) return null;
-
-      try {
-        const id = await db.addActivity(activity);
-        // Reset pagination and refresh activities list
-        setCurrentOffset(0);
-        currentOffsetRef.current = 0;
-        setHasMoreActivities(true);
-        await fetchActivities(true);
-        return id;
-      } catch (error) {
-        console.error('Failed to add activity:', error);
-        // If database is closed, reset the database state
-        if (
-          error instanceof Error &&
-          (error.message.includes('closed resource') || error.message.includes('has been rejected'))
-        ) {
-          setIsDbReady(false);
-          setDb(null);
-        }
-        return null;
-      }
-    },
-    [db, fetchActivities, isDbReady]
-  );
+  }, [fetchActivities, fetchSubscriptions]);
 
   const loadMoreActivities = useCallback(async () => {
-    if (!db || !isDbReady || isLoadingMore || !hasMoreActivities) return;
+    if (!hasMoreActivities || isLoadingMore) {
+      return;
+    }
 
     setIsLoadingMore(true);
+
     try {
-      const fetchedActivities = await db.getActivities({
-        limit: ACTIVITIES_PER_PAGE,
-        offset: currentOffsetRef.current,
-      });
-
-      // Deduplicate activities based on ID to prevent duplicate keys
-      setActivities(prev => {
-        const existingIds = new Set(prev.map(activity => activity.id));
-        const newActivities = fetchedActivities.filter(activity => !existingIds.has(activity.id));
-        return [...prev, ...newActivities];
-      });
-      setCurrentOffset(prev => prev + ACTIVITIES_PER_PAGE);
-
-      // Update hasMore based on whether we got a full page
-      setHasMoreActivities(fetchedActivities.length === ACTIVITIES_PER_PAGE);
+      await fetchActivities(false); // false = don't reset, append to existing
     } catch (error) {
       console.error('Failed to load more activities:', error);
-      // If database is closed, reset the database state
-      if (
-        error instanceof Error &&
-        (error.message.includes('closed resource') || error.message.includes('has been rejected'))
-      ) {
-        setIsDbReady(false);
-        setDb(null);
-      }
     } finally {
       setIsLoadingMore(false);
     }
-  }, [db, isDbReady, isLoadingMore, hasMoreActivities, ACTIVITIES_PER_PAGE]);
+  }, [hasMoreActivities, isLoadingMore, fetchActivities]);
 
-  const resetToFirstPage = useCallback(async () => {
-    if (!db || !isDbReady) return;
-
+  const refreshData = useCallback(async () => {
     try {
-      const fetchedActivities = await db.getActivities({
-        limit: ACTIVITIES_PER_PAGE,
-        offset: 0,
-      });
-
-      setActivities(fetchedActivities);
-      setCurrentOffset(ACTIVITIES_PER_PAGE);
-      currentOffsetRef.current = ACTIVITIES_PER_PAGE;
-      setHasMoreActivities(fetchedActivities.length === ACTIVITIES_PER_PAGE);
+      setCurrentOffset(0);
+      currentOffsetRef.current = 0;
+      setHasMoreActivities(true);
+      await Promise.all([fetchActivities(true), fetchSubscriptions()]);
+      console.log('Data refreshed successfully');
     } catch (error) {
-      console.error('Failed to reset to first page:', error);
-      // If database is closed, reset the database state
-      if (
-        error instanceof Error &&
-        (error.message.includes('closed resource') || error.message.includes('has been rejected'))
-      ) {
-        setIsDbReady(false);
-        setDb(null);
-      }
+      console.error('Failed to refresh data:', error);
     }
-  }, [db, isDbReady, ACTIVITIES_PER_PAGE]);
+  }, [fetchActivities, fetchSubscriptions]);
 
-  const getRecentActivities = useCallback(async () => {
-    if (!db || !isDbReady) return [];
+  // Listen for activity events to refresh activities list
+  useEffect(() => {
+    const { globalEvents } = require('@/utils/index');
 
-    try {
-      const fetchedActivities = await db.getRecentActivities();
-      return fetchedActivities;
-    } catch (error) {
-      console.error('Failed to get recent activities:', error);
-      // If database is closed, reset the database state
-      if (
-        error instanceof Error &&
-        (error.message.includes('closed resource') || error.message.includes('has been rejected'))
-      ) {
-        setIsDbReady(false);
-        setDb(null);
+    const handleActivityAdded = (activity: ActivityWithDates) => {
+      console.log('ActivitiesContext: activityAdded event received, refreshing activities');
+      refreshData();
+    };
+
+    globalEvents.on('activityAdded', handleActivityAdded);
+
+    return () => {
+      globalEvents.off('activityAdded', handleActivityAdded);
+    };
+  }, [refreshData]);
+
+  // Optimized function to add activity without duplicates
+  // Used by components that need to update the list immediately after DB operations
+  const addActivityIfNotExists = useCallback((activity: ActivityWithDates) => {
+    setActivities(prevActivities => {
+      // Check if activity already exists
+      const existingIndex = prevActivities.findIndex(a => a.id === activity.id);
+      if (existingIndex !== -1) {
+        // Activity exists - replace it to ensure we have the latest data
+        const newActivities = [...prevActivities];
+        newActivities[existingIndex] = activity;
+        return newActivities;
+      } else {
+        // New activity - prepend to maintain chronological order
+        return [activity, ...prevActivities];
       }
-      return [];
-    }
-  }, [db, isDbReady]);
+    });
 
-  const contextValue = useMemo(
+    // Also increment total count for consistency
+    setTotalActivities(prev => prev + 1);
+  }, []);
+
+  // Function to get recent activities for home screen (limited to 5)
+  const getRecentActivities = useCallback(async (): Promise<ActivityWithDates[]> => {
+    return await executeOperation(db => db.getActivities({ limit: 5, offset: 0 }), []);
+  }, [executeOperation]);
+
+  // Reset to first page of activities
+  const resetToFirstPage = useCallback(() => {
+    setCurrentOffset(0);
+    currentOffsetRef.current = 0;
+    setHasMoreActivities(true);
+    // Don't clear activities here - let the next fetch handle it
+    // This prevents flickering while new data loads
+  }, []);
+
+  const contextValue: ActivitiesContextType = useMemo(
     () => ({
       activities,
       subscriptions,
       activeSubscriptions,
-      fetchActivities,
-      fetchSubscriptions,
-      refreshData,
-      addActivity,
-      isDbReady,
       loadMoreActivities,
+      refreshData,
+      resetToFirstPage,
       hasMoreActivities,
       isLoadingMore,
       totalActivities,
-      resetToFirstPage,
+      addActivityIfNotExists,
       getRecentActivities,
     }),
     [
       activities,
       subscriptions,
       activeSubscriptions,
-      fetchActivities,
-      fetchSubscriptions,
-      refreshData,
-      addActivity,
-      isDbReady,
       loadMoreActivities,
+      refreshData,
+      resetToFirstPage,
       hasMoreActivities,
       isLoadingMore,
       totalActivities,
-      resetToFirstPage,
+      addActivityIfNotExists,
       getRecentActivities,
     ]
   );
@@ -416,7 +257,7 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
 
 export const useActivities = () => {
   const context = useContext(ActivitiesContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useActivities must be used within an ActivitiesProvider');
   }
   return context;

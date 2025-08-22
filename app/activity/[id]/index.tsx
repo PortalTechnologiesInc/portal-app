@@ -18,9 +18,9 @@ import {
   Link,
   Ticket,
 } from 'lucide-react-native';
-import { DatabaseService } from '@/services/database';
+import { useDatabase } from '@/context/DatabaseContextProvider';
 import type { ActivityWithDates } from '@/services/database';
-import { useSQLiteContext } from 'expo-sqlite';
+
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { getActivityStatus } from '@/utils/activityHelpers';
 import { ActivityHeader } from '@/components/ActivityDetail/ActivityHeader';
@@ -40,7 +40,7 @@ export default function ActivityDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [paymentSteps, setPaymentSteps] = useState<PaymentStep[]>([]);
-  const db = useSQLiteContext();
+  const { executeOperation } = useDatabase();
   const { activities } = useActivities();
 
   // Theme colors
@@ -57,8 +57,8 @@ export default function ActivityDetailScreen() {
     const fetchActivity = async () => {
       try {
         setLoading(true);
-        const dbService = new DatabaseService(db);
-        const activityData = await dbService.getActivity(id as string);
+
+        const activityData = await executeOperation(db => db.getActivity(id as string), null);
 
         if (activityData) {
           setActivity(activityData);
@@ -66,8 +66,9 @@ export default function ActivityDetailScreen() {
           // If this is a payment activity, fetch payment status entries
           if (activityData.type === 'pay' && activityData.invoice) {
             try {
-              const paymentStatusEntries = await dbService.getPaymentStatusEntries(
-                activityData.invoice
+              const paymentStatusEntries = await executeOperation(
+                db => db.getPaymentStatusEntries(activityData.invoice!),
+                []
               );
               console.log('paymentStatusEntries', paymentStatusEntries);
               const steps = convertPaymentStatusToSteps(paymentStatusEntries);
@@ -91,7 +92,7 @@ export default function ActivityDetailScreen() {
     if (id) {
       fetchActivity();
     }
-  }, [id, db, activities]);
+  }, [id, executeOperation, activities]);
 
   const handleBackPress = () => {
     router.back();

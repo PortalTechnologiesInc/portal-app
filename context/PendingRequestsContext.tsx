@@ -19,9 +19,9 @@ import {
   AuthResponseStatus,
   CashuResponseStatus,
 } from 'portal-app-lib';
-import { useSQLiteContext } from 'expo-sqlite';
-import { DatabaseService, fromUnixSeconds } from '@/services/database';
-import { useDatabaseStatus } from '@/services/database/DatabaseProvider';
+
+import { fromUnixSeconds } from '@/services/database';
+import { useDatabase } from '@/context/DatabaseContextProvider';
 import { useActivities } from '@/context/ActivitiesContext';
 import { NostrServiceContextType, useNostrService } from '@/context/NostrServiceContext';
 import { useECash } from '@/context/ECashContext';
@@ -32,6 +32,7 @@ import type {
   PendingSubscription,
 } from '@/utils/types';
 import { PortalAppManager } from '@/services/PortalAppManager';
+import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 
 // Helper function to get service name with fallback
 const getServiceNameWithFallback = async (
@@ -70,50 +71,52 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
   const [requestFailed, setRequestFailed] = useState(false);
   const [timeoutId, setTimeoutId] = useState<number | null>(null);
 
-  // Create database instance for adding activities, but handle case where it's not ready
-  const [db, setDb] = useState<DatabaseService | null>(null);
+  // Simple database access
+  const { executeOperation } = useDatabase();
 
   // Queue for activities that couldn't be recorded due to DB not being ready
   const [pendingActivities, setPendingActivities] = useState<PendingActivity[]>([]);
   const [pendingSubscriptions, setPendingSubscriptions] = useState<PendingSubscription[]>([]);
-  // Get database initialization status
-  const dbStatus = useDatabaseStatus();
   const nostrService = useNostrService();
   const eCashContext = useECash();
-
-  // Get SQLite context - this is now safe because we've reordered the providers in _layout.tsx
-  let sqliteContext = null;
-  try {
-    // This will only be accessed when the SQLiteProvider is available
-    sqliteContext = dbStatus.shouldInitDb && dbStatus.isDbInitialized ? useSQLiteContext() : null;
-  } catch (error) {
-    console.log('SQLite context not available yet:', error);
-  }
 
   // Get the refreshData function from ActivitiesContext
   const { refreshData } = useActivities();
 
-  // Initialize DB when SQLite context is available
+  // Reset all PendingRequests state to initial values
+  // This is called during app reset to ensure clean state
+  const resetPendingRequests = () => {
+    console.log('🔄 Resetting PendingRequests state...');
+
+    // Reset all state to initial values
+    setIsLoadingRequest(false);
+    setPendingUrl(undefined);
+    setRequestFailed(false);
+    setPendingActivities([]);
+    setPendingSubscriptions([]);
+
+    // Clear any active timeouts
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      setTimeoutId(null);
+    }
+
+    console.log('✅ PendingRequests state reset completed');
+  };
+
+  // Register/unregister context reset function
   useEffect(() => {
-    if (!sqliteContext || !dbStatus.shouldInitDb || !dbStatus.isDbInitialized) {
-      console.log('Database prerequisites not met, waiting...');
-      return;
-    }
+    registerContextReset(resetPendingRequests);
 
-    try {
-      console.log('Initializing DatabaseService in PendingRequestsContext');
-      const databaseService = new DatabaseService(sqliteContext);
-      setDb(databaseService);
-    } catch (error) {
-      console.error('Failed to initialize DatabaseService:', error);
-      setDb(null);
-    }
-  }, [sqliteContext, dbStatus.shouldInitDb, dbStatus.isDbInitialized]);
+    return () => {
+      unregisterContextReset(resetPendingRequests);
+    };
+  }, []);
 
-  // Process any pending activities when DB becomes available
+  // Process any pending activities when available
   useEffect(() => {
     const processPendingActivities = async () => {
-      if (!db || pendingActivities.length === 0) return;
+      if (pendingActivities.length === 0) return;
 
       console.log(`Processing ${pendingActivities.length} pending activities`);
 
@@ -121,12 +124,12 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
       setPendingActivities([]); // Clear the queue
 
       for (const activity of activitiesToProcess) {
-        try {
-          await db.addActivity(activity);
+        const success = await executeOperation(db => db.addActivity(activity), null);
+
+        if (success) {
           console.log('Successfully recorded delayed activity:', activity.type);
-        } catch (error) {
-          console.error('Failed to record delayed activity:', error);
-          // Re-queue failed activities
+        } else {
+          console.error('Failed to record delayed activity, re-queuing');
           setPendingActivities(prev => [...prev, activity]);
         }
       }
@@ -136,40 +139,37 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
     };
 
     processPendingActivities();
-  }, [db, pendingActivities, refreshData]);
+  }, [executeOperation, pendingActivities, refreshData]);
 
-  // Helper function to add an activity with fallback to queue
+  // Helper function to add an activity
   const addActivityWithFallback = async (activity: PendingActivity): Promise<string> => {
-    const id = await db!.addActivity(activity);
+    const id = await executeOperation(
+      db => db.addActivity(activity),
+      '' // fallback to empty string if failed
+    );
     refreshData();
-
     return id;
   };
 
-  // Helper function to add a subscription with fallback to queue
+  // Helper function to add a subscription
   const addSubscriptionWithFallback = useCallback(
-    (subscription: PendingSubscription): Promise<string | undefined> => {
-      if (!db) {
-        console.log('Database not ready, queuing subscription for later recording');
-        setPendingSubscriptions(prev => [...prev, subscription]);
-        return Promise.resolve(undefined);
+    async (subscription: PendingSubscription): Promise<string | undefined> => {
+      console.log('Adding subscription to database:', subscription.request_id);
+
+      const id = await executeOperation(
+        db => db.addSubscription(subscription),
+        undefined // fallback to undefined if failed
+      );
+
+      if (id) {
+        // Refresh subscriptions data after adding a new subscription
+        refreshData();
+        return id;
       }
 
-      try {
-        console.log('Adding subscription to database:', subscription.request_id);
-        return db.addSubscription(subscription).then(id => {
-          // Refresh subscriptions data after adding a new subscription
-          refreshData();
-          return id;
-        });
-      } catch (error) {
-        console.error('Exception while trying to record subscription, queuing for later:', error);
-        setPendingSubscriptions(prev => [...prev, subscription]);
-      }
-
-      return Promise.resolve(undefined);
+      return undefined;
     },
-    [db, refreshData]
+    [executeOperation, refreshData]
   );
 
   // Cleanup timeout on unmount
@@ -208,7 +208,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
       }
 
       nostrService.dismissPendingRequest(id);
-      db?.storePendingRequest(id, true);
+      await executeOperation(db => db.storePendingRequest(id, true), null);
 
       switch (request.type) {
         case 'login':
@@ -284,15 +284,24 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             await notifier(new PaymentStatus.Approved());
 
             // Insert into payment_status table
-            await db!.addPaymentStatusEntry(metadata.content.invoice, 'payment_started');
+            await executeOperation(
+              db => db.addPaymentStatusEntry(metadata.content.invoice, 'payment_started'),
+              null
+            );
 
             try {
               const preimage = await nostrService.payInvoice(metadata.content.invoice);
 
-              await db!.addPaymentStatusEntry(metadata.content.invoice, 'payment_completed');
+              await executeOperation(
+                db => db.addPaymentStatusEntry(metadata.content.invoice, 'payment_completed'),
+                null
+              );
 
               // Update the activity status to positive
-              await db!.updateActivityStatus(activityId, 'positive', "Payment completed");
+              await executeOperation(
+                db => db.updateActivityStatus(activityId, 'positive', 'Payment completed'),
+                null
+              );
               refreshData();
 
               await notifier(
@@ -303,12 +312,19 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             } catch (err) {
               console.log('Error paying invoice:', err);
 
-              await db!.addPaymentStatusEntry(metadata.content.invoice, 'payment_failed');
+              await executeOperation(
+                db => db.addPaymentStatusEntry(metadata.content.invoice, 'payment_failed'),
+                null
+              );
 
-              await db!.updateActivityStatus(
-                activityId,
-                'negative',
-                'Payment approved by user but failed to process'
+              await executeOperation(
+                db =>
+                  db.updateActivityStatus(
+                    activityId,
+                    'negative',
+                    'Payment approved by user but failed to process'
+                  ),
+                null
               );
               refreshData();
 
@@ -407,7 +423,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               // Get the wallet from ECash context
               const wallet = await eCashContext.getWallet(
                 cashuEvent.inner.mintUrl,
-                cashuEvent.inner.unit
+                cashuEvent.inner.unit.toLowerCase() // Normalize unit name
               );
               if (!wallet) {
                 console.error('No wallet available for Cashu request');
@@ -430,7 +446,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               const { globalEvents } = await import('@/utils/index');
               globalEvents.emit('walletBalancesChanged', {
                 mintUrl: cashuEvent.inner.mintUrl,
-                unit: cashuEvent.inner.unit,
+                unit: cashuEvent.inner.unit.toLowerCase(),
               });
               console.log('walletBalancesChanged event emitted for Cashu send');
 
@@ -511,7 +527,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
       }
 
       nostrService.dismissPendingRequest(id);
-      db?.storePendingRequest(id, false);
+      await executeOperation(db => db.storePendingRequest(id, false), null);
 
       switch (request?.type) {
         case 'login':

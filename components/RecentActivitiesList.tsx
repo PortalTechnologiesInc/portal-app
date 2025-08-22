@@ -10,7 +10,7 @@ import { ActivityRow } from './ActivityRow';
 
 export const RecentActivitiesList: React.FC = () => {
   // Use the main activities state to automatically get updates
-  const { isDbReady, activities } = useActivities();
+  const { activities } = useActivities();
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -23,7 +23,7 @@ export const RecentActivitiesList: React.FC = () => {
     return activities.slice(0, 5);
   }, [activities]);
 
-  const isLoading = !isDbReady;
+  // Activities are automatically loaded - no manual loading state needed
 
   const handleSeeAll = useCallback(() => {
     router.push('/ActivityList');
@@ -46,35 +46,27 @@ export const RecentActivitiesList: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {!isLoading ? (
-        recentActivities.length === 0 ? (
-          <View style={[styles.emptyContainer, { backgroundColor: cardBackgroundColor }]}>
-            <ThemedText style={[styles.emptyText, { color: secondaryTextColor }]}>
-              No recent activities
-            </ThemedText>
-          </View>
-        ) : (
-          <>
-            <ThemedText style={[styles.dateHeader, { color: secondaryTextColor }]}>
-              {today}
-            </ThemedText>
-
-            <FlatList
-              data={recentActivities}
-              keyExtractor={item => item.id}
-              renderItem={({ item }) => <ActivityRow activity={item} />}
-              scrollEnabled={false}
-              removeClippedSubviews={false}
-              initialNumToRender={5}
-            />
-          </>
-        )
-      ) : (
+      {recentActivities.length === 0 ? (
         <View style={[styles.emptyContainer, { backgroundColor: cardBackgroundColor }]}>
           <ThemedText style={[styles.emptyText, { color: secondaryTextColor }]}>
-            Loading activities...
+            No recent activities
           </ThemedText>
         </View>
+      ) : (
+        <>
+          <ThemedText style={[styles.dateHeader, { color: secondaryTextColor }]}>
+            {today}
+          </ThemedText>
+
+          <FlatList
+            data={recentActivities}
+            keyExtractor={item => item.id}
+            renderItem={({ item }) => <ActivityRow activity={item} />}
+            scrollEnabled={false}
+            removeClippedSubviews={false}
+            initialNumToRender={5}
+          />
+        </>
       )}
     </View>
   );

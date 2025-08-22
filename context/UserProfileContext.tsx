@@ -105,26 +105,26 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
   // This is called during app reset to ensure clean state
   const resetProfile = () => {
     console.log('🔄 Resetting UserProfile state...');
-    
+
     // Reset local state to initial values
     setUsernameState('');
     setDisplayNameState('');
     setAvatarUriState(null);
     setSyncStatus('idle');
     setAvatarRefreshKey(Date.now());
-    
+
     // Reset network state tracking
     setNetworkUsername('');
     setNetworkDisplayName('');
     setNetworkAvatarUri(null);
-    
+
     console.log('✅ UserProfile state reset completed');
   };
 
   // Register/unregister context reset function
   useEffect(() => {
     registerContextReset(resetProfile);
-    
+
     return () => {
       unregisterContextReset(resetProfile);
     };
@@ -224,6 +224,15 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
                 console.log('Failed to auto-save profile to network:', error);
                 // Don't throw - let user manually save later
               }
+            } else if (seedOrigin === 'imported') {
+              console.log('Imported seed detected - clearing flag for future auto-fetch attempts');
+
+              // Clear the seed origin flag so this only happens once
+              await SecureStore.deleteItemAsync('portal_seed_origin');
+
+              // For imported seeds with no profile found, we don't auto-generate
+              // The user will see their npub and can manually set up their profile
+              console.log('Imported seed processed - no profile found on network');
             }
           } catch (error) {
             console.log('Could not check seed origin, skipping auto-generation:', error);
