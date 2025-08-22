@@ -22,6 +22,7 @@ export const SECURE_STORE_KEYS = {
 
   // App State
   PENDING_DEEPLINK: 'PENDING_DEEPLINK',
+  COLD_START_PROCESSED_URL: 'cold_start_processed_url',
   EXPO_PUSH_TOKEN: 'expo_push_token_key',
 } as const;
 

@@ -224,6 +224,15 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
                 console.log('Failed to auto-save profile to network:', error);
                 // Don't throw - let user manually save later
               }
+            } else if (seedOrigin === 'imported') {
+              console.log('Imported seed detected - clearing flag for future auto-fetch attempts');
+
+              // Clear the seed origin flag so this only happens once
+              await SecureStore.deleteItemAsync('portal_seed_origin');
+
+              // For imported seeds with no profile found, we don't auto-generate
+              // The user will see their npub and can manually set up their profile
+              console.log('Imported seed processed - no profile found on network');
             }
           } catch (error) {
             console.log('Could not check seed origin, skipping auto-generation:', error);
