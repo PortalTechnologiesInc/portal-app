@@ -247,11 +247,11 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
   // Track last reconnection attempts to prevent spam
   const lastReconnectAttempts = useRef<Map<string, number>>(new Map());
-
   const allRelaysConnected = relayStatuses.length > 0 && relayStatuses.every(r => r.connected);
   const connectedCount = relayStatuses.filter(r => r.connected).length;
 
   // Refs to store current values for stable AppState listener
+  const isAppActive = useRef(true);
   const portalAppRef = useRef<PortalAppInterface | null>(null);
   const relayStatusesRef = useRef<RelayInfo[]>([]);
   const removedRelaysRef = useRef<Set<string>>(new Set());
@@ -305,7 +305,10 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         } else {
           console.log('⚠️ App became active but portalApp is null - will re-initialize');
         }
+
+        isAppActive.current = true;
       } else if (nextAppState === 'background') {
+        isAppActive.current = false;
         console.log('App moved to background');
       }
     };
@@ -1018,12 +1021,12 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
       while (
         !url.relays.some(urlRelay =>
           relayStatusesRef.current.some(r => r.url === urlRelay && r.status === 'Connected')
-        )
+        ) || !isAppActive.current
       ) {
-        if (attempt >= 30) {
+        if (attempt > 30) {
           return;
         }
-        console.log(`🤝 Try #${attempt}. Handshake request delayed. No relay connected!`);
+        console.log(`🤝 Try #${attempt}. Handshake request delayed. No relay connected or app not fully active!`);
         await new Promise(resolve => setTimeout(resolve, 500));
         attempt++;
       }
@@ -1031,7 +1034,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
       console.log('Sending auth init', url);
       return portalApp.sendKeyHandshake(url);
     },
-    [portalApp]
+    [portalApp, isAppActive]
   );
 
   // Get service name with database caching

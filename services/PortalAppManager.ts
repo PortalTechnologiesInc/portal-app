@@ -15,7 +15,7 @@ export class PortalAppManager {
     relayStatusCallback: RelayStatusListener
   ) {
     if (!PortalAppManager.instance) {
-      console.warn('Initializing the lib!');
+      console.log('📚 Initializing the lib!');
       PortalAppManager.instance = await PortalApp.create(keypair, relays, relayStatusCallback);
     }
 
