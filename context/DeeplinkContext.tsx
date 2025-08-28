@@ -32,9 +32,6 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
 
         const parsedUrl = parseKeyHandshakeUrl(url);
 
-        // Check and reconnect relays if needed (Android background kill scenario)
-        nostrService.checkAndReconnectRelays();
-
         // Show the skeleton loader
         showSkeletonLoader(parsedUrl);
 

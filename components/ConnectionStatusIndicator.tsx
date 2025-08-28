@@ -56,7 +56,6 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
     allRelaysConnected,
     removedRelays,
     refreshWalletInfo,
-    checkAndReconnectRelays,
   } = useNostrService();
 
   const { hasLightningWallet, isLightningConnected } = useWalletStatus();
@@ -102,16 +101,13 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
     console.log('🔄 ConnectionStatusIndicator: Component mounted - refreshing wallet info');
     refreshWalletInfo();
 
-    // Check and reconnect relays if needed (Android background kill scenario)
-    checkAndReconnectRelays();
-
     // Listen for app state changes
     const subscription = AppState.addEventListener('change', handleAppStateChange);
 
     return () => {
       subscription?.remove();
     };
-  }, [refreshWalletInfo, checkAndReconnectRelays]);
+  }, [refreshWalletInfo]);
 
   // Handle external refresh triggers (e.g., from homepage focus)
   useEffect(() => {

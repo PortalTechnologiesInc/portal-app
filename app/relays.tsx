@@ -163,12 +163,6 @@ export default function NostrRelayManagementScreen() {
       console.log('➕ Processing relay additions...');
       await Promise.all(addPromises);
 
-      // If relays were added, trigger global reconnect to get status updates
-      if (addPromises.length > 0) {
-        console.log('🔄 Triggering global reconnect for newly added relays...');
-        await nostrService.triggerGlobalReconnect();
-      }
-
       // Finally update the database
       console.log('💾 Updating database...');
       await executeOperation(db => db.updateRelays(newlySelectedRelays), null);
