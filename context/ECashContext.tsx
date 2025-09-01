@@ -16,6 +16,10 @@ interface WalletKey {
   unit: string;
 }
 
+// Centralized wallet key creation with unit normalization
+const createWalletKey = (mintUrl: string, unit: string): string =>
+  `${mintUrl}-${unit.toLowerCase()}`;
+
 /**
  * eCash context type definition
  */
@@ -43,13 +47,8 @@ export function ECashProvider({ children, mnemonic }: { children: ReactNode; mne
   // Reset all ECash state to initial values
   // This is called during app reset to ensure clean state
   const resetECash = () => {
-    console.log('🔄 Resetting ECash state...');
-
-    // Clear all wallets
     setWallets({});
     setIsLoading(false);
-
-    console.log('✅ ECash state reset completed');
   };
 
   // Register/unregister context reset function
@@ -63,134 +62,85 @@ export function ECashProvider({ children, mnemonic }: { children: ReactNode; mne
 
   useEffect(() => {
     const fetchWallets = async () => {
-      console.log('ECashContext: Starting wallet fetch...');
       setIsLoading(true);
       try {
         // Get wallet pairs from database
         const pairList = await executeOperation(db => db.getMintUnitPairs(), []);
-        console.log('ECashContext: Loading wallets from pairs:', pairList);
 
         if (pairList.length === 0) {
-          console.log('ECashContext: No wallet pairs found in database');
+          setIsLoading(false);
+          return;
         }
 
-        // Create wallets sequentially to avoid database conflicts
-        // Also handle existing duplicate wallets with different casing
-        const processedKeys = new Set<string>();
+        // Filter out duplicates based on normalized keys
+        const uniquePairs = pairList.filter((pair, index, self) => {
+          const normalizedKey = createWalletKey(pair[0], pair[1]);
+          return self.findIndex(p => createWalletKey(p[0], p[1]) === normalizedKey) === index;
+        });
 
-        for (const [mintUrl, unit] of pairList) {
-          try {
-            const normalizedKey = `${mintUrl}-${unit.toLowerCase()}`;
+        // Create wallets in parallel for better performance
+        const results = await Promise.allSettled(
+          uniquePairs.map(async ([mintUrl, unit]) => {
+            const walletKey = createWalletKey(mintUrl, unit);
+            if (wallets[walletKey]) return; // Skip existing
+            return addWallet(mintUrl, unit);
+          })
+        );
 
-            // Skip if we already processed this normalized key
-            if (processedKeys.has(normalizedKey)) {
-              console.log(
-                `ECashContext: Skipping duplicate wallet for ${normalizedKey} (already processed)`
-              );
-              continue;
-            }
-
-            await addWallet(mintUrl, unit);
-            processedKeys.add(normalizedKey);
-            console.log(`ECashContext: Added wallet for ${mintUrl}-${unit}`);
-          } catch (error) {
-            console.error(`ECashContext: Error adding wallet for ${mintUrl}-${unit}:`, error);
-            // Continue with next wallet instead of failing everything
+        // Log only failures for debugging
+        results.forEach((result, index) => {
+          if (result.status === 'rejected') {
+            const [mintUrl, unit] = uniquePairs[index];
+            console.error(`Failed to create wallet ${mintUrl}-${unit}:`, result.reason);
           }
-        }
-
-        console.log('ECashContext: Wallets loaded:', Object.keys(wallets));
-      } catch (e) {
-        console.error('ECashContext: Error fetching wallets:', e);
+        });
+      } catch (error) {
+        console.error('ECashContext: Error fetching wallets:', error);
       }
       setIsLoading(false);
     };
 
     fetchWallets();
-  }, [executeOperation]); // Simplified dependency
+  }, [executeOperation]);
 
-  // Add a new wallet with comprehensive error handling
+  // Add a new wallet with simplified error handling
   const addWallet = async (mintUrl: string, unit: string): Promise<CashuWalletInterface> => {
-    // Normalize unit to lowercase to prevent duplicate wallets due to casing differences
     const normalizedUnit = unit.toLowerCase();
-    console.log(
-      `Adding wallet for ${mintUrl}-${normalizedUnit}` +
-        (unit !== normalizedUnit ? ` (normalized from ${unit})` : '')
-    );
+    const walletKey = createWalletKey(mintUrl, unit);
 
-    const walletInMap = wallets[`${mintUrl}-${normalizedUnit}`];
-    if (walletInMap) {
-      console.log(`Wallet already exists for ${mintUrl}-${normalizedUnit}`);
-      return walletInMap;
+    // Check if wallet already exists
+    const existingWallet = wallets[walletKey];
+    if (existingWallet) {
+      return existingWallet;
     }
 
-    console.log(`Creating new wallet for ${mintUrl}-${normalizedUnit}`);
+    const seed = new Mnemonic(mnemonic).deriveCashu();
+    const storage = new CashuStorage(new DatabaseService(sqliteContext));
 
-    try {
-      const seed = new Mnemonic(mnemonic).deriveCashu();
+    // Create wallet with single timeout (no retry complexity)
+    const wallet = await Promise.race([
+      CashuWallet.create(mintUrl, normalizedUnit, seed, storage),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Wallet creation timeout')), 8000)
+      ),
+    ]);
 
-      // Create a temporary database service for CashuStorage
-      // This is needed because CashuStorage requires a DatabaseService instance
-      const storage = new CashuStorage(new DatabaseService(sqliteContext));
+    // Non-blocking proof restoration to avoid blocking wallet creation
+    wallet
+      .restoreProofs()
+      .catch(error => console.warn(`Proof restoration failed for ${walletKey}:`, error.message));
 
-      // Add timeout and retry logic for wallet creation
-      let wallet: CashuWalletInterface | null = null;
-      let retries = 3;
-
-      while (retries > 0 && !wallet) {
-        try {
-          wallet = (await Promise.race([
-            CashuWallet.create(mintUrl, normalizedUnit, seed, storage),
-            new Promise((_, reject) =>
-              setTimeout(() => reject(new Error('Wallet creation timeout')), 10000)
-            ),
-          ])) as CashuWalletInterface;
-          break;
-        } catch (error) {
-          retries--;
-          if (retries === 0) {
-            console.error(`Failed to create wallet after all retries: ${error}`);
-            throw error;
-          }
-          console.warn(`Wallet creation failed, retrying... (${retries} retries left)`);
-          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s before retry
-        }
-      }
-
-      if (!wallet) {
-        throw new Error('Failed to create wallet after all retries');
-      }
-
-      // Restore proofs with error handling
-      try {
-        const restoredProofs = await wallet.restoreProofs();
-        console.log('Restored proofs:', restoredProofs);
-      } catch (error) {
-        console.warn('Error restoring proofs (continuing anyway):', error);
-      }
-
-      setWallets(prev => {
-        const newMap = { ...prev };
-        newMap[`${mintUrl}-${normalizedUnit}`] = wallet;
-        console.log(`Wallet added to state: ${mintUrl}-${normalizedUnit}`);
-        return newMap;
-      });
-
-      return wallet;
-    } catch (error) {
-      console.error(`Error creating wallet for ${mintUrl}-${normalizedUnit}:`, error);
-      throw error;
-    }
+    setWallets(prev => ({ ...prev, [walletKey]: wallet }));
+    return wallet;
   };
 
   // Remove a wallet
   const removeWallet = async (mintUrl: string, unit: string) => {
     try {
-      // Normalize unit to lowercase to match stored wallet keys
-      const normalizedUnit = unit.toLowerCase();
+      const walletKey = createWalletKey(mintUrl, unit);
       setWallets(prev => {
         const newMap = { ...prev };
-        delete newMap[`${mintUrl}-${normalizedUnit}`];
+        delete newMap[walletKey];
         return newMap;
       });
     } catch (error) {
@@ -199,9 +149,8 @@ export function ECashProvider({ children, mnemonic }: { children: ReactNode; mne
   };
 
   const getWallet = (mintUrl: string, unit: string): CashuWalletInterface | null => {
-    // Normalize unit to lowercase to match stored wallet keys
-    const normalizedUnit = unit.toLowerCase();
-    return wallets[`${mintUrl}-${normalizedUnit}`] || null;
+    const walletKey = createWalletKey(mintUrl, unit);
+    return wallets[walletKey] || null;
   };
 
   return (
