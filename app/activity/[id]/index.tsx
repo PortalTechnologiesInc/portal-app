@@ -40,7 +40,7 @@ export default function ActivityDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [paymentSteps, setPaymentSteps] = useState<PaymentStep[]>([]);
-  const { executeOperation } = useDatabase();
+  const { executeOperation } = useDatabaseContext();
   const { activities } = useActivities();
 
   // Theme colors

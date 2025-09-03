@@ -72,7 +72,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
   const [timeoutId, setTimeoutId] = useState<number | null>(null);
 
   // Simple database access
-  const { executeOperation } = useDatabase();
+  const { executeOperation } = useDatabaseContext();
 
   // Queue for activities that couldn't be recorded due to DB not being ready
   const [pendingActivities, setPendingActivities] = useState<PendingActivity[]>([]);

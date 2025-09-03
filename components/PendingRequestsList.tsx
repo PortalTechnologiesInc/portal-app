@@ -28,7 +28,7 @@ export const PendingRequestsList: React.FC = React.memo(() => {
   const [data, setData] = useState<PendingRequest[]>([]);
 
   // Simple database access
-  const { executeOperation } = useDatabase();
+  const { executeOperation } = useDatabaseContext();
 
   // Theme colors
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');

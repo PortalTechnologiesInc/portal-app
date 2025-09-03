@@ -1,32 +1,65 @@
-import { useState, useCallback, type ReactNode, Fragment, createContext, useContext } from 'react';
-import { SQLiteProvider, type SQLiteDatabase, openDatabaseAsync } from 'expo-sqlite';
+import { useState, useCallback, type ReactNode, createContext, useContext } from 'react';
+import { SQLiteProvider, useSQLiteContext, type SQLiteDatabase } from 'expo-sqlite';
+import { DatabaseService } from '../services/DatabaseService';
+import { AppResetService } from '../services/AppResetService';
 
 // Database name constant to ensure consistency
-export const DATABASE_NAME = 'portal-app.db';
+const DATABASE_NAME = 'portal-app.db';
 
 // Create a context to expose database initialization state
 interface DatabaseContextType {
   isDbInitializing: boolean;
   isDbInitialized: boolean;
-  shouldInitDb: boolean;
+  executeOperation: <T>(operation: (db: DatabaseService) => Promise<T>, fallback?: T) => Promise<T>;
+  resetApp: () => Promise<void>;
 }
 
-const DatabaseContext = createContext<DatabaseContextType>({
-  isDbInitializing: false,
-  isDbInitialized: false,
-  shouldInitDb: true,
-});
+const DatabaseContext = createContext<DatabaseContextType | null>(null);
 
 // Hook to consume the database context
-export const useDatabaseStatus = () => useContext(DatabaseContext);
+export const useDatabaseContext = () => {
+  const context = useContext(DatabaseContext);
+  if (!context) {
+    throw new Error('useDatabaseStatus must be used within a DatabaseProvider');
+  }
+  return context;
+};
 
 interface DatabaseProviderProps {
   children: ReactNode;
 }
 
-export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
+export const DatabaseContextProvider = ({ children }: DatabaseProviderProps) => {
   const [dbInitialized, setDbInitialized] = useState(false);
   const [isDbInitializing, setIsDbInitializing] = useState(false);
+
+  const sqliteContext = useSQLiteContext();
+  const { isDbInitialized } = useDatabaseContext();
+
+  const executeOperation = async <T,>(
+    operation: (db: DatabaseService) => Promise<T>,
+    fallback?: T
+  ): Promise<T> => {
+    // Handle readiness internally - no external checks needed
+    if (!isDbInitialized || !sqliteContext) {
+      console.log('Database not ready, returning fallback value');
+      if (fallback !== undefined) return fallback;
+      throw new Error('Database not ready and no fallback provided');
+    }
+
+    try {
+      const db = new DatabaseService(sqliteContext);
+      return await operation(db);
+    } catch (error: any) {
+      console.error('Database operation failed:', error?.message || error);
+      if (fallback !== undefined) return fallback;
+      throw error;
+    }
+  };
+
+  const resetApp = () => {
+    return AppResetService.performCompleteReset(sqliteContext);
+  }
 
   // Function to migrate database schema if needed
   const migrateDbIfNeeded = useCallback(async (db: SQLiteDatabase) => {
@@ -406,19 +439,18 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
   }, []);
 
   // Create the context value
-  const contextValue = {
-    isDbInitializing,
+  const contextValue: DatabaseContextType = {
+    isDbInitializing: isDbInitializing,
     isDbInitialized: dbInitialized,
-    shouldInitDb: true,
+    executeOperation,
+    resetApp,
   };
 
   return (
     <DatabaseContext.Provider value={contextValue}>
-      <Fragment>
         <SQLiteProvider databaseName={DATABASE_NAME} onInit={migrateDbIfNeeded}>
           {children}
         </SQLiteProvider>
-      </Fragment>
     </DatabaseContext.Provider>
   );
 };

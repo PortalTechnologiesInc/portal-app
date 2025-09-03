@@ -2,7 +2,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import type { ActivityType, UpcomingPayment } from '@/utils/types';
 import type { Currency } from '@/utils/currency';
 import uuid from 'react-native-uuid';
-import { generateResetSQL } from '../StorageRegistry';
+import { generateResetSQL } from './StorageRegistry';
 
 // Timestamp utilities
 export const toUnixSeconds = (date: Date | number): number => {
@@ -1387,5 +1387,3 @@ export class DatabaseService {
     }
   }
 }
-
-export { DatabaseProvider, useDatabaseStatus, DATABASE_NAME } from './DatabaseProvider';

@@ -160,15 +160,13 @@ export default function RootLayout() {
   }
 
   return (
-    <DatabaseProvider>
-      <DatabaseContextProvider>
-        <ThemeProvider>
-          <CurrencyProvider>
-            <ThemedRootView />
-          </CurrencyProvider>
-        </ThemeProvider>
-      </DatabaseContextProvider>
-    </DatabaseProvider>
+    <DatabaseContextProvider>
+      <ThemeProvider>
+        <CurrencyProvider>
+          <ThemedRootView />
+        </CurrencyProvider>
+      </ThemeProvider>
+    </DatabaseContextProvider>
   );
 }
 

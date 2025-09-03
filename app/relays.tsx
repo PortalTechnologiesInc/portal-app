@@ -52,7 +52,7 @@ export default function NostrRelayManagementScreen() {
   const buttonPrimaryTextColor = useThemeColor({}, 'buttonPrimaryText');
 
   const nostrService = useNostrService();
-  const { executeOperation } = useDatabase();
+  const { executeOperation } = useDatabaseContext();
 
   // Load relay data on mount
   useEffect(() => {

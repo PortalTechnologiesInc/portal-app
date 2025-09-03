@@ -271,8 +271,16 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   // Track last reconnection attempts to prevent spam
   const lastReconnectAttempts = useRef<Map<string, number>>(new Map());
 
-  // Get database status to ensure database is ready before accessing tables
-  const dbStatus = useDatabaseStatus();
+  const allRelaysConnected = relayStatuses.length > 0 && relayStatuses.every(r => r.connected);
+  const connectedCount = relayStatuses.filter(r => r.connected).length;
+
+  // Refs to store current values for stable AppState listener
+  const portalAppRef = useRef<PortalAppInterface | null>(null);
+  const relayStatusesRef = useRef<RelayInfo[]>([]);
+  const removedRelaysRef = useRef<Set<string>>(new Set());
+
+  const eCashContext = useECash();
+  const { isDbInitialized, executeOperation } = useDatabaseContext();
 
   // Reset all NostrService state to initial values
   // This is called during app reset to ensure clean state
@@ -440,17 +448,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     }
   }
 
-  const allRelaysConnected = relayStatuses.length > 0 && relayStatuses.every(r => r.connected);
-  const connectedCount = relayStatuses.filter(r => r.connected).length;
-
-  // Refs to store current values for stable AppState listener
-  const portalAppRef = useRef<PortalAppInterface | null>(null);
-  const relayStatusesRef = useRef<RelayInfo[]>([]);
-  const removedRelaysRef = useRef<Set<string>>(new Set());
-
-  const eCashContext = useECash();
-  const { executeOperation } = useDatabase();
-
   // Add reinit logic
   const triggerReinit = useCallback(() => {
     setIsInitialized(false);
@@ -475,13 +472,13 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     }
 
     // Wait for database to be ready before initializing
-    if (!dbStatus.isDbInitialized) {
+    if (!isDbInitialized) {
       console.log('Database not ready yet, waiting for initialization...');
       return;
     }
 
     // If database just became ready and we have a mnemonic but no portal app, initialize
-    if (dbStatus.isDbInitialized && mnemonic && !portalApp) {
+    if (isDbInitialized && mnemonic && !portalApp) {
       console.log('Database ready, initializing NostrService...');
     }
 
@@ -518,7 +515,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
           // Fallback to default relays if database access fails
           relays = [...DEFAULT_RELAYS];
           // Don't try to update database if it's not ready
-          if (dbStatus.isDbInitialized) {
+          if (isDbInitialized) {
             await executeOperation(db => db.updateRelays(DEFAULT_RELAYS), null);
           }
         }
@@ -919,7 +916,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     return () => {
       abortController.abort();
     };
-  }, [mnemonic, reinitKey, dbStatus.isDbInitialized]); // Add dbStatus.isDbInitialized to dependencies
+  }, [mnemonic, reinitKey, isDbInitialized]);
 
   useEffect(() => {
     console.log('Updated pending requests:', pendingRequests);

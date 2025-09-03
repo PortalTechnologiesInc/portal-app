@@ -51,7 +51,7 @@ export default function SubscriptionDetailScreen() {
   const statusErrorColor = useThemeColor({}, 'statusError');
   const orangeColor = Colors.orange;
 
-  const { executeOperation } = useDatabase();
+  const { executeOperation } = useDatabaseContext();
 
   useEffect(() => {
     const refreshData = async () => {
