@@ -34,8 +34,7 @@ const ECashContext = createContext<ECashContextType | undefined>(undefined);
 export function ECashProvider({ children, mnemonic }: { children: ReactNode; mnemonic: string }) {
   const [wallets, setWallets] = useState<{ [key: string]: CashuWalletInterface }>({});
   const [isLoading, setIsLoading] = useState(false);
-  const { executeOperation } = useDatabase();
-  const sqliteContext = useSQLiteContext();
+  const { executeOperation } = useDatabaseContext();
 
   // Reset all ECash state to initial values
   // This is called during app reset to ensure clean state
@@ -108,7 +107,7 @@ export function ECashProvider({ children, mnemonic }: { children: ReactNode; mne
     }
 
     const seed = new Mnemonic(mnemonic).deriveCashu();
-    const storage = new CashuStorage(new DatabaseService(sqliteContext));
+    const storage = await executeOperation(db => Promise.resolve(new CashuStorage(db)));
 
     // Create wallet with single timeout (no retry complexity)
     const wallet = await Promise.race([

@@ -43,9 +43,7 @@ import { useDatabaseContext } from '@/context/DatabaseContext';
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { resetOnboarding } = useOnboarding();
-
-  const rawSqliteContext = useSQLiteContext();
+  const { resetApp } = useDatabaseContext();
   const nostrService = useNostrService();
   const { themeMode, setThemeMode } = useTheme();
   const {
@@ -191,7 +189,7 @@ export default function SettingsScreen() {
                 showToast('Resetting app data...');
 
                 // Use comprehensive reset service
-                await AppResetService.performCompleteReset(rawSqliteContext);
+                await resetApp();
 
                 // Reset completed successfully
                 showToast('App reset successful!', 'success');
