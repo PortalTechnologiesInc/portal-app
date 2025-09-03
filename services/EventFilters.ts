@@ -52,6 +52,7 @@ export async function handleSinglePaymentRequest(wallet: Nwc | null, request: Si
 
     let serviceName = "Unknown Service";
     try {
+      console.warn("EventFilters.ts:55")
       serviceName = await getServiceName(app, request.serviceKey) || "Unknown Service";
     } catch (e) {
       console.error('Error getting service name:', e);

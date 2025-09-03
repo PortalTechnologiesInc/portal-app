@@ -40,6 +40,7 @@ const getServiceNameWithFallback = async (
 ): Promise<string> => {
   try {
     const app = PortalAppManager.tryGetInstance();
+    console.warn("PendingRequestContext.tsx:43")
     const serviceName = await nostrService.getServiceName(app, serviceKey);
     return serviceName || 'Unknown Service';
   } catch (error) {

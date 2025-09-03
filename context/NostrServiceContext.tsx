@@ -1016,21 +1016,28 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     async (app: PortalAppInterface, pubKey: string): Promise<string | null> => {
       try {
         // Step 1: Check for valid cached entry (not expired)
-        const cachedName = await DB.getCachedServiceName(pubKey);
-        if (cachedName) {
-          console.log('DEBUG: Using cached service name for:', pubKey, '->', cachedName);
-          return cachedName;
-        }
+        console.warn("a: ");
+        // const cachedName = await DB.getCachedServiceName(pubKey);
+        // console.warn("b: ", x);
+        // if (cachedName) {
+        //   console.log('DEBUG: Using cached service name for:', pubKey, '->', cachedName);
+        //   return cachedName;
+        // }
 
         // Step 2: Check relay connection status before attempting network fetch
-        if (
+        let attempt = 0;
+        console.warn("c: ");
+        while (
           !relayStatusesRef.current.length ||
           relayStatusesRef.current.every(r => r.status != 'Connected')
         ) {
-          console.warn('DEBUG: No relays connected, cannot fetch service profile for:', pubKey);
-          throw new Error(
-            'No relay connections available. Please check your internet connection and try again.'
-          );
+          if (attempt > 30) {
+            return null;
+          }
+          console.warn("d: ");
+          console.log(`🤝 Try #${attempt}. Handshake request delayed. No relay connected or app not fully active!`);
+          await new Promise(resolve => setTimeout(resolve, 500));
+          attempt++;
         }
 
         console.log('DEBUG: NostrService.getServiceName fetching from network for pubKey:', pubKey);
@@ -1042,14 +1049,26 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         );
 
         // Step 3: Fetch from network
-        const profile = await app.fetchProfile(pubKey);
+        console.warn("e: ");
+        console.warn("pubkey: ", pubKey);
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Profile fetch timeout')), 15000); // 15 second timeout
+        });
+
+        const profile = (await Promise.race([
+          app.fetchProfile(pubKey),
+          timeoutPromise,
+        ])) as any;
+        // const profile = await app.fetchProfile(pubKey);
         console.log('DEBUG: portalApp.fetchProfile returned:', profile);
 
         // Step 4: Extract service name from profile
+        console.warn("f: ");
         const serviceName = getServiceNameFromProfile(profile);
 
         if (serviceName) {
           // Step 5: Cache the result
+          console.warn("g: ");
           await DB.setCachedServiceName(pubKey, serviceName);
           console.log('DEBUG: Cached new service name for:', pubKey, '->', serviceName);
           return serviceName;

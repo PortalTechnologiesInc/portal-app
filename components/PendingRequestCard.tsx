@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { FC } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -55,17 +55,15 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const nostrService = useNostrService();
     const { wallets } = useECash();
     const {
-      isFullyConfigured,
-      hasAnyWallet,
       isLoading: walletStatusLoading,
       hasECashWallets,
-      isLightningConnected,
       nwcStatus,
     } = useWalletStatus();
     const [serviceName, setServiceName] = useState<string | null>(null);
     const [isServiceNameLoading, setIsServiceNameLoading] = useState(true);
     const [hasInsufficientBalance, setHasInsufficientBalance] = useState(false);
     const isMounted = useRef(true);
+    const useEffectCallCount = useRef(0);
 
     // Theme colors
     const cardBackgroundColor = useThemeColor({}, 'cardBackground');
@@ -98,7 +96,9 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
 
     const serviceKey = getServiceKey();
 
+
     useEffect(() => {
+
       if (type === 'ticket' && request.ticketTitle) {
         setServiceName(request.ticketTitle);
         setIsServiceNameLoading(false);
@@ -110,29 +110,26 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
 
         try {
           setIsServiceNameLoading(true);
+          console.warn(useEffectCallCount.current, ": PendingRequestCard.tsx:110")
           const name = await nostrService.getServiceName(
             PortalAppManager.tryGetInstance(),
             serviceKey
           );
-          if (isMounted.current) {
-            setServiceName(name);
-            setIsServiceNameLoading(false);
-          }
+          setServiceName(name);
+          setIsServiceNameLoading(false);
         } catch (error) {
           console.error('Failed to fetch service name:', error);
-          if (isMounted.current) {
-            setServiceName(null);
-            setIsServiceNameLoading(false);
-          }
+          setIsServiceNameLoading(false);
         }
       };
 
       fetchServiceName();
 
+      useEffectCallCount.current += 1;
       return () => {
         isMounted.current = false;
       };
-    }, [serviceKey, nostrService.relayStatuses, type, metadata, wallets, request.ticketTitle]);
+    }, []); //serviceKey, nostrService.relayStatuses, type, metadata, wallets, request.ticketTitle, useEffectCallCount.current]);
 
     // Extract payment information - needed for balance checking
     const recipientPubkey = (metadata as SinglePaymentRequest).recipient;
