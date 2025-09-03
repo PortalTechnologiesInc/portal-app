@@ -35,8 +35,6 @@ import {
   PaymentStatusNotifier,
   PaymentStatus,
 } from 'portal-app-lib';
-import { DatabaseService } from '@/services/database';
-import { useSQLiteContext } from 'expo-sqlite';
 import { PortalAppManager } from '@/services/PortalAppManager';
 import type {
   PendingRequest,
@@ -54,8 +52,7 @@ import {
   handleSinglePaymentRequest,
 } from '@/services/EventFilters';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
-import { useDatabaseStatus } from '@/services/database/DatabaseProvider';
-import { useDatabase } from '@/context/DatabaseContextProvider';
+import { useDatabaseContext } from '@/context/DatabaseContext';
 
 // Constants and helper classes from original NostrService
 const DEFAULT_RELAYS = [

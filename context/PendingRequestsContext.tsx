@@ -20,8 +20,8 @@ import {
   CashuResponseStatus,
 } from 'portal-app-lib';
 
-import { fromUnixSeconds } from '@/services/database';
-import { useDatabase } from '@/context/DatabaseContextProvider';
+import { fromUnixSeconds } from '@/services/DatabaseService';
+import { useDatabaseContext } from '@/context/DatabaseContext';
 import { useActivities } from '@/context/ActivitiesContext';
 import { NostrServiceContextType, useNostrService } from '@/context/NostrServiceContext';
 import { useECash } from '@/context/ECashContext';

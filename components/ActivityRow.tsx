@@ -5,7 +5,7 @@ import { ThemedText } from './ThemedText';
 import { ThemedView } from './ThemedView';
 import { Colors } from '@/constants/Colors';
 import { formatRelativeTime, ActivityType } from '@/utils';
-import type { ActivityWithDates } from '@/services/database';
+import type { ActivityWithDates } from '@/services/DatabaseService';
 import { router } from 'expo-router';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { getActivityStatus, getStatusColor } from '@/utils/activityHelpers';

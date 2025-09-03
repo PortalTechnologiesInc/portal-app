@@ -2,7 +2,7 @@ import React from 'react';
 import { View, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { formatDayAndDate, Ticket } from '@/utils';
+import { Ticket } from '@/utils';
 
 const TicketCard: React.FC<{
   ticket: Ticket;
@@ -12,8 +12,6 @@ const TicketCard: React.FC<{
 }> = ({ ticket, index, isFocused, onPress }) => {
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');
   const borderColor = useThemeColor({}, 'borderPrimary');
-  const primaryTextColor = useThemeColor({}, 'textPrimary');
-  const secondaryTextColor = useThemeColor({}, 'textSecondary');
 
   // Use card background if available, otherwise fallback to mockup
   const cardImageSource = ticket.frontCardBackground

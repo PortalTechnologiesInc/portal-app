@@ -8,8 +8,8 @@ import {
   type ReactNode,
   useRef,
 } from 'react';
-import { type ActivityWithDates, type SubscriptionWithDates } from '@/services/database';
-import { useDatabase } from '@/context/DatabaseContextProvider';
+import { type ActivityWithDates, type SubscriptionWithDates } from '@/services/DatabaseService';
+import { useDatabaseContext } from '@/context/DatabaseContext';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 
 interface ActivitiesContextType {

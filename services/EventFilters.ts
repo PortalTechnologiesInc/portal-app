@@ -11,7 +11,7 @@ import {
   PortalAppInterface,
   parseBolt11,
 } from 'portal-app-lib';
-import { DatabaseService, fromUnixSeconds, SubscriptionWithDates } from './database';
+import { DatabaseService, fromUnixSeconds, SubscriptionWithDates } from './DatabaseService';
 
 export async function handleAuthChallenge(
   event: AuthChallengeEvent,

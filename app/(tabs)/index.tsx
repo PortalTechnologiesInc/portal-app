@@ -35,9 +35,6 @@ export default function Home() {
     displayName,
     avatarUri,
     avatarRefreshKey,
-    fetchProfile,
-    syncStatus,
-    setUsername,
   } = useUserProfile();
   const nostrService = useNostrService();
   const [isFirstLaunch, setIsFirstLaunch] = useState<boolean | null>(null);
@@ -52,7 +49,6 @@ export default function Home() {
   const surfaceSecondaryColor = useThemeColor({}, 'surfaceSecondary');
   const buttonPrimaryColor = useThemeColor({}, 'buttonPrimary');
   const buttonPrimaryTextColor = useThemeColor({}, 'buttonPrimaryText');
-  const buttonSuccessColor = useThemeColor({}, 'buttonSuccess');
   const buttonSuccessTextColor = useThemeColor({}, 'buttonSuccessText');
 
   // This would come from a real user context in the future

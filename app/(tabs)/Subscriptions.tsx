@@ -6,7 +6,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { formatDayAndDate } from '@/utils';
 import { useActivities } from '@/context/ActivitiesContext';
-import { fromUnixSeconds, type SubscriptionWithDates } from '@/services/database';
+import { fromUnixSeconds, type SubscriptionWithDates } from '@/services/DatabaseService';
 import { parseCalendar } from 'portal-app-lib';
 import { useThemeColor } from '@/hooks/useThemeColor';
 

@@ -18,8 +18,8 @@ import {
   Link,
   Ticket,
 } from 'lucide-react-native';
-import { useDatabase } from '@/context/DatabaseContextProvider';
-import type { ActivityWithDates } from '@/services/database';
+import { useDatabaseContext } from '@/context/DatabaseContext';
+import type { ActivityWithDates } from '@/services/DatabaseService';
 
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { getActivityStatus } from '@/utils/activityHelpers';

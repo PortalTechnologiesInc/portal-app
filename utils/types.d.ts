@@ -165,7 +165,7 @@ export interface PendingRequest {
 // ACTIVITY & SUBSCRIPTION TYPES
 // =============================================================================
 
-import type { ActivityWithDates, SubscriptionWithDates } from '@/services/database';
+import type { ActivityWithDates, SubscriptionWithDates } from '@/services/DatabaseService';
 
 /**
  * Partial activity for pending operations (without id and created_at)

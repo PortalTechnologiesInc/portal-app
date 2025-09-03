@@ -5,7 +5,6 @@ import * as SecureStore from 'expo-secure-store';
 import { parseKeyHandshakeUrl } from 'portal-app-lib';
 import { usePendingRequests } from '@/context/PendingRequestsContext';
 import { useNostrService } from '@/context/NostrServiceContext';
-import { router } from 'expo-router';
 
 // Key for storing pending deeplinks
 const PENDING_DEEPLINK_KEY = 'PENDING_DEEPLINK';

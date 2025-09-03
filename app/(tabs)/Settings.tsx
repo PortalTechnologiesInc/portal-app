@@ -26,15 +26,11 @@ import {
 } from 'lucide-react-native';
 import { Moon, Sun, Smartphone } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useOnboarding } from '@/context/OnboardingContext';
-
-import { useSQLiteContext } from 'expo-sqlite';
 import {
   walletUrlEvents,
   getMnemonic,
   getWalletUrl,
 } from '@/services/SecureStorageService';
-import { AppResetService } from '@/services/AppResetService';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { showToast } from '@/utils/Toast';
 import { authenticateForSensitiveAction } from '@/services/BiometricAuthService';
@@ -43,6 +39,7 @@ import { useCurrency } from '@/context/CurrencyContext';
 import { Currency, CurrencyHelpers } from '@/utils/currency';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useWalletStatus } from '@/hooks/useWalletStatus';
+import { useDatabaseContext } from '@/context/DatabaseContext';
 
 export default function SettingsScreen() {
   const router = useRouter();

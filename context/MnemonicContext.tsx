@@ -9,7 +9,6 @@ import {
   getWalletUrl as getSecureWalletUrl,
   saveWalletUrl as saveSecureWalletUrl,
   walletUrlEvents,
-  isWalletConnected,
 } from '@/services/SecureStorageService';
 import { generateMnemonic } from 'portal-app-lib';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';

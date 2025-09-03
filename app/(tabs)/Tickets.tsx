@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, Platform } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -22,7 +22,7 @@ export default function TicketsScreen() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const scrollViewRef = useRef<ScrollView>(null);
   const { wallets } = useECash();
-  const { hasECashWallets, eCashWalletCount } = useWalletStatus();
+  const { eCashWalletCount } = useWalletStatus();
   const [walletUpdateTrigger, setWalletUpdateTrigger] = useState(0);
 
   // Listen for wallet balance changes

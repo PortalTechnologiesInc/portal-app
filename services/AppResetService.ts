@@ -1,4 +1,4 @@
-import { DatabaseService } from './database';
+import { DatabaseService } from './DatabaseService';
 import { SecureStorageService } from './SecureStorageServiceV2';
 import { resetAllContexts } from './ContextResetService';
 import type { SQLiteDatabase } from 'expo-sqlite';

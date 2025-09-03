@@ -10,7 +10,7 @@ import { useNostrService } from '@/context/NostrServiceContext';
 import { ThemedText } from './ThemedText';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { Layout } from '@/constants/Layout';
-import { useDatabase } from '@/context/DatabaseContextProvider';
+import { useDatabaseContext } from '@/context/DatabaseContext';
 
 // Create a skeleton request that adheres to the PendingRequest interface
 const createSkeletonRequest = (): PendingRequest => ({

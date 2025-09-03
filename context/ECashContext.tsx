@@ -2,19 +2,12 @@ import React, { createContext, useContext, useState, ReactNode, useEffect } from
 import {
   CashuWallet,
   CashuLocalStore,
-  ProofInfo,
   CashuWalletInterface,
   Mnemonic,
 } from 'portal-app-lib';
-import { useSQLiteContext } from 'expo-sqlite';
-import { DatabaseService } from '@/services/database';
-import { useDatabase } from '@/context/DatabaseContextProvider';
+import { DatabaseService } from '@/services/DatabaseService';
+import { useDatabaseContext } from '@/context/DatabaseContext';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
-
-interface WalletKey {
-  mintUrl: string;
-  unit: string;
-}
 
 // Centralized wallet key creation with unit normalization
 const createWalletKey = (mintUrl: string, unit: string): string =>
