@@ -4,8 +4,12 @@ import { usePendingRequests } from '../context/PendingRequestsContext';
 import { PendingRequestCard } from './PendingRequestCard';
 import { PendingRequestSkeletonCard } from './PendingRequestSkeletonCard';
 import { FailedRequestCard } from './FailedRequestCard';
-import type { PendingRequest } from '@/utils/types';
-import type { SinglePaymentRequest } from 'portal-app-lib';
+import type { PendingRequest, PendingRequestType } from '@/utils/types';
+import type {
+  AuthChallengeEvent,
+  RecurringPaymentRequest,
+  SinglePaymentRequest,
+} from 'portal-app-lib';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { ThemedText } from './ThemedText';
 import { useThemeColor } from '@/hooks/useThemeColor';
@@ -35,11 +39,97 @@ export const PendingRequestsList: React.FC = React.memo(() => {
   const primaryTextColor = useThemeColor({}, 'textPrimary');
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
 
+  // Type guards for safe metadata access
+  const hasExpiresAt = (metadata: unknown): metadata is { expiresAt: number } => {
+    return (
+      typeof metadata === 'object' &&
+      metadata !== null &&
+      'expiresAt' in metadata &&
+      typeof (metadata as Record<string, unknown>).expiresAt === 'number'
+    );
+  };
+
+  const hasInnerExpiresAt = (metadata: unknown): metadata is { inner: { expiresAt: number } } => {
+    return (
+      typeof metadata === 'object' &&
+      metadata !== null &&
+      'inner' in metadata &&
+      typeof (metadata as Record<string, unknown>).inner === 'object' &&
+      (metadata as Record<string, unknown>).inner !== null &&
+      'expiresAt' in ((metadata as Record<string, unknown>).inner as Record<string, unknown>) &&
+      typeof ((metadata as Record<string, unknown>).inner as Record<string, unknown>).expiresAt ===
+        'number'
+    );
+  };
+
+  // Updated isRequestExpired function
+  const isRequestExpired = (request: PendingRequest): boolean => {
+    try {
+      let expiresAt: number | undefined;
+
+      if (request.type === 'ticket') {
+        if (hasInnerExpiresAt(request.metadata)) {
+          expiresAt = request.metadata.inner.expiresAt;
+        }
+      } else {
+        if (hasExpiresAt(request.metadata)) {
+          expiresAt = request.metadata.expiresAt;
+        }
+      }
+
+      // Early return if no expiration timestamp
+      if (typeof expiresAt !== 'number') {
+        return false;
+      }
+
+      // Convert from seconds to milliseconds and compare
+      return Date.now() > expiresAt * 1000;
+    } catch (error) {
+      console.warn('Error checking request expiration:', error);
+      return false;
+    }
+  };
+
+  // Periodic cleanup effect to remove expired requests from NostrService context
+  useEffect(() => {
+    const cleanupExpiredRequests = () => {
+      const expiredRequestIds: string[] = [];
+
+      Object.values(nostrService.pendingRequests).forEach(request => {
+        if (isRequestExpired(request)) {
+          expiredRequestIds.push(request.id);
+        }
+      });
+
+      // Remove expired requests from the context
+      expiredRequestIds.forEach(id => {
+        console.log(`🗑️ Automatically removing expired request: ${id}`);
+        nostrService.dismissPendingRequest(id);
+      });
+    };
+
+    // Run cleanup immediately
+    cleanupExpiredRequests();
+
+    // Set up periodic cleanup every 5 seconds
+    const cleanupInterval = setInterval(cleanupExpiredRequests, 5000);
+
+    return () => {
+      clearInterval(cleanupInterval);
+    };
+  }, [nostrService.pendingRequests, nostrService.dismissPendingRequest]);
+
   useEffect(() => {
     const processData = async () => {
       // Get sorted requests
       const sortedRequests = Object.values(nostrService.pendingRequests)
         .filter(request => {
+          // Filter out expired requests using the helper function
+          if (isRequestExpired(request)) {
+            return false;
+          }
+
+          // Filter out payment requests with subscriptionId
           if (
             request.type === 'payment' &&
             (request.metadata as SinglePaymentRequest).content.subscriptionId
@@ -90,7 +180,7 @@ export const PendingRequestsList: React.FC = React.memo(() => {
     };
 
     processData();
-  }, [nostrService.pendingRequests, isLoadingRequest, requestFailed, executeOperation]);
+  }, [nostrService.pendingRequests, isLoadingRequest, requestFailed]);
 
   const handleRetry = () => {
     setRequestFailed(false);
@@ -139,7 +229,13 @@ export const PendingRequestsList: React.FC = React.memo(() => {
             // Handle different request types for service key extraction
             let serviceKey = '';
             if (item.type === 'ticket') {
-              serviceKey = (item.metadata as any)?.serviceKey || 'unknown';
+              serviceKey =
+                (
+                  item.metadata as
+                    | AuthChallengeEvent
+                    | SinglePaymentRequest
+                    | RecurringPaymentRequest
+                )?.serviceKey || 'unknown';
             } else {
               serviceKey = (item.metadata as SinglePaymentRequest).serviceKey;
             }
