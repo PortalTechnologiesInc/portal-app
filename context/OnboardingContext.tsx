@@ -11,7 +11,6 @@ type OnboardingContextType = {
   isOnboardingComplete: boolean;
   isLoading: boolean;
   completeOnboarding: () => Promise<void>;
-  resetOnboarding: () => Promise<void>;
 };
 
 const OnboardingContext = createContext<OnboardingContextType | null>(null);
@@ -83,25 +82,9 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   };
 
-  const resetOnboarding = async () => {
-    try {
-      // Update local state first
-      setIsOnboardingComplete(false);
-
-      // Then update SecureStore
-      await SecureStore.setItemAsync(ONBOARDING_KEY, 'false');
-
-      // Navigate to onboarding
-      router.replace('/onboarding');
-    } catch (e) {
-      console.error('Failed to reset onboarding:', e);
-      throw e;
-    }
-  };
-
   return (
     <OnboardingContext.Provider
-      value={{ isOnboardingComplete, isLoading, completeOnboarding, resetOnboarding }}
+      value={{ isOnboardingComplete, isLoading, completeOnboarding }}
     >
       {children}
     </OnboardingContext.Provider>
