@@ -40,16 +40,19 @@ export const PendingRequestsList: React.FC = React.memo(() => {
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
 
   // Type guards for safe metadata access
-  const hasExpiresAt = (metadata: unknown): metadata is { expiresAt: number } => {
+  const hasExpiresAt = (metadata: unknown): metadata is { expiresAt: number | bigint } => {
     return (
       typeof metadata === 'object' &&
       metadata !== null &&
       'expiresAt' in metadata &&
-      typeof (metadata as Record<string, unknown>).expiresAt === 'number'
+      (typeof (metadata as Record<string, unknown>).expiresAt === 'number' ||
+        typeof (metadata as Record<string, unknown>).expiresAt === 'bigint')
     );
   };
 
-  const hasInnerExpiresAt = (metadata: unknown): metadata is { inner: { expiresAt: number } } => {
+  const hasInnerExpiresAt = (
+    metadata: unknown
+  ): metadata is { inner: { expiresAt: number | bigint } } => {
     return (
       typeof metadata === 'object' &&
       metadata !== null &&
@@ -57,8 +60,10 @@ export const PendingRequestsList: React.FC = React.memo(() => {
       typeof (metadata as Record<string, unknown>).inner === 'object' &&
       (metadata as Record<string, unknown>).inner !== null &&
       'expiresAt' in ((metadata as Record<string, unknown>).inner as Record<string, unknown>) &&
-      typeof ((metadata as Record<string, unknown>).inner as Record<string, unknown>).expiresAt ===
-        'number'
+      (typeof ((metadata as Record<string, unknown>).inner as Record<string, unknown>).expiresAt ===
+        'number' ||
+        typeof ((metadata as Record<string, unknown>).inner as Record<string, unknown>)
+          .expiresAt === 'bigint')
     );
   };
 
@@ -69,11 +74,14 @@ export const PendingRequestsList: React.FC = React.memo(() => {
 
       if (request.type === 'ticket') {
         if (hasInnerExpiresAt(request.metadata)) {
-          expiresAt = request.metadata.inner.expiresAt;
+          const innerExpiresAt = request.metadata.inner.expiresAt;
+          expiresAt = typeof innerExpiresAt === 'bigint' ? Number(innerExpiresAt) : innerExpiresAt;
         }
       } else {
         if (hasExpiresAt(request.metadata)) {
-          expiresAt = request.metadata.expiresAt;
+          const metadataExpiresAt = request.metadata.expiresAt;
+          expiresAt =
+            typeof metadataExpiresAt === 'bigint' ? Number(metadataExpiresAt) : metadataExpiresAt;
         }
       }
 
