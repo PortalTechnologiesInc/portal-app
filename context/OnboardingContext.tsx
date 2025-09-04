@@ -2,6 +2,7 @@ import type React from 'react';
 import { createContext, useContext, useState, useEffect } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
+import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 
 const ONBOARDING_KEY = 'portal_onboarding_complete';
 const FIRST_LAUNCH_KEY = 'portal_first_launch_completed';
@@ -18,6 +19,27 @@ const OnboardingContext = createContext<OnboardingContextType | null>(null);
 export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isOnboardingComplete, setIsOnboardingComplete] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Reset onboarding state to initial values
+  // This is called during app reset to ensure clean state
+  const resetOnboardingState = () => {
+    console.log('🔄 Resetting Onboarding state...');
+
+    // Reset local state to initial values (SecureStore is cleared by AppResetService)
+    setIsOnboardingComplete(false);
+    // Note: isLoading is not reset as it will be managed by data loading
+
+    console.log('✅ Onboarding state reset completed');
+  };
+
+  // Register/unregister context reset function
+  useEffect(() => {
+    registerContextReset(resetOnboardingState);
+
+    return () => {
+      unregisterContextReset(resetOnboardingState);
+    };
+  }, []);
 
   // Load the value on mount
   useEffect(() => {

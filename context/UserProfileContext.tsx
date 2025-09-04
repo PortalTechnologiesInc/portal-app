@@ -105,26 +105,26 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
   // This is called during app reset to ensure clean state
   const resetProfile = () => {
     console.log('🔄 Resetting UserProfile state...');
-    
+
     // Reset local state to initial values
     setUsernameState('');
     setDisplayNameState('');
     setAvatarUriState(null);
     setSyncStatus('idle');
     setAvatarRefreshKey(Date.now());
-    
+
     // Reset network state tracking
     setNetworkUsername('');
     setNetworkDisplayName('');
     setNetworkAvatarUri(null);
-    
+
     console.log('✅ UserProfile state reset completed');
   };
 
   // Register/unregister context reset function
   useEffect(() => {
     registerContextReset(resetProfile);
-    
+
     return () => {
       unregisterContextReset(resetProfile);
     };

@@ -11,7 +11,7 @@ import { parseCalendar } from 'portal-app-lib';
 import { useThemeColor } from '@/hooks/useThemeColor';
 
 export default function SubscriptionsScreen() {
-  const { subscriptions, isDbReady } = useActivities();
+  const { subscriptions } = useActivities();
   const [filter, setFilter] = useState<'archived' | 'active'>('active');
 
   // Theme colors
@@ -94,23 +94,7 @@ export default function SubscriptionsScreen() {
     [handleSubscriptionPress, cardBackgroungColor, primaryTextColor, secondaryTextColor]
   );
 
-  // Show a database initialization message when database isn't ready
-  if (!isDbReady) {
-    return (
-      <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
-        <ThemedView style={styles.container}>
-          <ThemedText type="title" style={{ color: primaryTextColor }}>
-            Your subscriptions
-          </ThemedText>
-          <View style={[styles.emptyContainer, { backgroundColor: cardBackgroungColor }]}>
-            <ThemedText style={[styles.emptyText, { color: secondaryTextColor }]}>
-              Subscriptions will be available after setup is complete
-            </ThemedText>
-          </View>
-        </ThemedView>
-      </SafeAreaView>
-    );
-  }
+  // Subscriptions are automatically loaded - no manual readiness check needed
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>

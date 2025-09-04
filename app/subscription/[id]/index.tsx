@@ -16,12 +16,12 @@ import { formatDayAndDate } from '@/utils';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { useActivities } from '@/context/ActivitiesContext';
 import { parseCalendar } from 'portal-app-lib';
-import { useSQLiteContext } from 'expo-sqlite';
+
 import { DatabaseService, fromUnixSeconds, type SubscriptionWithDates } from '@/services/database';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { PortalAppManager } from '@/services/PortalAppManager';
 import { CircleX, Hourglass } from 'lucide-react-native';
-import { useDatabaseStatus } from '@/services/database/DatabaseProvider';
+import { useDatabase } from '@/context/DatabaseContextProvider';
 
 // Mock payment history for a subscription
 interface PaymentHistory {
@@ -51,21 +51,11 @@ export default function SubscriptionDetailScreen() {
   const statusErrorColor = useThemeColor({}, 'statusError');
   const orangeColor = Colors.orange;
 
-  const sqliteContext = useSQLiteContext();
-  const dbStatus = useDatabaseStatus();
-
-  const DB = useMemo(() => new DatabaseService(sqliteContext), [sqliteContext]);
+  const { executeOperation } = useDatabase();
 
   useEffect(() => {
     const refreshData = async () => {
       setLoading(true);
-
-      // Check if database is ready before accessing it
-      if (!dbStatus.isDbInitialized) {
-        console.log('Database not ready yet, skipping subscription data fetch');
-        setLoading(false);
-        return;
-      }
 
       const foundSubscription = subscriptions.find(sub => sub.id === id);
 
@@ -73,7 +63,10 @@ export default function SubscriptionDetailScreen() {
         setSubscription(foundSubscription);
 
         try {
-          const payments = await DB.getSubscriptionPayments(id as string);
+          const payments = await executeOperation(
+            db => db.getSubscriptionPayments(id as string),
+            []
+          );
           setPaymentHistory(
             payments.map(payment => ({
               id: payment.id,
@@ -92,7 +85,7 @@ export default function SubscriptionDetailScreen() {
     };
 
     refreshData();
-  }, [id, subscriptions, DB, dbStatus.isDbInitialized]); // Add database status as dependency
+  }, [id, subscriptions, executeOperation]); // Simplified dependencies
 
   const handleBackPress = () => {
     router.back();
@@ -113,7 +106,10 @@ export default function SubscriptionDetailScreen() {
           text: 'Yes, Cancel',
           onPress: async () => {
             try {
-              await DB.updateSubscriptionStatus(subscription.id, 'cancelled');
+              await executeOperation(
+                db => db.updateSubscriptionStatus(subscription.id, 'cancelled'),
+                null
+              );
               refreshData();
               PortalAppManager.tryGetInstance().closeRecurringPayment(
                 subscription.service_key,

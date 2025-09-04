@@ -1,12 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, ScrollView, TouchableOpacity, Alert, Switch } from 'react-native';
+import {
+  StyleSheet,
+  View,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  Switch,
+  TextInput,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { LogLevel } from 'portal-app-lib';
+import { LogLevel, parseKeyHandshakeUrl } from 'portal-app-lib';
 import Dropdown from 'react-native-input-select';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router } from 'expo-router';
+import { useNostrService } from '@/context/NostrServiceContext';
+import { usePendingRequests } from '@/context/PendingRequestsContext';
 
 // Log level options for dropdown
 const LOG_LEVEL_OPTIONS = [
@@ -26,6 +37,14 @@ export default function DebugScreen() {
   const [isLoggerEnabled, setIsLoggerEnabled] = useState(false);
   const [currentLogLevel, setCurrentLogLevel] = useState<LogLevel>(LogLevel.Info);
   const [isInitialized, setIsInitialized] = useState(false);
+
+  // QR Code Testing state
+  const [qrCodeInput, setQrCodeInput] = useState('');
+  const [isWalletMode, setIsWalletMode] = useState(false);
+
+  // Services
+  const nostrService = useNostrService();
+  const { showSkeletonLoader } = usePendingRequests();
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -82,12 +101,16 @@ export default function DebugScreen() {
     }
   };
 
-  const handleLogLevelChange = async (value: LogLevel) => {
-    setCurrentLogLevel(value);
-    try {
-      await AsyncStorage.setItem(STORAGE_KEYS.LOG_LEVEL, value.toString());
-    } catch (error) {
-      console.error('Failed to save log level:', error);
+  const handleLogLevelChange = async (value: any) => {
+    // Handle both single value and array cases from the dropdown
+    const selectedValue = Array.isArray(value) ? value[0] : value;
+    if (selectedValue !== undefined && typeof selectedValue === 'number') {
+      setCurrentLogLevel(selectedValue as LogLevel);
+      try {
+        await AsyncStorage.setItem(STORAGE_KEYS.LOG_LEVEL, selectedValue.toString());
+      } catch (error) {
+        console.error('Failed to save log level:', error);
+      }
     }
   };
 
@@ -101,6 +124,74 @@ export default function DebugScreen() {
       'Logger Status',
       'Portal-app-lib logging is currently enabled by default. Check your console during normal app usage (relay connections, wallet operations, etc.) to see library logs.'
     );
+  };
+
+  // QR Code validation function (replicating logic from QR scanner)
+  const validateQRCode = (data: string): { isValid: boolean; error?: string } => {
+    if (isWalletMode) {
+      // Wallet mode: only accept nostr+walletconnect:// URLs
+      if (!data.startsWith('nostr+walletconnect://')) {
+        return {
+          isValid: false,
+          error: 'Invalid wallet QR code. Please scan a valid wallet connection QR code.',
+        };
+      }
+    } else {
+      // Main mode: validate that parseKeyHandshakeUrl can handle it
+      try {
+        parseKeyHandshakeUrl(data);
+      } catch (error) {
+        return {
+          isValid: false,
+          error: 'Invalid QR code. Please scan a valid Portal authentication QR code.',
+        };
+      }
+    }
+    return { isValid: true };
+  };
+
+  // Process QR code input (replicating logic from QR scanner)
+  const handleProcessQRCode = () => {
+    if (!qrCodeInput.trim()) {
+      Alert.alert('Empty Input', 'Please enter a QR code payload to test.');
+      return;
+    }
+
+    console.log(`Processing QR code payload: ${qrCodeInput}`);
+
+    // Validate the QR code first
+    const validation = validateQRCode(qrCodeInput);
+    if (!validation.isValid) {
+      Alert.alert('Invalid QR Code', validation.error || 'Invalid QR code');
+      return;
+    }
+
+    if (isWalletMode) {
+      // Wallet QR handling - navigate to wallet with scanned URL
+      const timestamp = Date.now();
+      router.replace({
+        pathname: '/wallet',
+        params: {
+          scannedUrl: qrCodeInput,
+          source: 'debug',
+          returnToWallet: 'false',
+          timestamp: timestamp.toString(),
+        },
+      });
+      Alert.alert('Success', 'Navigating to wallet with the provided URL.');
+    } else {
+      // Main QR handling - process the URL
+      try {
+        const parsedUrl = parseKeyHandshakeUrl(qrCodeInput);
+        showSkeletonLoader(parsedUrl);
+        nostrService.sendKeyHandshake(parsedUrl);
+        Alert.alert('Success', 'QR code processed successfully. Check for pending requests.');
+      } catch (error) {
+        console.error('Failed to process QR code:', error);
+        Alert.alert('Processing Error', 'Failed to process QR code. Please try again.');
+        return;
+      }
+    }
   };
 
   if (!isInitialized) {
@@ -227,6 +318,89 @@ export default function DebugScreen() {
             </TouchableOpacity>
           </ThemedView>
 
+          {/* QR Code Testing */}
+          <ThemedView style={[styles.section, { backgroundColor: cardBackgroundColor }]}>
+            <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
+              📱 QR Code Testing
+            </ThemedText>
+            <ThemedText style={[styles.description, { color: secondaryTextColor }]}>
+              Test QR code payloads without needing a camera. Useful for Android emulator testing.
+            </ThemedText>
+
+            {/* Mode Selection */}
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <ThemedText style={[styles.settingLabel, { color: primaryTextColor }]}>
+                  Wallet Mode
+                </ThemedText>
+                <ThemedText style={[styles.settingSubtext, { color: secondaryTextColor }]}>
+                  {isWalletMode ? 'Test wallet connection URLs' : 'Test authentication URLs'}
+                </ThemedText>
+              </View>
+              <Switch
+                value={isWalletMode}
+                onValueChange={setIsWalletMode}
+                trackColor={{ false: '#767577', true: buttonColor }}
+                thumbColor={isWalletMode ? '#ffffff' : '#f4f3f4'}
+              />
+            </View>
+
+            {/* QR Code Input */}
+            <View style={styles.settingColumn}>
+              <ThemedText style={[styles.settingLabel, { color: primaryTextColor }]}>
+                QR Code Payload
+              </ThemedText>
+              <ThemedText style={[styles.settingSubtext, { color: secondaryTextColor }]}>
+                {isWalletMode ? 'Enter a nostr+walletconnect:// URL' : 'Enter a portal:// URL'}
+              </ThemedText>
+
+              <TextInput
+                style={[
+                  styles.qrInput,
+                  {
+                    backgroundColor: surfaceSecondaryColor,
+                    color: primaryTextColor,
+                    borderColor: surfaceSecondaryColor,
+                  },
+                ]}
+                value={qrCodeInput}
+                onChangeText={setQrCodeInput}
+                placeholder={isWalletMode ? 'nostr+walletconnect://...' : 'portal://...'}
+                placeholderTextColor={secondaryTextColor}
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+              />
+            </View>
+
+            {/* Process Button */}
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: buttonColor }]}
+              onPress={handleProcessQRCode}
+            >
+              <ThemedText style={[styles.actionButtonText, { color: buttonTextColor }]}>
+                🚀 Process QR Code
+              </ThemedText>
+            </TouchableOpacity>
+
+            {/* Clear Button */}
+            <TouchableOpacity
+              style={[
+                styles.actionButton,
+                {
+                  backgroundColor: 'transparent',
+                  borderWidth: 1,
+                  borderColor: buttonColor,
+                },
+              ]}
+              onPress={() => setQrCodeInput('')}
+            >
+              <ThemedText style={[styles.actionButtonText, { color: buttonColor }]}>
+                🧹 Clear Input
+              </ThemedText>
+            </TouchableOpacity>
+          </ThemedView>
+
           {/* Info */}
           <ThemedView style={[styles.section, { backgroundColor: cardBackgroundColor }]}>
             <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
@@ -238,7 +412,8 @@ export default function DebugScreen() {
               3. Use the app normally (connect wallet, send payments, etc.){'\n'}
               4. Watch for library logs with target prefixes{'\n'}
               5. UI controls are placeholders for future implementation{'\n'}
-              6. Current logging level: Trace (most verbose)
+              6. Current logging level: Trace (most verbose){'\n'}
+              7. Use QR Code Testing for emulator testing without camera
             </ThemedText>
           </ThemedView>
         </ScrollView>
@@ -336,5 +511,14 @@ const styles = StyleSheet.create({
   infoText: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  qrInput: {
+    marginTop: 8,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    fontSize: 14,
+    minHeight: 100,
+    textAlignVertical: 'top',
   },
 });
