@@ -8,8 +8,8 @@ import {
   type ReactNode,
   useRef,
 } from 'react';
-import { type ActivityWithDates, type SubscriptionWithDates } from '@/services/database';
-import { useDatabase } from '@/context/DatabaseContextProvider';
+import { type ActivityWithDates, type SubscriptionWithDates } from '@/services/DatabaseService';
+import { useDatabaseContext } from '@/context/DatabaseContext';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 
 interface ActivitiesContextType {
@@ -49,7 +49,7 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
   const ACTIVITIES_PER_PAGE = 20;
 
   // Simple database access
-  const { executeOperation } = useDatabase();
+  const { executeOperation } = useDatabaseContext();
 
   // Reset all Activities state to initial values
   // This is called during app reset to ensure clean state

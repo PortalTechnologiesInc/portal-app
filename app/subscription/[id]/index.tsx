@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -17,11 +17,11 @@ import { FontAwesome6 } from '@expo/vector-icons';
 import { useActivities } from '@/context/ActivitiesContext';
 import { parseCalendar } from 'portal-app-lib';
 
-import { DatabaseService, fromUnixSeconds, type SubscriptionWithDates } from '@/services/database';
+import { fromUnixSeconds, type SubscriptionWithDates } from '@/services/DatabaseService';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { PortalAppManager } from '@/services/PortalAppManager';
 import { CircleX, Hourglass } from 'lucide-react-native';
-import { useDatabase } from '@/context/DatabaseContextProvider';
+import { useDatabaseContext } from '@/context/DatabaseContext';
 
 // Mock payment history for a subscription
 interface PaymentHistory {
@@ -51,7 +51,7 @@ export default function SubscriptionDetailScreen() {
   const statusErrorColor = useThemeColor({}, 'statusError');
   const orangeColor = Colors.orange;
 
-  const { executeOperation } = useDatabase();
+  const { executeOperation } = useDatabaseContext();
 
   useEffect(() => {
     const refreshData = async () => {

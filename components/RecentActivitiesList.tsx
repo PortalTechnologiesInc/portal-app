@@ -4,7 +4,6 @@ import { router } from 'expo-router';
 import { ThemedText } from './ThemedText';
 import { formatDayAndDate } from '@/utils';
 import { useActivities } from '@/context/ActivitiesContext';
-import type { ActivityWithDates } from '@/services/database';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { ActivityRow } from './ActivityRow';
 

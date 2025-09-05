@@ -20,8 +20,8 @@ import {
   CashuResponseStatus,
 } from 'portal-app-lib';
 
-import { fromUnixSeconds } from '@/services/database';
-import { useDatabase } from '@/context/DatabaseContextProvider';
+import { fromUnixSeconds } from '@/services/DatabaseService';
+import { useDatabaseContext } from '@/context/DatabaseContext';
 import { useActivities } from '@/context/ActivitiesContext';
 import { NostrServiceContextType, useNostrService } from '@/context/NostrServiceContext';
 import { useECash } from '@/context/ECashContext';
@@ -72,7 +72,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
   const [timeoutId, setTimeoutId] = useState<number | null>(null);
 
   // Simple database access
-  const { executeOperation } = useDatabase();
+  const { executeOperation } = useDatabaseContext();
 
   // Queue for activities that couldn't be recorded due to DB not being ready
   const [pendingActivities, setPendingActivities] = useState<PendingActivity[]>([]);

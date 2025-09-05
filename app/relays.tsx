@@ -12,8 +12,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, X, Plus } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useSQLiteContext } from 'expo-sqlite';
-import { useDatabase } from '@/context/DatabaseContextProvider';
+import { useDatabaseContext } from '@/context/DatabaseContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 
 import popularRelayListFile from '../assets/RelayList.json';
@@ -53,7 +52,7 @@ export default function NostrRelayManagementScreen() {
   const buttonPrimaryTextColor = useThemeColor({}, 'buttonPrimaryText');
 
   const nostrService = useNostrService();
-  const { executeOperation } = useDatabase();
+  const { executeOperation } = useDatabaseContext();
 
   // Load relay data on mount
   useEffect(() => {

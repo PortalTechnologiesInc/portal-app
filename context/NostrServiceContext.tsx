@@ -35,8 +35,6 @@ import {
   PaymentStatusNotifier,
   PaymentStatus,
 } from 'portal-app-lib';
-import { DatabaseService } from '@/services/database';
-import { useSQLiteContext } from 'expo-sqlite';
 import { PortalAppManager } from '@/services/PortalAppManager';
 import type {
   PendingRequest,
@@ -54,8 +52,7 @@ import {
   handleSinglePaymentRequest,
 } from '@/services/EventFilters';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
-import { useDatabaseStatus } from '@/services/database/DatabaseProvider';
-import { useDatabase } from '@/context/DatabaseContextProvider';
+import { useDatabaseContext } from '@/context/DatabaseContext';
 
 // Constants and helper classes from original NostrService
 const DEFAULT_RELAYS = [
@@ -228,25 +225,6 @@ interface NostrServiceProviderProps {
   children: React.ReactNode;
 }
 
-// Optimized timeout wrapper with proper cleanup
-const createTimeoutPromise = (
-  timeoutMs: number
-): { promise: Promise<never>; cleanup: () => void } => {
-  let timeoutId: number;
-
-  const promise = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => reject(new Error('Connection timeout')), timeoutMs);
-  });
-
-  const cleanup = () => {
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-    }
-  };
-
-  return { promise, cleanup };
-};
-
 export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   mnemonic,
   walletUrl,
@@ -258,7 +236,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   const [pendingRequests, setPendingRequests] = useState<{ [key: string]: PendingRequest }>({});
   const [nwcWallet, setNwcWallet] = useState<Nwc | null>(null);
   const nwcWalletRef = useRef<Nwc | null>(null);
-  const [appIsActive, setAppIsActive] = useState(true);
   const [walletInfo, setWalletInfo] = useState<WalletInfoState>({
     data: null,
     isLoading: false,
@@ -274,8 +251,16 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   // Track last reconnection attempts to prevent spam
   const lastReconnectAttempts = useRef<Map<string, number>>(new Map());
 
-  // Get database status to ensure database is ready before accessing tables
-  const dbStatus = useDatabaseStatus();
+  const allRelaysConnected = relayStatuses.length > 0 && relayStatuses.every(r => r.connected);
+  const connectedCount = relayStatuses.filter(r => r.connected).length;
+
+  // Refs to store current values for stable AppState listener
+  const portalAppRef = useRef<PortalAppInterface | null>(null);
+  const relayStatusesRef = useRef<RelayInfo[]>([]);
+  const removedRelaysRef = useRef<Set<string>>(new Set());
+
+  const eCashContext = useECash();
+  const { executeOperation } = useDatabaseContext();
 
   // Reset all NostrService state to initial values
   // This is called during app reset to ensure clean state
@@ -288,7 +273,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     setPublicKey(null);
     setPendingRequests({});
     setNwcWallet(null);
-    setAppIsActive(true);
     setWalletInfo({
       data: null,
       isLoading: false,
@@ -443,17 +427,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     }
   }
 
-  const allRelaysConnected = relayStatuses.length > 0 && relayStatuses.every(r => r.connected);
-  const connectedCount = relayStatuses.filter(r => r.connected).length;
-
-  // Refs to store current values for stable AppState listener
-  const portalAppRef = useRef<PortalAppInterface | null>(null);
-  const relayStatusesRef = useRef<RelayInfo[]>([]);
-  const removedRelaysRef = useRef<Set<string>>(new Set());
-
-  const eCashContext = useECash();
-  const { executeOperation } = useDatabase();
-
   // Add reinit logic
   const triggerReinit = useCallback(() => {
     setIsInitialized(false);
@@ -477,14 +450,8 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
       return;
     }
 
-    // Wait for database to be ready before initializing
-    if (!dbStatus.isDbInitialized) {
-      console.log('Database not ready yet, waiting for initialization...');
-      return;
-    }
-
     // If database just became ready and we have a mnemonic but no portal app, initialize
-    if (dbStatus.isDbInitialized && mnemonic && !portalApp) {
+    if (mnemonic && !portalApp) {
       console.log('Database ready, initializing NostrService...');
     }
 
@@ -520,10 +487,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
           console.warn('Failed to get relays from database, using defaults:', error);
           // Fallback to default relays if database access fails
           relays = [...DEFAULT_RELAYS];
-          // Don't try to update database if it's not ready
-          if (dbStatus.isDbInitialized) {
-            await executeOperation(db => db.updateRelays(DEFAULT_RELAYS), null);
-          }
+          await executeOperation(db => db.updateRelays(DEFAULT_RELAYS), null);
         }
 
         const app = await PortalAppManager.getInstance(
@@ -922,7 +886,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     return () => {
       abortController.abort();
     };
-  }, [mnemonic, reinitKey, dbStatus.isDbInitialized]); // Add dbStatus.isDbInitialized to dependencies
+  }, [mnemonic, reinitKey]);
 
   useEffect(() => {
     console.log('Updated pending requests:', pendingRequests);
@@ -1155,11 +1119,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
       console.log('AppState changed to:', nextAppState);
 
       console.log(`App State Transition: ${previousState} → ${nextAppState}`);
-
-      // Defer state updates to avoid setState during render
-      setTimeout(() => {
-        setAppIsActive(nextAppState === 'active');
-      }, 0);
 
       if (nextAppState === 'active') {
         // Defer app active logic to avoid interfering with ongoing renders

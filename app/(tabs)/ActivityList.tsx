@@ -3,7 +3,7 @@ import { View, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
 import { ThemedText } from '../../components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import type { ActivityWithDates } from '@/services/database';
+import type { ActivityWithDates } from '@/services/DatabaseService';
 import { useActivities } from '@/context/ActivitiesContext';
 import { ActivityRow } from '@/components/ActivityRow';
 import { router } from 'expo-router';

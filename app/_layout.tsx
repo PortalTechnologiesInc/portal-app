@@ -8,8 +8,7 @@ import { UserProfileProvider } from '@/context/UserProfileContext';
 import { PendingRequestsProvider } from '@/context/PendingRequestsContext';
 import { DeeplinkProvider } from '@/context/DeeplinkContext';
 import { ActivitiesProvider } from '@/context/ActivitiesContext';
-import { DatabaseProvider } from '@/services/database';
-import { DatabaseContextProvider } from '@/context/DatabaseContextProvider';
+import { DatabaseProvider } from '@/context/DatabaseContext';
 import { MnemonicProvider, useMnemonic } from '@/context/MnemonicContext';
 import NostrServiceProvider, { useNostrService } from '@/context/NostrServiceContext';
 import { StatusBar } from 'expo-status-bar';
@@ -22,6 +21,8 @@ import registerPubkeysForPushNotificationsAsync from '@/services/NotificationSer
 import { keyToHex } from 'portal-app-lib';
 import * as Notifications from 'expo-notifications';
 import { ECashProvider } from '@/context/ECashContext';
+import { SQLiteProvider } from 'expo-sqlite';
+import migrateDbIfNeeded from '@/migrations/DatabaseMigrations';
 
 // Prevent splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -101,7 +102,7 @@ const LoadingScreenContent = () => {
 
 // AuthenticatedAppContent renders the actual app content after authentication checks
 const AuthenticatedAppContent = () => {
-  const { isOnboardingComplete, isLoading: onboardingLoading } = useOnboarding();
+  const { isLoading: onboardingLoading } = useOnboarding();
   const { mnemonic, walletUrl, isLoading: mnemonicLoading } = useMnemonic();
 
   // Don't render anything until both contexts are loaded
@@ -160,16 +161,19 @@ export default function RootLayout() {
     );
   }
 
+  // Database name constant to ensure consistency
+  const DATABASE_NAME = 'portal-app.db';
+
   return (
-    <DatabaseProvider>
-      <DatabaseContextProvider>
+    <SQLiteProvider databaseName={DATABASE_NAME} onInit={migrateDbIfNeeded}>
+      <DatabaseProvider>
         <ThemeProvider>
           <CurrencyProvider>
             <ThemedRootView />
           </CurrencyProvider>
         </ThemeProvider>
-      </DatabaseContextProvider>
-    </DatabaseProvider>
+      </DatabaseProvider>
+    </SQLiteProvider >
   );
 }
 

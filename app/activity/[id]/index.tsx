@@ -18,8 +18,8 @@ import {
   Link,
   Ticket,
 } from 'lucide-react-native';
-import { useDatabase } from '@/context/DatabaseContextProvider';
-import type { ActivityWithDates } from '@/services/database';
+import { useDatabaseContext } from '@/context/DatabaseContext';
+import type { ActivityWithDates } from '@/services/DatabaseService';
 
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { getActivityStatus } from '@/utils/activityHelpers';
@@ -40,7 +40,7 @@ export default function ActivityDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [paymentSteps, setPaymentSteps] = useState<PaymentStep[]>([]);
-  const { executeOperation } = useDatabase();
+  const { executeOperation } = useDatabaseContext();
   const { activities } = useActivities();
 
   // Theme colors

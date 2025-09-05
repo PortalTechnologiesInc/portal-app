@@ -54,7 +54,6 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
     nwcConnectionError,
     relayStatuses,
     allRelaysConnected,
-    connectedCount,
     removedRelays,
     refreshWalletInfo,
     checkAndReconnectRelays,

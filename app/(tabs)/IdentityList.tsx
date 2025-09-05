@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   FlatList,
@@ -15,7 +15,6 @@ import type { Identity } from '@/utils/types';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useRouter } from 'expo-router';
-import { Colors } from '@/constants/Colors';
 import { Plus, Edit, User, Pencil, ArrowLeft, Copy } from 'lucide-react-native';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useUserProfile } from '@/context/UserProfileContext';
@@ -43,13 +42,10 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
     networkUsername,
     networkDisplayName,
     networkAvatarUri,
-    setUsername,
-    setDisplayName,
     setAvatarUri,
     setProfile,
     isProfileEditable,
     fetchProfile,
-    syncStatus,
   } = useUserProfile();
   const nostrService = useNostrService();
   const [usernameInput, setUsernameInput] = useState('');
