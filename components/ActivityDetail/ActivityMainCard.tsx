@@ -9,9 +9,10 @@ import {
   getStatusColor,
   getStatusText,
   getActivityDescription,
-  formatSatsToUSD,
   type ActivityStatus,
 } from '@/utils/activityHelpers';
+import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import { Currency } from '@/utils/currency';
 
 interface ActivityMainCardProps {
   serviceName: string;
@@ -19,6 +20,9 @@ interface ActivityMainCardProps {
   activityStatus: ActivityStatus;
   detail: string;
   amount?: number | null;
+  currency?: string | null;
+  converted_amount?: number | null;
+  converted_currency?: string | null;
 }
 
 export const ActivityMainCard: React.FC<ActivityMainCardProps> = ({
@@ -27,6 +31,9 @@ export const ActivityMainCard: React.FC<ActivityMainCardProps> = ({
   activityStatus,
   detail,
   amount,
+  currency,
+  converted_amount,
+  converted_currency,
 }) => {
   const surfaceSecondaryColor = useThemeColor({}, 'surfaceSecondary');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
@@ -98,11 +105,18 @@ export const ActivityMainCard: React.FC<ActivityMainCardProps> = ({
       {isPayment && amount && (
         <View style={styles.amountContainer}>
           <ThemedText style={[styles.amount, { color: primaryTextColor }]}>
-            {amount.toLocaleString()} sats
+            {amount.toLocaleString()} {currency}
           </ThemedText>
-          <ThemedText style={[styles.amountSubtext, { color: secondaryTextColor }]}>
-            {formatSatsToUSD(amount)}
-          </ThemedText>
+          {converted_amount !== null &&
+            converted_currency &&
+            converted_currency.toUpperCase() !== currency?.toUpperCase() && (
+              <ThemedText style={[styles.amountSubtext, { color: secondaryTextColor }]}>
+                {CurrencyConversionService.formatConvertedAmountWithFallback(
+                  converted_amount,
+                  converted_currency as Currency
+                )}
+              </ThemedText>
+            )}
         </View>
       )}
 

@@ -2,13 +2,14 @@ import type React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Key, BanknoteIcon, Ticket } from 'lucide-react-native';
 import { ThemedText } from './ThemedText';
-import { ThemedView } from './ThemedView';
-import { Colors } from '@/constants/Colors';
 import { formatRelativeTime, ActivityType } from '@/utils';
 import type { ActivityWithDates } from '@/services/DatabaseService';
 import { router } from 'expo-router';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { getActivityStatus, getStatusColor } from '@/utils/activityHelpers';
+import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import { Currency, CurrencyHelpers } from '@/utils/currency';
+import { useCurrency } from '@/context/CurrencyContext';
 
 interface ActivityRowProps {
   activity: ActivityWithDates;
@@ -18,6 +19,8 @@ export const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
   const handlePress = () => {
     router.push(`/activity/${activity.id}`);
   };
+
+  const { preferredCurrency } = useCurrency();
 
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');
   const iconBackgroundColor = useThemeColor({}, 'surfaceSecondary');
@@ -111,7 +114,14 @@ export const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
       <View style={styles.activityDetails}>
         {activity.type === ActivityType.Pay && activity.amount !== null && (
           <ThemedText style={[styles.amount, { color: primaryTextColor }]}>
-            {activity.amount} sats
+            {activity.converted_amount !== null &&
+            activity.converted_currency &&
+            activity.converted_currency.toUpperCase() !== activity.currency?.toUpperCase()
+              ? CurrencyHelpers.formatAmount(
+                  activity.converted_amount,
+                  activity.converted_currency as Currency
+                )
+              : `${activity.amount} ${activity.currency}`}
           </ThemedText>
         )}
         {(activity.type === 'ticket' ||
