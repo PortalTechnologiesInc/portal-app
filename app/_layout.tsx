@@ -173,7 +173,7 @@ export default function RootLayout() {
           </CurrencyProvider>
         </ThemeProvider>
       </DatabaseProvider>
-    </SQLiteProvider >
+    </SQLiteProvider>
   );
 }
 

@@ -374,7 +374,13 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         const statusString = mapNumericStatusToString(status);
 
         if (!relays.map(r => r.ws_uri).includes(relay_url)) {
-          console.log('📡😒 [STATUS UPDATE IGNORED] Relay:', relay_url, '→', statusString, `(${status})`);
+          console.log(
+            '📡😒 [STATUS UPDATE IGNORED] Relay:',
+            relay_url,
+            '→',
+            statusString,
+            `(${status})`
+          );
           return;
         }
 
@@ -457,6 +463,12 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     // Prevent re-initialization if already initialized
     if (isInitialized && PortalAppManager.tryGetInstance()) {
       console.log('NostrService already initialized, skipping re-initialization');
+      return;
+    }
+
+    // Skip initialization if mnemonic is not available yet
+    if (!mnemonic || mnemonic.trim() === '') {
+      console.log('NostrService: Skipping initialization - no mnemonic available yet');
       return;
     }
 
@@ -990,12 +1002,15 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
       while (
         !url.relays.some(urlRelay =>
           relayStatusesRef.current.some(r => r.url === urlRelay && r.status === 'Connected')
-        ) || !isAppActive.current
+        ) ||
+        !isAppActive.current
       ) {
         if (attempt > 30) {
           return;
         }
-        console.log(`🤝 Try #${attempt}. Handshake request delayed. No relay connected or app not fully active!`);
+        console.log(
+          `🤝 Try #${attempt}. Handshake request delayed. No relay connected or app not fully active!`
+        );
         await new Promise(resolve => setTimeout(resolve, 500));
         attempt++;
       }
@@ -1068,19 +1083,13 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     });
   }, []);
 
-  const setUserProfile = useCallback(
-    async (profile: Profile) => {
-      await PortalAppManager.tryGetInstance().setProfile(profile);
-    },
-    []
-  );
+  const setUserProfile = useCallback(async (profile: Profile) => {
+    await PortalAppManager.tryGetInstance().setProfile(profile);
+  }, []);
 
-  const closeRecurringPayment = useCallback(
-    async (pubkey: string, subscriptionId: string) => {
-      await PortalAppManager.tryGetInstance().closeRecurringPayment(pubkey, subscriptionId);
-    },
-    []
-  );
+  const closeRecurringPayment = useCallback(async (pubkey: string, subscriptionId: string) => {
+    await PortalAppManager.tryGetInstance().closeRecurringPayment(pubkey, subscriptionId);
+  }, []);
 
   // Simple monitoring control functions (to be used by navigation-based polling)
   const startPeriodicMonitoring = useCallback(() => {
@@ -1099,19 +1108,13 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     removedRelaysRef.current = removedRelays;
   }, [removedRelays]);
 
-  const submitNip05 = useCallback(
-    async (nip05: string) => {
-      await PortalAppManager.tryGetInstance().registerNip05(nip05);
-    },
-    []
-  );
+  const submitNip05 = useCallback(async (nip05: string) => {
+    await PortalAppManager.tryGetInstance().registerNip05(nip05);
+  }, []);
 
-  const submitImage = useCallback(
-    async (imageBase64: string) => {
-      await PortalAppManager.tryGetInstance().registerImg(imageBase64);
-    },
-    []
-  );
+  const submitImage = useCallback(async (imageBase64: string) => {
+    await PortalAppManager.tryGetInstance().registerImg(imageBase64);
+  }, []);
 
   // Wallet info functions
   const getWalletInfo = useCallback(async (): Promise<WalletInfo | null> => {
