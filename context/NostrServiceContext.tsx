@@ -174,7 +174,6 @@ export interface NostrServiceContextType {
   isInitialized: boolean;
   isWalletConnected: boolean;
   publicKey: string | null;
-  portalApp: PortalAppInterface | null;
   nwcWallet: Nwc | null;
   pendingRequests: { [key: string]: PendingRequest };
   payInvoice: (invoice: string) => Promise<string>;
@@ -227,7 +226,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   walletUrl,
   children,
 }) => {
-  const [portalApp, setPortalApp] = useState<PortalAppInterface | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [publicKey, setPublicKey] = useState<string | null>(null);
   const [pendingRequests, setPendingRequests] = useState<{ [key: string]: PendingRequest }>({});
@@ -252,7 +250,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
   // Refs to store current values for stable AppState listener
   const isAppActive = useRef(true);
-  const portalAppRef = useRef<PortalAppInterface | null>(null);
   const relayStatusesRef = useRef<RelayInfo[]>([]);
   const removedRelaysRef = useRef<Set<string>>(new Set());
 
@@ -265,7 +262,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     console.log('🔄 Resetting NostrService state...');
 
     // Reset all state to initial values
-    setPortalApp(null);
     setIsInitialized(false);
     setPublicKey(null);
     setPendingRequests({});
@@ -299,13 +295,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
       console.log(`App State Transition: ${previousState} → ${nextAppState}`);
 
       if (nextAppState === 'active') {
-        // Defer app active logic to avoid interfering with ongoing renders
-        if (portalAppRef.current) {
-          console.log('📱 App became active - checking relay status and refreshing connections');
-        } else {
-          console.log('⚠️ App became active but portalApp is null - will re-initialize');
-        }
-
+        console.log('📱 App became active');
         isAppActive.current = true;
       } else if (nextAppState === 'background') {
         isAppActive.current = false;
@@ -418,12 +408,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
               // Use setTimeout to avoid blocking the status update
               setTimeout(async () => {
                 try {
-                  const currentPortalApp = portalAppRef.current;
-                  if (currentPortalApp && typeof currentPortalApp.reconnectRelay === 'function') {
-                    await currentPortalApp.reconnectRelay(relay_url);
-                  } else if (currentPortalApp) {
-                    await currentPortalApp.addRelay(relay_url);
-                  }
+                  await PortalAppManager.tryGetInstance().reconnectRelay(relay_url);
                 } catch (error) {
                   console.error('❌ Auto-reconnect failed for relay:', relay_url, error);
                 }
@@ -461,7 +446,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   // Add reinit logic
   const triggerReinit = useCallback(() => {
     setIsInitialized(false);
-    setPortalApp(null);
     setPublicKey(null);
     setReinitKey(k => k + 1);
   }, []);
@@ -470,20 +454,10 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   useEffect(() => {
     const abortController = new AbortController();
 
-    if (!mnemonic) {
-      console.log('No mnemonic provided, initialization skipped');
-      return;
-    }
-
     // Prevent re-initialization if already initialized
-    if (isInitialized && portalApp) {
+    if (isInitialized && PortalAppManager.tryGetInstance()) {
       console.log('NostrService already initialized, skipping re-initialization');
       return;
-    }
-
-    // If database just became ready and we have a mnemonic but no portal app, initialize
-    if (mnemonic && !portalApp) {
-      console.log('Database ready, initializing NostrService...');
     }
 
     const initializeNostrService = async () => {
@@ -899,7 +873,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
           });
 
         // Save portal app instance
-        setPortalApp(app);
         console.log('NostrService initialized successfully with public key:', publicKeyStr);
         console.log('Running on those relays:', relays);
 
@@ -1012,10 +985,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   // Send auth init
   const sendKeyHandshake = useCallback(
     async (url: KeyHandshakeUrl): Promise<void> => {
-      if (!portalApp) {
-        throw new Error('PortalApp not initialized');
-      }
-
       // let's try for 30 times. One every .5 sec should timeout after 15 secs.
       let attempt = 0;
       while (
@@ -1032,9 +1001,9 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
       }
 
       console.log('Sending auth init', url);
-      return portalApp.sendKeyHandshake(url);
+      return PortalAppManager.tryGetInstance().sendKeyHandshake(url);
     },
-    [portalApp, isAppActive]
+    [isAppActive]
   );
 
   // Get service name with database caching
@@ -1088,7 +1057,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         throw error;
       }
     },
-    [portalApp, relayStatuses]
+    [relayStatuses]
   );
 
   const dismissPendingRequest = useCallback((id: string) => {
@@ -1101,22 +1070,16 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
   const setUserProfile = useCallback(
     async (profile: Profile) => {
-      if (!portalApp) {
-        throw new Error('PortalApp not initialized');
-      }
-      await portalApp.setProfile(profile);
+      await PortalAppManager.tryGetInstance().setProfile(profile);
     },
-    [portalApp]
+    []
   );
 
   const closeRecurringPayment = useCallback(
     async (pubkey: string, subscriptionId: string) => {
-      if (!portalApp) {
-        throw new Error('PortalApp not initialized');
-      }
-      await portalApp.closeRecurringPayment(pubkey, subscriptionId);
+      await PortalAppManager.tryGetInstance().closeRecurringPayment(pubkey, subscriptionId);
     },
-    [portalApp]
+    []
   );
 
   // Simple monitoring control functions (to be used by navigation-based polling)
@@ -1128,11 +1091,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     console.warn('stopPeriodicMonitoring is deprecated. Use navigation-based monitoring instead.');
   }, []);
 
-  // Update refs when values change (no effect recreation)
-  useEffect(() => {
-    portalAppRef.current = portalApp;
-  }, [portalApp]);
-
   useEffect(() => {
     relayStatusesRef.current = relayStatuses;
   }, [relayStatuses]);
@@ -1143,22 +1101,16 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
   const submitNip05 = useCallback(
     async (nip05: string) => {
-      if (!portalApp) {
-        throw new Error('PortalApp not initialized');
-      }
-      await portalApp.registerNip05(nip05);
+      await PortalAppManager.tryGetInstance().registerNip05(nip05);
     },
-    [portalApp]
+    []
   );
 
   const submitImage = useCallback(
     async (imageBase64: string) => {
-      if (!portalApp) {
-        throw new Error('PortalApp not initialized');
-      }
-      await portalApp.registerImg(imageBase64);
+      await PortalAppManager.tryGetInstance().registerImg(imageBase64);
     },
-    [portalApp]
+    []
   );
 
   // Wallet info functions
@@ -1303,7 +1255,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     isInitialized,
     isWalletConnected: nwcWallet !== null,
     publicKey,
-    portalApp,
     nwcWallet,
     pendingRequests,
     payInvoice,

@@ -55,11 +55,8 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const nostrService = useNostrService();
     const { wallets } = useECash();
     const {
-      isFullyConfigured,
-      hasAnyWallet,
       isLoading: walletStatusLoading,
       hasECashWallets,
-      isLightningConnected,
       nwcStatus,
     } = useWalletStatus();
     const [serviceName, setServiceName] = useState<string | null>(null);
@@ -88,15 +85,6 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
 
     const recurrence = calendarObj?.inner.toHumanReadable(false);
 
-    // Extract service key based on request type
-    const getServiceKey = () => {
-      if (type === 'ticket') {
-        return (metadata as any)?.title || 'Unknown Ticket';
-      }
-      return (metadata as SinglePaymentRequest).serviceKey;
-    };
-
-    const serviceKey = getServiceKey();
 
     useEffect(() => {
       if (type === 'ticket' && request.ticketTitle) {
@@ -107,6 +95,8 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
 
       const fetchServiceName = async () => {
         if (!isMounted.current) return;
+
+        const serviceKey = type === 'ticket' ? (metadata as any)?.title || 'Unknown Ticket' : (metadata as any).serviceKey;
 
         try {
           setIsServiceNameLoading(true);
@@ -132,7 +122,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
       return () => {
         isMounted.current = false;
       };
-    }, [serviceKey, nostrService.relayStatuses, type, metadata, wallets, request.ticketTitle]);
+    }, [nostrService.relayStatuses, type, metadata, wallets, request.ticketTitle]);
 
     // Extract payment information - needed for balance checking
     const recipientPubkey = (metadata as SinglePaymentRequest).recipient;
@@ -210,10 +200,6 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
       amount,
       wallets,
     ]);
-
-    // For Ticket requests, only show sending tokens (not receiving)
-    const isTicketSending =
-      isTicketRequest && (metadata as any)?.inner?.mintUrl && (metadata as any)?.inner?.amount;
 
     // Format service name with quantity for ticket requests
     const formatServiceName = () => {

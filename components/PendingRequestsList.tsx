@@ -295,10 +295,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  firstCard: {
-    // No special styling needed
-  },
-  lastCard: {
-    // No special styling needed
-  },
 });
