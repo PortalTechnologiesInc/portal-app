@@ -7,6 +7,7 @@ import { generateRandomGamertag } from '@/utils';
 import { keyToHex } from 'portal-app-lib';
 import type { ProfileSyncStatus } from '@/utils/types';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
+import { PortalAppManager } from '@/services/PortalAppManager';
 
 // Helper function to validate image
 const validateImage = async (uri: string): Promise<{ isValid: boolean; error?: string }> => {
@@ -178,7 +179,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
   useEffect(() => {
     const autoFetchProfile = async () => {
       // Only proceed if NostrService is ready and we have a public key
-      if (!nostrService.isInitialized || !nostrService.publicKey || !nostrService.portalApp) {
+      if (!nostrService.isInitialized || !nostrService.publicKey) {
         return;
       }
 
@@ -236,7 +237,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
 
     autoFetchProfile();
-  }, [nostrService.isInitialized, nostrService.publicKey, nostrService.portalApp, syncStatus]);
+  }, [nostrService.isInitialized, nostrService.publicKey, syncStatus]);
 
   const fetchProfile = async (
     publicKey: string
@@ -246,7 +247,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
 
     // Check if NostrService is ready
-    if (!nostrService.isInitialized || !nostrService.portalApp) {
+    if (!nostrService.isInitialized) {
       console.log('NostrService not ready, will retry profile fetch later');
       setSyncStatus('failed');
       return { found: false };
@@ -263,7 +264,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
       });
 
       const fetchedProfile = (await Promise.race([
-        nostrService.portalApp.fetchProfile(publicKey),
+        PortalAppManager.tryGetInstance().fetchProfile(publicKey),
         timeoutPromise,
       ])) as any;
 
@@ -439,8 +440,8 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
     newAvatarUri?: string | null
   ) => {
     try {
-      if (!nostrService.portalApp || !nostrService.publicKey) {
-        throw new Error('Portal app or public key not initialized');
+      if (!nostrService.publicKey) {
+        throw new Error('Public key not initialized');
       }
 
       // Validate and normalize username
