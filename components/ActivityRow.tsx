@@ -117,10 +117,19 @@ export const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
             {activity.converted_amount !== null &&
             activity.converted_currency &&
             activity.converted_currency.toUpperCase() !== activity.currency?.toUpperCase()
-              ? CurrencyHelpers.formatAmount(
-                  activity.converted_amount,
-                  activity.converted_currency as Currency
-                )
+              ? (() => {
+                  const cur = activity.converted_currency as Currency;
+                  const val = Number(activity.converted_amount || 0);
+                  if (cur === Currency.SATS) {
+                    return `${Math.round(val)} ${CurrencyHelpers.getSymbol(cur)}`;
+                  }
+                  if (cur === Currency.BTC) {
+                    const fixed = val.toFixed(8);
+                    const trimmed = fixed.replace(/\.0+$/, '').replace(/(\.\d*?[1-9])0+$/, '$1');
+                    return `${CurrencyHelpers.getSymbol(cur)}${trimmed}`;
+                  }
+                  return `${CurrencyHelpers.getSymbol(cur)}${val.toFixed(2)}`;
+                })()
               : `${activity.amount} ${activity.currency}`}
           </ThemedText>
         )}
