@@ -17,6 +17,7 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 
 import popularRelayListFile from '../assets/RelayList.json';
 import { useNostrService } from '@/context/NostrServiceContext';
+import { PortalAppManager } from '@/services/PortalAppManager';
 
 function isWebsocketUri(uri: string): boolean {
   const regex = /^wss?:\/\/([a-zA-Z0-9.-]+)(:\d+)?(\/[^\s]*)?$/;
@@ -124,7 +125,7 @@ export default function NostrRelayManagementScreen() {
         // Mark relay as removed in the context to prevent it from showing in connection status
         nostrService.markRelayAsRemoved(oldRelay);
 
-        const promise = nostrService.portalApp?.removeRelay(oldRelay);
+        const promise = PortalAppManager.tryGetInstance().removeRelay(oldRelay);
         if (promise) {
           removePromises.push(
             promise.catch(error => {
@@ -142,7 +143,7 @@ export default function NostrRelayManagementScreen() {
         // Clear from removed list and add to native layer
         nostrService.clearRemovedRelay(newRelay);
 
-        const promise = nostrService.portalApp?.addRelay(newRelay);
+        const promise = PortalAppManager.tryGetInstance().addRelay(newRelay);
         if (promise) {
           addPromises.push(
             promise.catch(error => {
