@@ -8,7 +8,7 @@ import { router } from 'expo-router';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { getActivityStatus, getStatusColor } from '@/utils/activityHelpers';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
-import { Currency, CurrencyHelpers } from '@/utils/currency';
+import { Currency, CurrencyHelpers, shouldShowConvertedAmount } from '@/utils/currency';
 import { useCurrency } from '@/context/CurrencyContext';
 
 interface ActivityRowProps {
@@ -114,9 +114,11 @@ export const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
       <View style={styles.activityDetails}>
         {activity.type === ActivityType.Pay && activity.amount !== null && (
           <ThemedText style={[styles.amount, { color: primaryTextColor }]}>
-            {activity.converted_amount !== null &&
-            activity.converted_currency &&
-            activity.converted_currency.toUpperCase() !== activity.currency?.toUpperCase()
+            {shouldShowConvertedAmount({
+              amount: activity.converted_amount,
+              originalCurrency: activity.currency,
+              convertedCurrency: activity.converted_currency,
+            })
               ? (() => {
                   const cur = activity.converted_currency as Currency;
                   const val = Number(activity.converted_amount || 0);

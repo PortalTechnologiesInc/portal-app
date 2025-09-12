@@ -12,7 +12,7 @@ import {
   type ActivityStatus,
 } from '@/utils/activityHelpers';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
-import { Currency } from '@/utils/currency';
+import { Currency, shouldShowConvertedAmount } from '@/utils/currency';
 
 interface ActivityMainCardProps {
   serviceName: string;
@@ -107,16 +107,18 @@ export const ActivityMainCard: React.FC<ActivityMainCardProps> = ({
           <ThemedText style={[styles.amount, { color: primaryTextColor }]}>
             {amount.toLocaleString()} {currency}
           </ThemedText>
-          {converted_amount !== null &&
-            converted_currency &&
-            converted_currency.toUpperCase() !== currency?.toUpperCase() && (
-              <ThemedText style={[styles.amountSubtext, { color: secondaryTextColor }]}>
-                {CurrencyConversionService.formatConvertedAmountWithFallback(
-                  converted_amount,
-                  converted_currency as Currency
-                )}
-              </ThemedText>
-            )}
+          {shouldShowConvertedAmount({
+            amount: converted_amount,
+            originalCurrency: currency || null,
+            convertedCurrency: converted_currency || null,
+          }) && (
+            <ThemedText style={[styles.amountSubtext, { color: secondaryTextColor }]}>
+              {CurrencyConversionService.formatConvertedAmountWithFallback(
+                converted_amount,
+                converted_currency as Currency
+              )}
+            </ThemedText>
+          )}
         </View>
       )}
 

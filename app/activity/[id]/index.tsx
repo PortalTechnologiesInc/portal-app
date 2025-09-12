@@ -21,7 +21,10 @@ import {
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import type { ActivityWithDates } from '@/services/DatabaseService';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
-import { Currency } from '@/utils/currency';
+import {
+  Currency,
+  shouldShowConvertedAmount as shouldShowConvertedAmountUtil,
+} from '@/utils/currency';
 
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { getActivityStatus } from '@/utils/activityHelpers';
@@ -53,6 +56,13 @@ export default function ActivityDetailScreen() {
   const buttonSecondaryColor = useThemeColor({}, 'buttonSecondary');
   const buttonSecondaryTextColor = useThemeColor({}, 'buttonSecondaryText');
   const statusErrorColor = useThemeColor({}, 'statusError');
+
+  const shouldShowConvertedAmount = (a: ActivityWithDates) =>
+    shouldShowConvertedAmountUtil({
+      amount: a.converted_amount,
+      originalCurrency: a.currency,
+      convertedCurrency: a.converted_currency,
+    });
 
   useEffect(() => {
     const fetchActivity = async () => {
@@ -246,19 +256,16 @@ export default function ActivityDetailScreen() {
                     value={activity.amount ? `${activity.amount} ${activity.currency}` : 'N/A'}
                   />
 
-                  {activity.converted_amount !== null &&
-                    activity.converted_currency &&
-                    activity.converted_currency.toUpperCase() !==
-                      activity.currency?.toUpperCase() && (
-                      <ActivityDetailRow
-                        icon={<Coins size={18} color={secondaryTextColor} />}
-                        label="Converted Amount"
-                        value={CurrencyConversionService.formatConvertedAmountWithFallback(
-                          activity.converted_amount,
-                          activity.converted_currency as Currency
-                        )}
-                      />
-                    )}
+                  {shouldShowConvertedAmount(activity) && (
+                    <ActivityDetailRow
+                      icon={<Coins size={18} color={secondaryTextColor} />}
+                      label="Converted Amount"
+                      value={CurrencyConversionService.formatConvertedAmountWithFallback(
+                        activity.converted_amount,
+                        activity.converted_currency as Currency
+                      )}
+                    />
+                  )}
 
                   {activity.currency && (
                     <ActivityDetailRow
