@@ -505,108 +505,113 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         app.listen({ signal: abortController.signal });
         console.log('PortalApp listening started...');
 
-        app
-          .listenCashuDirect(
-            new LocalCashuDirectListener(async (event: CashuDirectContentWithKey) => {
-              console.log('Cashu direct token received', event);
+        // listener to receive tokens
+        // app
+        //   .listenCashuDirect(
+        //     new LocalCashuDirectListener(async (event: CashuDirectContentWithKey) => {
+        //       console.log('Cashu direct token received', event);
 
-              try {
-                // Auto-process the Cashu token (receiving tokens)
-                const token = event.inner.token;
+        //       try {
+        //         // Auto-process the Cashu token (receiving tokens)
+        //         const token = event.inner.token;
 
-                // Check if we've already processed this token
-                const tokenInfo = await parseCashuToken(token);
+        //         // Check if we've already processed this token
+        //         const tokenInfo = await parseCashuToken(token);
+        //         console.warn(token)
+        //         console.warn(tokenInfo)
 
-                // Use database service to handle connection errors
-                const isProcessed = await executeOperation(
-                  db =>
-                    db.markCashuTokenAsProcessed(
-                      token,
-                      tokenInfo.mintUrl,
-                      tokenInfo.unit,
-                      tokenInfo.amount ? Number(tokenInfo.amount) : 0
-                    ),
-                  false
-                );
+        //         // Use database service to handle connection errors
+        //         const isProcessed = await executeOperation(
+        //           db =>
+        //             db.markCashuTokenAsProcessed(
+        //               token,
+        //               tokenInfo.mintUrl,
+        //               tokenInfo.unit,
+        //               tokenInfo.amount ? Number(tokenInfo.amount) : 0
+        //             ),
+        //           false
+        //         );
 
-                if (isProcessed === true) {
-                  console.log('Cashu token already processed, skipping');
-                  return;
-                } else if (isProcessed === null) {
-                  console.warn(
-                    'Failed to check token processing status due to database issues, proceeding cautiously'
-                  );
-                  // Continue processing but log a warning
-                }
+        //         if (isProcessed === true) {
+        //           console.log('Cashu token already processed, skipping');
+        //           return;
+        //         } else if (isProcessed === null) {
+        //           console.warn(
+        //             'Failed to check token processing status due to database issues, proceeding cautiously'
+        //           );
+        //           // Continue processing but log a warning
+        //         }
 
-                const wallet = await eCashContext.addWallet(
-                  tokenInfo.mintUrl,
-                  tokenInfo.unit.toLowerCase()
-                );
-                await wallet.receiveToken(token);
+        //         //
+        //         const wallet = await eCashContext.addWallet(
+        //           tokenInfo.mintUrl,
+        //           tokenInfo.unit.toLowerCase()
+        //         );
+        //         await wallet.receiveToken(token);
 
-                console.log('Cashu token processed successfully');
+        //         console.log('Cashu token processed successfully');
 
-                // Emit event to notify that wallet balances have changed
-                const { globalEvents } = await import('@/utils/index');
-                globalEvents.emit('walletBalancesChanged', {
-                  mintUrl: tokenInfo.mintUrl,
-                  unit: tokenInfo.unit.toLowerCase(),
-                });
-                console.log('walletBalancesChanged event emitted');
+        //         // Emit event to notify that wallet balances have changed
+        //         const { globalEvents } = await import('@/utils/index');
+        //         globalEvents.emit('walletBalancesChanged', {
+        //           mintUrl: tokenInfo.mintUrl,
+        //           unit: tokenInfo.unit.toLowerCase(),
+        //         });
+        //         console.log('walletBalancesChanged event emitted');
 
-                // Record activity for token receipt
-                try {
-                  // For Cashu direct, use mint URL as service identifier
-                  const serviceKey = tokenInfo.mintUrl;
-                  const unitInfo = await wallet.getUnitInfo();
-                  const ticketTitle = unitInfo?.title || wallet.unit();
+        //         // Record activity for token receipt
+        //         try {
+        //           // For Cashu direct, use mint URL as service identifier
+        //           const serviceKey = tokenInfo.mintUrl;
+        //           const unitInfo = await wallet.getUnitInfo();
+        //           const ticketTitle = unitInfo?.title || wallet.unit();
 
-                  // Add activity to database using ActivitiesContext directly
-                  const activity = {
-                    type: 'ticket_received' as const,
-                    service_key: serviceKey,
-                    service_name: ticketTitle, // Always use ticket title
-                    detail: ticketTitle, // Always use ticket title
-                    date: new Date(),
-                    amount: tokenInfo.amount ? Number(tokenInfo.amount) : null, // Store actual number of tickets, not divided by 1000
-                    currency: 'sats' as const,
-                    request_id: `cashu-direct-${Date.now()}`,
-                    subscription_id: null,
-                    status: 'neutral' as 'neutral',
-                  };
+        //           // Add activity to database using ActivitiesContext directly
+        //           const activity = {
+        //             type: 'ticket_received' as const,
+        //             service_key: serviceKey,
+        //             service_name: ticketTitle, // Always use ticket title
+        //             detail: ticketTitle, // Always use ticket title
+        //             date: new Date(),
+        //             amount: tokenInfo.amount ? Number(tokenInfo.amount) : null, // Store actual number of tickets, not divided by 1000
+        //             currency: 'sats' as const,
+        //             request_id: `cashu-direct-${Date.now()}`,
+        //             subscription_id: null,
+        //             status: 'neutral' as 'neutral',
+        //           };
 
-                  // Use database service for activity recording
-                  const activityId = await executeOperation(db => db.addActivity(activity), null);
+        //           // Use database service for activity recording
+        //           const activityId = await executeOperation(db => db.addActivity(activity), null);
 
-                  if (activityId) {
-                    console.log('Activity added to database with ID:', activityId);
-                    // Emit event for UI updates
-                    globalEvents.emit('activityAdded', activity);
-                    console.log('activityAdded event emitted');
-                    console.log('Cashu direct activity recorded successfully');
-                  } else {
-                    console.warn('Failed to record Cashu token activity due to database issues');
-                  }
-                } catch (activityError) {
-                  console.error('Error recording Cashu direct activity:', activityError);
-                }
-              } catch (error: any) {
-                console.error('Error processing Cashu token:', error.inner);
-              }
+        //           if (activityId) {
+        //             console.log('Activity added to database with ID:', activityId);
+        //             // Emit event for UI updates
+        //             globalEvents.emit('activityAdded', activity);
+        //             console.log('activityAdded event emitted');
+        //             console.log('Cashu direct activity recorded successfully');
+        //           } else {
+        //             console.warn('Failed to record Cashu token activity due to database issues');
+        //           }
+        //         } catch (activityError) {
+        //           console.error('Error recording Cashu direct activity:', activityError);
+        //         }
+        //       } catch (error: any) {
+        //         console.error('Error processing Cashu token:', error.inner);
+        //       }
 
-              // Return void for direct processing
-              return;
-            })
-          )
-          .catch(e => {
-            console.error('Error listening for Cashu direct', e);
-            handleErrorWithToastAndReinit(
-              'Failed to listen for Cashu direct. Retrying...',
-              triggerReinit
-            );
-          });
+        //       // Return void for direct processing
+        //       return;
+        //     })
+        //   )
+        //   .catch(e => {
+        //     console.error('Error listening for Cashu direct', e);
+        //     handleErrorWithToastAndReinit(
+        //       'Failed to listen for Cashu direct. Retrying...',
+        //       triggerReinit
+        //     );
+        //   });
 
+        // listener to burn tokens
         app.listenCashuRequests(
           new LocalCashuRequestListener(async (event: CashuRequestContentWithKey) => {
             // Use event-based ID for deduplication instead of random generation

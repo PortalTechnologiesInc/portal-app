@@ -31,6 +31,7 @@ export default function TicketsScreen() {
       try {
         const { globalEvents } = await import('@/utils/index');
         const handleWalletBalancesChanged = () => {
+          console.warn(walletUpdateTrigger);
           console.log('Tickets: wallet balances changed, triggering re-render');
           setWalletUpdateTrigger(prev => prev + 1);
         };
@@ -42,7 +43,7 @@ export default function TicketsScreen() {
         };
       } catch (error) {
         console.error('Error setting up wallet balance listener:', error);
-        return () => {};
+        return () => { };
       }
     };
 
@@ -61,11 +62,15 @@ export default function TicketsScreen() {
   useEffect(() => {
     async function mapWallets() {
       console.log('Tickets: mapping wallets, count:', eCashWalletCount);
+      console.warn(walletUpdateTrigger);
       const allTickets: Ticket[] = [];
 
       for (const [_, wallet] of Object.entries(wallets)) {
         const unitInfo = await wallet.getUnitInfo();
         const balance = await wallet.getBalance();
+
+        console.warn('unit info: ', unitInfo);
+        console.warn('balance: ', balance);
         console.log('Tickets: wallet balance', balance, 'unit:', wallet.unit());
         console.log('Tickets: full unitInfo:', JSON.stringify(unitInfo, null, 2));
 
@@ -142,7 +147,7 @@ export default function TicketsScreen() {
       } else {
         await Linking.openSettings();
       }
-    } catch {}
+    } catch { }
   };
 
   const showNFCEnableDialog = () => {
