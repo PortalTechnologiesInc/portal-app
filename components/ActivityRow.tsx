@@ -2,13 +2,14 @@ import type React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Key, BanknoteIcon, Ticket } from 'lucide-react-native';
 import { ThemedText } from './ThemedText';
-import { ThemedView } from './ThemedView';
-import { Colors } from '@/constants/Colors';
 import { formatRelativeTime, ActivityType } from '@/utils';
 import type { ActivityWithDates } from '@/services/DatabaseService';
 import { router } from 'expo-router';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { getActivityStatus, getStatusColor } from '@/utils/activityHelpers';
+import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import { Currency, CurrencyHelpers, shouldShowConvertedAmount } from '@/utils/currency';
+import { useCurrency } from '@/context/CurrencyContext';
 
 interface ActivityRowProps {
   activity: ActivityWithDates;
@@ -18,6 +19,8 @@ export const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
   const handlePress = () => {
     router.push(`/activity/${activity.id}`);
   };
+
+  const { preferredCurrency } = useCurrency();
 
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');
   const iconBackgroundColor = useThemeColor({}, 'surfaceSecondary');
@@ -111,7 +114,25 @@ export const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
       <View style={styles.activityDetails}>
         {activity.type === ActivityType.Pay && activity.amount !== null && (
           <ThemedText style={[styles.amount, { color: primaryTextColor }]}>
-            {activity.amount} sats
+            {shouldShowConvertedAmount({
+              amount: activity.converted_amount,
+              originalCurrency: activity.currency,
+              convertedCurrency: activity.converted_currency,
+            })
+              ? (() => {
+                  const cur = activity.converted_currency as Currency;
+                  const val = Number(activity.converted_amount || 0);
+                  if (cur === Currency.SATS) {
+                    return `${Math.round(val)} ${CurrencyHelpers.getSymbol(cur)}`;
+                  }
+                  if (cur === Currency.BTC) {
+                    const fixed = val.toFixed(8);
+                    const trimmed = fixed.replace(/\.0+$/, '').replace(/(\.\d*?[1-9])0+$/, '$1');
+                    return `${CurrencyHelpers.getSymbol(cur)}${trimmed}`;
+                  }
+                  return `${CurrencyHelpers.getSymbol(cur)}${val.toFixed(2)}`;
+                })()
+              : `${activity.amount} ${activity.currency}`}
           </ThemedText>
         )}
         {(activity.type === 'ticket' ||

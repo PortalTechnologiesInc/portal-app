@@ -211,7 +211,34 @@ export default function Onboarding() {
   };
 
   const handleGenerateComplete = async () => {
-    // Instead of completing immediately, go to verification step
+    // In development mode, skip verification and complete onboarding directly
+    if (__DEV__) {
+      try {
+        // Save the mnemonic using our provider
+        await setMnemonic(seedPhrase);
+
+        // Mark this as a generated seed (no need to fetch profile)
+        await SecureStore.setItemAsync(SEED_ORIGIN_KEY, 'generated');
+
+        // Show splash screen before completing onboarding
+        setCurrentStep('splash');
+
+        // Complete onboarding after a short delay
+        setTimeout(() => {
+          completeOnboarding();
+        }, 2000);
+      } catch (error) {
+        console.error('Failed to save mnemonic in dev mode:', error);
+        // Still continue with onboarding even if saving fails
+        setCurrentStep('splash');
+        setTimeout(() => {
+          completeOnboarding();
+        }, 2000);
+      }
+      return;
+    }
+
+    // In production mode, go to verification step
     handleContinueToVerification();
   };
 

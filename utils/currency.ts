@@ -155,3 +155,17 @@ export const CurrencyHelpers = {
     return Object.values(Currency).includes(currency as Currency);
   },
 };
+
+/**
+ * Decide whether to show a converted amount given original and converted values.
+ */
+export const shouldShowConvertedAmount = (params: {
+  amount: number | null | undefined;
+  originalCurrency: string | null | undefined;
+  convertedCurrency: string | null | undefined;
+}): boolean => {
+  const { amount, originalCurrency, convertedCurrency } = params;
+  const original = originalCurrency?.toUpperCase();
+  const converted = convertedCurrency?.toUpperCase();
+  return amount !== null && amount !== undefined && !!converted && converted !== original;
+};

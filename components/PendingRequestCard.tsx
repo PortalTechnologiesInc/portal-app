@@ -6,6 +6,7 @@ import { AlertTriangle } from 'lucide-react-native';
 import { usePendingRequests } from '../context/PendingRequestsContext';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { useECash } from '@/context/ECashContext';
+import { useCurrency } from '@/context/CurrencyContext';
 import {
   type SinglePaymentRequest,
   type RecurringPaymentRequest,
@@ -17,6 +18,7 @@ import { useWalletStatus } from '@/hooks/useWalletStatus';
 import { Layout } from '@/constants/Layout';
 import { SkeletonPulse } from './PendingRequestSkeletonCard';
 import { PortalAppManager } from '@/services/PortalAppManager';
+import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 
 interface PendingRequestCardProps {
   request: PendingRequest;
@@ -54,14 +56,13 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const { id, metadata, type } = request;
     const nostrService = useNostrService();
     const { wallets } = useECash();
-    const {
-      isLoading: walletStatusLoading,
-      hasECashWallets,
-      nwcStatus,
-    } = useWalletStatus();
+    const { preferredCurrency } = useCurrency();
+    const { isLoading: walletStatusLoading, hasECashWallets, nwcStatus } = useWalletStatus();
     const [serviceName, setServiceName] = useState<string | null>(null);
     const [isServiceNameLoading, setIsServiceNameLoading] = useState(true);
     const [hasInsufficientBalance, setHasInsufficientBalance] = useState(false);
+    const [convertedAmount, setConvertedAmount] = useState<number | null>(null);
+    const [isConvertingCurrency, setIsConvertingCurrency] = useState(false);
     const isMounted = useRef(true);
 
     // Theme colors
@@ -85,7 +86,6 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
 
     const recurrence = calendarObj?.inner.toHumanReadable(false);
 
-
     useEffect(() => {
       if (type === 'ticket' && request.ticketTitle) {
         setServiceName(request.ticketTitle);
@@ -96,7 +96,10 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
       const fetchServiceName = async () => {
         if (!isMounted.current) return;
 
-        const serviceKey = type === 'ticket' ? (metadata as any)?.title || 'Unknown Ticket' : (metadata as any).serviceKey;
+        const serviceKey =
+          type === 'ticket'
+            ? (metadata as any)?.title || 'Unknown Ticket'
+            : (metadata as any).serviceKey;
 
         try {
           setIsServiceNameLoading(true);
@@ -201,6 +204,55 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
       wallets,
     ]);
 
+    // Currency conversion effect
+    useEffect(() => {
+      const convertCurrency = async () => {
+        if (!isMounted.current) return;
+
+        // Only convert for payment and subscription requests with amounts
+        if ((!isPaymentRequest && !isSubscriptionRequest) || !amount) {
+          setConvertedAmount(null);
+          setIsConvertingCurrency(false);
+          return;
+        }
+
+        const content = (metadata as SinglePaymentRequest)?.content;
+        if (!content) {
+          setConvertedAmount(null);
+          setIsConvertingCurrency(false);
+          return;
+        }
+
+        try {
+          setIsConvertingCurrency(true);
+
+          // Determine source currency
+          const sourceCurrency =
+            content.currency.tag === Currency_Tags.Fiat ? (content.currency as any).inner : 'SATS';
+
+          // Convert to user's preferred currency
+          const converted = await CurrencyConversionService.convertAmount(
+            Number(amount),
+            sourceCurrency,
+            preferredCurrency
+          );
+
+          if (isMounted.current) {
+            setConvertedAmount(converted);
+            setIsConvertingCurrency(false);
+          }
+        } catch (error) {
+          console.error('Currency conversion error:', error);
+          if (isMounted.current) {
+            setConvertedAmount(null);
+            setIsConvertingCurrency(false);
+          }
+        }
+      };
+
+      convertCurrency();
+    }, [isPaymentRequest, isSubscriptionRequest, amount, metadata, preferredCurrency]);
+
     // Format service name with quantity for ticket requests
     const formatServiceName = () => {
       if (isTicketRequest && amount && Number(amount) > 1) {
@@ -293,6 +345,36 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
                   : `${Number(amount) / 1000} sats`}
               </Text>
             )}
+
+            {/* Converted amount display - only show if currencies are different */}
+            {(isConvertingCurrency || convertedAmount !== null) &&
+              (() => {
+                const content = (metadata as SinglePaymentRequest)?.content;
+                if (!content) return false;
+                const sourceCurrency =
+                  content.currency.tag === Currency_Tags.Fiat
+                    ? (content.currency as any).inner
+                    : 'SATS';
+                return sourceCurrency !== preferredCurrency;
+              })() && (
+                <View style={styles.convertedAmountContainer}>
+                  {isConvertingCurrency ? (
+                    <SkeletonPulse
+                      style={[
+                        styles.convertedAmountSkeleton,
+                        { backgroundColor: skeletonBaseColor },
+                      ]}
+                    />
+                  ) : (
+                    <Text style={[styles.convertedAmountText, { color: secondaryTextColor }]}>
+                      {CurrencyConversionService.formatConvertedAmountWithFallback(
+                        convertedAmount,
+                        preferredCurrency
+                      )}
+                    </Text>
+                  )}
+                </View>
+              )}
           </View>
         )}
 
@@ -472,5 +554,19 @@ const styles = StyleSheet.create({
   warningDescription: {
     fontSize: 12,
     fontWeight: '400',
+  },
+  convertedAmountContainer: {
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  convertedAmountText: {
+    fontSize: 14,
+    fontWeight: '500',
+    fontStyle: 'italic',
+  },
+  convertedAmountSkeleton: {
+    width: 80,
+    height: 14,
+    borderRadius: 4,
   },
 });

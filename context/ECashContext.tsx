@@ -1,10 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import {
-  CashuWallet,
-  CashuLocalStore,
-  CashuWalletInterface,
-  Mnemonic,
-} from 'portal-app-lib';
+import { CashuWallet, CashuLocalStore, CashuWalletInterface, Mnemonic } from 'portal-app-lib';
 import { DatabaseService } from '@/services/DatabaseService';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
@@ -104,6 +99,11 @@ export function ECashProvider({ children, mnemonic }: { children: ReactNode; mne
     const existingWallet = wallets[walletKey];
     if (existingWallet) {
       return existingWallet;
+    }
+
+    // Skip wallet creation if mnemonic is not available yet
+    if (!mnemonic || mnemonic.trim() === '') {
+      throw new Error('Cannot create wallet: mnemonic not available yet');
     }
 
     const seed = new Mnemonic(mnemonic).deriveCashu();
