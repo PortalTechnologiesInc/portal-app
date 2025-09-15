@@ -20,6 +20,11 @@ import {
 } from 'lucide-react-native';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import type { ActivityWithDates } from '@/services/DatabaseService';
+import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import {
+  Currency,
+  shouldShowConvertedAmount as shouldShowConvertedAmountUtil,
+} from '@/utils/currency';
 
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { getActivityStatus } from '@/utils/activityHelpers';
@@ -51,7 +56,13 @@ export default function ActivityDetailScreen() {
   const buttonSecondaryColor = useThemeColor({}, 'buttonSecondary');
   const buttonSecondaryTextColor = useThemeColor({}, 'buttonSecondaryText');
   const statusErrorColor = useThemeColor({}, 'statusError');
-  const statusConnectedColor = useThemeColor({}, 'statusConnected');
+
+  const shouldShowConvertedAmount = (a: ActivityWithDates) =>
+    shouldShowConvertedAmountUtil({
+      amount: a.converted_amount,
+      originalCurrency: a.currency,
+      convertedCurrency: a.converted_currency,
+    });
 
   useEffect(() => {
     const fetchActivity = async () => {
@@ -182,6 +193,9 @@ export default function ActivityDetailScreen() {
             activityStatus={activityStatus}
             detail={activity.detail}
             amount={activity.amount}
+            currency={activity.currency}
+            converted_amount={activity.converted_amount}
+            converted_currency={activity.converted_currency}
           />
 
           {/* Payment Status Progress - Only for payment activities */}
@@ -239,13 +253,24 @@ export default function ActivityDetailScreen() {
                   <ActivityDetailRow
                     icon={<DollarSign size={16} color={secondaryTextColor} />}
                     label="Amount"
-                    value={activity.amount ? `${activity.amount} sats` : 'N/A'}
+                    value={activity.amount ? `${activity.amount} ${activity.currency}` : 'N/A'}
                   />
+
+                  {shouldShowConvertedAmount(activity) && (
+                    <ActivityDetailRow
+                      icon={<Coins size={18} color={secondaryTextColor} />}
+                      label="Converted Amount"
+                      value={CurrencyConversionService.formatConvertedAmountWithFallback(
+                        activity.converted_amount,
+                        activity.converted_currency as Currency
+                      )}
+                    />
+                  )}
 
                   {activity.currency && (
                     <ActivityDetailRow
                       icon={<Coins size={18} color={secondaryTextColor} />}
-                      label="Currency"
+                      label="Original Currency"
                       value={activity.currency}
                     />
                   )}

@@ -18,11 +18,14 @@ import {
   RecurringPaymentStatus,
   AuthResponseStatus,
   CashuResponseStatus,
+  Currency_Tags,
 } from 'portal-app-lib';
 
 import { fromUnixSeconds } from '@/services/DatabaseService';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import { useActivities } from '@/context/ActivitiesContext';
+import { useCurrency } from '@/context/CurrencyContext';
+import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 import { NostrServiceContextType, useNostrService } from '@/context/NostrServiceContext';
 import { useECash } from '@/context/ECashContext';
 import type {
@@ -79,6 +82,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
   const [pendingSubscriptions, setPendingSubscriptions] = useState<PendingSubscription[]>([]);
   const nostrService = useNostrService();
   const eCashContext = useECash();
+  const { preferredCurrency } = useCurrency();
 
   // Get the refreshData function from ActivitiesContext
   const { refreshData } = useActivities();
@@ -235,6 +239,8 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               service_name: serviceName,
               amount: null,
               currency: null,
+              converted_amount: null,
+              converted_currency: null,
               request_id: id,
               subscription_id: null,
               status: 'positive',
@@ -266,6 +272,25 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               }
             }
 
+            // Convert currency for user's preferred currency
+            let convertedAmount: number | null = null;
+            let convertedCurrency: string | null = null;
+
+            try {
+              const sourceCurrency =
+                currencyObj?.tag === Currency_Tags.Fiat ? (currencyObj as any).inner : 'SATS';
+
+              convertedAmount = await CurrencyConversionService.convertAmount(
+                Number(amount),
+                sourceCurrency,
+                preferredCurrency // Currency enum values are already strings
+              );
+              convertedCurrency = preferredCurrency;
+            } catch (error) {
+              console.error('Currency conversion error during payment:', error);
+              // Continue without conversion - convertedAmount will remain null
+            }
+
             const activityId = await addActivityWithFallback({
               type: 'pay',
               service_key: metadata.serviceKey,
@@ -274,6 +299,8 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               date: new Date(),
               amount: Number(amount) / 1000,
               currency,
+              converted_amount: convertedAmount,
+              converted_currency: convertedCurrency,
               request_id: id,
               subscription_id: null,
               status: 'pending',
@@ -489,6 +516,8 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 date: new Date(),
                 amount: Number(amount), // Store actual number of tickets, not divided by 1000
                 currency: 'sats',
+                converted_amount: null,
+                converted_currency: null,
                 request_id: id,
                 subscription_id: null,
                 status: 'positive',
@@ -550,6 +579,8 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               service_name: serviceName,
               amount: null,
               currency: null,
+              converted_amount: null,
+              converted_currency: null,
               request_id: id,
               subscription_id: null,
               status: 'negative',
@@ -579,6 +610,25 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               }
             }
 
+            // Convert currency for user's preferred currency
+            let convertedAmount: number | null = null;
+            let convertedCurrency: string | null = null;
+
+            try {
+              const sourceCurrency =
+                currencyObj?.tag === Currency_Tags.Fiat ? (currencyObj as any).inner : 'SATS';
+
+              convertedAmount = await CurrencyConversionService.convertAmount(
+                Number(amount),
+                sourceCurrency,
+                preferredCurrency // Currency enum values are already strings
+              );
+              convertedCurrency = preferredCurrency;
+            } catch (error) {
+              console.error('Currency conversion error during payment denial:', error);
+              // Continue without conversion - convertedAmount will remain null
+            }
+
             Promise.all([
               notifier(new PaymentStatus.Rejected({ reason: 'User rejected' })),
               getServiceNameWithFallback(
@@ -593,6 +643,8 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                   date: new Date(),
                   amount: Number(amount) / 1000,
                   currency,
+                  converted_amount: convertedAmount,
+                  converted_currency: convertedCurrency,
                   request_id: id,
                   subscription_id: null,
                   status: 'negative',
@@ -699,6 +751,8 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 date: new Date(),
                 amount: Number(cashuEvent.inner.amount), // Store actual number of tickets, not divided by 1000
                 currency: 'sats',
+                converted_amount: null,
+                converted_currency: null,
                 request_id: id,
                 subscription_id: null,
                 status: 'negative',

@@ -25,7 +25,6 @@ interface DatabaseProviderProps {
 }
 
 export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
-
   const sqliteContext = useSQLiteContext();
 
   const executeOperation = async <T,>(
@@ -44,7 +43,7 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
 
   const resetApp = () => {
     return AppResetService.performCompleteReset(sqliteContext);
-  }
+  };
 
   // Create the context value
   const contextValue: DatabaseContextType = {
@@ -52,9 +51,5 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
     resetApp,
   };
 
-  return (
-    <DatabaseContext.Provider value={contextValue}>
-      {children}
-    </DatabaseContext.Provider>
-  );
+  return <DatabaseContext.Provider value={contextValue}>{children}</DatabaseContext.Provider>;
 };

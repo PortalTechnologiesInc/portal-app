@@ -223,6 +223,8 @@ export interface ActivityRecord {
   date: number; // Unix timestamp in seconds
   amount: number | null;
   currency: string | null;
+  converted_amount: number | null;
+  converted_currency: string | null;
   request_id: string;
   created_at: number; // Unix timestamp in seconds
   subscription_id: string | null;

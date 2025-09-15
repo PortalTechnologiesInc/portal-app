@@ -1,9 +1,9 @@
-import { SQLiteDatabase } from "expo-sqlite";
+import { SQLiteDatabase } from 'expo-sqlite';
 
 // Function to migrate database schema if needed
 export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
   console.log('Database initialization started');
-  const DATABASE_VERSION = 13;
+  const DATABASE_VERSION = 14;
 
   try {
     let { user_version: currentDbVersion } = (await db.getFirstAsync<{
@@ -357,6 +357,19 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
       `);
       currentDbVersion = 13;
       console.log('Added invoice column to activities table - now at version 13');
+    }
+
+    if (currentDbVersion <= 13) {
+      await db.execAsync(`
+        -- Add converted amount and currency columns to activities table
+        ALTER TABLE activities ADD COLUMN converted_amount REAL;
+        ALTER TABLE activities ADD COLUMN converted_currency TEXT;
+        CREATE INDEX IF NOT EXISTS idx_activities_converted_currency ON activities(converted_currency);
+      `);
+      currentDbVersion = 14;
+      console.log(
+        'Added converted amount and currency columns to activities table - now at version 14'
+      );
     }
 
     await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);

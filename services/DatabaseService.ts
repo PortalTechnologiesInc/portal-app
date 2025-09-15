@@ -24,6 +24,8 @@ export interface ActivityRecord {
   date: number; // Unix timestamp in seconds
   amount: number | null;
   currency: string | null;
+  converted_amount: number | null;
+  converted_currency: string | null;
   request_id: string;
   created_at: number; // Unix timestamp in seconds
   subscription_id: string | null;
@@ -128,7 +130,7 @@ export class DatabaseService {
       console.log('🔄 Forcing database reinitialization...');
 
       // Run the full migration process from version 0 to current version
-      const DATABASE_VERSION = 13;
+      const DATABASE_VERSION = 14;
 
       // Set user_version to 0 to force migration
       await this.db.execAsync('PRAGMA user_version = 0;');
@@ -455,6 +457,18 @@ export class DatabaseService {
       console.log('Added invoice column to activities table - now at version 13');
     }
 
+    if (currentVersion <= 13) {
+      await this.db.execAsync(`
+        ALTER TABLE activities ADD COLUMN converted_amount REAL;
+        ALTER TABLE activities ADD COLUMN converted_currency TEXT;
+        CREATE INDEX IF NOT EXISTS idx_activities_converted_currency ON activities(converted_currency);
+      `);
+      currentVersion = 14;
+      console.log(
+        'Added converted amount and currency columns to activities table - now at version 14'
+      );
+    }
+
     await this.db.execAsync(`PRAGMA user_version = ${endVersion}`);
     console.log(`Database migration completed to version ${endVersion}`);
   }
@@ -472,8 +486,8 @@ export class DatabaseService {
       try {
         await this.db.runAsync(
           `INSERT INTO activities (
-            id, type, service_name, service_key, detail, date, amount, currency, request_id, created_at, subscription_id, status, invoice
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            id, type, service_name, service_key, detail, date, amount, currency, converted_amount, converted_currency, request_id, created_at, subscription_id, status, invoice
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             id,
             activity.type,
@@ -483,6 +497,8 @@ export class DatabaseService {
             toUnixSeconds(activity.date),
             activity.amount,
             activity.currency,
+            activity.converted_amount,
+            activity.converted_currency,
             activity.request_id,
             now,
             activity.subscription_id,
