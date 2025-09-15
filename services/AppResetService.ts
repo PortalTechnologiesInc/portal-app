@@ -59,12 +59,8 @@ export class AppResetService {
       if (database) {
         const dbService = new DatabaseService(database);
 
-        // First, reset the database (drops tables and sets user_version = 0)
-        await dbService.resetDatabase();
-
         // Then, force a full migration to recreate all tables
-        console.log('Step 2.5/4: Forcing database reinitialization...');
-        await dbService.forceReinitialize();
+        await dbService.resetAndReinitializeDatabase();
       } else {
         console.warn('⚠️ No database provided for reset - skipping database reset');
       }
