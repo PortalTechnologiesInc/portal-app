@@ -505,6 +505,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         app.listen({ signal: abortController.signal });
         console.log('PortalApp listening started...');
 
+        // listener to receive tokens
         app
           .listenCashuDirect(
             new LocalCashuDirectListener(async (event: CashuDirectContentWithKey) => {
@@ -607,6 +608,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
             );
           });
 
+        // listener to burn tokens
         app.listenCashuRequests(
           new LocalCashuRequestListener(async (event: CashuRequestContentWithKey) => {
             // Use event-based ID for deduplication instead of random generation

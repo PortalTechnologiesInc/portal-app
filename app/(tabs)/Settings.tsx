@@ -23,6 +23,7 @@ import {
   Check,
   Wallet,
   Wifi,
+  RotateCcw,
 } from 'lucide-react-native';
 import { Moon, Sun, Smartphone } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -105,6 +106,10 @@ export default function SettingsScreen() {
 
   const handleNostrCardPress = () => {
     router.push('/relays');
+  };
+
+  const handleRecoverTicketsPress = () => {
+    router.push('/recoverTickets');
   };
 
   const handleExportMnemonic = () => {
@@ -477,6 +482,35 @@ export default function SettingsScreen() {
               ios_backgroundColor={inputBorderColor}
             />
           </View>
+
+          {/* Recover Tickets Section */}
+          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
+            Recovery
+          </ThemedText>
+          <TouchableOpacity
+            style={[styles.card, { backgroundColor: cardBackgroundColor }]}
+            onPress={handleRecoverTicketsPress}
+            activeOpacity={0.7}
+          >
+            <View style={styles.cardContent}>
+              <View style={styles.cardLeft}>
+                <View style={styles.cardHeader}>
+                  <View style={[styles.cardIcon, { backgroundColor: buttonPrimaryColor }]}>
+                    <RotateCcw size={20} color={buttonPrimaryTextColor} />
+                  </View>
+                  <View style={styles.cardText}>
+                    <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
+                      Recover Tickets
+                    </ThemedText>
+                    <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
+                      Restore lost or missing tickets
+                    </ThemedText>
+                  </View>
+                </View>
+              </View>
+              <ChevronRight size={24} color={secondaryTextColor} />
+            </View>
+          </TouchableOpacity>
 
           {/* Export Section */}
           <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>Export</ThemedText>
