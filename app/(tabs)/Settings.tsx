@@ -146,8 +146,7 @@ export default function SettingsScreen() {
 
     setThemeMode(nextTheme);
     showToast(
-      `Theme changed to ${
-        nextTheme === 'auto' ? 'Auto (System)' : nextTheme === 'light' ? 'Light' : 'Dark'
+      `Theme changed to ${nextTheme === 'auto' ? 'Auto (System)' : nextTheme === 'light' ? 'Light' : 'Dark'
       }`,
       'success'
     );
@@ -307,8 +306,8 @@ export default function SettingsScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              colors={[statusConnectedColor]}
-              tintColor={statusConnectedColor}
+              colors={[buttonPrimaryColor]}
+              tintColor={buttonPrimaryColor}
               title="Pull to refresh connection"
               titleColor={primaryTextColor}
             />
@@ -328,8 +327,8 @@ export default function SettingsScreen() {
                 <View style={styles.cardContent}>
                   <View style={styles.cardLeft}>
                     <View style={styles.cardHeader}>
-                      <View style={[styles.cardIcon, { backgroundColor: buttonPrimaryColor }]}>
-                        <Wallet size={20} color={buttonPrimaryTextColor} />
+                      <View style={[styles.iconContainer]}>
+                        <Wallet size={20} color={buttonPrimaryColor} />
                       </View>
                       <View style={styles.cardText}>
                         <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
@@ -392,8 +391,8 @@ export default function SettingsScreen() {
             <View style={styles.cardContent}>
               <View style={styles.cardLeft}>
                 <View style={styles.cardHeader}>
-                  <View style={[styles.cardIcon, { backgroundColor: buttonPrimaryColor }]}>
-                    <Wifi size={20} color={buttonPrimaryTextColor} />
+                  <View style={[styles.iconContainer]}>
+                    <Wifi size={20} color={buttonPrimaryColor} />
                   </View>
                   <View style={styles.cardText}>
                     <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
@@ -421,11 +420,11 @@ export default function SettingsScreen() {
             >
               <View style={styles.themeCardContent}>
                 <View style={styles.themeCardLeft}>
-                  <View style={styles.themeIconContainer}>
+                  <View style={styles.iconContainer}>
                     {themeMode === 'auto' ? (
                       <Smartphone size={24} color={buttonPrimaryColor} />
                     ) : themeMode === 'light' ? (
-                      <Sun size={24} color={statusConnectedColor} />
+                      <Sun size={24} color={buttonPrimaryColor} />
                     ) : (
                       <Moon size={24} color={buttonPrimaryColor} />
                     )}
@@ -472,7 +471,7 @@ export default function SettingsScreen() {
             </View>
             <Switch
               value={false}
-              onValueChange={() => {}}
+              onValueChange={() => { }}
               disabled={true}
               trackColor={{
                 false: inputBorderColor,
@@ -495,8 +494,8 @@ export default function SettingsScreen() {
             <View style={styles.cardContent}>
               <View style={styles.cardLeft}>
                 <View style={styles.cardHeader}>
-                  <View style={[styles.cardIcon, { backgroundColor: buttonPrimaryColor }]}>
-                    <RotateCcw size={20} color={buttonPrimaryTextColor} />
+                  <View style={[styles.iconContainer]}>
+                    <RotateCcw size={20} color={buttonPrimaryColor} />
                   </View>
                   <View style={styles.cardText}>
                     <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
@@ -657,14 +656,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  cardIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
   cardText: {
     flex: 1,
   },
@@ -754,7 +745,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  themeIconContainer: {
+  iconContainer: {
     marginRight: 12,
   },
   themeTextContainer: {

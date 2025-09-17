@@ -117,7 +117,7 @@ export default function SubscriptionsScreen() {
               style={[
                 styles.filterChipText,
                 {
-                  color: filter === 'archived' ? buttonPrimaryTextColor : buttonSecondaryTextColor,
+                  color: filter === 'active' ? buttonPrimaryTextColor : buttonSecondaryTextColor,
                 },
               ]}
             >

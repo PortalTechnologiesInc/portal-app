@@ -156,7 +156,7 @@ export default function RecoverTicketsScreen() {
           {/* Info Section */}
           <ThemedView style={[styles.infoCard, { backgroundColor: cardBackgroundColor }]}>
             <View style={styles.infoHeader}>
-              <View style={[styles.infoIcon, { backgroundColor: statusConnectedColor }]}>
+              <View style={[styles.infoIcon, { backgroundColor: buttonPrimaryColor }]}>
                 <AlertCircle size={20} color={buttonPrimaryTextColor} />
               </View>
               <ThemedText style={[styles.infoTitle, { color: primaryTextColor }]}>
