@@ -350,7 +350,7 @@ export default function Home() {
                   darkColor={Colors.dirtyWhite}
                   lightColor={Colors.gray700}
                 >
-                  Your secure portal to the web3 world
+                  Your secure mobile identity wallet for authentication and payments
                 </ThemedText>
 
                 <View style={styles.illustrationContainer}>
