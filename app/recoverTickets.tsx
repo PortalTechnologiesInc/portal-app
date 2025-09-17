@@ -73,58 +73,56 @@ export default function RecoverTicketsScreen() {
     setIsLoading(true);
     try {
       for (const url of validUrls) {
-        try {
-          const response = await fetch(`${url}/v1/keys`, {
+        const response = await Promise.race([
+          fetch(`${url}/v1/keys`, {
             method: 'GET',
             headers: {
               'Content-Type': 'application/json',
             },
+          }),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Request timeout')), 8000)
+          ),
+        ]);
+
+        if (!response.ok) {
+          console.warn(`Failed to connect to mint: ${url}`);
+          Alert.alert(`Failed to connect to mint: ${url}`);
+          continue; // Skip this URL and continue with the next one
+        }
+
+        const mintKeys = await response.json();
+
+        if (!mintKeys.keysets) {
+          console.warn(`Mint response of ${url} does not match the expected standard.\nPlease check the URL and try again if it\'s wrong.`);
+          Alert.alert(`Mint response of ${url} does not match the expected standard.\nPlease check the URL and try again if it\'s wrong.`);
+          continue;
+        } else if (mintKeys.keysets.length == 0) {
+          console.warn(`Mint response of ${url} does not contains any ticket unit.`);
+          Alert.alert(`Mint response of ${url} does not contains any ticket unit.`);
+          continue;
+        }
+
+        for (const keyset of mintKeys.keysets) {
+          await addWallet(
+            url,
+            keyset.unit.toLowerCase()
+          );
+
+          // Emit event to notify that wallet balances have changed
+          globalEvents.emit('walletBalancesChanged', {
+            mintUrl: url,
+            unit: keyset.unit.toLowerCase(),
           });
 
-          if (!response.ok) {
-            console.warn(`Failed to connect to mint: ${url}`);
-            Alert.alert(`Failed to connect to mint: ${url}`);
-            continue; // Skip this URL and continue with the next one
-          }
-
-          const mintKeys = await response.json();
-
-          if (!mintKeys.keysets) {
-            console.warn(`Mint response of ${url} does not match the expected standard.\nPlease check the URL and try again if it\'s wrong.`);
-            Alert.alert(`Mint response of ${url} does not match the expected standard.\nPlease check the URL and try again if it\'s wrong.`);
-            continue;
-          } else if (mintKeys.keysets.length == 0) {
-            console.warn(`Mint response of ${url} does not contains any ticket unit.`);
-            Alert.alert(`Mint response of ${url} does not contains any ticket unit.`);
-            continue;
-          }
-
-          for (const keyset of mintKeys.keysets) {
-            console.warn('mintUrl: ', url);
-            console.warn('unit: ', keyset.unit);
-
-            await addWallet(
-              url,
-              keyset.unit.toLowerCase()
-            );
-
-            // Emit event to notify that wallet balances have changed
-            globalEvents.emit('walletBalancesChanged', {
-              mintUrl: url,
-              unit: keyset.unit.toLowerCase(),
-            });
-
-            console.log('Cashu token processed successfully');
-          }
-
-          Alert.alert(
-            'Recovery Successful',
-            `Tickets have been successfully recovered from ${validUrls.length} mint server(s). You can find your recovered tickets in the Tickets section.`,
-            [{ text: 'OK', onPress: (str?: string) => router.back() }]
-          );
-        } catch (error) {
-          console.error(`Error connecting to mint ${url}:`, error);
+          console.log('Cashu token processed successfully');
         }
+
+        Alert.alert(
+          'Recovery Successful',
+          `Tickets have been successfully recovered from ${validUrls.length} mint server(s). You can find your recovered tickets in the Tickets section.`,
+          [{ text: 'OK', onPress: (str?: string) => router.back() }]
+        );
       }
     } catch (error) {
       console.error('Error recovering tickets:', error);
