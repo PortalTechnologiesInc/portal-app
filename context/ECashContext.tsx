@@ -117,8 +117,7 @@ export function ECashProvider({ children, mnemonic }: { children: ReactNode; mne
       ),
     ]);
 
-    // Non-blocking proof restoration to avoid blocking wallet creation
-    wallet
+    await wallet
       .restoreProofs()
       .catch(error => console.warn(`Proof restoration failed for ${walletKey}:`, error.message));
 
