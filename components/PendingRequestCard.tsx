@@ -169,13 +169,29 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
             setHasInsufficientBalance(false);
           } else {
             // For eCash/sats payments, check if we have a wallet with sufficient balance
-            const requiredAmount = Number(amount);
+            const requestedMsats = Number(amount);
+            const requiredSats = Math.ceil(requestedMsats / 1000); // Convert msats to sats for eCash
             let canPay = false;
+
+            // 1) Consider NWC LN wallet balance (msats)
+            try {
+              const nwcMsats =
+                (nostrService.walletInfo.data?.get_balance as number | undefined) ?? undefined;
+              if (
+                nwcStatus === true &&
+                typeof nwcMsats === 'number' &&
+                nwcMsats >= requestedMsats
+              ) {
+                canPay = true;
+              }
+            } catch (e) {
+              // ignore
+            }
 
             for (const [walletKey, wallet] of Object.entries(wallets)) {
               try {
                 const balance = await wallet.getBalance();
-                if (balance >= requiredAmount) {
+                if (balance >= requiredSats) {
                   canPay = true;
                   break;
                 }
