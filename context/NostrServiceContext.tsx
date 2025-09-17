@@ -587,6 +587,8 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                     request_id: `cashu-direct-${Date.now()}`,
                     subscription_id: null,
                     status: 'neutral' as 'neutral',
+                    converted_amount: null,
+                    converted_currency: null,
                   };
 
                   // Use database service for activity recording
