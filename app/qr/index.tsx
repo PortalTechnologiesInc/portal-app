@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, TouchableOpacity, BackHandler, View } from 'react-native';
+import { StyleSheet, TouchableOpacity, BackHandler, View, Linking, Platform } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -7,7 +7,7 @@ import { usePendingRequests } from '@/context/PendingRequestsContext';
 import { parseKeyHandshakeUrl } from 'portal-app-lib';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { Flashlight, FlashlightOff, ArrowLeft } from 'lucide-react-native';
+import { Flashlight, FlashlightOff, ArrowLeft, Settings } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -43,6 +43,33 @@ export default function QRScannerScreen() {
   const statusErrorColor = useThemeColor({}, 'statusError');
   const statusConnectedColor = useThemeColor({}, 'statusConnected');
 
+  // Automatically request camera permission when component mounts
+  useEffect(() => {
+    if (!permission) {
+      // Permission object not ready yet
+      return;
+    }
+
+    console.log('Permission status:', permission.status, 'granted:', permission.granted, 'canAskAgain:', permission.canAskAgain);
+    
+    if (!permission.granted) {
+      if (permission.status === 'undetermined') {
+        // First time - automatically request permission with small delay
+        console.log('Requesting permission automatically (undetermined)...');
+        setTimeout(() => {
+          requestPermission();
+        }, 100);
+      } else if (permission.canAskAgain) {
+        // Previously denied but can ask again - automatically request
+        console.log('Requesting permission automatically (can ask again)...');
+        setTimeout(() => {
+          requestPermission();
+        }, 100);
+      }
+      // If can't ask again, we'll show the settings button (handled in render)
+    }
+  }, [permission, requestPermission]);
+
   // Handle hardware back button
   useEffect(() => {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -55,6 +82,10 @@ export default function QRScannerScreen() {
 
   const toggleTorch = () => {
     setEnableTorch(!enableTorch);
+  };
+
+  const openSettings = async () => {
+    await Linking.openSettings();
   };
 
   const handleBackNavigation = () => {
@@ -208,6 +239,50 @@ export default function QRScannerScreen() {
 
   if (!permission.granted) {
     // Camera permissions are not granted yet
+    const wasAsked = permission?.status !== 'undetermined';
+    const canAskAgain = permission?.canAskAgain !== false;
+    
+    // If permission was denied and can't ask again, show settings option
+    if (wasAsked && !canAskAgain) {
+      return (
+        <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
+          <ThemedView style={styles.container}>
+            <ThemedView style={styles.header}>
+              <TouchableOpacity onPress={handleBackNavigation} style={styles.backButton}>
+                <ArrowLeft size={20} color={textPrimary} />
+              </TouchableOpacity>
+              <ThemedText style={[styles.headerText, { color: textPrimary }]}>
+                {getHeaderTitle()}
+              </ThemedText>
+            </ThemedView>
+            <ThemedView style={styles.content}>
+              <View style={[styles.messageCard, { backgroundColor: cardBackgroundColor }]}>
+                <ThemedText style={[styles.messageTitle, { color: textPrimary }]}>
+                  Camera Access Required
+                </ThemedText>
+                <ThemedText style={[styles.messageText, { color: textSecondary }]}>
+                  Camera access was denied. To use the QR scanner, please enable camera permissions in your device settings.
+                </ThemedText>
+                <TouchableOpacity
+                  style={[styles.permissionButton, { backgroundColor: buttonPrimary }]}
+                  onPress={openSettings}
+                >
+                  <View style={styles.buttonContent}>
+                    <Settings size={16} color={buttonPrimaryText} style={styles.buttonIcon} />
+                    <ThemedText style={[styles.permissionButtonText, { color: buttonPrimaryText }]}>
+                      Open Settings
+                    </ThemedText>
+                  </View>
+                </TouchableOpacity>
+              </View>
+            </ThemedView>
+          </ThemedView>
+        </SafeAreaView>
+      );
+    }
+    
+    // For all other cases (undetermined or can ask again), show loading state
+    // The permission request will be triggered automatically by useEffect
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
         <ThemedView style={styles.container}>
@@ -222,19 +297,11 @@ export default function QRScannerScreen() {
           <ThemedView style={styles.content}>
             <View style={[styles.messageCard, { backgroundColor: cardBackgroundColor }]}>
               <ThemedText style={[styles.messageTitle, { color: textPrimary }]}>
-                Camera Permission Required
+                Requesting Camera Access...
               </ThemedText>
               <ThemedText style={[styles.messageText, { color: textSecondary }]}>
-                We need access to your camera to scan QR codes
+                Please allow camera access in the permission dialog to scan QR codes.
               </ThemedText>
-              <TouchableOpacity
-                style={[styles.permissionButton, { backgroundColor: buttonPrimary }]}
-                onPress={requestPermission}
-              >
-                <ThemedText style={[styles.permissionButtonText, { color: buttonPrimaryText }]}>
-                  Grant Permission
-                </ThemedText>
-              </TouchableOpacity>
             </View>
           </ThemedView>
         </ThemedView>
@@ -421,6 +488,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     minWidth: 150,
     alignItems: 'center',
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  buttonIcon: {
+    marginRight: 8,
   },
   permissionButtonText: {
     fontSize: 16,
