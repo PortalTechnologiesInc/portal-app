@@ -261,19 +261,21 @@ export default function QRScannerScreen() {
                   Camera Access Required
                 </ThemedText>
                 <ThemedText style={[styles.messageText, { color: textSecondary }]}>
-                  Camera access was denied. To use the QR scanner, please enable camera permissions in your device settings.
+                  Camera access was denied. If you wish to use the QR scanner, please enable camera permissions in your device settings.
                 </ThemedText>
-                <TouchableOpacity
-                  style={[styles.permissionButton, { backgroundColor: buttonPrimary }]}
-                  onPress={openSettings}
-                >
-                  <View style={styles.buttonContent}>
-                    <Settings size={16} color={buttonPrimaryText} style={styles.buttonIcon} />
-                    <ThemedText style={[styles.permissionButtonText, { color: buttonPrimaryText }]}>
-                      Open Settings
-                    </ThemedText>
-                  </View>
-                </TouchableOpacity>
+                {Platform.OS !== 'ios' && (
+                  <TouchableOpacity
+                    style={[styles.permissionButton, { backgroundColor: buttonPrimary }]}
+                    onPress={openSettings}
+                  >
+                    <View style={styles.buttonContent}>
+                      <Settings size={16} color={buttonPrimaryText} style={styles.buttonIcon} />
+                      <ThemedText style={[styles.permissionButtonText, { color: buttonPrimaryText }]}>
+                        Open Settings
+                      </ThemedText>
+                    </View>
+                  </TouchableOpacity>
+                )}
               </View>
             </ThemedView>
           </ThemedView>
