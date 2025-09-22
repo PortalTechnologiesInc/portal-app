@@ -3,6 +3,7 @@ import { SecureStorageService } from './SecureStorageServiceV2';
 import { resetAllContexts } from './ContextResetService';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { router } from 'expo-router';
+import { PortalAppManager } from './PortalAppManager';
 
 /**
  * Global reset flag to coordinate reset process
@@ -86,6 +87,9 @@ export class AppResetService {
       console.error('❌ Failed to reset navigation:', error);
       errors.push({ step: 'Navigation', error });
     }
+
+      // Step 5: Deleting app instance
+    PortalAppManager.clearInstance();
 
     // Clear global reset flag after a delay to allow reset to complete
     setTimeout(() => {
