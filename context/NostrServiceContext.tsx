@@ -55,7 +55,7 @@ import { registerContextReset, unregisterContextReset } from '@/services/Context
 import { useDatabaseContext } from '@/context/DatabaseContext';
 
 // Constants and helper classes from original NostrService
-const DEFAULT_RELAYS = [
+export const DEFAULT_RELAYS = [
   'wss://relay.getportal.cc',
   'wss://relay.nostr.band',
   'wss://nos.lol',
@@ -254,7 +254,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   const removedRelaysRef = useRef<Set<string>>(new Set());
 
   const eCashContext = useECash();
-  const { executeOperation } = useDatabaseContext();
+  const { executeOperation, executeOnNostr } = useDatabaseContext();
 
   // Reset all NostrService state to initial values
   // This is called during app reset to ensure clean state
@@ -557,6 +557,16 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                   tokenInfo.unit.toLowerCase()
                 );
                 await wallet.receiveToken(token);
+
+                await executeOnNostr(async (db) => {
+                  let mintsList = await db.readMints();
+                  
+                  // Convert to Set to prevent duplicates, then back to array
+                  const mintsSet = new Set([tokenInfo.mintUrl, ...mintsList]);
+                  mintsList = Array.from(mintsSet);
+
+                  db.storeMints(mintsList);
+                });
 
                 console.log('Cashu token processed successfully');
 
