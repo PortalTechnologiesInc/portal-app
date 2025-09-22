@@ -5,8 +5,7 @@ import {
   RelayStatusListener,
 } from 'portal-app-lib';
 export class PortalAppManager {
-  static instance: PortalAppInterface;
-
+  private static instance: PortalAppInterface | null;
   private constructor() {}
 
   static async getInstance(
@@ -28,5 +27,9 @@ export class PortalAppManager {
     }
 
     return this.instance;
+  }
+
+  static clearInstance() {
+    this.instance = null;
   }
 }
