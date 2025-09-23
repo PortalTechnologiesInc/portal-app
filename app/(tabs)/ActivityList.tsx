@@ -24,7 +24,7 @@ const ItemList: React.FC = () => {
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
-  const surfaceSecondaryColor = useThemeColor({}, 'surfaceSecondary');
+  const cardBackgroungColor = useThemeColor({}, 'cardBackground');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
   const buttonSecondaryColor = useThemeColor({}, 'buttonSecondary');
@@ -230,7 +230,7 @@ const ItemList: React.FC = () => {
         </View>
 
         {listData.length === 0 ? (
-          <View style={[styles.emptyContainer, { backgroundColor: surfaceSecondaryColor }]}>
+          <View style={[styles.emptyContainer, { backgroundColor: cardBackgroungColor }]}>
             <ThemedText style={[styles.emptyText, { color: secondaryTextColor }]}>
               No activities found
             </ThemedText>
@@ -238,7 +238,7 @@ const ItemList: React.FC = () => {
         ) : (
           <>
             {filter !== null && hasMoreActivities && (
-              <View style={[styles.filterNote, { backgroundColor: surfaceSecondaryColor }]}>
+              <View style={[styles.filterNote, { backgroundColor: cardBackgroungColor }]}>
                 <ThemedText style={[styles.filterNoteText, { color: secondaryTextColor }]}>
                   Filtering is applied to currently loaded activities only.
                 </ThemedText>
