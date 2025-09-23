@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Platform } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, Platform, TouchableOpacity } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,12 +7,13 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 import { useWalletStatus } from '@/hooks/useWalletStatus';
 import { Ticket } from '@/utils/types';
 import { Colors } from '@/constants/Colors';
-import { Nfc, CheckCircle, XCircle } from 'lucide-react-native';
+import { Nfc, CheckCircle, XCircle, Upload } from 'lucide-react-native';
 import NfcManager from 'react-native-nfc-manager';
 import * as Linking from 'expo-linking';
 import TicketCard from '@/components/TicketCard';
 import { useECash } from '@/context/ECashContext';
 import uuid from 'react-native-uuid';
+import { showToast } from '@/utils/Toast';
 
 export default function TicketsScreen() {
   const [filter, setFilter] = useState<'all' | 'active' | 'used' | 'expired'>('all');
@@ -205,12 +206,30 @@ export default function TicketsScreen() {
     }
   }, []);
 
+  const handleImportTickets = useCallback(() => {
+    showToast('Import tickets feature coming soon!', 'success');
+  }, []);
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
       <ThemedView style={styles.container}>
-        <ThemedText type="title" style={{ color: primaryTextColor }}>
-          Your tickets
-        </ThemedText>
+        <View style={styles.headerContainer}>
+          <ThemedText type="title" style={{ color: primaryTextColor }}>
+            Your tickets
+          </ThemedText>
+          <TouchableOpacity
+            style={[styles.importButton, { backgroundColor: buttonSecondaryColor }]}
+            onPress={handleImportTickets}
+          >
+            <Upload size={20} color={buttonSecondaryTextColor} />
+            <ThemedText
+              type="subtitle"
+              style={[styles.importButtonText, { color: buttonSecondaryTextColor }]}
+            >
+              Import
+            </ThemedText>
+          </TouchableOpacity>
+        </View>
         {/* We don't need filters for now */}
         {/* <View style={styles.filterContainer}>
           <TouchableOpacity
@@ -373,6 +392,24 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
     paddingTop: 16,
+  },
+  headerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  importButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+  },
+  importButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   filterContainer: {
     flexDirection: 'row',
