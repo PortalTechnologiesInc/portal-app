@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, TouchableOpacity, BackHandler, View, Linking, Platform } from 'react-native';
+import { StyleSheet, TouchableOpacity, BackHandler, View, Linking, Platform, Alert } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { usePendingRequests } from '@/context/PendingRequestsContext';
-import { parseKeyHandshakeUrl } from 'portal-app-lib';
+import { parseCashuToken, parseKeyHandshakeUrl } from 'portal-app-lib';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { Flashlight, FlashlightOff, ArrowLeft, Settings } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { useECash } from '@/context/ECashContext';
 
 // Define the type for the barcode scanner result
 type BarcodeResult = {
@@ -27,10 +28,10 @@ export default function QRScannerScreen() {
   const { showSkeletonLoader } = usePendingRequests();
   const nostrService = useNostrService();
   const params = useLocalSearchParams();
+  const eCash = useECash();
 
   // Determine the mode - default to 'main' if no mode is specified
   const mode = (params.mode as string) || 'main';
-  const isWalletMode = mode === 'wallet';
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -51,7 +52,7 @@ export default function QRScannerScreen() {
     }
 
     console.log('Permission status:', permission.status, 'granted:', permission.granted, 'canAskAgain:', permission.canAskAgain);
-    
+
     if (!permission.granted) {
       if (permission.status === 'undetermined') {
         // First time - automatically request permission with small delay
@@ -89,7 +90,7 @@ export default function QRScannerScreen() {
   };
 
   const handleBackNavigation = () => {
-    if (isWalletMode) {
+    if (mode === 'wallet') {
       // Check if we came from wallet management
       if (params.returnToWallet === 'true') {
         router.back(); // Return to wallet management
@@ -107,24 +108,36 @@ export default function QRScannerScreen() {
   };
 
   const validateQRCode = (data: string): { isValid: boolean; error?: string } => {
-    if (isWalletMode) {
-      // Wallet mode: only accept nostr+walletconnect:// URLs
-      if (!data.startsWith('nostr+walletconnect://')) {
-        return {
-          isValid: false,
-          error: 'Invalid wallet QR code. Please scan a valid wallet connection QR code.',
-        };
-      }
-    } else {
-      // Main mode: validate that parseKeyHandshakeUrl can handle it
-      try {
-        parseKeyHandshakeUrl(data);
-      } catch (error) {
-        return {
-          isValid: false,
-          error: 'Invalid QR code. Please scan a valid Portal authentication QR code.',
-        };
-      }
+    console.warn(mode);
+    switch (mode) {
+      case 'wallet':
+        // Wallet mode: only accept nostr+walletconnect:// URLs
+        if (!data.startsWith('nostr+walletconnect://')) {
+          return {
+            isValid: false,
+            error: 'Invalid wallet QR code. Please scan a valid wallet connection QR code.',
+          };
+        }
+        break;
+      case 'main':
+        // Main mode: validate that parseKeyHandshakeUrl can handle it
+        try {
+          parseKeyHandshakeUrl(data);
+        } catch (error) {
+          return {
+            isValid: false,
+            error: 'Invalid QR code. Please scan a valid Portal authentication QR code.',
+          };
+        }
+        break;
+      case 'ticket':
+        if (!data.startsWith('portal-cashu://')) {
+          return {
+            isValid: false,
+            error: 'Invalid ticket QR code. Please scan a valid ticket QR code.',
+          };
+        }
+        break;
     }
     return { isValid: true };
   };
@@ -140,7 +153,7 @@ export default function QRScannerScreen() {
     }, 3000);
   };
 
-  const handleBarCodeScanned = (result: BarcodeResult) => {
+  const handleBarCodeScanned = async (result: BarcodeResult) => {
     // Prevent multiple scans
     if (scanned) return;
 
@@ -155,61 +168,111 @@ export default function QRScannerScreen() {
       return;
     }
 
-    if (isWalletMode) {
-      // Wallet QR handling - navigate to wallet with scanned URL
-      const timestamp = Date.now();
-      setTimeout(() => {
-        router.replace({
-          pathname: '/wallet',
-          params: {
-            scannedUrl: data,
-            source: params.source || 'settings',
-            returnToWallet: params.returnToWallet || 'false',
-            timestamp: timestamp.toString(),
-          },
-        });
-      }, 300);
-    } else {
-      // Main QR handling - process the URL
-      try {
-        const parsedUrl = parseKeyHandshakeUrl(data);
-        showSkeletonLoader(parsedUrl);
-        nostrService.sendKeyHandshake(parsedUrl);
-      } catch (error) {
-        console.error('Failed to process QR code:', error);
-        showErrorMessage('Failed to process QR code. Please try again.');
-        return;
-      }
+    switch (mode) {
+      case 'wallet':
+        // Wallet QR handling - navigate to wallet with scanned URL
+        const timestamp = Date.now();
+        setTimeout(() => {
+          router.replace({
+            pathname: '/wallet',
+            params: {
+              scannedUrl: data,
+              source: params.source || 'settings',
+              returnToWallet: params.returnToWallet || 'false',
+              timestamp: timestamp.toString(),
+            },
+          });
+        }, 300);
+        break;
 
-      // Navigate back with clean history after a brief delay for UX
-      setTimeout(() => {
-        router.back();
-      }, 300);
+      case 'ticket':
+        // Navigate back with clean history after a brief delay for UX
+        setTimeout(() => {
+          router.back();
+        }, 300);
+
+        let token;
+        let tokenInfo;
+        let wallet;
+
+        try {
+          token = data.replace('portal-cashu://', '');
+          tokenInfo = await parseCashuToken(token);
+          wallet = await eCash.addWallet(tokenInfo.mintUrl, tokenInfo.unit);
+        } catch (error) {
+          console.error('Failed to process ticket QR code:', error);
+          Alert.alert(
+            'Ticket Processing Error',
+            'There was a problem processing the ticket. Please try again or contact support if the problem persists.'
+          );
+          return;
+        }
+
+
+        try {
+          await wallet.receiveToken(token);
+
+          const { globalEvents } = await import('@/utils/index');
+          globalEvents.emit('walletBalancesChanged', {
+            mintUrl: tokenInfo.mintUrl,
+            unit: tokenInfo.unit.toLowerCase(),
+          });
+          console.log('walletBalancesChanged event emitted from QR scanner');
+
+          Alert.alert(
+            'Ticket Added Successfully!',
+            `Great! You've received a ${tokenInfo.unit} ticket from ${tokenInfo.mintUrl}.`
+          );
+        } catch (error) {
+          console.error('Failed to process ticket QR code:', error);
+          Alert.alert(
+            'Ticket Processing Error',
+            'There was a problem redeeming the ticket. The ticket may have already been used.'
+          );
+          return;
+        }
+        break;
+
+      default:
+        // Main QR handling - process the URL
+        try {
+          const parsedUrl = parseKeyHandshakeUrl(data);
+          showSkeletonLoader(parsedUrl);
+          await nostrService.sendKeyHandshake(parsedUrl);
+        } catch (error) {
+          console.error('Failed to process QR code:', error);
+          showErrorMessage('Failed to process QR code. Please try again.');
+          return;
+        }
+
+        // Navigate back with clean history after a brief delay for UX
+        setTimeout(() => {
+          router.back();
+        }, 300);
+        break;
     }
   };
 
   const getHeaderTitle = () => {
-    return isWalletMode ? 'Scan Wallet QR' : 'Scan QR Code';
+    switch (mode) {
+      case 'wallet': return 'Scan Wallet QR';
+      case 'ticket': return 'Scan Ticket QR';
+      default: return 'Scan Authentication QR';
+    }
   };
 
   const getInstructionText = () => {
-    return isWalletMode
-      ? 'Point your camera at a wallet connection QR code'
-      : 'Point your camera at a Portal authentication QR code';
+    switch (mode) {
+      case 'wallet': return 'Point your camera at a wallet connection QR code';
+      case 'ticket': return 'Point your camera at a ticket QR code';
+      default: return 'Point your camera at a Portal authentication QR code';
+    }
   };
 
   const renderFlashIcon = () => {
-    if (isWalletMode) {
-      return enableTorch ? (
-        <Flashlight size={24} color={buttonPrimaryText} />
-      ) : (
-        <FlashlightOff size={24} color={buttonPrimaryText} />
-      );
-    } else {
-      return (
-        <Ionicons name={enableTorch ? 'flash' : 'flash-off'} size={24} color={buttonPrimaryText} />
-      );
-    }
+    return (
+      <Ionicons name={enableTorch ? 'flash' : 'flash-off'} size={24} color={buttonPrimaryText} />
+    );
   };
 
   if (!permission) {
@@ -241,7 +304,7 @@ export default function QRScannerScreen() {
     // Camera permissions are not granted yet
     const wasAsked = permission?.status !== 'undetermined';
     const canAskAgain = permission?.canAskAgain !== false;
-    
+
     // If permission was denied and can't ask again, show settings option
     if (wasAsked && !canAskAgain) {
       return (
@@ -282,7 +345,7 @@ export default function QRScannerScreen() {
         </SafeAreaView>
       );
     }
-    
+
     // For all other cases (undetermined or can ask again), show loading state
     // The permission request will be triggered automatically by useEffect
     return (
@@ -427,11 +490,11 @@ export default function QRScannerScreen() {
                   },
                 ]}
               >
-                {showError
-                  ? errorMessage
-                  : isWalletMode
-                    ? 'Wallet QR Scanned!'
-                    : 'QR Code Scanned!'}
+                {
+                  showError
+                    ? errorMessage
+                    : 'QR Code Scanned!'
+                }
               </ThemedText>
             </View>
           </View>

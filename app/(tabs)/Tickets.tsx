@@ -14,6 +14,7 @@ import TicketCard from '@/components/TicketCard';
 import { useECash } from '@/context/ECashContext';
 import uuid from 'react-native-uuid';
 import { showToast } from '@/utils/Toast';
+import { router } from 'expo-router';
 
 export default function TicketsScreen() {
   const [filter, setFilter] = useState<'all' | 'active' | 'used' | 'expired'>('all');
@@ -207,7 +208,15 @@ export default function TicketsScreen() {
   }, []);
 
   const handleImportTickets = useCallback(() => {
-    showToast('Import tickets feature coming soon!', 'success');
+      router.push({
+        pathname: '/qr',
+        params: {
+          mode: 'ticket',
+          source: 'tickets',
+          scanType: 'qr',
+          timestamp: Date.now(),
+        },
+      });
   }, []);
 
   return (

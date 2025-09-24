@@ -51,6 +51,9 @@ export default {
             {
               scheme: 'portal',
             },
+            {
+              scheme: 'portal-cashu',
+            },
           ],
           category: ['BROWSABLE', 'DEFAULT'],
         },
