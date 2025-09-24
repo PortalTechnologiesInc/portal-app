@@ -782,6 +782,10 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
   // Show skeleton loader and set timeout for request
   const showSkeletonLoader = useCallback(
     (parsedUrl: KeyHandshakeUrl) => {
+      if (parsedUrl.noRequest) {
+        return;
+      }
+
       // Clean up any existing timeout
       if (timeoutId) {
         clearTimeout(timeoutId);

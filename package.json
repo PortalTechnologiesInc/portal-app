@@ -48,7 +48,7 @@
     "expo-web-browser": "~14.2.0",
     "lucide-react-native": "~0.516.0",
     "nostr-tools": "~2.12.0",
-    "portal-app-lib": "^0.4.5",
+    "portal-app-lib": "^0.4.7",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "react-icons": "~5.5.0",
