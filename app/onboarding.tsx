@@ -8,6 +8,7 @@ import {
   BackHandler,
   ScrollView,
   Alert,
+  Platform,
 } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
 import { ThemedText } from '@/components/ThemedText';
@@ -76,49 +77,18 @@ export default function Onboarding() {
   const buttonPrimary = useThemeColor({}, 'buttonPrimary');
   const buttonPrimaryText = useThemeColor({}, 'buttonPrimaryText');
 
-  // Handle Android back button
+  // Block all back gestures during onboarding
   useEffect(() => {
-    const backAction = () => {
-      if (currentStep === 'welcome') {
-        return false; // Let system handle default behavior
-      }
+    if (Platform.OS === 'android') {
+      const backAction = () => {
+        // Always block back gestures during onboarding
+        return true;
+      };
 
-      // Navigate backwards through the flow
-      switch (currentStep) {
-        case 'backup-warning':
-          setCurrentStep('welcome');
-          break;
-        case 'choice':
-          setCurrentStep('backup-warning');
-          break;
-        case 'generate':
-          setCurrentStep('choice');
-          break;
-        case 'verify':
-          setCurrentStep('generate');
-          break;
-        case 'import':
-          setCurrentStep('choice');
-          break;
-        case 'wallet-setup':
-          // Go back to the previous step (either verify or import)
-          setCurrentStep('verify');
-          break;
-        case 'wallet-connect':
-          // Clear wallet input and URL when going back
-          setWalletInput('');
-          setWalletUrl('');
-          setCurrentStep('wallet-setup');
-          break;
-        default:
-          setCurrentStep('welcome');
-      }
-      return true;
-    };
-
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
-    return () => backHandler.remove();
-  }, [currentStep]);
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+      return () => backHandler.remove();
+    }
+  }, []);
 
   const handleGenerate = async () => {
     const mnemonic = generateMnemonic().toString();
@@ -295,24 +265,38 @@ export default function Onboarding() {
     if (!url.trim()) {
       return { isValid: false, error: 'URL cannot be empty' };
     }
+
     try {
-      const urlObj = new URL(url);
-      if (!url.startsWith('nostr+walletconnect://')) {
-        return { isValid: false, error: 'URL must start with nostr+walletconnect://' };
+      // Normalize protocol
+      let normalized = url.trim();
+      if (normalized.startsWith('nostrwalletconnect:')) {
+        normalized = normalized.replace('nostrwalletconnect:', 'nostr+walletconnect://');
+      } else if (normalized.startsWith('nwc://')) {
+        normalized = normalized.replace('nwc://', 'nostr+walletconnect://');
       }
+
+      const urlObj = new URL(normalized);
+
+      if (!/^nostr\+walletconnect:\/\//.test(normalized)) {
+        return { isValid: false, error: 'Unsupported NWC URL format' };
+      }
+
+      // secret may be in pathname (after protocol) or as query param
+      const secret = urlObj.pathname.replace(/^\/+/, '') || urlObj.searchParams.get('secret');
       const relay = urlObj.searchParams.get('relay');
-      const secret = urlObj.searchParams.get('secret');
+
+      if (!secret) {
+        return { isValid: false, error: 'Missing secret' };
+      }
       if (!relay) {
         return { isValid: false, error: 'Missing relay parameter' };
-      }
-      if (!secret) {
-        return { isValid: false, error: 'Missing secret parameter' };
       }
       if (!relay.startsWith('wss://') && !relay.startsWith('ws://')) {
         return { isValid: false, error: 'Relay must be a websocket URL (wss:// or ws://)' };
       }
+
       return { isValid: true };
-    } catch (e) {
+    } catch {
       return { isValid: false, error: 'Invalid URL format' };
     }
   };
