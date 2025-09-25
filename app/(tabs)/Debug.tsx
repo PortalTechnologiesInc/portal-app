@@ -12,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { LogLevel, parseKeyHandshakeUrl } from 'portal-app-lib';
+import { getGitHash, LogLevel, parseKeyHandshakeUrl } from 'portal-app-lib';
 import Dropdown from 'react-native-input-select';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
@@ -217,6 +217,30 @@ export default function DebugScreen() {
           <ThemedText style={[styles.subtitle, { color: secondaryTextColor }]}>
             Development mode only - Configure portal-app-lib logging
           </ThemedText>
+
+          {/* Library Version Info */}
+          <ThemedView style={[styles.section, { backgroundColor: cardBackgroundColor }]}>
+            <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
+              📦 Portal Library Info
+            </ThemedText>
+            <ThemedText style={[styles.description, { color: secondaryTextColor }]}>
+              Current version and build information for the portal-app-lib dependency.
+            </ThemedText>
+            
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <ThemedText style={[styles.settingLabel, { color: primaryTextColor }]}>
+                  Last Commit Hash
+                </ThemedText>
+                <ThemedText style={[styles.settingSubtext, { color: secondaryTextColor }]}>
+                  Git commit hash of the current portal-app-lib build
+                </ThemedText>
+              </View>
+              <ThemedText style={[styles.commitHash, { color: buttonColor }]}>
+                {getGitHash()}
+              </ThemedText>
+            </View>
+          </ThemedView>
 
           {/* Logger Controls */}
           <ThemedView style={[styles.section, { backgroundColor: cardBackgroundColor }]}>
@@ -520,5 +544,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     minHeight: 100,
     textAlignVertical: 'top',
+  },
+  commitHash: {
+    fontSize: 12,
+    fontWeight: '600',
+    fontFamily: 'monospace',
+    textAlign: 'right',
+    maxWidth: 120,
   },
 });

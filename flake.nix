@@ -84,7 +84,7 @@
           version = packageJson.version;
           inherit src;
           
-          npmDepsHash = "sha256-ZdkByDr8yh3J2WJOQyFW5hIX5jpaVAptootVipz/eCI=";
+          npmDepsHash = "sha256-S6Q1htplcHmUZaA1ECty/I0VGTj2ZaiMSEkFFeSsFAw=";
           
           nativeBuildInputs = with pkgs; [
             nodejs_23
@@ -105,7 +105,7 @@
             cp -r android $out/
             cp -r node_modules $out/
             cp package.json $out/
-            cp app.json $out/
+            cp app.config.ts $out/
           '';
         };
 
@@ -163,7 +163,7 @@
 
           outputHashAlgo = "sha256";
           outputHashMode = "recursive";
-          outputHash = "sha256-7RbtH8yevDF77xZOLX1IAWuFiURJGbvveqkzXs+LIcc=";
+          outputHash = "sha256-U/7hzfwaEWZpY3i0GmZfEX5/huXzKJa71uhks1Kxx/I=";
         };
 
         android-bundle = pkgs.stdenv.mkDerivation rec {
