@@ -129,6 +129,20 @@ const AuthenticatedAppContent = () => {
   );
 };
 
+// Themed root view wrapper
+const ThemedRootView = () => {
+  const backgroundColor = useThemeColor({}, 'background');
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor }}>
+      <ThemedStatusBar />
+      <OnboardingProvider>
+        <AuthenticatedAppContent />
+      </OnboardingProvider>
+    </GestureHandlerRootView>
+  );
+};
+
 export default function RootLayout() {
   const [isReady, setIsReady] = useState(false);
 
@@ -166,29 +180,15 @@ export default function RootLayout() {
 
   return (
     <SQLiteProvider databaseName={DATABASE_NAME} onInit={migrateDbIfNeeded}>
-      <DatabaseProvider>
-        <ThemeProvider>
-          <CurrencyProvider>
-            <ThemedRootView />
-          </CurrencyProvider>
-        </ThemeProvider>
-      </DatabaseProvider>
+      <MnemonicProvider>
+        <DatabaseProvider>
+          <ThemeProvider>
+            <CurrencyProvider>
+              <ThemedRootView />
+            </CurrencyProvider>
+          </ThemeProvider>
+        </DatabaseProvider>
+      </MnemonicProvider>
     </SQLiteProvider>
   );
 }
-
-// Themed root view wrapper
-const ThemedRootView = () => {
-  const backgroundColor = useThemeColor({}, 'background');
-
-  return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor }}>
-      <ThemedStatusBar />
-      <MnemonicProvider>
-        <OnboardingProvider>
-          <AuthenticatedAppContent />
-        </OnboardingProvider>
-      </MnemonicProvider>
-    </GestureHandlerRootView>
-  );
-};
