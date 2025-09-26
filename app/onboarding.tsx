@@ -25,6 +25,8 @@ import {
   CheckCircle,
 } from 'lucide-react-native';
 
+import * as Clipboard from 'expo-clipboard';
+
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { generateMnemonic, Mnemonic } from 'portal-app-lib';
 import * as SecureStore from 'expo-secure-store';
@@ -218,6 +220,10 @@ export default function Onboarding() {
   const handleImport = async () => {
     await setSeedPhrase('');
     setCurrentStep('import');
+  };
+
+  const handleCopySeedPhrase = () => {
+    Clipboard.setStringAsync(seedPhrase);
   };
 
   const handleImportComplete = async () => {
@@ -511,11 +517,20 @@ export default function Onboarding() {
             </View>
 
             <TouchableOpacity
+              style={[styles.button, styles.copyButton, { backgroundColor: buttonPrimary }]}
+              onPress={handleCopySeedPhrase}
+            >
+              <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>
+                Copy to Clipboard
+              </ThemedText>
+            </TouchableOpacity>
+
+            <TouchableOpacity
               style={[styles.button, styles.finishButton, { backgroundColor: buttonPrimary }]}
               onPress={handleGenerateComplete}
             >
               <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>
-                I've Written It Down - Continue
+                I've Written It Down
               </ThemedText>
             </TouchableOpacity>
           </ScrollView>
@@ -967,6 +982,9 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   finishButton: {
+    marginTop: 10,
+  },
+  copyButton: {
     marginTop: 30,
   },
   // Seed Generation
