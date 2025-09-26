@@ -23,7 +23,11 @@ import {
   AlertTriangle,
   ArrowRight,
   CheckCircle,
+  ArrowLeft,
+  Copy,
 } from 'lucide-react-native';
+
+import * as Clipboard from 'expo-clipboard';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { generateMnemonic, Mnemonic } from 'portal-app-lib';
@@ -77,18 +81,91 @@ export default function Onboarding() {
   const buttonPrimary = useThemeColor({}, 'buttonPrimary');
   const buttonPrimaryText = useThemeColor({}, 'buttonPrimaryText');
 
-  // Block all back gestures during onboarding
+  const goToPreviousStep = () => {
+    const previousSteps: Record<OnboardingStep, OnboardingStep | null> = {
+      welcome: null,
+      'backup-warning': 'welcome',
+      choice: 'backup-warning',
+      generate: 'choice',
+      verify: 'generate',
+      import: 'choice',
+      'wallet-setup': 'choice',
+      'wallet-connect': 'wallet-setup',
+      splash: null,
+    };
+
+    const previousStep = previousSteps[currentStep];
+    if (previousStep) {
+      setCurrentStep(previousStep);
+    }
+  };
+
+  // Add this function to your component
+  const okBack = (stateToClear?: () => void) => {
+    // Clear the specified state if provided
+    if (stateToClear) {
+      stateToClear();
+    }
+
+    // Navigate to previous step
+    goToPreviousStep();
+  };
+
+  // Use in back gesture handler
   useEffect(() => {
     if (Platform.OS === 'android') {
       const backAction = () => {
-        // Always block back gestures during onboarding
+        if (currentStep === 'welcome') {
+          return true; // Block exit from app
+        }
+
+        // Call okBack with appropriate state clearing based on current step
+        switch (currentStep) {
+          case 'generate':
+            okBack(() => setSeedPhrase(''));
+            break;
+          case 'verify':
+            okBack(() => {
+              setVerificationWords({
+                word1: { index: 0, value: '' },
+                word2: { index: 0, value: '' },
+              });
+              setUserInputs({ word1: '', word2: '' });
+            });
+            break;
+          case 'wallet-connect':
+            okBack(() => setWalletInput(''));
+            break;
+          case 'import':
+            okBack(() => setSeedPhrase(''));
+            break;
+          case 'wallet-setup':
+            // Clear wallet connection status when going back from wallet setup
+            okBack(() => {
+              setIsSavingWallet(false);
+              // Reset wallet connection state if needed
+              // This ensures clean state when returning to wallet setup
+            });
+            break;
+          case 'backup-warning':
+            // No state clearing needed - just informational step
+            okBack();
+            break;
+          case 'choice':
+            // No state clearing needed - just selection step
+            okBack();
+            break;
+          default:
+            okBack(); // No state clearing needed
+        }
+
         return true;
       };
 
       const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
       return () => backHandler.remove();
     }
-  }, []);
+  }, [currentStep, okBack]);
 
   const handleGenerate = async () => {
     const mnemonic = generateMnemonic().toString();
@@ -220,6 +297,10 @@ export default function Onboarding() {
     setCurrentStep('import');
   };
 
+  const handleCopySeedPhrase = () => {
+    Clipboard.setStringAsync(seedPhrase);
+  };
+
   const handleImportComplete = async () => {
     const validation = validateImportedMnemonic(seedPhrase);
 
@@ -310,9 +391,52 @@ export default function Onboarding() {
     );
   }
 
+  // Helper function to get back button handler for current step
+  const getBackButtonHandler = () => {
+    switch (currentStep) {
+      case 'generate':
+        return () => okBack(() => setSeedPhrase(''));
+      case 'verify':
+        return () =>
+          okBack(() => {
+            setVerificationWords({
+              word1: { index: 0, value: '' },
+              word2: { index: 0, value: '' },
+            });
+            setUserInputs({ word1: '', word2: '' });
+          });
+      case 'wallet-connect':
+        return () => okBack(() => setWalletInput(''));
+      case 'import':
+        return () => okBack(() => setSeedPhrase(''));
+      case 'wallet-setup':
+        return () => okBack(() => setIsSavingWallet(false));
+      default:
+        return () => okBack();
+    }
+  };
+
+  // Helper function to check if back button should be shown
+  const shouldShowBackButton = () => {
+    return currentStep !== 'welcome' && currentStep !== ('splash' as OnboardingStep);
+  };
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
       <ThemedView style={styles.container}>
+        {/* Header with Back Button */}
+        {shouldShowBackButton() && (
+          <ThemedView style={styles.header}>
+            <TouchableOpacity onPress={getBackButtonHandler()} style={styles.backButton}>
+              <ArrowLeft size={24} color={textPrimary} />
+            </TouchableOpacity>
+            <ThemedText style={[styles.headerText, { color: textPrimary }]}>
+              Portal Setup
+            </ThemedText>
+            <View style={styles.headerSpacer} />
+          </ThemedView>
+        )}
+
         {/* Logo */}
         <View style={styles.logoContainer}>
           <Image source={onboardingLogo} style={styles.logo} resizeMode="contain" />
@@ -511,11 +635,20 @@ export default function Onboarding() {
             </View>
 
             <TouchableOpacity
+              style={[styles.button, styles.copyButton, { backgroundColor: buttonPrimary }]}
+              onPress={handleCopySeedPhrase}
+            >
+              <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>
+                Copy to Clipboard
+              </ThemedText>
+            </TouchableOpacity>
+
+            <TouchableOpacity
               style={[styles.button, styles.finishButton, { backgroundColor: buttonPrimary }]}
               onPress={handleGenerateComplete}
             >
               <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>
-                I've Written It Down - Continue
+                I've Written It Down
               </ThemedText>
             </TouchableOpacity>
           </ScrollView>
@@ -967,6 +1100,9 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   finishButton: {
+    marginTop: 10,
+  },
+  copyButton: {
     marginTop: 30,
   },
   // Seed Generation
@@ -1081,6 +1217,27 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     fontWeight: '600',
+  },
+  // Header styles
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  backButton: {
+    padding: 8,
+    marginLeft: -30,
+  },
+  headerText: {
+    fontSize: 20,
+    fontWeight: '600',
+    flex: 1,
+    textAlign: 'center',
+  },
+  headerSpacer: {
+    width: 10,
   },
   // Wallet connect mini status styles
   walletStatusContainer: {
