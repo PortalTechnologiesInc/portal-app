@@ -63,13 +63,14 @@ const deriveConnectionState = (
   walletUrl: string,
   nwcConnectionStatus: boolean | null,
   nwcConnectionError: string | null,
+  nwcConnecting: boolean,
   isValidating: boolean
 ): { state: NwcConnectionState; error: string } => {
   if (!walletUrl.trim()) {
     return { state: 'none', error: '' };
   }
 
-  if (isValidating) {
+  if (isValidating || nwcConnecting) {
     return { state: 'connecting', error: '' };
   }
 
@@ -85,7 +86,7 @@ const deriveConnectionState = (
     };
   }
 
-  // If no status yet (null), check if URL is valid and show connecting
+  // If no status yet (null) and not connecting, check if URL is valid
   if (nwcConnectionStatus === null) {
     const validation = validateNwcUrl(walletUrl);
     if (validation.isValid) {
@@ -111,7 +112,7 @@ export default function WalletManagementScreen() {
   const params = useLocalSearchParams();
   const handledUrlRef = useRef<string | null>(null);
 
-  const { walletInfo, refreshWalletInfo, nwcConnectionStatus, nwcConnectionError } =
+  const { walletInfo, refreshWalletInfo, nwcConnectionStatus, nwcConnectionError, nwcConnecting } =
     useNostrService();
 
   const { hasLightningWallet, isLightningConnected, isLoading } = useWalletStatus();
@@ -130,8 +131,14 @@ export default function WalletManagementScreen() {
 
   // Memoized connection state derivation - using event-driven status
   const connectionState = useMemo(() => {
-    return deriveConnectionState(walletUrl, nwcConnectionStatus, nwcConnectionError, isValidating);
-  }, [walletUrl, nwcConnectionStatus, nwcConnectionError, isValidating]);
+    return deriveConnectionState(
+      walletUrl,
+      nwcConnectionStatus,
+      nwcConnectionError,
+      nwcConnecting,
+      isValidating
+    );
+  }, [walletUrl, nwcConnectionStatus, nwcConnectionError, nwcConnecting, isValidating]);
 
   // Simplified wallet data loading - connection status comes from hook
   const loadWalletData = useCallback(async () => {

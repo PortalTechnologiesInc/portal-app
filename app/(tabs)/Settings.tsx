@@ -27,11 +27,7 @@ import {
 } from 'lucide-react-native';
 import { Moon, Sun, Smartphone } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  walletUrlEvents,
-  getMnemonic,
-  getWalletUrl,
-} from '@/services/SecureStorageService';
+import { walletUrlEvents, getMnemonic, getWalletUrl } from '@/services/SecureStorageService';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { showToast } from '@/utils/Toast';
 import { authenticateForSensitiveAction } from '@/services/BiometricAuthService';
@@ -73,7 +69,7 @@ export default function SettingsScreen() {
   const statusConnectedColor = useThemeColor({}, 'statusConnected');
 
   // Get event-driven NWC connection status
-  const { nwcConnectionStatus, nwcConnectionError } = nostrService;
+  const { nwcConnectionStatus, nwcConnectionError, nwcConnecting } = nostrService;
 
   // Subscribe to wallet URL changes for display purposes
   useEffect(() => {
@@ -146,7 +142,8 @@ export default function SettingsScreen() {
 
     setThemeMode(nextTheme);
     showToast(
-      `Theme changed to ${nextTheme === 'auto' ? 'Auto (System)' : nextTheme === 'light' ? 'Light' : 'Dark'
+      `Theme changed to ${
+        nextTheme === 'auto' ? 'Auto (System)' : nextTheme === 'light' ? 'Light' : 'Dark'
       }`,
       'success'
     );
@@ -228,6 +225,7 @@ export default function SettingsScreen() {
     if (nwcConnectionStatus === false) {
       return nwcConnectionError ? `Error: ${nwcConnectionError}` : 'Disconnected';
     }
+    if (nwcConnecting) return 'Connecting...';
     if (nwcConnectionStatus === null && hasLightningWallet) return 'Connecting...';
     return 'Not configured';
   }
@@ -471,7 +469,7 @@ export default function SettingsScreen() {
             </View>
             <Switch
               value={false}
-              onValueChange={() => { }}
+              onValueChange={() => {}}
               disabled={true}
               trackColor={{
                 false: inputBorderColor,

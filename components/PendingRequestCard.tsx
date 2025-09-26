@@ -315,6 +315,27 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
 
     const warningInfo = getWarningInfo();
 
+    // Determine if approve button should be disabled
+    const isApproveDisabled = () => {
+      // Only disable for payment and subscription requests
+      if (!isPaymentRequest && !isSubscriptionRequest) {
+        return false;
+      }
+
+      // Don't disable while wallet status is still loading
+      if (walletStatusLoading) {
+        return false;
+      }
+
+      // Check if user has any functional wallet
+      const hasWorkingWallet = hasECashWallets || nwcStatus === true;
+
+      // Disable if no wallet configured or insufficient balance
+      return !hasWorkingWallet || hasInsufficientBalance;
+    };
+
+    const approveDisabled = isApproveDisabled();
+
     return (
       <View style={[styles.card, { backgroundColor: cardBackgroundColor, shadowColor }]}>
         <Text style={[styles.requestType, { color: secondaryTextColor }]}>
@@ -418,16 +439,34 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
             style={[
               styles.button,
               styles.approveButton,
-              { backgroundColor: useThemeColor({}, 'buttonSuccess') },
+              {
+                backgroundColor: approveDisabled
+                  ? useThemeColor({}, 'buttonSecondary')
+                  : useThemeColor({}, 'buttonSuccess'),
+              },
             ]}
-            onPress={() => approve(id)}
+            onPress={() => !approveDisabled && approve(id)}
+            disabled={approveDisabled}
           >
             <Ionicons
               name="checkmark-outline"
               size={20}
-              color={useThemeColor({}, 'buttonSuccessText')}
+              color={
+                approveDisabled
+                  ? useThemeColor({}, 'textTertiary')
+                  : useThemeColor({}, 'buttonSuccessText')
+              }
             />
-            <Text style={[styles.buttonText, { color: useThemeColor({}, 'buttonSuccessText') }]}>
+            <Text
+              style={[
+                styles.buttonText,
+                {
+                  color: approveDisabled
+                    ? useThemeColor({}, 'textTertiary')
+                    : useThemeColor({}, 'buttonSuccessText'),
+                },
+              ]}
+            >
               Approve
             </Text>
           </TouchableOpacity>
