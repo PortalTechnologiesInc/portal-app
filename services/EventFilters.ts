@@ -12,6 +12,8 @@ import {
   parseBolt11,
 } from 'portal-app-lib';
 import { DatabaseService, fromUnixSeconds, SubscriptionWithDates } from './DatabaseService';
+import { CurrencyConversionService } from './CurrencyConversionService';
+import { Currency } from '@/utils/currency';
 
 export async function handleAuthChallenge(
   event: AuthChallengeEvent,
@@ -24,6 +26,7 @@ export async function handleAuthChallenge(
 export async function handleSinglePaymentRequest(
   wallet: Nwc | null,
   request: SinglePaymentRequest,
+  preferredCurrency: Currency,
   executeOperation: <T>(operation: (db: DatabaseService) => Promise<T>, fallback?: T) => Promise<T>,
   resolve: (status: PaymentStatus) => void,
   getServiceName: (app: PortalAppInterface, serviceKey: string) => Promise<string | null>,
@@ -123,6 +126,8 @@ export async function handleSinglePaymentRequest(
             date: new Date(),
             amount: Number(amountSats),
             currency: request.content.currency.tag,
+            converted_amount: convertedAmount,
+            converted_currency: convertedCurrency,
             request_id: request.eventId,
             status: 'negative',
             subscription_id: request.content.subscriptionId || null,
@@ -151,6 +156,8 @@ export async function handleSinglePaymentRequest(
             date: new Date(),
             amount: Number(amountSats),
             currency: request.content.currency.tag,
+            converted_amount: convertedAmount,
+            converted_currency: convertedCurrency,
             request_id: request.eventId,
             status: 'pending',
             subscription_id: request.content.subscriptionId || null,
@@ -231,6 +238,8 @@ export async function handleSinglePaymentRequest(
             date: new Date(),
             amount: Number(amountSats),
             currency: request.content.currency.tag,
+            converted_amount: convertedAmount,
+            converted_currency: convertedCurrency,
             request_id: request.eventId,
             status: 'negative',
             subscription_id: request.content.subscriptionId || null,

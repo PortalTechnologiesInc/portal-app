@@ -53,6 +53,7 @@ import {
 } from '@/services/EventFilters';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 import { useDatabaseContext } from '@/context/DatabaseContext';
+import { useCurrency } from './CurrencyContext';
 
 // Constants and helper classes from original NostrService
 const DEFAULT_RELAYS = [
@@ -258,6 +259,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
   const eCashContext = useECash();
   const { executeOperation } = useDatabaseContext();
+  const { preferredCurrency } = useCurrency();
 
   // Reset all NostrService state to initial values
   // This is called during app reset to ensure clean state
@@ -809,6 +811,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                   handleSinglePaymentRequest(
                     nwcWalletRef.current,
                     event,
+                    preferredCurrency,
                     executeOperation,
                     resolver,
                     getServiceName,
