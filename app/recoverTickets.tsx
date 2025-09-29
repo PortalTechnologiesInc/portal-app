@@ -17,6 +17,7 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 import { useECash } from '@/context/ECashContext';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import { globalEvents } from '@/utils/index';
+import { useNostrService } from '@/context/NostrServiceContext';
 
 export default function RecoverTicketsScreen() {
   const router = useRouter();
@@ -38,6 +39,7 @@ export default function RecoverTicketsScreen() {
   const buttonDangerTextColor = useThemeColor({}, 'buttonDangerText');
 
   const { addWallet, wallets } = useECash();
+  const { mnemonic } = useNostrService();
   const { executeOnNostr } = useDatabaseContext();
 
   const addNewUrlField = () => {
@@ -67,7 +69,7 @@ export default function RecoverTicketsScreen() {
   useEffect(() => {
     const retrieveMintsUrls = async () => {
       setIsSearchingUrls(true);
-      const fetchedUrls = await executeOnNostr(async (db) => {
+      const fetchedUrls = await executeOnNostr(mnemonic, async (db) => {
         const redMints = await db.readMints()
         return redMints;
 

@@ -172,6 +172,7 @@ export class LocalClosedRecurringPaymentListener implements ClosedRecurringPayme
 
 // Context type definition
 export interface NostrServiceContextType {
+  mnemonic: string,
   isInitialized: boolean;
   isWalletConnected: boolean;
   publicKey: string | null;
@@ -563,7 +564,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                 );
                 await wallet.receiveToken(token);
 
-                await executeOnNostr(async (db) => {
+                await executeOnNostr(mnemonic, async (db) => {
                   let mintsList = await db.readMints();
                   
                   // Convert to Set to prevent duplicates, then back to array
@@ -1297,6 +1298,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
   // Context value
   const contextValue: NostrServiceContextType = {
+    mnemonic,
     isInitialized,
     isWalletConnected: nwcWallet !== null,
     publicKey,
