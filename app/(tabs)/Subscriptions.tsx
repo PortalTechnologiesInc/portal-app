@@ -9,6 +9,8 @@ import { useActivities } from '@/context/ActivitiesContext';
 import { fromUnixSeconds, type SubscriptionWithDates } from '@/services/DatabaseService';
 import { parseCalendar } from 'portal-app-lib';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { Currency, shouldShowConvertedAmount } from '@/utils/currency';
+import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 
 export default function SubscriptionsScreen() {
   const { subscriptions } = useActivities();
@@ -66,9 +68,23 @@ export default function SubscriptionsScreen() {
               <ThemedText type="subtitle" style={{ color: primaryTextColor }}>
                 {item.service_name}
               </ThemedText>
-              <ThemedText style={[styles.amount, { color: primaryTextColor }]}>
-                {item.amount} {item.currency}
-              </ThemedText>
+              <View style={styles.amountContainer}>
+                <ThemedText style={[styles.amount, { color: primaryTextColor }]}>
+                  {item.amount} {item.currency}
+                </ThemedText>
+                {shouldShowConvertedAmount({
+                  amount: item.converted_amount,
+                  originalCurrency: item.currency,
+                  convertedCurrency: item.converted_currency,
+                }) && (
+                  <ThemedText style={[styles.convertedAmountText, { color: secondaryTextColor }]}>
+                    {CurrencyConversionService.formatConvertedAmountWithFallback(
+                      item.converted_amount,
+                      item.converted_currency as Currency
+                    )}
+                  </ThemedText>
+                )}
+              </View>
             </View>
 
             <ThemedText
@@ -249,5 +265,13 @@ const styles = StyleSheet.create({
     // color handled by theme
     fontSize: 14,
     fontWeight: '500',
+  },
+  amountContainer: {
+    alignItems: 'flex-end',
+  },
+  convertedAmountText: {
+    fontSize: 14,
+    fontWeight: '500',
+    fontStyle: 'italic',
   },
 });

@@ -41,6 +41,8 @@ export interface SubscriptionRecord {
   service_key: string;
   amount: number;
   currency: string;
+  converted_amount: number | null;
+  converted_currency: string | null;
   recurrence_calendar: string;
   recurrence_max_payments: number | null;
   recurrence_until: number | null; // Unix timestamp in seconds
@@ -271,11 +273,11 @@ export class DatabaseService {
 
     await this.db.runAsync(
       `INSERT INTO subscriptions (
-        id, request_id, service_name, service_key, amount, currency,
+        id, request_id, service_name, service_key, amount, currency, converted_amount, converted_currency,
         recurrence_calendar, recurrence_max_payments, recurrence_until,
         recurrence_first_payment_due, status, last_payment_date,
         next_payment_date, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         subscription.request_id,
@@ -283,6 +285,8 @@ export class DatabaseService {
         subscription.service_key,
         subscription.amount,
         subscription.currency,
+        subscription.converted_amount,
+        subscription.converted_currency,
         subscription.recurrence_calendar,
         subscription.recurrence_max_payments,
         subscription.recurrence_until ? toUnixSeconds(subscription.recurrence_until) : null,
@@ -410,6 +414,8 @@ export class DatabaseService {
       serviceName: sub.service_name,
       amount: sub.amount,
       currency: sub.currency as Currency,
+      convertedAmount: sub.converted_amount,
+      convertedCurrency: sub.converted_currency,
       dueDate: fromUnixSeconds(sub.next_payment_date ?? 0),
     }));
   }

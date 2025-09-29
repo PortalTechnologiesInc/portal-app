@@ -3,7 +3,7 @@ import { SQLiteDatabase } from 'expo-sqlite';
 // Function to migrate database schema if needed
 export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
   console.log('Database initialization started');
-  const DATABASE_VERSION = 14;
+  const DATABASE_VERSION = 15;
 
   try {
     let { user_version: currentDbVersion } = (await db.getFirstAsync<{
@@ -369,6 +369,19 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
       currentDbVersion = 14;
       console.log(
         'Added converted amount and currency columns to activities table - now at version 14'
+      );
+    }
+
+    if (currentDbVersion <= 14) {
+      await db.execAsync(`
+        -- Add converted amount and currency columns to subscription table
+        ALTER TABLE subscriptions ADD COLUMN converted_amount REAL;
+        ALTER TABLE subscriptions ADD COLUMN converted_currency TEXT;
+        CREATE INDEX IF NOT EXISTS idx_subscriptions_converted_currency ON subscriptions(converted_currency);
+      `);
+      currentDbVersion = 15;
+      console.log(
+        'Added converted amount and currency columns to subscriptions table - now at version 15'
       );
     }
 

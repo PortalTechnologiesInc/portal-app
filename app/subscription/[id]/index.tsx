@@ -22,6 +22,8 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 import { PortalAppManager } from '@/services/PortalAppManager';
 import { CircleX, Hourglass } from 'lucide-react-native';
 import { useDatabaseContext } from '@/context/DatabaseContext';
+import { Currency, shouldShowConvertedAmount } from '@/utils/currency';
+import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 
 // Mock payment history for a subscription
 interface PaymentHistory {
@@ -210,9 +212,23 @@ export default function SubscriptionDetailScreen() {
               <ThemedText type="subtitle" style={[styles.serviceName, { color: primaryTextColor }]}>
                 {subscription.service_name}
               </ThemedText>
-              <ThemedText style={[styles.amount, { color: primaryTextColor }]}>
-                {subscription.amount} {subscription.currency}
-              </ThemedText>
+              <View style={styles.amountContainer}>
+                <ThemedText style={[styles.amount, { color: primaryTextColor }]}>
+                  {subscription.amount} {subscription.currency}
+                </ThemedText>
+                {shouldShowConvertedAmount({
+                  amount: subscription.converted_amount,
+                  originalCurrency: subscription.currency,
+                  convertedCurrency: subscription.converted_currency,
+                }) && (
+                  <ThemedText style={[styles.convertedAmountText, { color: secondaryTextColor }]}>
+                    {CurrencyConversionService.formatConvertedAmountWithFallback(
+                      subscription.converted_amount,
+                      subscription.converted_currency as Currency
+                    )}
+                  </ThemedText>
+                )}
+              </View>
             </View>
 
             <View style={styles.recurrencyBadge}>
@@ -463,5 +479,13 @@ const styles = StyleSheet.create({
   },
   iconContainer: {
     width: 30,
+  },
+  amountContainer: {
+    alignItems: 'flex-end',
+  },
+  convertedAmountText: {
+    fontSize: 14,
+    fontWeight: '500',
+    fontStyle: 'italic',
   },
 });

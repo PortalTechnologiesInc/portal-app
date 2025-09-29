@@ -131,6 +131,8 @@ export interface UpcomingPayment {
   serviceName: string;
   amount: number;
   currency: string;
+  convertedAmount: number | null;
+  convertedCurrency: string | null;
   dueDate: Date;
 }
 
@@ -240,6 +242,8 @@ export interface SubscriptionRecord {
   service_key: string;
   amount: number;
   currency: string;
+  converted_amount: number | null;
+  converted_currency: string | null;
   recurrence_calendar: string;
   recurrence_max_payments: number | null;
   recurrence_until: number | null; // Unix timestamp in seconds
