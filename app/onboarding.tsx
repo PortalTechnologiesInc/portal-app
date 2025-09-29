@@ -325,16 +325,6 @@ export default function Onboarding() {
                     Connect and interact with Lightning wallets through Nostr Wallet Connect
                   </ThemedText>
                 </View>
-
-                <View style={[styles.featureCard, { backgroundColor: cardBackgroundColor }]}>
-                  <Globe size={28} color={buttonPrimary} />
-                  <ThemedText type="defaultSemiBold" style={styles.featureTitle}>
-                    Secure Communication
-                  </ThemedText>
-                  <ThemedText style={styles.featureDescription}>
-                    Send encrypted protocol messages securely through the Nostr network
-                  </ThemedText>
-                </View>
               </View>
 
               <TouchableOpacity

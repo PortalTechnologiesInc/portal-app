@@ -384,12 +384,33 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 (request.metadata as RecurringPaymentRequest).serviceKey
               );
 
+              // Convert currency for user's preferred currency
+              let convertedAmount: number | null = null;
+              let convertedCurrency: string | null = null;
+
+              try {
+                const sourceCurrency =
+                  currencyObj?.tag === Currency_Tags.Fiat ? (currencyObj as any).inner : 'SATS';
+
+                convertedAmount = await CurrencyConversionService.convertAmount(
+                  Number(amount),
+                  sourceCurrency,
+                  preferredCurrency // Currency enum values are already strings
+                );
+                convertedCurrency = preferredCurrency;
+              } catch (error) {
+                console.error('Currency conversion error during payment:', error);
+                // Continue without conversion - convertedAmount will remain null
+              }
+
               const subscriptionId = await addSubscriptionWithFallback({
                 request_id: id,
                 service_name: serviceName,
                 service_key: (request.metadata as RecurringPaymentRequest).serviceKey,
                 amount: Number(amount) / 1000,
                 currency: 'sats',
+                converted_amount: convertedAmount,
+                converted_currency: convertedCurrency,
                 status: 'active',
                 recurrence_until: req.content.recurrence.until
                   ? fromUnixSeconds(req.content.recurrence.until)

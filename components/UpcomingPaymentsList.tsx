@@ -10,10 +10,12 @@ import { parseCalendar } from 'portal-app-lib';
 import { fromUnixSeconds } from '@/services/DatabaseService';
 import { BanknoteIcon } from 'lucide-react-native';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { Currency, CurrencyHelpers, shouldShowConvertedAmount } from '@/utils/currency';
+import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 
 export const UpcomingPaymentsList: React.FC = () => {
   // Initialize with empty array - will be populated with real data later
-  const [upcomingPayments, SetUpcomingPayments] = useState<UpcomingPayment[]>([]);
+  const [upcomingPayments, setUpcomingPayments] = useState<UpcomingPayment[]>([]);
 
   const { activeSubscriptions } = useActivities();
 
@@ -31,7 +33,7 @@ export const UpcomingPaymentsList: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    SetUpcomingPayments(
+    setUpcomingPayments(
       activeSubscriptions
         .map(sub => {
           const parsedCalendar = parseCalendar(sub.recurrence_calendar);
@@ -39,10 +41,10 @@ export const UpcomingPaymentsList: React.FC = () => {
             sub.recurrence_first_payment_due > new Date() || !sub.last_payment_date
               ? sub.recurrence_first_payment_due
               : fromUnixSeconds(
-                  parsedCalendar.nextOccurrence(
-                    BigInt((sub.last_payment_date?.getTime() ?? 0) / 1000)
-                  ) ?? 0
-                );
+                parsedCalendar.nextOccurrence(
+                  BigInt((sub.last_payment_date?.getTime() ?? 0) / 1000)
+                ) ?? 0
+              );
 
           return {
             id: sub.id,
@@ -50,6 +52,8 @@ export const UpcomingPaymentsList: React.FC = () => {
             dueDate: nextPayment,
             amount: sub.amount,
             currency: sub.currency,
+            convertedAmount: sub.converted_amount,
+            convertedCurrency: sub.converted_currency,
           };
         })
         .filter(sub => {
@@ -80,6 +84,18 @@ export const UpcomingPaymentsList: React.FC = () => {
           <ThemedText style={[styles.amount, { color: primaryTextColor }]}>
             {item.amount} {item.currency}
           </ThemedText>
+          {shouldShowConvertedAmount({
+            amount: item.convertedAmount,
+            originalCurrency: item.currency,
+            convertedCurrency: item.convertedCurrency,
+          }) && (
+            <ThemedText style={[styles.convertedAmountText, { color: secondaryTextColor }]}>
+              {CurrencyConversionService.formatConvertedAmountWithFallback(
+                item.convertedAmount,
+                item.convertedCurrency as Currency
+              )}
+            </ThemedText>
+          )}
           <ThemedText style={[styles.dueDate, { color: secondaryTextColor }]}>
             {formatRelativeTime(item.dueDate)}
           </ThemedText>
@@ -190,5 +206,10 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     textAlign: 'center',
+  },
+  convertedAmountText: {
+    fontSize: 14,
+    fontWeight: '500',
+    fontStyle: 'italic',
   },
 });
