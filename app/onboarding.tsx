@@ -656,57 +656,62 @@ export default function Onboarding() {
 
         {/* Verify Step */}
         {currentStep === 'verify' && (
-          <View style={styles.pageContainer}>
-            <ThemedText type="title" style={styles.title}>
-              Verify Your Seed Phrase
-            </ThemedText>
-            <ThemedText style={styles.subtitle}>
-              Please enter the words you wrote down to confirm your backup
-            </ThemedText>
-
-            <View style={styles.verificationContainer}>
-              <ThemedText style={styles.verificationText}>
-                Enter word #{verificationWords.word1.index + 1}:
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.pageContainer}>
+              <ThemedText type="title" style={styles.title}>
+                Verify Your Seed Phrase
               </ThemedText>
-              <TextInput
-                style={[
-                  styles.verificationInput,
-                  { backgroundColor: inputBackground, color: textPrimary },
-                ]}
-                placeholder={`Word ${verificationWords.word1.index + 1}`}
-                placeholderTextColor={inputPlaceholder}
-                value={userInputs.word1}
-                onChangeText={text => setUserInputs(prev => ({ ...prev, word1: text }))}
-                autoCorrect={false}
-                autoCapitalize="none"
-              />
-
-              <ThemedText style={styles.verificationText}>
-                Enter word #{verificationWords.word2.index + 1}:
+              <ThemedText style={styles.subtitle}>
+                Please enter the words you wrote down to confirm your backup
               </ThemedText>
-              <TextInput
-                style={[
-                  styles.verificationInput,
-                  { backgroundColor: inputBackground, color: textPrimary },
-                ]}
-                placeholder={`Word ${verificationWords.word2.index + 1}`}
-                placeholderTextColor={inputPlaceholder}
-                value={userInputs.word2}
-                onChangeText={text => setUserInputs(prev => ({ ...prev, word2: text }))}
-                autoCorrect={false}
-                autoCapitalize="none"
-              />
+
+              <View style={styles.verificationContainer}>
+                <ThemedText style={styles.verificationText}>
+                  Enter word #{verificationWords.word1.index + 1}:
+                </ThemedText>
+                <TextInput
+                  style={[
+                    styles.verificationInput,
+                    { backgroundColor: inputBackground, color: textPrimary },
+                  ]}
+                  placeholder={`Word ${verificationWords.word1.index + 1}`}
+                  placeholderTextColor={inputPlaceholder}
+                  value={userInputs.word1}
+                  onChangeText={text => setUserInputs(prev => ({ ...prev, word1: text }))}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                />
+
+                <ThemedText style={styles.verificationText}>
+                  Enter word #{verificationWords.word2.index + 1}:
+                </ThemedText>
+                <TextInput
+                  style={[
+                    styles.verificationInput,
+                    { backgroundColor: inputBackground, color: textPrimary },
+                  ]}
+                  placeholder={`Word ${verificationWords.word2.index + 1}`}
+                  placeholderTextColor={inputPlaceholder}
+                  value={userInputs.word2}
+                  onChangeText={text => setUserInputs(prev => ({ ...prev, word2: text }))}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                />
+              </View>
+
+              <TouchableOpacity
+                style={[styles.button, styles.finishButton, { backgroundColor: buttonPrimary }]}
+                onPress={handleVerificationComplete}
+              >
+                <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>
+                  Verify and Continue
+                </ThemedText>
+              </TouchableOpacity>
             </View>
-
-            <TouchableOpacity
-              style={[styles.button, styles.finishButton, { backgroundColor: buttonPrimary }]}
-              onPress={handleVerificationComplete}
-            >
-              <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>
-                Verify and Continue
-              </ThemedText>
-            </TouchableOpacity>
-          </View>
+          </ScrollView>
         )}
 
         {/* Import Step */}
