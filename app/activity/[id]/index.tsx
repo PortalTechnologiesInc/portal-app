@@ -332,7 +332,7 @@ export default function ActivityDetailScreen() {
                         : 'Payment Transaction'}
                   </ThemedText>
                   <ThemedText style={[styles.infoText, { color: secondaryTextColor }]}>
-                    This was a {isAuth ? 'login' : isTicket ? 'ticket request' : 'payment'} request{' '}
+                    This was a {isAuth ? 'login' : isTicket ? 'ticket' : 'payment'} request{' '}
                     {isAuth ? 'to authenticate your identity with' : 'from'} {activity.service_name}
                     .
                     {activityStatus === 'success' &&
