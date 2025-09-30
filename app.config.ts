@@ -35,7 +35,7 @@ export default {
       },
     },
     android: {
-      versionCode: 8,
+      versionCode: 9,
       googleServicesFile: process.env.GOOGLE_SERVICES_JSON,
       adaptiveIcon: {
         foregroundImage: './assets/images/appLogo.png',
