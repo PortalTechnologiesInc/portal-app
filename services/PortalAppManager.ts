@@ -12,13 +12,13 @@ export class PortalAppManager {
     keypair: KeypairInterface,
     relays: string[],
     relayStatusCallback: RelayStatusListener
-  ) {
-    if (!PortalAppManager.instance) {
+  ): Promise<PortalAppInterface> {
+    if (!this.instance) {
       console.log('📚 Initializing the lib!');
       PortalAppManager.instance = await PortalApp.create(keypair, relays, relayStatusCallback);
     }
 
-    return this.instance;
+    return this.instance!;
   }
 
   static tryGetInstance() {

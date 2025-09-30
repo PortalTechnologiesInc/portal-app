@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   StyleSheet,
   TouchableOpacity,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   Alert,
   TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -19,7 +20,8 @@ import { globalEvents } from '@/utils/index';
 
 export default function RecoverTicketsScreen() {
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSearchingUrls, setIsSearchingUrls] = useState(false);
+  const [isRecoveringTickets, setIsRecoveringTickets] = useState(false);
   const [mintUrls, setMintUrls] = useState<string[]>(['']);
 
   // Theme colors
@@ -29,7 +31,6 @@ export default function RecoverTicketsScreen() {
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');
   const buttonPrimaryColor = useThemeColor({}, 'buttonPrimary');
   const buttonPrimaryTextColor = useThemeColor({}, 'buttonPrimaryText');
-  const statusConnectedColor = useThemeColor({}, 'statusConnected');
   const inputBackgroundColor = useThemeColor({}, 'inputBackground');
   const inputBorderColor = useThemeColor({}, 'inputBorder');
   const inputPlaceholderColor = useThemeColor({}, 'inputPlaceholder');
@@ -37,7 +38,7 @@ export default function RecoverTicketsScreen() {
   const buttonDangerTextColor = useThemeColor({}, 'buttonDangerText');
 
   const { addWallet, wallets } = useECash();
-  const { executeOperation } = useDatabaseContext();
+  const { executeOnNostr } = useDatabaseContext();
 
   const addNewUrlField = () => {
     setMintUrls([...mintUrls, '']);
@@ -63,6 +64,29 @@ export default function RecoverTicketsScreen() {
     }
   };
 
+  useEffect(() => {
+    const retrieveMintsUrls = async () => {
+      setIsSearchingUrls(true);
+      const fetchedUrls = await executeOnNostr(async (db) => {
+        const redMints = await db.readMints()
+        return redMints;
+
+      });
+
+      if (fetchedUrls.length > 0) {
+        Alert.alert(
+          'Mint URLs Found',
+          `Great news! On the Nostr relays you're connected to, we found ${fetchedUrls.length} mint URL${fetchedUrls.length > 1 ? 's' : ''} linked to your public key. These URLs have been automatically added to help you recover your tickets.`,
+          [{ text: 'OK' }]
+        );
+        setMintUrls(fetchedUrls);
+      }
+      setIsSearchingUrls(false);
+    };
+
+    retrieveMintsUrls();
+  }, []);
+
   const handleRecoverTickets = useCallback(async () => {
     const validUrls = mintUrls.filter(url => url.trim() && isValidUrl(url.trim()));
 
@@ -70,7 +94,7 @@ export default function RecoverTicketsScreen() {
       Alert.alert('No URLs', 'Please enter at least one valid mint server URL.');
       return;
     }
-    setIsLoading(true);
+    setIsRecoveringTickets(true);
     try {
       for (const url of validUrls) {
         const response = await Promise.race([
@@ -132,7 +156,7 @@ export default function RecoverTicketsScreen() {
         [{ text: 'OK' }]
       );
     } finally {
-      setIsLoading(false);
+      setIsRecoveringTickets(false);
     }
   }, [mintUrls, addWallet, router]);
 
@@ -152,97 +176,104 @@ export default function RecoverTicketsScreen() {
           </ThemedText>
         </ThemedView>
 
-        <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-          {/* Info Section */}
-          <ThemedView style={[styles.infoCard, { backgroundColor: cardBackgroundColor }]}>
-            <View style={styles.infoHeader}>
-              <View style={[styles.infoIcon, { backgroundColor: buttonPrimaryColor }]}>
-                <AlertCircle size={20} color={buttonPrimaryTextColor} />
+        {/* Searching for Mint URLs Loading */}
+        {isSearchingUrls ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={buttonPrimaryColor} />
+          </View>
+        ) : (
+          <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+            {/* Info Section */}
+            <ThemedView style={[styles.infoCard, { backgroundColor: cardBackgroundColor }]}>
+              <View style={styles.infoHeader}>
+                <View style={[styles.infoIcon, { backgroundColor: buttonPrimaryColor }]}>
+                  <AlertCircle size={20} color={buttonPrimaryTextColor} />
+                </View>
+                <ThemedText style={[styles.infoTitle, { color: primaryTextColor }]}>
+                  Ticket Recovery
+                </ThemedText>
               </View>
-              <ThemedText style={[styles.infoTitle, { color: primaryTextColor }]}>
-                Ticket Recovery
+              <ThemedText style={[styles.infoDescription, { color: secondaryTextColor }]}>
+                If you're missing tickets or they haven't appeared in your wallet, you can try to recover them by entering the mint server URLs that emitted the tickets. Note that the mint URL may differ from the generic event URL, so if you encounter errors, please contact the event organizer for assistance.
               </ThemedText>
-            </View>
-            <ThemedText style={[styles.infoDescription, { color: secondaryTextColor }]}>
-              If you're missing tickets or they haven't appeared in your wallet, you can try to recover them by entering the mint server URLs that emitted the tickets. Note that the mint URL may differ from the generic event URL, so if you encounter errors, please contact the event organizer for assistance.
-            </ThemedText>
-          </ThemedView>
+            </ThemedView>
 
-          {/* Mint Server URLs */}
-          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
-            Mint Server URLs
-          </ThemedText>
-
-          <ThemedView style={[styles.urlInputCard, { backgroundColor: cardBackgroundColor }]}>
-            <ThemedText style={[styles.urlInputLabel, { color: primaryTextColor }]}>
-              Enter mint server URLs that emitted tickets:
+            {/* Mint Server URLs */}
+            <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
+              Mint Server URLs
             </ThemedText>
 
-            {mintUrls.map((url, index) => (
-              <View key={index} style={styles.urlInputRow}>
-                <TextInput
-                  style={[
-                    styles.urlInput,
-                    {
-                      backgroundColor: inputBackgroundColor,
-                      borderColor: inputBorderColor,
-                      color: primaryTextColor,
-                    },
-                  ]}
-                  value={url}
-                  onChangeText={(value) => updateMintUrl(index, value)}
-                  placeholder="https://mint.example.com"
-                  placeholderTextColor={inputPlaceholderColor}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="url"
-                />
-                {index != 0 &&
-                  <TouchableOpacity
-                    style={[styles.removeButton, { backgroundColor: buttonDangerColor }]}
-                    onPress={() => removeMintUrl(index)}
-                  >
-                    <X size={16} color={buttonDangerTextColor} />
-                  </TouchableOpacity>
-                }
+            <ThemedView style={[styles.urlInputCard, { backgroundColor: cardBackgroundColor }]}>
+              <ThemedText style={[styles.urlInputLabel, { color: primaryTextColor }]}>
+                Enter mint server URLs that emitted tickets:
+              </ThemedText>
+
+              {mintUrls.map((url, index) => (
+                <View key={index} style={styles.urlInputRow}>
+                  <TextInput
+                    style={[
+                      styles.urlInput,
+                      {
+                        backgroundColor: inputBackgroundColor,
+                        borderColor: inputBorderColor,
+                        color: primaryTextColor,
+                      },
+                    ]}
+                    value={url}
+                    onChangeText={(value) => updateMintUrl(index, value)}
+                    placeholder="https://mint.example.com"
+                    placeholderTextColor={inputPlaceholderColor}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="url"
+                  />
+                  {index != 0 &&
+                    <TouchableOpacity
+                      style={[styles.removeButton, { backgroundColor: buttonDangerColor }]}
+                      onPress={() => removeMintUrl(index)}
+                    >
+                      <X size={16} color={buttonDangerTextColor} />
+                    </TouchableOpacity>
+                  }
+                </View>
+              ))}
+            </ThemedView>
+
+            {/* Add More URLs Button */}
+            <TouchableOpacity
+              style={[styles.addMoreButton, { backgroundColor: cardBackgroundColor, borderColor: inputBorderColor }]}
+              onPress={addNewUrlField}
+              activeOpacity={0.7}
+            >
+              <View style={styles.addMoreButtonContent}>
+                <Plus size={20} color={primaryTextColor} />
+                <ThemedText style={[styles.addMoreButtonText, { color: primaryTextColor }]}>
+                  Add More URLs
+                </ThemedText>
               </View>
-            ))}
-          </ThemedView>
+            </TouchableOpacity>
 
-          {/* Add More URLs Button */}
-          <TouchableOpacity
-            style={[styles.addMoreButton, { backgroundColor: cardBackgroundColor, borderColor: inputBorderColor }]}
-            onPress={addNewUrlField}
-            activeOpacity={0.7}
-          >
-            <View style={styles.addMoreButtonContent}>
-              <Plus size={20} color={primaryTextColor} />
-              <ThemedText style={[styles.addMoreButtonText, { color: primaryTextColor }]}>
-                Add More URLs
+            {/* Start Recovery Button */}
+            <TouchableOpacity
+              style={[styles.recoveryButton, { backgroundColor: buttonPrimaryColor }]}
+              onPress={handleRecoverTickets}
+              disabled={isRecoveringTickets}
+              activeOpacity={0.7}
+            >
+              <View style={styles.recoveryButtonContent}>
+                <RotateCcw size={20} color={buttonPrimaryTextColor} />
+                <ThemedText style={[styles.recoveryButtonText, { color: buttonPrimaryTextColor }]}>
+                  Start Recovery
+                </ThemedText>
+              </View>
+            </TouchableOpacity>
+            {isRecoveringTickets && (
+              <ThemedText style={[styles.loadingText, { color: primaryTextColor }]}>
+                Recovering tickets... Please wait.
               </ThemedText>
-            </View>
-          </TouchableOpacity>
-
-          {/* Start Recovery Button */}
-          <TouchableOpacity
-            style={[styles.recoveryButton, { backgroundColor: buttonPrimaryColor }]}
-            onPress={handleRecoverTickets}
-            disabled={isLoading}
-            activeOpacity={0.7}
-          >
-            <View style={styles.recoveryButtonContent}>
-              <RotateCcw size={20} color={buttonPrimaryTextColor} />
-              <ThemedText style={[styles.recoveryButtonText, { color: buttonPrimaryTextColor }]}>
-                Start Recovery
-              </ThemedText>
-            </View>
-          </TouchableOpacity>
-          {isLoading && (
-            <ThemedText style={[styles.loadingText, { color: primaryTextColor }]}>
-              Recovering tickets... Please wait.
-            </ThemedText>
-          )}
-        </ScrollView>
+            )}
+          </ScrollView>
+        )}
       </ThemedView>
     </SafeAreaView>
   );
@@ -307,6 +338,11 @@ const styles = StyleSheet.create({
   infoDescription: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   loadingText: {
     marginTop: 14,
