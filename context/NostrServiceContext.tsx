@@ -54,16 +54,9 @@ import {
 } from '@/services/EventFilters';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 import { useDatabaseContext } from '@/context/DatabaseContext';
+import defaultRelayList from '../assets/DefaultRelays.json';
 import { useCurrency } from './CurrencyContext';
 import { useOnboarding } from './OnboardingContext';
-
-// Constants and helper classes from original NostrService
-export const DEFAULT_RELAYS = [
-  'wss://relay.getportal.cc',
-  'wss://relay.nostr.band',
-  'wss://nos.lol',
-  'wss://offchain.pub',
-];
 
 // Helper function to extract service name from profile (nip05 only)
 const getServiceNameFromProfile = (profile: any): string | null => {
@@ -505,14 +498,14 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
             relays = dbRelays;
           } else {
             // If no relays in database, use defaults and update database
-            relays = [...DEFAULT_RELAYS];
-            await executeOperation(db => db.updateRelays(DEFAULT_RELAYS), null);
+            relays = [...defaultRelayList];
+            await executeOperation(db => db.updateRelays(defaultRelayList), null);
           }
         } catch (error) {
           console.warn('Failed to get relays from database, using defaults:', error);
           // Fallback to default relays if database access fails
-          relays = [...DEFAULT_RELAYS];
-          await executeOperation(db => db.updateRelays(DEFAULT_RELAYS), null);
+          relays = [...defaultRelayList];
+          await executeOperation(db => db.updateRelays(defaultRelayList), null);
         }
 
         const app = await PortalAppManager.getInstance(
@@ -568,7 +561,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
                 await executeOnNostr(async (db) => {
                   let mintsList = await db.readMints();
-                  
+
                   // Convert to Set to prevent duplicates, then back to array
                   const mintsSet = new Set([tokenInfo.mintUrl, ...mintsList]);
                   mintsList = Array.from(mintsSet);
@@ -600,8 +593,8 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                     service_name: ticketTitle, // Always use ticket title
                     detail: ticketTitle, // Always use ticket title
                     date: new Date(),
-                    amount: tokenInfo.amount ? Number(tokenInfo.amount) : null, // Store actual number of tickets, not divided by 1000
-                    currency: 'sats' as const,
+                    amount: Number(tokenInfo.amount),
+                    currency: null,
                     request_id: `cashu-direct-${Date.now()}`,
                     subscription_id: null,
                     status: 'neutral' as 'neutral',
@@ -1114,7 +1107,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
           return null;
         }
       } catch (error) {
-        console.log('DEBUG: getServiceName error for:', pubKey, error);
+        console.error('DEBUG: getServiceName error for:', pubKey, error);
         throw error;
       }
     },

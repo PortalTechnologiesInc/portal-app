@@ -40,6 +40,7 @@ export class CurrencyConversionService {
    * @param toCurrency - Target currency
    * @returns Promise<number> - Converted amount
    */
+  /* TODO: fix this function */
   static async convertAmount(
     amount: number,
     fromCurrency: string,
