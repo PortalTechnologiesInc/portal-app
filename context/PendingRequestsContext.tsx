@@ -77,9 +77,6 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
   // Simple database access
   const { executeOperation } = useDatabaseContext();
 
-  // Queue for activities that couldn't be recorded due to DB not being ready
-  const [pendingActivities, setPendingActivities] = useState<PendingActivity[]>([]);
-  const [pendingSubscriptions, setPendingSubscriptions] = useState<PendingSubscription[]>([]);
   const nostrService = useNostrService();
   const eCashContext = useECash();
   const { preferredCurrency } = useCurrency();
@@ -96,8 +93,6 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
     setIsLoadingRequest(false);
     setPendingUrl(undefined);
     setRequestFailed(false);
-    setPendingActivities([]);
-    setPendingSubscriptions([]);
 
     // Clear any active timeouts
     if (timeoutId) {
@@ -117,33 +112,6 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
     };
   }, []);
 
-  // Process any pending activities when available
-  useEffect(() => {
-    const processPendingActivities = async () => {
-      if (pendingActivities.length === 0) return;
-
-      console.log(`Processing ${pendingActivities.length} pending activities`);
-
-      const activitiesToProcess = [...pendingActivities];
-      setPendingActivities([]); // Clear the queue
-
-      for (const activity of activitiesToProcess) {
-        const success = await executeOperation(db => db.addActivity(activity), null);
-
-        if (success) {
-          console.log('Successfully recorded delayed activity:', activity.type);
-        } else {
-          console.error('Failed to record delayed activity, re-queuing');
-          setPendingActivities(prev => [...prev, activity]);
-        }
-      }
-
-      // Refresh data after processing pending activities
-      refreshData();
-    };
-
-    processPendingActivities();
-  }, [executeOperation, pendingActivities, refreshData]);
 
   // Helper function to add an activity
   const addActivityWithFallback = async (activity: PendingActivity): Promise<string> => {
