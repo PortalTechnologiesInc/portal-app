@@ -50,12 +50,18 @@ export function formatRelativeTime(date: Date): string {
 
 // Format day of week and date (e.g., "Monday 21/04/2025")
 export function formatDayAndDate(date: Date): string {
-  const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' });
-  const day = date.getDate().toString().padStart(2, '0');
-  const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  const year = date.getFullYear();
+  const dayOfWeek = date.toLocaleDateString(undefined, { weekday: 'short' });
+  const datePart = date.toLocaleDateString(undefined, {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+  const timePart = date.toLocaleTimeString(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 
-  return `${dayOfWeek} ${day}/${month}/${year}`;
+  return `${dayOfWeek} ${datePart}, ${timePart}`;
 }
 
 export function getNextRecurrenceDay(

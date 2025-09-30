@@ -10,6 +10,7 @@ import {
   parseCalendar,
   PortalAppInterface,
   parseBolt11,
+  Currency_Tags,
 } from 'portal-app-lib';
 import { DatabaseService, fromUnixSeconds, SubscriptionWithDates } from './DatabaseService';
 import { CurrencyConversionService } from './CurrencyConversionService';
@@ -78,12 +79,48 @@ export async function handleSinglePaymentRequest(
       console.error('Error getting service name:', e);
     }
 
-    // TODO: take into account other currencies
-    const amountSats = request.content.amount / 1000n;
-    if (amountSats != BigInt(subscription.amount)) {
+    let amount =
+      typeof request.content.amount === 'bigint'
+        ? Number(request.content.amount)
+        : request.content.amount;
+
+    // Extract currency symbol from the Currency object
+    let currency: string | null = null;
+    const currencyObj = request.content.currency;
+    switch (currencyObj.tag) {
+      case Currency_Tags.Fiat:
+        if (typeof currencyObj === 'string') {
+          currency = currencyObj;
+        } else {
+          currency = 'unknown';
+        }
+      case Currency_Tags.Millisats:
+        amount = amount / 1000;
+        currency = 'sats';
+    }
+
+    // Convert currency for user's preferred currency
+    let convertedAmount: number | null = null;
+    let convertedCurrency: string | null = null;
+
+    try {
+      const sourceCurrency =
+        currencyObj?.tag === Currency_Tags.Fiat ? (currencyObj as any).inner : 'unknown';
+
+      convertedAmount = await CurrencyConversionService.convertAmount(
+        amount,
+        sourceCurrency,
+        preferredCurrency // Currency enum values are already strings
+      );
+      convertedCurrency = preferredCurrency;
+    } catch (error) {
+      console.error('Currency conversion error during payment:', error);
+      // Continue without conversion - convertedAmount will remain null
+    }
+    if (amount != subscription.amount || currency != subscription.currency) {
       resolve(
         new PaymentStatus.Rejected({
-          reason: `Payment amount does not match subscription amount.\nExpected: ${subscription.amount} ${subscription.currency}\nReceived: ${amountSats} ${request.content.currency}`,
+          reason: `Payment amount does not match subscription amount.\nExpected: ${subscription.amount} ${subscription.currency}\nReceived: ${amount} ${request.content.currency}`,
         })
       );
       return false;
@@ -124,8 +161,8 @@ export async function handleSinglePaymentRequest(
             service_name: serviceName,
             detail: 'Recurrent payment failed: insufficient wallet balance.',
             date: new Date(),
-            amount: Number(amountSats),
-            currency: request.content.currency.tag,
+            amount: amount,
+            currency: currency,
             converted_amount: convertedAmount,
             converted_currency: convertedCurrency,
             request_id: request.eventId,
@@ -154,8 +191,8 @@ export async function handleSinglePaymentRequest(
             service_name: serviceName,
             detail: 'Recurrent payment',
             date: new Date(),
-            amount: Number(amountSats),
-            currency: request.content.currency.tag,
+            amount: amount,
+            currency: currency,
             converted_amount: convertedAmount,
             converted_currency: convertedCurrency,
             request_id: request.eventId,
@@ -236,8 +273,8 @@ export async function handleSinglePaymentRequest(
             service_name: serviceName,
             detail: 'Recurrent payment failed: no wallet is connected.',
             date: new Date(),
-            amount: Number(amountSats),
-            currency: request.content.currency.tag,
+            amount: amount,
+            currency: currency,
             converted_amount: convertedAmount,
             converted_currency: convertedCurrency,
             request_id: request.eventId,
