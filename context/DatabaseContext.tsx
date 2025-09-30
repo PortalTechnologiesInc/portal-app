@@ -10,7 +10,7 @@ import NostrStoreService from '@/services/NostrStoreService';
 // Create a context to expose database initialization state
 interface DatabaseContextType {
   executeOperation: <T>(operation: (db: DatabaseService) => Promise<T>, fallback?: T) => Promise<T>;
-  executeOnNostr: <T>(mnemonic: string, operation: (db: NostrStoreService) => Promise<T>, fallback?: T) => Promise<T>;
+  executeOnNostr: <T>(operation: (db: NostrStoreService) => Promise<T>, fallback?: T) => Promise<T>;
   resetApp: () => Promise<void>;
   isDbReady: boolean;
 }
@@ -69,12 +69,18 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
   };
 
   const executeOnNostr = async <T,>(
-    mnemonic: string,
     operation: (nostrStore: NostrStoreService) => Promise<T>,
     fallback?: T
   ): Promise<T> => {
 
     try {
+      if (!mnemonic) {
+        if (fallback !== undefined) {
+          return fallback;
+        }
+        throw new Error('Mnemonic is null or undefined');
+      }
+
       const mnemonicObj = new Mnemonic(mnemonic);
       const keypair = mnemonicObj.getKeypair();
 
