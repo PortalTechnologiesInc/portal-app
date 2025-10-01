@@ -13,9 +13,11 @@ export default function DeeplinkHandler() {
   useEffect(() => {
     if (!isOnboardingComplete) {
       router.replace('/onboarding');
+      return;
     }
     if (!mnemonic) {
       router.replace('/(tabs)/Settings');
+      return;
     }
     router.replace('/(tabs)')
   }, [params, isOnboardingComplete, mnemonic]);

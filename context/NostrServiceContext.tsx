@@ -54,6 +54,7 @@ import {
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import { useCurrency } from './CurrencyContext';
+import { useOnboarding } from './OnboardingContext';
 
 // Constants and helper classes from original NostrService
 export const DEFAULT_RELAYS = [
@@ -260,6 +261,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   const eCashContext = useECash();
   const { executeOperation, executeOnNostr } = useDatabaseContext();
   const { preferredCurrency } = useCurrency();
+  const { isOnboardingComplete } = useOnboarding();
 
   // Reset all NostrService state to initial values
   // This is called during app reset to ensure clean state
@@ -1033,6 +1035,10 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   // Send auth init
   const sendKeyHandshake = useCallback(
     async (url: KeyHandshakeUrl): Promise<void> => {
+      if (!isOnboardingComplete) {
+        console.log("Cannot send handshake, onboarding is not complete");
+        return;
+      }
       // let's try for 30 times. One every .5 sec should timeout after 15 secs.
       let attempt = 0;
       while (
