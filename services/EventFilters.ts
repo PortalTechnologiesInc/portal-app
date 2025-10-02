@@ -94,9 +94,11 @@ export async function handleSinglePaymentRequest(
         } else {
           currency = 'unknown';
         }
+        break;
       case Currency_Tags.Millisats:
         amount = amount / 1000;
         currency = 'sats';
+        break;
     }
 
     // Convert currency for user's preferred currency
@@ -105,7 +107,7 @@ export async function handleSinglePaymentRequest(
 
     try {
       const sourceCurrency =
-        currencyObj?.tag === Currency_Tags.Fiat ? (currencyObj as any).inner : 'unknown';
+        currencyObj?.tag === Currency_Tags.Fiat ? (currencyObj as any).inner : 'MSATS';
 
       convertedAmount = await CurrencyConversionService.convertAmount(
         amount,

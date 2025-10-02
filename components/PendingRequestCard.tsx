@@ -244,7 +244,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
 
           // Determine source currency
           const sourceCurrency =
-            content.currency.tag === Currency_Tags.Fiat ? (content.currency as any).inner : 'unknown';
+            content.currency.tag === Currency_Tags.Fiat ? (content.currency as any).inner : 'MSATS';
 
           // Convert to user's preferred currency
           const converted = await CurrencyConversionService.convertAmount(
