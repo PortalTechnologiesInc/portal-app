@@ -18,6 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { usePendingRequests } from '@/context/PendingRequestsContext';
+import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 
 // Log level options for dropdown
 const LOG_LEVEL_OPTIONS = [
@@ -41,6 +42,13 @@ export default function DebugScreen() {
   // QR Code Testing state
   const [qrCodeInput, setQrCodeInput] = useState('');
   const [isWalletMode, setIsWalletMode] = useState(false);
+
+  // Currency Conversion Testing state
+  const [conversionAmount, setConversionAmount] = useState('');
+  const [sourceCurrency, setSourceCurrency] = useState('');
+  const [destinationCurrency, setDestinationCurrency] = useState('');
+  const [convertedAmount, setConvertedAmount] = useState<number | null>(null);
+  const [isConverting, setIsConverting] = useState(false);
 
   // Services
   const nostrService = useNostrService();
@@ -117,6 +125,40 @@ export default function DebugScreen() {
   const handleClearLogs = () => {
     console.clear();
     console.log('🧹 Console cleared from Debug screen');
+  };
+
+  // Currency conversion handler
+  const handleCurrencyConversion = async () => {
+    if (!conversionAmount.trim() || !sourceCurrency.trim() || !destinationCurrency.trim()) {
+      Alert.alert('Missing Fields', 'Please enter amount, source currency, and destination currency.');
+      return;
+    }
+
+    const amount = parseFloat(conversionAmount);
+    if (isNaN(amount) || amount <= 0) {
+      Alert.alert('Invalid Amount', 'Please enter a valid positive number.');
+      return;
+    }
+
+    setIsConverting(true);
+    setConvertedAmount(null);
+
+    try {
+      console.log(`Converting ${amount} ${sourceCurrency} to ${destinationCurrency}`);
+      const result = await CurrencyConversionService.convertAmount(
+        amount,
+        sourceCurrency.trim(),
+        destinationCurrency.trim()
+      );
+      
+      console.log(`Conversion result: ${result}`);
+      setConvertedAmount(result);
+    } catch (error) {
+      console.error('Currency conversion failed:', error);
+      Alert.alert('Conversion Failed', 'Unable to convert currencies. Please check your inputs and try again.');
+    } finally {
+      setIsConverting(false);
+    }
   };
 
   const handleTestLogs = () => {
@@ -401,6 +443,149 @@ export default function DebugScreen() {
             </TouchableOpacity>
           </ThemedView>
 
+          {/* Currency Conversion Testing */}
+          <ThemedView style={[styles.section, { backgroundColor: cardBackgroundColor }]}>
+            <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
+              💱 Currency Conversion Testing
+            </ThemedText>
+            <ThemedText style={[styles.description, { color: secondaryTextColor }]}>
+              Test currency conversion between different currencies. Supports BTC, SATS, MSATS, and fiat currencies.
+            </ThemedText>
+
+            {/* Amount Input */}
+            <View style={styles.settingColumn}>
+              <ThemedText style={[styles.settingLabel, { color: primaryTextColor }]}>
+                Amount
+              </ThemedText>
+              <ThemedText style={[styles.settingSubtext, { color: secondaryTextColor }]}>
+                Enter the amount to convert (positive number)
+              </ThemedText>
+
+              <TextInput
+                style={[
+                  styles.textInput,
+                  {
+                    backgroundColor: surfaceSecondaryColor,
+                    color: primaryTextColor,
+                    borderColor: surfaceSecondaryColor,
+                  },
+                ]}
+                value={conversionAmount}
+                onChangeText={setConversionAmount}
+                placeholder="e.g., 100"
+                placeholderTextColor={secondaryTextColor}
+                keyboardType="numeric"
+              />
+            </View>
+
+            {/* Source Currency Input */}
+            <View style={styles.settingColumn}>
+              <ThemedText style={[styles.settingLabel, { color: primaryTextColor }]}>
+                Source Currency
+              </ThemedText>
+              <ThemedText style={[styles.settingSubtext, { color: secondaryTextColor }]}>
+                Currency to convert from (e.g., BTC, SATS, USD, EUR)
+              </ThemedText>
+
+              <TextInput
+                style={[
+                  styles.textInput,
+                  {
+                    backgroundColor: surfaceSecondaryColor,
+                    color: primaryTextColor,
+                    borderColor: surfaceSecondaryColor,
+                  },
+                ]}
+                value={sourceCurrency}
+                onChangeText={setSourceCurrency}
+                placeholder="e.g., BTC"
+                placeholderTextColor={secondaryTextColor}
+                autoCapitalize="characters"
+              />
+            </View>
+
+            {/* Destination Currency Input */}
+            <View style={styles.settingColumn}>
+              <ThemedText style={[styles.settingLabel, { color: primaryTextColor }]}>
+                Destination Currency
+              </ThemedText>
+              <ThemedText style={[styles.settingSubtext, { color: secondaryTextColor }]}>
+                Currency to convert to (e.g., SATS, USD, EUR, BTC)
+              </ThemedText>
+
+              <TextInput
+                style={[
+                  styles.textInput,
+                  {
+                    backgroundColor: surfaceSecondaryColor,
+                    color: primaryTextColor,
+                    borderColor: surfaceSecondaryColor,
+                  },
+                ]}
+                value={destinationCurrency}
+                onChangeText={setDestinationCurrency}
+                placeholder="e.g., SATS"
+                placeholderTextColor={secondaryTextColor}
+                autoCapitalize="characters"
+              />
+            </View>
+
+            {/* Convert Button */}
+            <TouchableOpacity
+              style={[
+                styles.actionButton,
+                {
+                  backgroundColor: isConverting ? '#ccc' : buttonColor,
+                },
+              ]}
+              onPress={handleCurrencyConversion}
+              disabled={isConverting}
+            >
+              <ThemedText style={[styles.actionButtonText, { color: buttonTextColor }]}>
+                {isConverting ? '⏳ Converting...' : '🔄 Convert Currency'}
+              </ThemedText>
+            </TouchableOpacity>
+
+            {/* Conversion Result */}
+            {convertedAmount !== null && (
+              <ThemedView
+                style={[
+                  styles.resultContainer,
+                  { backgroundColor: surfaceSecondaryColor },
+                ]}
+              >
+                <ThemedText style={[styles.resultLabel, { color: primaryTextColor }]}>
+                  Result:
+                </ThemedText>
+                <ThemedText style={[styles.resultValue, { color: primaryTextColor }]}>
+                  {convertedAmount.toFixed(8).replace(/\.?0+$/, '')}
+                </ThemedText>
+              </ThemedView>
+            )}
+
+            {/* Clear Button */}
+            <TouchableOpacity
+              style={[
+                styles.actionButton,
+                {
+                  backgroundColor: 'transparent',
+                  borderWidth: 1,
+                  borderColor: buttonColor,
+                },
+              ]}
+              onPress={() => {
+                setConversionAmount('');
+                setSourceCurrency('');
+                setDestinationCurrency('');
+                setConvertedAmount(null);
+              }}
+            >
+              <ThemedText style={[styles.actionButtonText, { color: buttonColor }]}>
+                🧹 Clear All
+              </ThemedText>
+            </TouchableOpacity>
+          </ThemedView>
+
           {/* Info */}
           <ThemedView style={[styles.section, { backgroundColor: cardBackgroundColor }]}>
             <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
@@ -413,7 +598,8 @@ export default function DebugScreen() {
               4. Watch for library logs with target prefixes{'\n'}
               5. UI controls are placeholders for future implementation{'\n'}
               6. Current logging level: Trace (most verbose){'\n'}
-              7. Use QR Code Testing for emulator testing without camera
+              7. Use QR Code Testing for emulator testing without camera{'\n'}
+              8. Use Currency Conversion Testing to test BTC/fiat conversions
             </ThemedText>
           </ThemedView>
         </ScrollView>
@@ -520,5 +706,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     minHeight: 100,
     textAlignVertical: 'top',
+  },
+  textInput: {
+    marginTop: 8,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    fontSize: 16,
+  },
+  resultContainer: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  resultLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  resultValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
   },
 });

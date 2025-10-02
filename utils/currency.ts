@@ -2,6 +2,7 @@
  * Supported currencies
  */
 export enum Currency {
+  MSATS = 'MSATS',
   SATS = 'SATS',
   BTC = 'BTC',
   USD = 'USD',
@@ -30,6 +31,12 @@ export interface CurrencyConfig {
  * All available currency configurations
  */
 export const CURRENCY_CONFIGS: Record<Currency, CurrencyConfig> = {
+  [Currency.MSATS]: {
+    code: Currency.MSATS,
+    symbol: 'msats',
+    name: 'MSATS',
+    displayName: 'Millisatoshis (msats)',
+  },
   [Currency.SATS]: {
     code: Currency.SATS,
     symbol: 'sats',

@@ -36,40 +36,66 @@ export class CurrencyConversionService {
   /**
    * Convert amount from one currency to another
    * @param amount - The amount to convert
-   * @param fromCurrency - Source currency
-   * @param toCurrency - Target currency
+   * @param fromC - Source currency
+   * @param toC - Target currency
    * @returns Promise<number> - Converted amount
    */
-  /* TODO: fix this function */
   static async convertAmount(
     amount: number,
-    fromCurrency: string,
-    toCurrency: string
+    fromC: string,
+    toC: string
   ): Promise<number> {
+    const fromCurrency = fromC.toUpperCase();
+    const toCurrency = toC.toUpperCase();
     try {
-      // Treat input amount as millisatoshis (msats) as provided by payment requests
-      const amountMsats = Number(amount);
-      if (!isFinite(amountMsats) || amountMsats <= 0) {
-        return 0;
+      switch (true) {
+        case !isFinite(amount) || amount <= 0: return 0;
+        case fromCurrency == toCurrency: return amount;
+
+        // btc, sats, millisats cases
+        case fromCurrency == Currency.BTC && toCurrency == Currency.SATS: return amount * 100_000_000;
+        case fromCurrency == Currency.BTC && toCurrency == Currency.MSATS: return amount * 100_000_000_000;
+        case fromCurrency == Currency.SATS && toCurrency == Currency.BTC: return amount / 100_000_000;
+        case fromCurrency == Currency.SATS && toCurrency == Currency.MSATS: return amount * 1000;
+        case fromCurrency == Currency.MSATS && toCurrency == Currency.BTC: return amount / 100_000_000_000;
+        case fromCurrency == Currency.MSATS && toCurrency == Currency.SATS: return amount / 1000;
+
+        // from btc, sats or millisats to fiat cases
+        case fromCurrency == Currency.BTC && toCurrency != Currency.SATS && toCurrency != Currency.MSATS: {
+          const btcPriceTo = await CurrencyConversionService.getBtcPriceForCurrency(toCurrency);
+          return amount * btcPriceTo;
+        }
+        case fromCurrency == Currency.SATS && toCurrency != Currency.BTC && toCurrency != Currency.MSATS: {
+          const btcPriceTo = await CurrencyConversionService.getBtcPriceForCurrency(toCurrency);
+          return amount * btcPriceTo / 100_000_000;
+        }
+        case fromCurrency == Currency.MSATS && toCurrency != Currency.BTC && toCurrency != Currency.SATS: {
+          const btcPriceTo = await CurrencyConversionService.getBtcPriceForCurrency(toCurrency);
+          return amount * btcPriceTo / 100_000_000_000;
+        }
+
+        // from fiat to btc, sats or millisats cases
+        case fromCurrency != Currency.SATS && fromCurrency != Currency.MSATS && toCurrency == Currency.BTC: {
+          const btcPriceFrom = await CurrencyConversionService.getBtcPriceForCurrency(fromCurrency);
+          return amount / btcPriceFrom;
+        }
+        case fromCurrency != Currency.BTC && fromCurrency != Currency.MSATS && toCurrency == Currency.SATS: {
+          const btcPriceFrom = await CurrencyConversionService.getBtcPriceForCurrency(fromCurrency);
+          return amount / btcPriceFrom * 100_000_000;
+        }
+        case fromCurrency != Currency.BTC && fromCurrency != Currency.SATS && toCurrency == Currency.MSATS: {
+          const btcPriceFrom = await CurrencyConversionService.getBtcPriceForCurrency(fromCurrency);
+          return amount / btcPriceFrom * 100_000_000_000;
+        }
+
+        // from fiat to fiat case
+        default: {
+          const btcPriceFrom = await CurrencyConversionService.getBtcPriceForCurrency(fromCurrency);
+          const btcPriceTo = await CurrencyConversionService.getBtcPriceForCurrency(toCurrency);
+          return amount * btcPriceTo / btcPriceFrom;
+
+        }
       }
-
-      // Fast-path conversions for BTC/SATS without network calls
-      if (toCurrency === Currency.SATS || toCurrency === 'SATS') {
-        // 1 sat = 1000 msats
-        return amountMsats / 1000;
-      }
-
-      const sats = amountMsats / 1000; // msats -> sats
-      if (toCurrency === Currency.BTC || toCurrency === 'BTC') {
-        // 1 BTC = 100,000,000 sats
-        return sats / 100_000_000;
-      }
-
-      // For fiat and other supported user currencies, fetch BTC price in that currency (with cache)
-      const btcPrice = await CurrencyConversionService.getBtcPriceForCurrency(toCurrency);
-
-      const btcAmount = sats / 100_000_000;
-      return btcAmount * btcPrice;
     } catch (error) {
       console.error('Currency conversion error:', error);
       throw new Error('Failed to convert currency');

@@ -238,9 +238,11 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 } else {
                   currency = 'unknown';
                 }
+                break;
               case Currency_Tags.Millisats:
                 amount = amount / 1000;
                 currency = 'sats';
+                break;
             }
 
             // Convert currency for user's preferred currency
@@ -249,7 +251,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
             try {
               const sourceCurrency =
-                currencyObj?.tag === Currency_Tags.Fiat ? (currencyObj as any).inner : 'unknown';
+                currencyObj?.tag === Currency_Tags.Fiat ? (currencyObj as any).inner : 'MSATS';
 
               convertedAmount = await CurrencyConversionService.convertAmount(
                 amount,
@@ -363,9 +365,11 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                   } else {
                     currency = 'unknown';
                   }
+                  break;
                 case Currency_Tags.Millisats:
                   amount = amount / 1000;
                   currency = 'sats';
+                  break;
               }
 
               // Convert currency for user's preferred currency
@@ -374,7 +378,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
               try {
                 const sourceCurrency =
-                  currencyObj?.tag === Currency_Tags.Fiat ? (currencyObj as any).inner : 'unknown';
+                  currencyObj?.tag === Currency_Tags.Fiat ? (currencyObj as any).inner : 'MSATS';
 
                 convertedAmount = await CurrencyConversionService.convertAmount(
                   amount,
@@ -603,20 +607,22 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 ? Number(req.content.amount)
                 : req.content.amount;
 
-              // Extract currency symbol from the Currency object
-              let currency: string | null = null;
-              const currencyObj = req.content.currency;
-              switch (currencyObj.tag) {
-                case Currency_Tags.Fiat:
-                  if (typeof currencyObj === 'string') {
-                    currency = currencyObj;
-                  } else {
-                    currency = 'unknown';
-                  }
-                case Currency_Tags.Millisats:
-                  amount = amount / 1000;
-                  currency = 'sats';
-              }
+            // Extract currency symbol from the Currency object
+            let currency: string | null = null;
+            const currencyObj = req.content.currency;
+            switch (currencyObj.tag) {
+              case Currency_Tags.Fiat:
+                if (typeof currencyObj === 'string') {
+                  currency = currencyObj;
+                } else {
+                  currency = 'unknown';
+                }
+                break;
+              case Currency_Tags.Millisats:
+                amount = amount / 1000;
+                currency = 'sats';
+                break;
+            }
 
             // Convert currency for user's preferred currency
             let convertedAmount: number | null = null;
@@ -624,7 +630,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
             try {
               const sourceCurrency =
-                currencyObj?.tag === Currency_Tags.Fiat ? (currencyObj as any).inner : 'SATS';
+                currencyObj?.tag === Currency_Tags.Fiat ? (currencyObj as any).inner : 'MSATS';
 
               convertedAmount = await CurrencyConversionService.convertAmount(
                 amount,
@@ -790,6 +796,9 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
   // Show skeleton loader and set timeout for request
   const showSkeletonLoader = useCallback(
     (parsedUrl: KeyHandshakeUrl) => {
+      if (parsedUrl.noRequest) {
+        return;
+      }
       // Clean up any existing timeout
       if (timeoutId) {
         clearTimeout(timeoutId);
