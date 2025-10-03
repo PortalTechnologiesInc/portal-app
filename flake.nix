@@ -39,7 +39,12 @@
           versions = [ ];
           xcodeBaseDir = "/Applications/Xcode.app";
         });
-        
+
+        extractApk = pkgs.writeShellScriptBin "extract-apk" ''
+          ${pkgs.bundletool}/bin/bundletool build-apks \
+            --aapt2=${androidComposition.androidsdk}/libexec/android-sdk/build-tools/${android.buildToolsVersion}/aapt2 "$@"
+          '';
+
         # Read package.json to get version
         packageJson = builtins.fromJSON (builtins.readFile ./package.json);
         
@@ -246,15 +251,19 @@
               aider-chat
               nodejs_23
               openjdk17
+              apksigner
+              extractApk
+              unzip
             ];
 
             ANDROID_SDK_ROOT = "${androidComposition.androidsdk}/libexec/android-sdk";
             ANDROID_HOME = "${ANDROID_SDK_ROOT}";
             ANDROID_NDK_ROOT = "${ANDROID_SDK_ROOT}/ndk-bundle";
             JAVA_HOME = pkgs.openjdk17.home;
+            AAPT2_PATH = "${ANDROID_SDK_ROOT}/build-tools/${android.buildToolsVersion}/aapt2";
 
             # Ensures that we don't have to use a FHS env by using the nix store's aapt2.
-            GRADLE_OPTS = "-Dorg.gradle.project.android.aapt2FromMavenOverride=${ANDROID_SDK_ROOT}/build-tools/${android.buildToolsVersion}/aapt2";
+            GRADLE_OPTS = "-Dorg.gradle.project.android.aapt2FromMavenOverride=${AAPT2_PATH}";
 
             # Run when the shell is started up
             shellHook = ''
