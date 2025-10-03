@@ -9,11 +9,10 @@ import { Ticket } from '@/utils/types';
 import { Colors } from '@/constants/Colors';
 import { Nfc, CheckCircle, XCircle, Upload } from 'lucide-react-native';
 import NfcManager from 'react-native-nfc-manager';
-import * as Linking from 'expo-linking';
+import { canOpenURL, openURL, openSettings } from 'expo-linking';
 import TicketCard from '@/components/TicketCard';
 import { useECash } from '@/context/ECashContext';
 import uuid from 'react-native-uuid';
-import { showToast } from '@/utils/Toast';
 import { router } from 'expo-router';
 
 export default function TicketsScreen() {
@@ -135,14 +134,14 @@ export default function TicketsScreen() {
     try {
       if (Platform.OS === 'android') {
         const nfcSettingsUrl = 'android.settings.NFC_SETTINGS';
-        const canOpen = await Linking.canOpenURL(nfcSettingsUrl);
+        const canOpen = await canOpenURL(nfcSettingsUrl);
         if (canOpen) {
-          await Linking.openURL(nfcSettingsUrl);
+          await openURL(nfcSettingsUrl);
         } else {
-          await Linking.openSettings();
+          await openSettings();
         }
       } else {
-        await Linking.openSettings();
+        await openSettings();
       }
     } catch {}
   };
@@ -373,7 +372,12 @@ export default function TicketsScreen() {
               </View>
             )}
             {/* Stacked list of all other cards */}
-            <View style={styles.cardsContainer}>
+            <View style={[
+              styles.cardsContainer,
+              {
+                height: Math.max(800, tickets.filter(ticket => ticket.id !== focusedCardId).length * 130 + 100),
+              }
+            ]}>
               {tickets
                 .filter(ticket => ticket.id !== focusedCardId)
                 .map((ticket, visibleIndex) => (
@@ -447,7 +451,6 @@ const styles = StyleSheet.create({
   cardsContainer: {
     position: 'relative',
     width: '100%',
-    minHeight: 800,
     marginTop: 16,
   },
   emptyContainer: {
