@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 
 export const showToast = (message: string, type: 'success' | 'error' = 'success') => {
   if (Platform.OS === 'android') {
-    ToastAndroid.showWithGravity(message, ToastAndroid.SHORT, ToastAndroid.BOTTOM);
+    ToastAndroid.showWithGravity(message, ToastAndroid.LONG, ToastAndroid.BOTTOM);
   } else {
     // For iOS, use Alert as a fallback
     const title = type === 'success' ? '✅ Success' : '❌ Error';
@@ -13,7 +13,7 @@ export const showToast = (message: string, type: 'success' | 'error' = 'success'
 
 export const showErrorToast = (message: string) => {
   if (Platform.OS === 'android') {
-    ToastAndroid.showWithGravity(message, ToastAndroid.SHORT, ToastAndroid.BOTTOM);
+    ToastAndroid.showWithGravity(message, ToastAndroid.LONG, ToastAndroid.BOTTOM);
   } else {
     // For iOS, use Alert as a fallback (or you could use a third-party library)
     Alert.alert('❌ Error', message);

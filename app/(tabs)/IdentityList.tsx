@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   View,
-  FlatList,
   StyleSheet,
   TouchableOpacity,
   TextInput,
@@ -15,12 +14,11 @@ import type { Identity } from '@/utils/types';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useRouter } from 'expo-router';
-import { Plus, Edit, User, Pencil, ArrowLeft, Copy } from 'lucide-react-native';
+import { Edit, User, Pencil, ArrowLeft } from 'lucide-react-native';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useUserProfile } from '@/context/UserProfileContext';
 import { useNostrService } from '@/context/NostrServiceContext';
-import * as ImagePicker from 'expo-image-picker';
-import * as Clipboard from 'expo-clipboard';
+import { requestMediaLibraryPermissionsAsync, launchImageLibraryAsync } from 'expo-image-picker';
 import { showToast } from '@/utils/Toast';
 import { formatAvatarUri } from '@/utils';
 
@@ -30,7 +28,7 @@ export type IdentityListProps = {
 };
 
 export default function IdentityList({ onManageIdentity }: IdentityListProps) {
-  const [identities] = useState<Identity[]>([]);
+  // const [identities] = useState<Identity[]>([]);
   const router = useRouter();
 
   // Profile management state
@@ -58,10 +56,8 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
   const cardBackground = useThemeColor({}, 'cardBackground');
   const textPrimary = useThemeColor({}, 'textPrimary');
   const textSecondary = useThemeColor({}, 'textSecondary');
-  const borderPrimary = useThemeColor({}, 'borderPrimary');
   const buttonPrimary = useThemeColor({}, 'buttonPrimary');
   const buttonPrimaryText = useThemeColor({}, 'buttonPrimaryText');
-  const shadowColor = useThemeColor({}, 'shadowColor');
   const inputBorderColor = useThemeColor({}, 'inputBorder');
   const inputPlaceholderColor = useThemeColor({}, 'inputPlaceholder');
   const statusConnectedColor = useThemeColor({}, 'statusConnected');
@@ -86,7 +82,7 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
     }
 
     try {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const permissionResult = await requestMediaLibraryPermissionsAsync();
 
       if (!permissionResult.granted) {
         Alert.alert(
@@ -96,7 +92,7 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
         return;
       }
 
-      const result = await ImagePicker.launchImageLibraryAsync({
+      const result = await launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
@@ -363,10 +359,10 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
           </ThemedView>
 
           {/* Identities Section */}
-          <ThemedView style={styles.section}>
+          {/* <ThemedView style={styles.section}>
             <View style={styles.sectionHeader}>
               <ThemedText style={[styles.sectionTitle, { color: textPrimary }]}>
-                Sub-Identities
+                Identities
               </ThemedText>
             </View>
             <View style={[styles.masterKeyCard, { backgroundColor: cardBackground }]}>
@@ -389,7 +385,7 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
                     // Copy master key to clipboard
                     const masterKey =
                       'ax87DJe9IjdDJi40PoaW55tRf3h9kM2nQx4bV8cL1sEp6yR7tU9wA3mN5lK8hJ2bVx4cZ9qS2fG5hK8jL4mN7pQ1rT3uY6wA9bC2eF5hI7kM0nP4qS6vY8zA1dF3gH5jL7mP9rT2uW4yB6cE8gJ0kN2oQ4sV6xA8bD1fH3iL5nP7rT9uW2yC4eG6hJ8lN0pS2vY4zA6cF8iL0oR3tW5yB7dG9jM1pS3vY5zA8cF0hL2oR4tW6yB8dG1jM3pS5vY7zA9cF1hL3oR5tW7yB9dG2jM4pS6vY8zA0cF2hL4oR6tW8yB0dG3jM5pS7vY9zA1cF3hL5oR7tW9yB1dG4jM6pS8vY0zA2cF4hL6oR8tW0yB2dG5jM7pS9vY1zA3cF5hL7oR9tW1yB3dG6jM8pS0vY2zA4cF6hL8oR0tW2yB4dG7jM9pS1vY3zA5cF7hL9oR1tW3yB5dG8jM0pS2vY4zA6cF8hL0oR2tW4yB6dG9jM1pS3vY5zA7cF9hL1oR3tW5yB7dG0jM2pS4vY6zA8c';
-                    Clipboard.setStringAsync(masterKey);
+                    setStringAsync(masterKey);
                     showToast('Master key copied to clipboard', 'success');
                   }}
                   style={styles.copyMasterKeyButton}
@@ -424,7 +420,7 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
                 Create New Identity
               </ThemedText>
             </TouchableOpacity>
-          </ThemedView>
+          </ThemedView> */}
         </ScrollView>
       </ThemedView>
     </SafeAreaView>

@@ -44,6 +44,7 @@ import type {
   WalletInfoState,
 } from '@/utils/types';
 import { handleErrorWithToastAndReinit } from '@/utils/Toast';
+import { showToast } from '@/utils/Toast';
 import { useECash } from './ECashContext';
 import {
   handleAuthChallenge,
@@ -615,6 +616,9 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                     globalEvents.emit('activityAdded', activity);
                     console.log('activityAdded event emitted');
                     console.log('Cashu direct activity recorded successfully');
+                    // Provide lightweight user feedback
+                    const amountStr = tokenInfo.amount ? ` x${Number(tokenInfo.amount)}` : '';
+                    showToast(`Ticket received: ${ticketTitle}${amountStr}`, 'success');
                   } else {
                     console.warn('Failed to record Cashu token activity due to database issues');
                   }
