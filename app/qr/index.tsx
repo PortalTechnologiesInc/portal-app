@@ -7,11 +7,12 @@ import { usePendingRequests } from '@/context/PendingRequestsContext';
 import { parseCashuToken, parseKeyHandshakeUrl } from 'portal-app-lib';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { Flashlight, FlashlightOff, ArrowLeft, Settings } from 'lucide-react-native';
+import { ArrowLeft, Settings } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useECash } from '@/context/ECashContext';
+import { useDatabaseContext } from '@/context/DatabaseContext';
 
 // Define the type for the barcode scanner result
 type BarcodeResult = {
@@ -29,6 +30,7 @@ export default function QRScannerScreen() {
   const nostrService = useNostrService();
   const params = useLocalSearchParams();
   const eCash = useECash();
+  const { executeOperation, executeOnNostr } = useDatabaseContext();
 
   // Determine the mode - default to 'main' if no mode is specified
   const mode = (params.mode as string) || 'main';
@@ -212,12 +214,63 @@ export default function QRScannerScreen() {
         try {
           await wallet.receiveToken(token);
 
+          await executeOnNostr(async (db) => {
+            let mintsList = await db.readMints();
+
+            // Convert to Set to prevent duplicates, then back to array
+            const mintsSet = new Set([tokenInfo.mintUrl, ...mintsList]);
+            mintsList = Array.from(mintsSet);
+
+            db.storeMints(mintsList);
+          });
+
+
           const { globalEvents } = await import('@/utils/index');
           globalEvents.emit('walletBalancesChanged', {
             mintUrl: tokenInfo.mintUrl,
             unit: tokenInfo.unit.toLowerCase(),
           });
           console.log('walletBalancesChanged event emitted from QR scanner');
+
+          // Record activity for token receipt
+          try {
+            // For Cashu direct, use mint URL as service identifier
+            const serviceKey = tokenInfo.mintUrl;
+            const unitInfo = await wallet.getUnitInfo();
+            const ticketTitle = unitInfo?.title || wallet.unit();
+
+            // Add activity to database using ActivitiesContext directly
+            const activity = {
+              type: 'ticket_received' as const,
+              service_key: serviceKey,
+              service_name: ticketTitle,
+              detail: ticketTitle,
+              date: new Date(),
+              amount: tokenInfo.amount ? Number(tokenInfo.amount) : null, // Store actual number of tickets, not divided by 1000
+              currency: null,
+              request_id: `cashu-direct-${Date.now()}`,
+              subscription_id: null,
+              status: 'neutral' as 'neutral',
+              converted_amount: null,
+              converted_currency: null,
+            };
+            console.warn(3);
+
+            // Use database service for activity recording
+            const activityId = await executeOperation(db => db.addActivity(activity), null);
+
+            if (activityId) {
+              console.log('Activity added to database with ID:', activityId);
+              // Emit event for UI updates
+              globalEvents.emit('activityAdded', activity);
+              console.log('activityAdded event emitted');
+              console.log('Cashu direct activity recorded successfully');
+            } else {
+              console.warn('Failed to record Cashu token activity due to database issues');
+            }
+          } catch (activityError) {
+            console.error('Error recording Cashu direct activity:', activityError);
+          }
 
           Alert.alert(
             'Ticket Added Successfully!',
