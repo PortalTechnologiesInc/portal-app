@@ -3,8 +3,8 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { DatabaseService } from '../services/DatabaseService';
 import { AppResetService } from '../services/AppResetService';
 import { useMnemonic } from './MnemonicContext';
-import { Mnemonic, PortalDb, PortalDbInterface } from 'portal-app-lib';
-import { DEFAULT_RELAYS } from './NostrServiceContext';
+import { Mnemonic } from 'portal-app-lib';
+import defaultRelayList from '../assets/DefaultRelays.json';
 import NostrStoreService from '@/services/NostrStoreService';
 
 // Create a context to expose database initialization state
@@ -94,14 +94,14 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
           relays = dbRelays;
         } else {
           // If no relays in database, use defaults and update database
-          relays = [...DEFAULT_RELAYS];
-          await executeOperation(db => db.updateRelays(DEFAULT_RELAYS), null);
+          relays = [...defaultRelayList];
+          await executeOperation(db => db.updateRelays(defaultRelayList), null);
         }
       } catch (error) {
         console.warn('Failed to get relays from database, using defaults:', error);
         // Fallback to default relays if database access fails
-        relays = [...DEFAULT_RELAYS];
-        await executeOperation(db => db.updateRelays(DEFAULT_RELAYS), null);
+        relays = [...defaultRelayList];
+        await executeOperation(db => db.updateRelays(defaultRelayList), null);
       }
 
       const nostrStore = await NostrStoreService.create(keypair, relays);

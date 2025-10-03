@@ -77,9 +77,6 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
   // Simple database access
   const { executeOperation } = useDatabaseContext();
 
-  // Queue for activities that couldn't be recorded due to DB not being ready
-  const [pendingActivities, setPendingActivities] = useState<PendingActivity[]>([]);
-  const [pendingSubscriptions, setPendingSubscriptions] = useState<PendingSubscription[]>([]);
   const nostrService = useNostrService();
   const eCashContext = useECash();
   const { preferredCurrency } = useCurrency();
@@ -96,8 +93,6 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
     setIsLoadingRequest(false);
     setPendingUrl(undefined);
     setRequestFailed(false);
-    setPendingActivities([]);
-    setPendingSubscriptions([]);
 
     // Clear any active timeouts
     if (timeoutId) {
@@ -117,33 +112,6 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
     };
   }, []);
 
-  // Process any pending activities when available
-  useEffect(() => {
-    const processPendingActivities = async () => {
-      if (pendingActivities.length === 0) return;
-
-      console.log(`Processing ${pendingActivities.length} pending activities`);
-
-      const activitiesToProcess = [...pendingActivities];
-      setPendingActivities([]); // Clear the queue
-
-      for (const activity of activitiesToProcess) {
-        const success = await executeOperation(db => db.addActivity(activity), null);
-
-        if (success) {
-          console.log('Successfully recorded delayed activity:', activity.type);
-        } else {
-          console.error('Failed to record delayed activity, re-queuing');
-          setPendingActivities(prev => [...prev, activity]);
-        }
-      }
-
-      // Refresh data after processing pending activities
-      refreshData();
-    };
-
-    processPendingActivities();
-  }, [executeOperation, pendingActivities, refreshData]);
 
   // Helper function to add an activity
   const addActivityWithFallback = async (activity: PendingActivity): Promise<string> => {
@@ -255,7 +223,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             const serviceName = await getServiceNameWithFallback(nostrService, metadata.serviceKey);
 
             // Convert BigInt to number if needed
-            const amount =
+            let amount =
               typeof metadata.content.amount === 'bigint'
                 ? Number(metadata.content.amount)
                 : metadata.content.amount;
@@ -263,13 +231,18 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             // Extract currency symbol from the Currency object
             let currency: string | null = null;
             const currencyObj = metadata.content.currency;
-            if (currencyObj) {
-              // If it's a simple string, use it directly
-              if (typeof currencyObj === 'string') {
-                currency = currencyObj;
-              } else {
+            switch (currencyObj.tag) {
+              case Currency_Tags.Fiat:
+                if (typeof currencyObj === 'string') {
+                  currency = currencyObj;
+                } else {
+                  currency = 'unknown';
+                }
+                break;
+              case Currency_Tags.Millisats:
+                amount = amount / 1000;
                 currency = 'sats';
-              }
+                break;
             }
 
             // Convert currency for user's preferred currency
@@ -278,10 +251,10 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
             try {
               const sourceCurrency =
-                currencyObj?.tag === Currency_Tags.Fiat ? (currencyObj as any).inner : 'SATS';
+                currencyObj?.tag === Currency_Tags.Fiat ? (currencyObj as any).inner : 'MSATS';
 
               convertedAmount = await CurrencyConversionService.convertAmount(
-                Number(amount),
+                amount,
                 sourceCurrency,
                 preferredCurrency // Currency enum values are already strings
               );
@@ -297,8 +270,8 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               service_name: serviceName,
               detail: 'Payment approved',
               date: new Date(),
-              amount: Number(amount) / 1000,
-              currency,
+              amount: amount,
+              currency: currency,
               converted_amount: convertedAmount,
               converted_currency: convertedCurrency,
               request_id: id,
@@ -370,13 +343,6 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           try {
             // Convert BigInt to number if needed
             const req = request.metadata as RecurringPaymentRequest;
-            const amount =
-              typeof req.content.amount === 'bigint'
-                ? Number(req.content.amount)
-                : req.content.amount;
-
-            // Extract currency symbol from the Currency object
-            const currencyObj = req.content.currency;
 
             (async () => {
               const serviceName = await getServiceNameWithFallback(
@@ -384,16 +350,38 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 (request.metadata as RecurringPaymentRequest).serviceKey
               );
 
+              let amount =
+                typeof req.content.amount === 'bigint'
+                  ? Number(req.content.amount)
+                  : req.content.amount;
+
+              // Extract currency symbol from the Currency object
+              let currency: string | null = null;
+              const currencyObj = req.content.currency;
+              switch (currencyObj.tag) {
+                case Currency_Tags.Fiat:
+                  if (typeof currencyObj === 'string') {
+                    currency = currencyObj;
+                  } else {
+                    currency = 'unknown';
+                  }
+                  break;
+                case Currency_Tags.Millisats:
+                  amount = amount / 1000;
+                  currency = 'sats';
+                  break;
+              }
+
               // Convert currency for user's preferred currency
               let convertedAmount: number | null = null;
               let convertedCurrency: string | null = null;
 
               try {
                 const sourceCurrency =
-                  currencyObj?.tag === Currency_Tags.Fiat ? (currencyObj as any).inner : 'SATS';
+                  currencyObj?.tag === Currency_Tags.Fiat ? (currencyObj as any).inner : 'MSATS';
 
                 convertedAmount = await CurrencyConversionService.convertAmount(
-                  Number(amount),
+                  amount,
                   sourceCurrency,
                   preferredCurrency // Currency enum values are already strings
                 );
@@ -407,8 +395,8 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 request_id: id,
                 service_name: serviceName,
                 service_key: (request.metadata as RecurringPaymentRequest).serviceKey,
-                amount: Number(amount) / 1000,
-                currency: 'sats',
+                amount: amount,
+                currency: currency,
                 converted_amount: convertedAmount,
                 converted_currency: convertedCurrency,
                 status: 'active',
@@ -613,22 +601,27 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
           // Add denied payment activity to database
           try {
-            // Convert BigInt to number if needed
-            const amount =
-              typeof (request.metadata as SinglePaymentRequest).content.amount === 'bigint'
-                ? Number((request.metadata as SinglePaymentRequest).content.amount)
-                : (request.metadata as SinglePaymentRequest).content.amount;
+            const req = request.metadata as SinglePaymentRequest;
+            let amount =
+              typeof req.content.amount === 'bigint'
+                ? Number(req.content.amount)
+                : req.content.amount;
 
             // Extract currency symbol from the Currency object
             let currency: string | null = null;
-            const currencyObj = (request.metadata as SinglePaymentRequest).content.currency;
-            if (currencyObj) {
-              // If it's a simple string, use it directly
-              if (typeof currencyObj === 'string') {
-                currency = currencyObj;
-              } else {
+            const currencyObj = req.content.currency;
+            switch (currencyObj.tag) {
+              case Currency_Tags.Fiat:
+                if (typeof currencyObj === 'string') {
+                  currency = currencyObj;
+                } else {
+                  currency = 'unknown';
+                }
+                break;
+              case Currency_Tags.Millisats:
+                amount = amount / 1000;
                 currency = 'sats';
-              }
+                break;
             }
 
             // Convert currency for user's preferred currency
@@ -637,10 +630,10 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
             try {
               const sourceCurrency =
-                currencyObj?.tag === Currency_Tags.Fiat ? (currencyObj as any).inner : 'SATS';
+                currencyObj?.tag === Currency_Tags.Fiat ? (currencyObj as any).inner : 'MSATS';
 
               convertedAmount = await CurrencyConversionService.convertAmount(
-                Number(amount),
+                amount,
                 sourceCurrency,
                 preferredCurrency // Currency enum values are already strings
               );
@@ -662,8 +655,8 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                   service_name: serviceName,
                   detail: 'Payment denied by user',
                   date: new Date(),
-                  amount: Number(amount) / 1000,
-                  currency,
+                  amount: amount,
+                  currency: currency,
                   converted_amount: convertedAmount,
                   converted_currency: convertedCurrency,
                   request_id: id,
@@ -771,7 +764,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 detail: deniedTicketTitle, // Use ticket title as detail
                 date: new Date(),
                 amount: Number(cashuEvent.inner.amount), // Store actual number of tickets, not divided by 1000
-                currency: 'sats',
+                currency: null,
                 converted_amount: null,
                 converted_currency: null,
                 request_id: id,
@@ -806,7 +799,6 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
       if (parsedUrl.noRequest) {
         return;
       }
-
       // Clean up any existing timeout
       if (timeoutId) {
         clearTimeout(timeoutId);

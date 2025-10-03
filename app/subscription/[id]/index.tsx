@@ -73,7 +73,7 @@ export default function SubscriptionDetailScreen() {
             payments.map(payment => ({
               id: payment.id,
               amount: payment.amount ?? 0,
-              currency: payment.currency ?? 'sats',
+              currency: payment.currency ?? 'unknown',
               status: 'completed',
               date: payment.date.getTime(),
             }))
