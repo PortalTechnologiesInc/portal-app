@@ -147,6 +147,22 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [handleDeepLink]);
 
+  // // Handle initial URL on cold start
+  useEffect(() => {
+    (async () => {
+      try {
+        const initialUrl = await Linking.getInitialURL();
+        console.warn("-------------->", initialUrl)
+        if (initialUrl) {
+          console.log('Processing initial URL on cold start:', initialUrl);
+          handleDeepLink(initialUrl);
+        }
+      } catch (e) {
+        console.error('Failed to get initial URL:', e);
+      }
+    })();
+  }, []);
+
   // Provide context value
   const contextValue: DeeplinkContextType = {
     handleDeepLink,

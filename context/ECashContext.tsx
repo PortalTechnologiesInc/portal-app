@@ -58,7 +58,7 @@ export function ECashProvider({ children, mnemonic }: { children: ReactNode; mne
       setIsLoading(true);
       try {
         // Get wallet pairs from database
-        const pairList = await executeOperation(db => db.getMintUnitPairs(), []);
+        const pairList: [string, string][] = await executeOperation(db => db.getMintUnitPairs(), []);
 
         if (pairList.length === 0) {
           setIsLoading(false);

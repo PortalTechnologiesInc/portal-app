@@ -179,16 +179,14 @@ export default function RootLayout() {
   const DATABASE_NAME = 'portal-app.db';
 
   return (
-    <SQLiteProvider databaseName={DATABASE_NAME} onInit={migrateDbIfNeeded}>
-      <MnemonicProvider>
-        <DatabaseProvider>
-          <ThemeProvider>
-            <CurrencyProvider>
-              <ThemedRootView />
-            </CurrencyProvider>
-          </ThemeProvider>
-        </DatabaseProvider>
-      </MnemonicProvider>
-    </SQLiteProvider>
+    <MnemonicProvider>
+      <DatabaseProvider>
+        <ThemeProvider>
+          <CurrencyProvider>
+            <ThemedRootView />
+          </CurrencyProvider>
+        </ThemeProvider>
+      </DatabaseProvider>
+    </MnemonicProvider>
   );
 }

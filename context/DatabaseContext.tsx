@@ -1,11 +1,11 @@
-import { type ReactNode, createContext, useContext } from 'react';
-import { useSQLiteContext } from 'expo-sqlite';
+import { type ReactNode, createContext, useContext, useEffect, useState } from 'react';
 import { DatabaseService } from '../services/DatabaseService';
 import { AppResetService } from '../services/AppResetService';
 import { useMnemonic } from './MnemonicContext';
 import { Mnemonic } from 'portal-app-lib';
 import defaultRelayList from '../assets/DefaultRelays.json';
 import NostrStoreService from '@/services/NostrStoreService';
+import * as SQLite from 'expo-sqlite';
 
 // Create a context to expose database initialization state
 interface DatabaseContextType {
@@ -31,25 +31,15 @@ interface DatabaseProviderProps {
 }
 
 export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
-  const sqliteContext = useSQLiteContext();
   const { mnemonic } = useMnemonic();
-
-  // Check if database context exists (simpler check)
-  const isDbReady = !!sqliteContext;
 
   const executeOperation = async <T,>(
     operation: (db: DatabaseService) => Promise<T>,
     fallback?: T
   ): Promise<T> => {
     try {
-      // Check if SQLite context exists
-      if (!isDbReady) {
-        console.warn('Database not ready, using fallback');
-        if (fallback !== undefined) return fallback;
-        throw new Error('Database not ready');
-      }
-
-      const db = new DatabaseService(sqliteContext);
+      const sqlite = await SQLite.openDatabaseAsync('portal-app.db');
+      const db = new DatabaseService(sqlite);
       return await operation(db);
     } catch (error: any) {
       // Handle "Access to closed resource" errors gracefully
@@ -57,6 +47,7 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
         error?.message?.includes('closed resource') ||
         error?.message?.includes('Access to closed resource')
       ) {
+        console.warn("🖐️🖐️🖐️🖐️🖐️🖐️🖐️", error)
         console.warn('Database operation failed - resource closed, using fallback');
         if (fallback !== undefined) return fallback;
         throw new Error('Database resource closed');
@@ -113,8 +104,9 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
     }
   }
 
-  const resetApp = () => {
-    return AppResetService.performCompleteReset(sqliteContext);
+  const resetApp = async () => {
+    const sqlite = await SQLite.openDatabaseAsync('portal-app.db');
+    return AppResetService.performCompleteReset(sqlite);
   };
 
   // Create the context value
@@ -122,7 +114,7 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
     executeOperation,
     executeOnNostr,
     resetApp,
-    isDbReady,
+    isDbReady: true,
   };
 
   return <DatabaseContext.Provider value={contextValue}>{children}</DatabaseContext.Provider>;

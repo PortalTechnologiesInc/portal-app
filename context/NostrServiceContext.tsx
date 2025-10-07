@@ -371,6 +371,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
   class LocalRelayStatusListener implements RelayStatusListener {
     onRelayStatusChange(relay_url: string, status: number): Promise<void> {
+      console.warn("--------------->", "🖐️🖐️here in localrelaystatuslistener");
       return executeOperation(db => db.getRelays()).then(relays => {
         const statusString = mapNumericStatusToString(status);
 
@@ -387,7 +388,9 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
         console.log('📡 [STATUS UPDATE] Relay:', relay_url, '→', statusString, `(${status})`);
 
-        setRelayStatuses(prev => {
+
+        const prev = relayStatusesRef.current;
+        // setRelayStatuses(prev => {
           // Check if this relay has been marked as removed by user
           if (removedRelaysRef.current.has(relay_url)) {
             // Don't add removed relays back to the status list
@@ -442,8 +445,11 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
             ];
           }
 
-          return newStatuses;
-        });
+          relayStatusesRef.current = newStatuses;
+          console.warn("_________________________wee: ", relayStatusesRef.current)
+          // return newStatuses;
+        // });
+        setRelayStatuses(newStatuses);
 
         return Promise.resolve();
       });
@@ -459,6 +465,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
   // Initialize the NostrService
   useEffect(() => {
+    console.warn("--------------->", isInitialized);
     const abortController = new AbortController();
 
     // Prevent re-initialization if already initialized
@@ -474,6 +481,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     }
 
     const initializeNostrService = async () => {
+      await new Promise(resolve => setTimeout(resolve, 5000));
       try {
         console.log('Initializing NostrService with mnemonic');
 
@@ -514,8 +522,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
           new LocalRelayStatusListener()
         );
 
-        // Start listening and give it a moment to establish connections
-        app.listen({ signal: abortController.signal });
         console.log('PortalApp listening started...');
 
         // listener to receive tokens
@@ -909,12 +915,14 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
         // Mark as initialized
         setIsInitialized(true);
+        app.listen({ signal: abortController.signal });
       } catch (error) {
         console.error('Failed to initialize NostrService:', error);
         setIsInitialized(false);
       }
     };
 
+    console.warn("--------------->", "now initializing nostrservice!!");
     initializeNostrService();
 
     // Cleanup function
@@ -1048,7 +1056,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
           return;
         }
         console.log(
-          `🤝 Try #${attempt}. Handshake request delayed. No relay connected or app not fully active!`
+          `🤝 Try #${attempt}. Handshake request delayed. No relay connected or app not fully active!\nRelays: ${relayStatusesRef.current}\napp: ${isAppActive.current}`
         );
         await new Promise(resolve => setTimeout(resolve, 500));
         attempt++;
@@ -1057,7 +1065,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
       console.log('Sending auth init', url);
       return PortalAppManager.tryGetInstance().sendKeyHandshake(url);
     },
-    [isAppActive]
+    [isAppActive, relayStatusesRef.current]
   );
 
   // Get service name with database caching
@@ -1139,9 +1147,10 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     console.warn('stopPeriodicMonitoring is deprecated. Use navigation-based monitoring instead.');
   }, []);
 
-  useEffect(() => {
-    relayStatusesRef.current = relayStatuses;
-  }, [relayStatuses]);
+  // useEffect(() => {
+  //   console.warn("_________________________wee")
+  //   relayStatusesRef.current = relayStatuses;
+  // }, [relayStatuses]);
 
   useEffect(() => {
     removedRelaysRef.current = removedRelays;
