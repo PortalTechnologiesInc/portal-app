@@ -12,40 +12,9 @@ const isDevelopmentDeeplink = (url: string): boolean => {
 
 export default function Index() {
   const { isOnboardingComplete, isLoading } = useOnboarding();
-  const [isCheckingDeeplink, setIsCheckingDeeplink] = useState(true);
-  const [hasDeeplink, setHasDeeplink] = useState(false);
-
-  useEffect(() => {
-    const checkForDeeplink = async () => {
-      try {
-        // Check if app was opened with a deeplink
-        const initialUrl = await Linking.getInitialURL();
-
-        if (initialUrl && !isDevelopmentDeeplink(initialUrl)) {
-          // App was opened with a real deeplink (not development), let the deeplink handler manage navigation
-          console.log('App opened with deeplink, preventing index redirect:', initialUrl);
-          setHasDeeplink(true);
-          return;
-        }
-
-        if (initialUrl) {
-          console.log('Development deeplink detected, ignoring:', initialUrl);
-        }
-
-        setHasDeeplink(false);
-      } catch (error) {
-        console.error('Error checking for deeplink:', error);
-        setHasDeeplink(false);
-      } finally {
-        setIsCheckingDeeplink(false);
-      }
-    };
-
-    checkForDeeplink();
-  }, []);
 
   // Show loading while checking for deeplink or onboarding state
-  if (isLoading || isCheckingDeeplink) {
+  if (isLoading) {
     return (
       <View
         style={{
@@ -58,11 +27,6 @@ export default function Index() {
         <ActivityIndicator size="large" color={Colors.almostWhite} />
       </View>
     );
-  }
-
-  // If app was opened with a real deeplink (not development), don't render any redirect - let deeplink handler take over
-  if (hasDeeplink) {
-    return null;
   }
 
   // Simple navigation decision based on onboarding completion
