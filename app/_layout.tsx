@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Text, View, SafeAreaView, Button, Platform } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, usePathname, useGlobalSearchParams } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { OnboardingProvider, useOnboarding } from '@/context/OnboardingContext';
@@ -145,6 +145,25 @@ const ThemedRootView = () => {
 
 export default function RootLayout() {
   const [isReady, setIsReady] = useState(false);
+  const pathname = usePathname();
+  const searchParams = useGlobalSearchParams();
+
+  useEffect(() => {
+    if (pathname) {
+      const urlSearchParams = new URLSearchParams();
+      Object.entries(searchParams).forEach(([key, value]) => {
+        if (value == null) return;
+        if (Array.isArray(value)) {
+          value.forEach(v => urlSearchParams.append(key, v));
+        } else {
+          urlSearchParams.set(key, value);
+        }
+      });
+      const queryString = urlSearchParams.toString();
+      const fullPath = queryString ? `${pathname}?${queryString}` : pathname;
+      console.warn('[Route]', fullPath);
+    }
+  }, [pathname, searchParams]);
 
   useEffect(() => {
     async function prepare() {

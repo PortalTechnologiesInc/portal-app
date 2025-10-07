@@ -391,63 +391,63 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
         const prev = relayStatusesRef.current;
         // setRelayStatuses(prev => {
-          // Check if this relay has been marked as removed by user
-          if (removedRelaysRef.current.has(relay_url)) {
-            // Don't add removed relays back to the status list
-            return prev.filter(relay => relay.url !== relay_url);
+        // Check if this relay has been marked as removed by user
+        if (removedRelaysRef.current.has(relay_url)) {
+          // Don't add removed relays back to the status list
+          return prev.filter(relay => relay.url !== relay_url);
+        }
+
+        // Reset reconnection attempts tracker when relay connects successfully
+        if (status === 3) {
+          // Connected - clear both manual and auto reconnection attempts
+          lastReconnectAttempts.current.delete(relay_url);
+          lastReconnectAttempts.current.delete(`auto_${relay_url}`);
+        }
+
+        // Auto-reconnect logic for terminated/disconnected relays
+        if (status === 5 || status === 4) {
+          // Terminated or Disconnected
+          const now = Date.now();
+          const lastAutoAttempt = lastReconnectAttempts.current.get(`auto_${relay_url}`) || 0;
+          const timeSinceLastAutoAttempt = now - lastAutoAttempt;
+
+          // Only attempt auto-reconnection if more than 10 seconds have passed since last auto-attempt
+          if (timeSinceLastAutoAttempt > 10000) {
+            lastReconnectAttempts.current.set(`auto_${relay_url}`, now);
+
+            // Use setTimeout to avoid blocking the status update
+            setTimeout(async () => {
+              try {
+                await PortalAppManager.tryGetInstance().reconnectRelay(relay_url);
+              } catch (error) {
+                console.error('❌ Auto-reconnect failed for relay:', relay_url, error);
+              }
+            }, 2000);
           }
+        }
 
-          // Reset reconnection attempts tracker when relay connects successfully
-          if (status === 3) {
-            // Connected - clear both manual and auto reconnection attempts
-            lastReconnectAttempts.current.delete(relay_url);
-            lastReconnectAttempts.current.delete(`auto_${relay_url}`);
-          }
+        const index = prev.findIndex(relay => relay.url === relay_url);
+        let newStatuses: RelayInfo[];
 
-          // Auto-reconnect logic for terminated/disconnected relays
-          if (status === 5 || status === 4) {
-            // Terminated or Disconnected
-            const now = Date.now();
-            const lastAutoAttempt = lastReconnectAttempts.current.get(`auto_${relay_url}`) || 0;
-            const timeSinceLastAutoAttempt = now - lastAutoAttempt;
+        // If relay is not in the list, add it
+        if (index === -1) {
+          newStatuses = [
+            ...prev,
+            { url: relay_url, status: statusString, connected: status === 3 },
+          ];
+        }
+        // Otherwise, update the relay list
+        else {
+          newStatuses = [
+            ...prev.slice(0, index),
+            { url: relay_url, status: statusString, connected: status === 3 },
+            ...prev.slice(index + 1),
+          ];
+        }
 
-            // Only attempt auto-reconnection if more than 10 seconds have passed since last auto-attempt
-            if (timeSinceLastAutoAttempt > 10000) {
-              lastReconnectAttempts.current.set(`auto_${relay_url}`, now);
-
-              // Use setTimeout to avoid blocking the status update
-              setTimeout(async () => {
-                try {
-                  await PortalAppManager.tryGetInstance().reconnectRelay(relay_url);
-                } catch (error) {
-                  console.error('❌ Auto-reconnect failed for relay:', relay_url, error);
-                }
-              }, 2000);
-            }
-          }
-
-          const index = prev.findIndex(relay => relay.url === relay_url);
-          let newStatuses: RelayInfo[];
-
-          // If relay is not in the list, add it
-          if (index === -1) {
-            newStatuses = [
-              ...prev,
-              { url: relay_url, status: statusString, connected: status === 3 },
-            ];
-          }
-          // Otherwise, update the relay list
-          else {
-            newStatuses = [
-              ...prev.slice(0, index),
-              { url: relay_url, status: statusString, connected: status === 3 },
-              ...prev.slice(index + 1),
-            ];
-          }
-
-          relayStatusesRef.current = newStatuses;
-          console.warn("_________________________wee: ", relayStatusesRef.current)
-          // return newStatuses;
+        relayStatusesRef.current = newStatuses;
+        console.warn("_________________________wee: ", relayStatusesRef.current)
+        // return newStatuses;
         // });
         setRelayStatuses(newStatuses);
 
@@ -913,9 +913,9 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         console.log('NostrService initialized successfully with public key:', publicKeyStr);
         console.log('Running on those relays:', relays);
 
+        app.listen({ signal: abortController.signal });
         // Mark as initialized
         setIsInitialized(true);
-        app.listen({ signal: abortController.signal });
       } catch (error) {
         console.error('Failed to initialize NostrService:', error);
         setIsInitialized(false);
