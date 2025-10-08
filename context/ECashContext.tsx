@@ -29,7 +29,7 @@ const ECashContext = createContext<ECashContextType | undefined>(undefined);
 export function ECashProvider({ children, mnemonic }: { children: ReactNode; mnemonic: string }) {
   const [wallets, setWallets] = useState<{ [key: string]: CashuWalletInterface }>({});
   const [isLoading, setIsLoading] = useState(false);
-  const { executeOperation, isDbReady } = useDatabaseContext();
+  const { executeOperation } = useDatabaseContext();
 
   // Reset all ECash state to initial values
   // This is called during app reset to ensure clean state
@@ -49,11 +49,6 @@ export function ECashProvider({ children, mnemonic }: { children: ReactNode; mne
 
   useEffect(() => {
     const fetchWallets = async () => {
-      // Wait for database to be ready
-      if (!isDbReady) {
-        console.log('ECashContext: Waiting for database to be ready...');
-        return;
-      }
 
       setIsLoading(true);
       try {
@@ -94,7 +89,7 @@ export function ECashProvider({ children, mnemonic }: { children: ReactNode; mne
     };
 
     fetchWallets();
-  }, [executeOperation, isDbReady]);
+  }, [executeOperation]);
 
   // Add a new wallet with simplified error handling
   const addWallet = async (mintUrl: string, unit: string): Promise<CashuWalletInterface> => {
