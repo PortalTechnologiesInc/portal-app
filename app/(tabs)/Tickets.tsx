@@ -323,14 +323,16 @@ export default function TicketsScreen() {
             contentContainerStyle={styles.scrollContent}
           >
             {/* Focused card zone */}
-            {focusedCardId && (
-              <View>
-                <TicketCard
-                  ticket={tickets.find(t => t.id === focusedCardId)!}
-                  index={tickets.findIndex(t => t.id === focusedCardId)}
-                  isFocused={true}
-                  onPress={() => handleCardPress(focusedCardId)}
-                />
+            {focusedCardId && (() => {
+              const focusedTicket = tickets.find(t => t.id === focusedCardId);
+              return focusedTicket ? (
+                <View>
+                  <TicketCard
+                    ticket={focusedTicket}
+                    index={tickets.findIndex(t => t.id === focusedCardId)}
+                    isFocused={true}
+                    onPress={() => handleCardPress(focusedCardId)}
+                  />
                 <View style={[styles.nfcSection, { backgroundColor: surfaceSecondaryColor }]}>
                   <View style={styles.nfcIconContainer}>
                     {isCheckingNFC ? (
@@ -369,8 +371,9 @@ export default function TicketsScreen() {
                           : 'NFC is disabled. Enable NFC in your device settings to validate tickets'}
                   </ThemedText>
                 </View>
-              </View>
-            )}
+                </View>
+              ) : null;
+            })()}
             {/* Stacked list of all other cards */}
             <View style={[
               styles.cardsContainer,

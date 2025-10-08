@@ -5,13 +5,18 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 import { Ticket } from '@/utils';
 
 const TicketCard: React.FC<{
-  ticket: Ticket;
+  ticket: Ticket | null | undefined;
   index: number;
   isFocused: boolean;
   onPress: () => void;
 }> = ({ ticket, index, isFocused, onPress }) => {
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');
   const borderColor = useThemeColor({}, 'borderPrimary');
+
+  // Early return if ticket is null/undefined
+  if (!ticket) {
+    return null;
+  }
 
   // Use card background if available, otherwise fallback to mockup
   const cardImageSource = ticket.frontCardBackground
