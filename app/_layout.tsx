@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { Text, View, SafeAreaView, Button, Platform } from 'react-native';
 import { Stack, usePathname, useGlobalSearchParams } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -197,16 +197,18 @@ export default function RootLayout() {
   const DATABASE_NAME = 'portal-app.db';
 
   return (
-    <SQLiteProvider databaseName={DATABASE_NAME} onInit={migrateDbIfNeeded}>
-      <MnemonicProvider>
-        <DatabaseProvider>
-          <ThemeProvider>
-            <CurrencyProvider>
-              <ThemedRootView />
-            </CurrencyProvider>
-          </ThemeProvider>
-        </DatabaseProvider>
-      </MnemonicProvider>
-    </SQLiteProvider>
+    <Suspense fallback={<Text>Loading...</Text>}>
+      <SQLiteProvider databaseName={DATABASE_NAME} onInit={migrateDbIfNeeded} useSuspense={true}>
+        <MnemonicProvider>
+          <DatabaseProvider>
+            <ThemeProvider>
+              <CurrencyProvider>
+                <ThemedRootView />
+              </CurrencyProvider>
+            </ThemeProvider>
+          </DatabaseProvider>
+        </MnemonicProvider>
+      </SQLiteProvider>
+    </Suspense>
   );
 }

@@ -81,11 +81,6 @@ hooks/               # Custom React hooks
 // Always use the DatabaseService pattern
 const db = useSQLiteContext();
 const dbService = new DatabaseService(db);
-
-// Check database readiness before operations
-if (isDbReady) {
-  await dbService.someOperation();
-}
 ```
 
 ### Theme-Aware Components
