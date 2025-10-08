@@ -8,6 +8,7 @@ import { useECash } from './ECashContext';
 import { Alert } from 'react-native';
 import { router } from 'expo-router';
 import { useDatabaseContext } from './DatabaseContext';
+import { useOnboarding } from './OnboardingContext';
 
 // Define the context type
 type DeeplinkContextType = {
@@ -22,6 +23,7 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
   const { showSkeletonLoader } = usePendingRequests();
   const nostrService = useNostrService();
   const { addWallet } = useECash();
+  const { isOnboardingComplete } = useOnboarding();
   const { executeOperation, executeOnNostr } = useDatabaseContext()
 
   // Handle deeplink URLs
@@ -151,9 +153,9 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     (async () => {
       if (!isOnboardingComplete) return;
+      
       try {
         const initialUrl = await Linking.getInitialURL();
-        console.warn("-------------->", initialUrl)
         if (initialUrl) {
           console.log('Processing initial URL on cold start:', initialUrl);
           handleDeepLink(initialUrl);
@@ -162,7 +164,7 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
         console.error('Failed to get initial URL:', e);
       }
     })();
-  }, [handleDeepLink]);
+  }, [isOnboardingComplete])
 
   // Provide context value
   const contextValue: DeeplinkContextType = {

@@ -1057,7 +1057,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
       console.log('Sending auth init', url);
       return PortalAppManager.tryGetInstance().sendKeyHandshake(url);
     },
-    [isAppActive]
+    [isAppActive, isOnboardingComplete]
   );
 
   // Get service name with database caching
