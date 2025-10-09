@@ -176,3 +176,26 @@ export const shouldShowConvertedAmount = (params: {
   const converted = convertedCurrency?.toUpperCase();
   return amount !== null && amount !== undefined && !!converted && converted !== original;
 };
+
+/**
+ * Checks if two bigint values are approximately equal within a 1% tolerance.
+ * @param value1 - First bigint value to compare
+ * @param value2 - Second bigint value to compare
+ * @returns true if the values are within 1% of each other, false otherwise
+ */
+export function areAmountsAlmostEqual(value1: bigint, value2: bigint): boolean {
+  if (value1 === value2) {
+    return true;
+  }
+
+  // Use the larger value as the base for percentage calculation
+  const larger = value1 > value2 ? value1 : value2;
+  const smaller = value1 > value2 ? value2 : value1;
+
+  // Calculate 1% of the larger value
+  const onePercent = larger / 100n;
+
+  // Check if the difference is within 1%
+  const difference = larger - smaller;
+  return difference <= onePercent;
+}

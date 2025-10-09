@@ -14,7 +14,7 @@ import {
 } from 'portal-app-lib';
 import { DatabaseService, fromUnixSeconds, SubscriptionWithDates } from './DatabaseService';
 import { CurrencyConversionService } from './CurrencyConversionService';
-import { Currency } from '@/utils/currency';
+import { areAmountsAlmostEqual, Currency } from '@/utils/currency';
 
 export async function handleAuthChallenge(
   event: AuthChallengeEvent,
@@ -36,13 +36,37 @@ export async function handleSinglePaymentRequest(
   try {
     let invoiceData = parseBolt11(request.content.invoice);
 
-    if (invoiceData.amountMsat != request.content.amount) {
-      resolve(
-        new PaymentStatus.Rejected({
-          reason: `Invoice amount does not match the requested amount.`,
-        })
-      );
-      return false;
+    if (request.content.currency.tag === Currency_Tags.Millisats) {
+      if (invoiceData.amountMsat != request.content.amount) {
+        resolve(
+          new PaymentStatus.Rejected({
+            reason: `Invoice amount does not match the requested amount.`,
+          })
+        );
+        return false;
+      }
+    } else if (request.content.currency.tag === Currency_Tags.Fiat) {
+      // convert the request amount in millisats and check the invoice data
+      const invoiceConvertedAmount = BigInt(await CurrencyConversionService.convertAmount(
+        Number(invoiceData.amountMsat),
+        Currency.MSATS,
+        request.content.currency.inner[0]
+      ));
+      if (!areAmountsAlmostEqual(invoiceConvertedAmount, request.content.amount)) {
+        resolve(
+          new PaymentStatus.Rejected({
+            reason: `Invoice amount does not match the requested amount.`,
+          })
+        );
+        return false;
+      }
+    } else {
+        resolve(
+          new PaymentStatus.Rejected({
+            reason: `Could not elaborate the subscription currency.`,
+          })
+        );
+        return false;
     }
 
     let subId = request.content.subscriptionId;
@@ -154,7 +178,42 @@ export async function handleSinglePaymentRequest(
       balance = Number(await wallet.getBalance());
     }
 
-    if (balance && request.content.amount > balance) {
+    const amount =
+      typeof request.content.amount === 'bigint'
+        ? Number(request.content.amount)
+        : request.content.amount;
+
+    // Extract currency symbol from the Currency object
+    let currency: string | null = null;
+    const currencyObj = request.content.currency;
+    if (currencyObj) {
+      // If it's a simple string, use it directly
+      if (typeof currencyObj === 'string') {
+        currency = currencyObj;
+      } else {
+        currency = 'sats';
+      }
+    }
+    // Convert currency for user's preferred currency
+    let convertedAmount: number | null = null;
+    let convertedCurrency: string | null = null;
+
+    try {
+      const sourceCurrency =
+        currencyObj?.tag === Currency_Tags.Fiat ? (currencyObj as any).inner : 'SATS';
+
+      convertedAmount = await CurrencyConversionService.convertAmount(
+        Number(amount),
+        sourceCurrency,
+        preferredCurrency // Currency enum values are already strings
+      );
+      convertedCurrency = preferredCurrency;
+    } catch (error) {
+      console.error('Currency conversion error during subscription payment:', error);
+      // Continue without conversion - convertedAmount will remain null
+    }
+
+    if (balance && amount > balance) {
       executeOperation(
         db =>
           db.addActivity({
