@@ -54,7 +54,7 @@ export default function SettingsScreen() {
   const [walletUrl, setWalletUrl] = useState('');
 
   // Unified wallet status
-  const { hasLightningWallet, isLightningConnected, isLoading } = useWalletStatus();
+  const { hasLightningWallet, isLightningConnected } = useWalletStatus();
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -228,30 +228,6 @@ export default function SettingsScreen() {
     if (nwcConnecting) return 'Connecting...';
     if (nwcConnectionStatus === null && hasLightningWallet) return 'Connecting...';
     return 'Not configured';
-  }
-
-  if (isLoading) {
-    return (
-      <SafeAreaView style={[styles.safeArea, { backgroundColor: backgroundColor }]} edges={['top']}>
-        <ThemedView style={styles.container}>
-          <ThemedView style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <ArrowLeft size={20} color={primaryTextColor} />
-            </TouchableOpacity>
-            <ThemedText
-              style={styles.headerText}
-              lightColor={primaryTextColor}
-              darkColor={primaryTextColor}
-            >
-              Settings
-            </ThemedText>
-          </ThemedView>
-          <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-            <ThemedText style={{ color: primaryTextColor }}>Loading...</ThemedText>
-          </ScrollView>
-        </ThemedView>
-      </SafeAreaView>
-    );
   }
 
   const renderCurrencyItem = ({ item }: { item: Currency }) => (

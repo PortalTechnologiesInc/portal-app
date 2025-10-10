@@ -22,9 +22,6 @@ export const useWalletStatus = () => {
   const isFullyConfigured = hasSeed && hasAnyWallet;
   const isActivelyConnected = hasSeed && (hasECashWallets || isLightningConnected);
 
-  // Loading states
-  const isLoading = eCashLoading;
-
   return {
     // Basic components
     hasSeed,
@@ -39,7 +36,7 @@ export const useWalletStatus = () => {
     isActivelyConnected,
 
     // Loading state
-    isLoading,
+    eCashLoading,
 
     // Detailed info
     eCashWalletCount: Object.keys(wallets).length,
