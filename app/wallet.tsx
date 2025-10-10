@@ -20,7 +20,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { getWalletUrl, saveWalletUrl, walletUrlEvents } from '@/services/SecureStorageService';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { useWalletStatus } from '@/hooks/useWalletStatus';
 
 // NWC connection states
 type NwcConnectionState = 'none' | 'connecting' | 'connected' | 'disconnected' | 'error';
@@ -114,8 +113,6 @@ export default function WalletManagementScreen() {
 
   const { walletInfo, refreshWalletInfo, nwcConnectionStatus, nwcConnectionError, nwcConnecting } =
     useNostrService();
-
-  const { hasLightningWallet, isLightningConnected, isLoading } = useWalletStatus();
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -295,27 +292,6 @@ export default function WalletManagementScreen() {
       await refreshWalletInfo();
     }
   }, [walletUrl, refreshWalletInfo]);
-
-  if (isLoading) {
-    return (
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <ThemedView style={styles.container}>
-          <ThemedView style={styles.header}>
-            <ThemedText
-              style={styles.headerText}
-              lightColor={Colors.darkGray}
-              darkColor={Colors.almostWhite}
-            >
-              Wallet Management
-            </ThemedText>
-          </ThemedView>
-          <ThemedView style={styles.content}>
-            <ThemedText>Loading...</ThemedText>
-          </ThemedView>
-        </ThemedView>
-      </SafeAreaView>
-    );
-  }
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>

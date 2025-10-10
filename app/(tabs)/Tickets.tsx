@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Platform, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, Platform, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -22,7 +22,7 @@ export default function TicketsScreen() {
   const [isCheckingNFC, setIsCheckingNFC] = useState(false);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const scrollViewRef = useRef<ScrollView>(null);
-  const { wallets } = useECash();
+  const { wallets, isLoading: eCashLoading } = useECash();
   const { eCashWalletCount } = useWalletStatus();
   const [walletUpdateTrigger, setWalletUpdateTrigger] = useState(0);
 
@@ -309,7 +309,14 @@ export default function TicketsScreen() {
             </ThemedText>
           </TouchableOpacity>
         </View> */}
-        {tickets.length === 0 ? (
+        {eCashLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={buttonPrimaryColor} />
+            <ThemedText style={[styles.loadingText, { color: secondaryTextColor }]}>
+              Loading tickets...
+            </ThemedText>
+          </View>
+        ) : tickets.length === 0 ? (
           <View style={[styles.emptyContainer, { backgroundColor: cardBackgroundColor }]}>
             <ThemedText style={[styles.emptyText, { color: secondaryTextColor }]}>
               No tickets found
@@ -510,6 +517,17 @@ const styles = StyleSheet.create({
   nfcStatusText: {
     fontSize: 12,
     fontWeight: '500',
+    textAlign: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
     textAlign: 'center',
   },
 });
