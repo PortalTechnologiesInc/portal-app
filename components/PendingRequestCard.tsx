@@ -57,7 +57,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const nostrService = useNostrService();
     const { wallets } = useECash();
     const { preferredCurrency } = useCurrency();
-    const { isLoading: walletStatusLoading, hasECashWallets, nwcStatus } = useWalletStatus();
+    const { eCashLoading, hasECashWallets, nwcStatus } = useWalletStatus();
     const [serviceName, setServiceName] = useState<string | null>(null);
     const [isServiceNameLoading, setIsServiceNameLoading] = useState(true);
     const [hasInsufficientBalance, setHasInsufficientBalance] = useState(false);
@@ -286,7 +286,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
       }
 
       // Don't show warnings while wallet status is still loading
-      if (walletStatusLoading) {
+      if (eCashLoading) {
         return null;
       }
 
@@ -323,7 +323,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
       }
 
       // Don't disable while wallet status is still loading
-      if (walletStatusLoading) {
+      if (eCashLoading) {
         return false;
       }
 
