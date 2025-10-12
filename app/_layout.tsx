@@ -23,6 +23,7 @@ import * as Notifications from 'expo-notifications';
 import { ECashProvider } from '@/context/ECashContext';
 import { SQLiteProvider } from 'expo-sqlite';
 import migrateDbIfNeeded from '@/migrations/DatabaseMigrations';
+import BreezeServiceProvider from '@/context/BreezServiceContext';
 
 // Prevent splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -114,16 +115,18 @@ const AuthenticatedAppContent = () => {
   return (
     <ECashProvider mnemonic={mnemonic || ''}>
       <NostrServiceProvider mnemonic={mnemonic || ''} walletUrl={walletUrl}>
-        <UserProfileProvider>
-          <ActivitiesProvider>
-            <PendingRequestsProvider>
-              <DeeplinkProvider>
-                <NotificationConfigurator />
-                <Stack screenOptions={{ headerShown: false }} />
-              </DeeplinkProvider>
-            </PendingRequestsProvider>
-          </ActivitiesProvider>
-        </UserProfileProvider>
+        <BreezeServiceProvider>
+          <UserProfileProvider>
+            <ActivitiesProvider>
+              <PendingRequestsProvider>
+                <DeeplinkProvider>
+                  <NotificationConfigurator />
+                  <Stack screenOptions={{ headerShown: false }} />
+                </DeeplinkProvider>
+              </PendingRequestsProvider>
+            </ActivitiesProvider>
+          </UserProfileProvider>
+        </BreezeServiceProvider>
       </NostrServiceProvider>
     </ECashProvider>
   );
@@ -150,14 +153,12 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (pathname) {
-      const entries: [string, string][] = Object.entries(globalParams).flatMap(
-        ([key, value]) => {
-          if (value === undefined) return [];
-          return Array.isArray(value)
-            ? value.map(v => [key, String(v)] as [string, string])
-            : ([[key, String(value)] as [string, string]]);
-        }
-      );
+      const entries: [string, string][] = Object.entries(globalParams).flatMap(([key, value]) => {
+        if (value === undefined) return [];
+        return Array.isArray(value)
+          ? value.map(v => [key, String(v)] as [string, string])
+          : [[key, String(value)] as [string, string]];
+      });
       const queryString = new URLSearchParams(entries).toString();
       const fullPath = queryString ? `${pathname}?${queryString}` : pathname;
       console.log('[Route]', fullPath);
