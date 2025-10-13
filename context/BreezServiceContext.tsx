@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useMemo, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import * as FileSystem from 'expo-file-system';
 import { useMnemonic } from './MnemonicContext';
 import {
@@ -15,7 +15,9 @@ const BreezServiceContext = createContext<BreezServiceContextType | null>(null);
 
 // Context type definition
 export interface BreezServiceContextType {
-  getInfo?: () => Promise<GetInfoResponse>;
+  isInitialized: boolean;
+  balanceInSats?: bigint;
+  refreshWalletInfo: () => Promise<GetInfoResponse>;
 }
 
 // Provider component
@@ -25,46 +27,91 @@ interface BreezServiceProviderProps {
 
 export const BreezeServiceProvider: React.FC<BreezServiceProviderProps> = ({ children }) => {
   const { mnemonic } = useMnemonic();
-  const seed = useMemo(
-    () => (mnemonic ? new Seed.Mnemonic({ mnemonic, passphrase: undefined }) : undefined),
-    [mnemonic]
-  );
-  const config = useMemo(() => {
-    let config = defaultConfig(Network.Mainnet);
-    config.apiKey = process.env.EXPO_PUBLIC_BREEZ_API_KEY;
-    return config;
-  }, []);
-  const [sdk, setSdk] = useState<BreezSdkInterface | undefined>(undefined);
+  const sdk = useRef<BreezSdkInterface | undefined>(undefined);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [walletInfo, setWalletInfo] = useState<GetInfoResponse | undefined>(undefined);
+  const isCancelledRef = useRef(false);
 
+  // Initialize Breez SDK when mnemonic is available
   useEffect(() => {
-    const connectFn = async () => {
-      if (!config || !seed) {
-        return;
-      }
-
-      setSdk(await connect({ config, seed, storageDir: `${FileSystem.documentDirectory}/data` }));
-    };
-    connectFn();
-
-    return () => {
-      if (sdk) {
-        sdk.disconnect();
-      }
-    };
-  }, [config, sdk, seed]);
-
-  const getInfo = useCallback(async () => {
-    if (!sdk) {
-      throw new Error('SDK not initialized');
+    if (!mnemonic || mnemonic.trim() === '') {
+      console.info('Mnemonic is not available yet. Cannot initialize Breez SDK.');
+      return;
     }
 
-    return await sdk.getInfo({
+    if (isInitialized) {
+      console.info('Breez SDK is already initialized.');
+      return;
+    }
+
+    setIsInitialized(false);
+    isCancelledRef.current = false;
+
+    const connectSdk = async () => {
+      try {
+        const seed = new Seed.Mnemonic({ mnemonic, passphrase: undefined });
+        const config = defaultConfig(Network.Mainnet);
+        config.apiKey = process.env.EXPO_PUBLIC_BREEZ_API_KEY;
+
+        const sdkInstance = await connect({
+          config,
+          seed,
+          storageDir: FileSystem.documentDirectory + 'breez-wallet',
+        });
+
+        if (isCancelledRef.current) {
+          sdkInstance.disconnect();
+          return;
+        }
+
+        sdk.current = sdkInstance;
+        setIsInitialized(true);
+      } catch (error) {
+        if (!isCancelledRef.current) {
+          console.error('Error initializing Breez SDK:', error);
+        }
+      }
+    };
+
+    connectSdk();
+
+    return () => {
+      isCancelledRef.current = true;
+      setIsInitialized(false);
+      if (sdk.current) {
+        sdk.current.disconnect();
+        sdk.current = undefined;
+      }
+    };
+  }, [mnemonic, isInitialized]);
+
+  const getWalletInfo = useCallback(async (sdk: BreezSdkInterface) => {
+    return sdk.getInfo({
       ensureSynced: false,
     });
-  }, [sdk]);
+  }, []);
+
+  const refreshWalletInfo = useCallback(async () => {
+    if (!sdk.current) {
+      throw new Error('Breez SDK is not initialized');
+    }
+
+    try {
+      const info = await getWalletInfo(sdk.current);
+      if (!isCancelledRef.current) {
+        setWalletInfo(info);
+      }
+      return info;
+    } catch (error) {
+      console.error('Error refreshing wallet info:', error);
+      throw error;
+    }
+  }, [getWalletInfo]);
 
   const contextValue: BreezServiceContextType = {
-    getInfo,
+    isInitialized,
+    refreshWalletInfo,
+    balanceInSats: walletInfo?.balanceSats,
   };
 
   return (
@@ -72,11 +119,11 @@ export const BreezeServiceProvider: React.FC<BreezServiceProviderProps> = ({ chi
   );
 };
 
-// Hook to use the NostrService context
+// Hook to use the BreezService context
 export const useBreezService = () => {
   const context = useContext(BreezServiceContext);
   if (!context) {
-    throw new Error('useNostrService must be used within a NostrServiceProvider');
+    throw new Error('useBreezService must be used within a BreezServiceProvider');
   }
   return context;
 };

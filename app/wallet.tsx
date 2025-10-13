@@ -117,9 +117,7 @@ export default function WalletManagementScreen() {
     useNostrService();
 
   const { hasLightningWallet, isLightningConnected, isLoading } = useWalletStatus();
-  const { getInfo } = useBreezService();
-
-  const { balance, setBalance } = useState<bigint | undefined>(undefined);
+  const { balanceInSats } = useBreezService();
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -159,10 +157,7 @@ export default function WalletManagementScreen() {
   // Initial load effect
   useEffect(() => {
     loadWalletData();
-    if (getInfo) {
-      getInfo().then(setBalance);
-    }
-  }, [loadWalletData, getInfo, setBalance]);
+  }, [loadWalletData]);
 
   // Load wallet info when page is focused
   useFocusEffect(
@@ -341,13 +336,13 @@ export default function WalletManagementScreen() {
             Connect your wallet by entering the wallet URL below or scanning a QR code. This allows
             you to manage your crypto assets and make seamless transactions within the app.
           </ThemedText>
-          {balance !== undefined && (
+          {balanceInSats !== undefined && (
             <View style={styles.walletInfoField}>
               <ThemedText style={[styles.walletInfoFieldLabel, { color: secondaryTextColor }]}>
                 Balance:
               </ThemedText>
               <ThemedText style={[styles.walletInfoFieldValue, { color: statusConnectedColor }]}>
-                ⚡ {Math.floor(balance / 1000).toLocaleString()} sats
+                ⚡ {(balanceInSats / BigInt(1000)).toLocaleString()} sats
               </ThemedText>
             </View>
           )}
