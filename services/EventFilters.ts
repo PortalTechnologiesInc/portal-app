@@ -84,7 +84,10 @@ export async function handleSinglePaymentRequest(
         ? Number(request.content.amount)
         : request.content.amount;
 
-    // Extract currency symbol from the Currency object
+    // Store original amount for currency conversion
+    const originalAmount = amount;
+
+    // Extract currency symbol from the Currency object and convert amount for storage
     let currency: string | null = null;
     const currencyObj = request.content.currency;
     switch (currencyObj.tag) {
@@ -96,12 +99,12 @@ export async function handleSinglePaymentRequest(
         }
         break;
       case Currency_Tags.Millisats:
-        amount = amount / 1000;
+        amount = amount / 1000; // Convert to sats for database storage
         currency = 'sats';
         break;
     }
 
-    // Convert currency for user's preferred currency
+    // Convert currency for user's preferred currency using original amount
     let convertedAmount: number | null = null;
     let convertedCurrency: string | null = null;
 
@@ -110,7 +113,7 @@ export async function handleSinglePaymentRequest(
         currencyObj?.tag === Currency_Tags.Fiat ? (currencyObj as any).inner : 'MSATS';
 
       convertedAmount = await CurrencyConversionService.convertAmount(
-        amount,
+        originalAmount, // Use original millisats amount for conversion
         sourceCurrency,
         preferredCurrency // Currency enum values are already strings
       );
