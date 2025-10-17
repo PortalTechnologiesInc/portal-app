@@ -21,7 +21,13 @@ export default class NostrStoreService {
 
     async readMints(): Promise<string[]> {
         try {
-            const mintsJson = await this.portalDb.read(MINTS_KEY)
+
+            const mintsJson = await Promise.race([
+                this.portalDb.read(MINTS_KEY),
+                new Promise<string>((_, reject) =>
+                    setTimeout(() => reject(new Error('Timeout reading mints from NostrStore')), 10000)
+                ),
+            ]);
             return JSON.parse(mintsJson);
         } catch(error) {
             console.warn("Reding on nostrStore generated the following error: ", error);
