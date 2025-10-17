@@ -37,7 +37,7 @@ export default function RecoverTicketsScreen() {
   const buttonDangerColor = useThemeColor({}, 'buttonDanger');
   const buttonDangerTextColor = useThemeColor({}, 'buttonDangerText');
 
-  const { addWallet, wallets } = useECash();
+  const { addWallet, isLoading: eCashLoading } = useECash();
   const { executeOnNostr } = useDatabaseContext();
 
   const addNewUrlField = () => {
@@ -70,7 +70,6 @@ export default function RecoverTicketsScreen() {
       const fetchedUrls = await executeOnNostr(async (db) => {
         const redMints = await db.readMints()
         return redMints;
-
       });
 
       if (fetchedUrls.length > 0) {
@@ -177,7 +176,7 @@ export default function RecoverTicketsScreen() {
         </ThemedView>
 
         {/* Searching for Mint URLs Loading */}
-        {isSearchingUrls ? (
+        {isSearchingUrls || eCashLoading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={buttonPrimaryColor} />
           </View>
