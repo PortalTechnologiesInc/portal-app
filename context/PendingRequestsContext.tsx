@@ -36,6 +36,7 @@ import type {
 } from '@/utils/types';
 import { PortalAppManager } from '@/services/PortalAppManager';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
+import { useBreezService } from './BreezServiceContext';
 
 // Helper function to get service name with fallback
 const getServiceNameWithFallback = async (
@@ -80,6 +81,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
   const nostrService = useNostrService();
   const eCashContext = useECash();
   const { preferredCurrency } = useCurrency();
+  const breezService = useBreezService();
 
   // Get the refreshData function from ActivitiesContext
   const { refreshData } = useActivities();
@@ -290,7 +292,8 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             );
 
             try {
-              const preimage = await nostrService.payInvoice(metadata.content.invoice);
+              // const preimage = await nostrService.payInvoice(metadata.content.invoice);
+              const preimage = await breezService.payInvoice(metadata.content.invoice, BigInt(amount));
 
               await executeOperation(
                 db => db.addPaymentStatusEntry(metadata.content.invoice, 'payment_completed'),
@@ -306,7 +309,8 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
               await notifier(
                 new PaymentStatus.Success({
-                  preimage,
+                  // preimage,
+                  preimage: '',
                 })
               );
             } catch (err) {

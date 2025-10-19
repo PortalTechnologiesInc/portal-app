@@ -8,6 +8,8 @@ import {
   connect,
   BreezSdkInterface,
   GetInfoResponse,
+  ReceivePaymentMethod,
+  SendPaymentOptions,
 } from '@breeztech/breez-sdk-spark-react-native';
 
 // Create context with default values
@@ -18,6 +20,8 @@ export interface BreezServiceContextType {
   isInitialized: boolean;
   balanceInSats?: bigint;
   refreshWalletInfo: () => Promise<GetInfoResponse>;
+  getInvoice: (amountSats: bigint, description: string) => Promise<string>,
+  payInvoice: (invoice: string, amountSats: bigint) => Promise<void>,
 }
 
 // Provider component
@@ -27,6 +31,7 @@ interface BreezServiceProviderProps {
 
 export const BreezeServiceProvider: React.FC<BreezServiceProviderProps> = ({ children }) => {
   const { mnemonic } = useMnemonic();
+  // const mnemonic = 'fortune that empty relief patch lyrics found grant rough replace language stable';
   const sdk = useRef<BreezSdkInterface | undefined>(undefined);
   const [isInitialized, setIsInitialized] = useState(false);
   const [walletInfo, setWalletInfo] = useState<GetInfoResponse | undefined>(undefined);
@@ -44,7 +49,6 @@ export const BreezeServiceProvider: React.FC<BreezServiceProviderProps> = ({ chi
       return;
     }
 
-    setIsInitialized(false);
     isCancelledRef.current = false;
 
     const connectSdk = async () => {
@@ -53,10 +57,14 @@ export const BreezeServiceProvider: React.FC<BreezServiceProviderProps> = ({ chi
         const config = defaultConfig(Network.Mainnet);
         config.apiKey = process.env.EXPO_PUBLIC_BREEZ_API_KEY;
 
+        const dirUri = FileSystem.documentDirectory + 'breez-wallet';
+        const storageDir = dirUri.replace('file://', '');
+        await FileSystem.makeDirectoryAsync(dirUri, { intermediates: true });
+
         const sdkInstance = await connect({
           config,
           seed,
-          storageDir: FileSystem.documentDirectory + 'breez-wallet',
+          storageDir,
         });
 
         if (isCancelledRef.current) {
@@ -68,21 +76,12 @@ export const BreezeServiceProvider: React.FC<BreezServiceProviderProps> = ({ chi
         setIsInitialized(true);
       } catch (error) {
         if (!isCancelledRef.current) {
-          console.error('Error initializing Breez SDK:', error);
+          console.error('Error initializing Breez SDK:', JSON.stringify(error));
         }
       }
     };
 
     connectSdk();
-
-    return () => {
-      isCancelledRef.current = true;
-      setIsInitialized(false);
-      if (sdk.current) {
-        sdk.current.disconnect();
-        sdk.current = undefined;
-      }
-    };
   }, [mnemonic, isInitialized]);
 
   const getWalletInfo = useCallback(async (sdk: BreezSdkInterface) => {
@@ -108,10 +107,58 @@ export const BreezeServiceProvider: React.FC<BreezServiceProviderProps> = ({ chi
     }
   }, [getWalletInfo]);
 
+  const getInvoice = useCallback(async(amountSats: bigint, description: string) => {
+    if (!sdk.current) {
+      throw new Error('Breez SDK is not initialized');
+    }
+
+    try {
+      const response = await sdk.current.receivePayment({
+        paymentMethod: new ReceivePaymentMethod.Bolt11Invoice({
+          description,
+          amountSats
+        })
+      });
+
+      console.log(response.paymentRequest);
+      return response.paymentRequest;
+    } catch(error) {
+      console.error('Error getting invoice:', error);
+      throw error;
+    }
+
+  }, []);
+
+  const payInvoice = useCallback(async(invoice: string, amountSats: bigint) => {
+    if (!sdk.current) {
+      throw new Error('Breez SDK is not initialized');
+    }
+
+    try {
+      const prepareResponse = await sdk.current.prepareSendPayment({
+        amountSats,
+        paymentRequest: invoice,
+      });
+
+      const sendOptions = new SendPaymentOptions.Bolt11Invoice({ preferSpark: false, completionTimeoutSecs: 10 });
+      const sendResponse = await sdk.current.sendPayment({
+        prepareResponse,
+        options: sendOptions,
+      });
+
+      console.log(sendResponse);
+    } catch(error) {
+      console.error('Error getting invoice:', error);
+      throw error;
+    }
+  }, []);
+
   const contextValue: BreezServiceContextType = {
     isInitialized,
-    refreshWalletInfo,
     balanceInSats: walletInfo?.balanceSats,
+    refreshWalletInfo,
+    getInvoice,
+    payInvoice,
   };
 
   return (
