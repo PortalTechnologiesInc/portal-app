@@ -52,7 +52,6 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
     operation: (nostrStore: NostrStoreService) => Promise<T>,
     fallback?: T
   ): Promise<T> => {
-
     try {
       if (!mnemonic) {
         if (fallback !== undefined) {
@@ -91,7 +90,7 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
       if (fallback !== undefined) return fallback;
       throw e;
     }
-  }
+  };
 
   const resetApp = () => {
     return AppResetService.performCompleteReset(sqliteContext);

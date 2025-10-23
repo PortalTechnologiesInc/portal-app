@@ -30,12 +30,7 @@ const FIRST_LAUNCH_KEY = 'portal_first_launch_completed';
 
 export default function Home() {
   const { isLoading } = useOnboarding();
-  const {
-    username,
-    displayName,
-    avatarUri,
-    avatarRefreshKey,
-  } = useUserProfile();
+  const { username, displayName, avatarUri, avatarRefreshKey } = useUserProfile();
   const nostrService = useNostrService();
   const [isFirstLaunch, setIsFirstLaunch] = useState<boolean | null>(null);
   const [refreshing, setRefreshing] = useState(false);

@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, TouchableOpacity, BackHandler, View, Linking, Platform, Alert } from 'react-native';
+import {
+  StyleSheet,
+  TouchableOpacity,
+  BackHandler,
+  View,
+  Linking,
+  Platform,
+  Alert,
+} from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -53,7 +61,14 @@ export default function QRScannerScreen() {
       return;
     }
 
-    console.log('Permission status:', permission.status, 'granted:', permission.granted, 'canAskAgain:', permission.canAskAgain);
+    console.log(
+      'Permission status:',
+      permission.status,
+      'granted:',
+      permission.granted,
+      'canAskAgain:',
+      permission.canAskAgain
+    );
 
     if (!permission.granted) {
       if (permission.status === 'undetermined') {
@@ -210,11 +225,10 @@ export default function QRScannerScreen() {
           return;
         }
 
-
         try {
           await wallet.receiveToken(token);
 
-          await executeOnNostr(async (db) => {
+          await executeOnNostr(async db => {
             let mintsList = await db.readMints();
 
             // Convert to Set to prevent duplicates, then back to array
@@ -223,7 +237,6 @@ export default function QRScannerScreen() {
 
             db.storeMints(mintsList);
           });
-
 
           const { globalEvents } = await import('@/utils/index');
           globalEvents.emit('walletBalancesChanged', {
@@ -308,17 +321,23 @@ export default function QRScannerScreen() {
 
   const getHeaderTitle = () => {
     switch (mode) {
-      case 'wallet': return 'Scan Wallet QR';
-      case 'ticket': return 'Scan Ticket QR';
-      default: return 'Scan Authentication QR';
+      case 'wallet':
+        return 'Scan Wallet QR';
+      case 'ticket':
+        return 'Scan Ticket QR';
+      default:
+        return 'Scan Authentication QR';
     }
   };
 
   const getInstructionText = () => {
     switch (mode) {
-      case 'wallet': return 'Point your camera at a wallet connection QR code';
-      case 'ticket': return 'Point your camera at a ticket QR code';
-      default: return 'Point your camera at a Portal authentication QR code';
+      case 'wallet':
+        return 'Point your camera at a wallet connection QR code';
+      case 'ticket':
+        return 'Point your camera at a ticket QR code';
+      default:
+        return 'Point your camera at a Portal authentication QR code';
     }
   };
 
@@ -377,7 +396,8 @@ export default function QRScannerScreen() {
                   Camera Access Required
                 </ThemedText>
                 <ThemedText style={[styles.messageText, { color: textSecondary }]}>
-                  Camera access was denied. If you wish to use the QR scanner, please enable camera permissions in your device settings.
+                  Camera access was denied. If you wish to use the QR scanner, please enable camera
+                  permissions in your device settings.
                 </ThemedText>
                 {Platform.OS !== 'ios' && (
                   <TouchableOpacity
@@ -386,7 +406,9 @@ export default function QRScannerScreen() {
                   >
                     <View style={styles.buttonContent}>
                       <Settings size={16} color={buttonPrimaryText} style={styles.buttonIcon} />
-                      <ThemedText style={[styles.permissionButtonText, { color: buttonPrimaryText }]}>
+                      <ThemedText
+                        style={[styles.permissionButtonText, { color: buttonPrimaryText }]}
+                      >
                         Open Settings
                       </ThemedText>
                     </View>
@@ -543,11 +565,7 @@ export default function QRScannerScreen() {
                   },
                 ]}
               >
-                {
-                  showError
-                    ? errorMessage
-                    : 'QR Code Scanned!'
-                }
+                {showError ? errorMessage : 'QR Code Scanned!'}
               </ThemedText>
             </View>
           </View>

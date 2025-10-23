@@ -207,15 +207,15 @@ export default function TicketsScreen() {
   }, []);
 
   const handleImportTickets = useCallback(() => {
-      router.push({
-        pathname: '/qr',
-        params: {
-          mode: 'ticket',
-          source: 'tickets',
-          scanType: 'qr',
-          timestamp: Date.now(),
-        },
-      });
+    router.push({
+      pathname: '/qr',
+      params: {
+        mode: 'ticket',
+        source: 'tickets',
+        scanType: 'qr',
+        timestamp: Date.now(),
+      },
+    });
   }, []);
 
   return (
@@ -323,64 +323,72 @@ export default function TicketsScreen() {
             contentContainerStyle={styles.scrollContent}
           >
             {/* Focused card zone */}
-            {focusedCardId && (() => {
-              const focusedTicket = tickets.find(t => t.id === focusedCardId);
-              return focusedTicket ? (
-                <View>
-                  <TicketCard
-                    ticket={focusedTicket}
-                    index={tickets.findIndex(t => t.id === focusedCardId)}
-                    isFocused={true}
-                    onPress={() => handleCardPress(focusedCardId)}
-                  />
-                <View style={[styles.nfcSection, { backgroundColor: surfaceSecondaryColor }]}>
-                  <View style={styles.nfcIconContainer}>
-                    {isCheckingNFC ? (
-                      <View style={styles.nfcStatusContainer}>
-                        <ThemedText style={[styles.nfcStatusText, { color: secondaryTextColor }]}>
-                          Checking NFC...
-                        </ThemedText>
+            {focusedCardId &&
+              (() => {
+                const focusedTicket = tickets.find(t => t.id === focusedCardId);
+                return focusedTicket ? (
+                  <View>
+                    <TicketCard
+                      ticket={focusedTicket}
+                      index={tickets.findIndex(t => t.id === focusedCardId)}
+                      isFocused={true}
+                      onPress={() => handleCardPress(focusedCardId)}
+                    />
+                    <View style={[styles.nfcSection, { backgroundColor: surfaceSecondaryColor }]}>
+                      <View style={styles.nfcIconContainer}>
+                        {isCheckingNFC ? (
+                          <View style={styles.nfcStatusContainer}>
+                            <ThemedText
+                              style={[styles.nfcStatusText, { color: secondaryTextColor }]}
+                            >
+                              Checking NFC...
+                            </ThemedText>
+                          </View>
+                        ) : isNFCEnabled === null ? (
+                          <Nfc size={48} color={buttonPrimaryColor} />
+                        ) : isNFCEnabled ? (
+                          <CheckCircle size={48} color={Colors.success} />
+                        ) : (
+                          <XCircle size={48} color={Colors.error} />
+                        )}
                       </View>
-                    ) : isNFCEnabled === null ? (
-                      <Nfc size={48} color={buttonPrimaryColor} />
-                    ) : isNFCEnabled ? (
-                      <CheckCircle size={48} color={Colors.success} />
-                    ) : (
-                      <XCircle size={48} color={Colors.error} />
-                    )}
+                      <ThemedText
+                        type="subtitle"
+                        style={[styles.nfcTitle, { color: primaryTextColor }]}
+                      >
+                        {isCheckingNFC
+                          ? 'Checking NFC...'
+                          : isNFCEnabled === null
+                            ? 'Validate Ticket'
+                            : isNFCEnabled
+                              ? 'NFC Ready'
+                              : 'NFC Required'}
+                      </ThemedText>
+                      <ThemedText style={[styles.nfcDescription, { color: secondaryTextColor }]}>
+                        {isCheckingNFC
+                          ? 'Checking if NFC is available on your device'
+                          : isNFCEnabled === null
+                            ? 'Hold your device near the NFC reader to validate your ticket'
+                            : isNFCEnabled
+                              ? 'NFC is enabled. Hold your device near the NFC reader to validate your ticket'
+                              : 'NFC is disabled. Enable NFC in your device settings to validate tickets'}
+                      </ThemedText>
+                    </View>
                   </View>
-                  <ThemedText
-                    type="subtitle"
-                    style={[styles.nfcTitle, { color: primaryTextColor }]}
-                  >
-                    {isCheckingNFC
-                      ? 'Checking NFC...'
-                      : isNFCEnabled === null
-                        ? 'Validate Ticket'
-                        : isNFCEnabled
-                          ? 'NFC Ready'
-                          : 'NFC Required'}
-                  </ThemedText>
-                  <ThemedText style={[styles.nfcDescription, { color: secondaryTextColor }]}>
-                    {isCheckingNFC
-                      ? 'Checking if NFC is available on your device'
-                      : isNFCEnabled === null
-                        ? 'Hold your device near the NFC reader to validate your ticket'
-                        : isNFCEnabled
-                          ? 'NFC is enabled. Hold your device near the NFC reader to validate your ticket'
-                          : 'NFC is disabled. Enable NFC in your device settings to validate tickets'}
-                  </ThemedText>
-                </View>
-                </View>
-              ) : null;
-            })()}
+                ) : null;
+              })()}
             {/* Stacked list of all other cards */}
-            <View style={[
-              styles.cardsContainer,
-              {
-                height: Math.max(800, tickets.filter(ticket => ticket.id !== focusedCardId).length * 130 + 100),
-              }
-            ]}>
+            <View
+              style={[
+                styles.cardsContainer,
+                {
+                  height: Math.max(
+                    800,
+                    tickets.filter(ticket => ticket.id !== focusedCardId).length * 130 + 100
+                  ),
+                },
+              ]}
+            >
               {tickets
                 .filter(ticket => ticket.id !== focusedCardId)
                 .map((ticket, visibleIndex) => (

@@ -20,8 +20,8 @@ export interface BreezServiceContextType {
   isInitialized: boolean;
   balanceInSats?: bigint;
   refreshWalletInfo: () => Promise<GetInfoResponse>;
-  getInvoice: (amountSats: bigint, description: string) => Promise<string>,
-  payInvoice: (invoice: string, amountSats: bigint) => Promise<void>,
+  getInvoice: (amountSats: bigint, description: string) => Promise<string>;
+  payInvoice: (invoice: string, amountSats: bigint) => Promise<void>;
 }
 
 // Provider component
@@ -107,7 +107,7 @@ export const BreezeServiceProvider: React.FC<BreezServiceProviderProps> = ({ chi
     }
   }, [getWalletInfo]);
 
-  const getInvoice = useCallback(async(amountSats: bigint, description: string) => {
+  const getInvoice = useCallback(async (amountSats: bigint, description: string) => {
     if (!sdk.current) {
       throw new Error('Breez SDK is not initialized');
     }
@@ -116,20 +116,19 @@ export const BreezeServiceProvider: React.FC<BreezServiceProviderProps> = ({ chi
       const response = await sdk.current.receivePayment({
         paymentMethod: new ReceivePaymentMethod.Bolt11Invoice({
           description,
-          amountSats
-        })
+          amountSats,
+        }),
       });
 
       console.log(response.paymentRequest);
       return response.paymentRequest;
-    } catch(error) {
+    } catch (error) {
       console.error('Error getting invoice:', error);
       throw error;
     }
-
   }, []);
 
-  const payInvoice = useCallback(async(invoice: string, amountSats: bigint) => {
+  const payInvoice = useCallback(async (invoice: string, amountSats: bigint) => {
     if (!sdk.current) {
       throw new Error('Breez SDK is not initialized');
     }
@@ -140,14 +139,17 @@ export const BreezeServiceProvider: React.FC<BreezServiceProviderProps> = ({ chi
         paymentRequest: invoice,
       });
 
-      const sendOptions = new SendPaymentOptions.Bolt11Invoice({ preferSpark: false, completionTimeoutSecs: 10 });
+      const sendOptions = new SendPaymentOptions.Bolt11Invoice({
+        preferSpark: false,
+        completionTimeoutSecs: 10,
+      });
       const sendResponse = await sdk.current.sendPayment({
         prepareResponse,
         options: sendOptions,
       });
 
       console.log(sendResponse);
-    } catch(error) {
+    } catch (error) {
       console.error('Error getting invoice:', error);
       throw error;
     }

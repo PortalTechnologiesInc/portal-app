@@ -88,7 +88,7 @@ export class AppResetService {
       errors.push({ step: 'Navigation', error });
     }
 
-      // Step 5: Deleting app instance
+    // Step 5: Deleting app instance
     PortalAppManager.clearInstance();
 
     // Clear global reset flag after a delay to allow reset to complete

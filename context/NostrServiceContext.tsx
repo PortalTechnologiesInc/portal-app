@@ -559,7 +559,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                 );
                 await wallet.receiveToken(token);
 
-                await executeOnNostr(async (db) => {
+                await executeOnNostr(async db => {
                   let mintsList = await db.readMints();
 
                   // Convert to Set to prevent duplicates, then back to array
@@ -1033,7 +1033,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   const sendKeyHandshake = useCallback(
     async (url: KeyHandshakeUrl): Promise<void> => {
       if (!isOnboardingComplete) {
-        console.log("Cannot send handshake, onboarding is not complete");
+        console.log('Cannot send handshake, onboarding is not complete');
         return;
       }
       // let's try for 30 times. One every .5 sec should timeout after 15 secs.

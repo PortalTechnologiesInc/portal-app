@@ -114,7 +114,6 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
     };
   }, []);
 
-
   // Helper function to add an activity
   const addActivityWithFallback = async (activity: PendingActivity): Promise<string> => {
     const id = await executeOperation(
@@ -293,7 +292,10 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
             try {
               // const preimage = await nostrService.payInvoice(metadata.content.invoice);
-              const preimage = await breezService.payInvoice(metadata.content.invoice, BigInt(amount));
+              const preimage = await breezService.payInvoice(
+                metadata.content.invoice,
+                BigInt(amount)
+              );
 
               await executeOperation(
                 db => db.addPaymentStatusEntry(metadata.content.invoice, 'payment_completed'),

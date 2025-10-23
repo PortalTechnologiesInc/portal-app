@@ -49,7 +49,6 @@ export function ECashProvider({ children, mnemonic }: { children: ReactNode; mne
 
   useEffect(() => {
     const fetchWallets = async () => {
-
       setIsLoading(true);
       try {
         // Get wallet pairs from database

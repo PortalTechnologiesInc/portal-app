@@ -1,6 +1,15 @@
 import React, { useMemo } from 'react';
 import { Tabs } from 'expo-router';
-import { Home, List, Receipt, Ticket, UserSquare2, Settings, Bug, Wallet } from 'lucide-react-native';
+import {
+  Home,
+  List,
+  Receipt,
+  Ticket,
+  UserSquare2,
+  Settings,
+  Bug,
+  Wallet,
+} from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
 import { View, Platform, ToastAndroid } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -29,7 +38,7 @@ const SettingsIcon = React.memo(({ color }: { color: string }) => (
 
 const DebugIcon = React.memo(({ color }: { color: string }) => <Bug size={24} color={color} />);
 
-const WalletIcon = React.memo(({ color }: { color: string }) => <Wallet size={24} color={color} />)
+const WalletIcon = React.memo(({ color }: { color: string }) => <Wallet size={24} color={color} />);
 
 // Memoized tab bar background to prevent unnecessary re-rendering
 const TabBarBackground = React.memo(() => {

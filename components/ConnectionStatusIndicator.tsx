@@ -25,8 +25,6 @@ interface ConnectionStatusIndicatorProps {
   triggerRefresh?: number; // When this value changes, trigger an immediate refresh
 }
 
-
-
 export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps> = ({
   size = 12,
   expandDuration = 3000, // 3 seconds default
@@ -120,11 +118,12 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
   // Memoized wallet status - using useWalletStatus hook
   const walletStatus = useMemo(() => {
     const isConfigured = Boolean(nwcWallet) || hasLightningWallet;
-    const realConnectionStatus = nwcConnectionStatus !== null ? nwcConnectionStatus : isLightningConnected;
-    
+    const realConnectionStatus =
+      nwcConnectionStatus !== null ? nwcConnectionStatus : isLightningConnected;
+
     return {
       configured: isConfigured,
-      connected: isConfigured ? realConnectionStatus : false
+      connected: isConfigured ? realConnectionStatus : false,
     };
   }, [nwcWallet, nwcConnectionStatus, hasLightningWallet, isLightningConnected]);
 
