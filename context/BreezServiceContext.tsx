@@ -31,7 +31,6 @@ interface BreezServiceProviderProps {
 
 export const BreezeServiceProvider: React.FC<BreezServiceProviderProps> = ({ children }) => {
   const { mnemonic } = useMnemonic();
-  // const mnemonic = 'fortune that empty relief patch lyrics found grant rough replace language stable';
   const sdk = useRef<BreezSdkInterface | undefined>(undefined);
   const [isInitialized, setIsInitialized] = useState(false);
   const [walletInfo, setWalletInfo] = useState<GetInfoResponse | undefined>(undefined);
