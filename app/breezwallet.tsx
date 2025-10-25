@@ -8,11 +8,12 @@ import { StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Colors } from 'react-native/Libraries/NewAppScreen';
 import { useBreezService } from '@/context/BreezServiceContext';
 import { useEffect, useState } from 'react';
+import { ReceivePaymentMethod } from '@breeztech/breez-sdk-spark-react-native';
 
 export default function MyWalletManagementSecret() {
   const router = useRouter();
 
-  const { balanceInSats, refreshWalletInfo, getInvoice } = useBreezService();
+  const { balanceInSats, refreshWalletInfo, receivePayment } = useBreezService();
   const [invoice, setInvoice] = useState('');
 
   const backgroundColor = useThemeColor({}, 'background');
@@ -20,8 +21,11 @@ export default function MyWalletManagementSecret() {
 
   useEffect(() => {
     const getInfo = async () => {
-      await refreshWalletInfo();
-      const invoice = await getInvoice(BigInt(1000), 'Turetta');
+      const paymentMethod = new ReceivePaymentMethod.Bolt11Invoice({
+        description: 'Turetta',
+        amountSats: BigInt(1000),
+      });
+      const invoice = await receivePayment(paymentMethod);
       setInvoice(invoice);
     };
 

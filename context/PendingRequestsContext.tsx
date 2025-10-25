@@ -292,10 +292,11 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
             try {
               // const preimage = await nostrService.payInvoice(metadata.content.invoice);
-              const preimage = await breezService.payInvoice(
+              const prepareResponse = await breezService.prepareSendPaymentRequest(
                 metadata.content.invoice,
                 BigInt(amount)
               );
+              const preimage = await breezService.sendPayment(prepareResponse);
 
               await executeOperation(
                 db => db.addPaymentStatusEntry(metadata.content.invoice, 'payment_completed'),
