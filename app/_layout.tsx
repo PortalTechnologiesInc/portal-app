@@ -23,7 +23,7 @@ import * as Notifications from 'expo-notifications';
 import { ECashProvider } from '@/context/ECashContext';
 import { SQLiteProvider } from 'expo-sqlite';
 import migrateDbIfNeeded from '@/migrations/DatabaseMigrations';
-import BreezeServiceProvider from '@/context/BreezServiceContext';
+import BreezServiceProvider from '@/context/BreezServiceContext';
 
 // Prevent splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -115,7 +115,7 @@ const AuthenticatedAppContent = () => {
   return (
     <ECashProvider mnemonic={mnemonic || ''}>
       <NostrServiceProvider mnemonic={mnemonic || ''} walletUrl={walletUrl}>
-        <BreezeServiceProvider>
+        <BreezServiceProvider>
           <UserProfileProvider>
             <ActivitiesProvider>
               <PendingRequestsProvider>
@@ -126,7 +126,7 @@ const AuthenticatedAppContent = () => {
               </PendingRequestsProvider>
             </ActivitiesProvider>
           </UserProfileProvider>
-        </BreezeServiceProvider>
+        </BreezServiceProvider>
       </NostrServiceProvider>
     </ECashProvider>
   );

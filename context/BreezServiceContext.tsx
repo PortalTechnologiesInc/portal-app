@@ -42,7 +42,7 @@ interface BreezServiceProviderProps {
   children: React.ReactNode;
 }
 
-export const BreezeServiceProvider: React.FC<BreezServiceProviderProps> = ({ children }) => {
+export const BreezServiceProvider: React.FC<BreezServiceProviderProps> = ({ children }) => {
   const { mnemonic } = useMnemonic();
   const [client, setClient] = useState<BreezSdkInterface | undefined>(undefined);
   const [walletInfo, setWalletInfo] = useState<GetInfoResponse | undefined>(undefined);
@@ -231,4 +231,4 @@ export const useBreezService = () => {
   return context;
 };
 
-export default BreezeServiceProvider;
+export default BreezServiceProvider;

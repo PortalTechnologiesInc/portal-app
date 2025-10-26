@@ -101,6 +101,32 @@ export default function WalletSettings() {
           contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
         >
+          {/* Breez Wallet */}
+          <TouchableOpacity
+            style={[styles.card, { backgroundColor: cardBackgroundColor }]}
+            onPress={() => router.push('/breezwallet')}
+            activeOpacity={0.7}
+          >
+            <View style={styles.cardContent}>
+              <View style={styles.cardLeft}>
+                <View style={styles.cardHeader}>
+                  <View style={styles.iconContainer}>
+                    <Zap size={22} color={buttonPrimaryColor} />
+                  </View>
+                  <View style={styles.cardText}>
+                    <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
+                      Breez Wallet
+                    </ThemedText>
+                    <ThemedText style={[styles.cardSubtitle, { color: secondaryTextColor }]}>
+                      Manage your Breez Lightning wallet
+                    </ThemedText>
+                  </View>
+                </View>
+              </View>
+              <ChevronRight size={24} color={secondaryTextColor} />
+            </View>
+          </TouchableOpacity>
+
           {/* Nostr Wallet */}
           <TouchableOpacity
             style={[styles.card, { backgroundColor: cardBackgroundColor }]}
@@ -132,32 +158,6 @@ export default function WalletSettings() {
                         ]}
                       />
                     </View>
-                  </View>
-                </View>
-              </View>
-              <ChevronRight size={24} color={secondaryTextColor} />
-            </View>
-          </TouchableOpacity>
-
-          {/* Breez Wallet */}
-          <TouchableOpacity
-            style={[styles.card, { backgroundColor: cardBackgroundColor }]}
-            onPress={() => router.push('/breezwallet')}
-            activeOpacity={0.7}
-          >
-            <View style={styles.cardContent}>
-              <View style={styles.cardLeft}>
-                <View style={styles.cardHeader}>
-                  <View style={styles.iconContainer}>
-                    <Zap size={22} color={buttonPrimaryColor} />
-                  </View>
-                  <View style={styles.cardText}>
-                    <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
-                      Breez Wallet
-                    </ThemedText>
-                    <ThemedText style={[styles.cardSubtitle, { color: secondaryTextColor }]}>
-                      Manage your Breez Lightning wallet
-                    </ThemedText>
                   </View>
                 </View>
               </View>

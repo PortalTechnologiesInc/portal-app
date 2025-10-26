@@ -1,11 +1,14 @@
 import { useMnemonic } from '@/context/MnemonicContext';
 import { useECash } from '@/context/ECashContext';
 import { useNostrService } from '@/context/NostrServiceContext';
+import WalletType from '@/models/WalletType';
 
 /**
  * Unified hook to check wallet configuration status across all wallet types
  */
 export const useWalletStatus = () => {
+  const defaultWallet = WalletType.BREEZ;
+
   const { mnemonic, isWalletConnected } = useMnemonic();
   const { wallets, isLoading: eCashLoading } = useECash();
   const { nwcConnectionStatus } = useNostrService();
@@ -26,6 +29,8 @@ export const useWalletStatus = () => {
   const isLoading = eCashLoading;
 
   return {
+    defaultWallet,
+
     // Basic components
     hasSeed,
     hasECashWallets,
