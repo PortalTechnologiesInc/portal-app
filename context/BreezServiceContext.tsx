@@ -1,7 +1,22 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as FileSystem from 'expo-file-system';
 import { useMnemonic } from './MnemonicContext';
-import { BreezSdkInterface, connect, defaultConfig, GetInfoResponse, EventListener, ListPaymentsRequest, Network, OnchainConfirmationSpeed, Payment, PrepareSendPaymentResponse, ReceivePaymentMethod, Seed, SendPaymentMethod, SendPaymentOptions } from '@breeztech/breez-sdk-spark-react-native';
+import {
+  BreezSdkInterface,
+  connect,
+  defaultConfig,
+  GetInfoResponse,
+  EventListener,
+  ListPaymentsRequest,
+  Network,
+  OnchainConfirmationSpeed,
+  Payment,
+  PrepareSendPaymentResponse,
+  ReceivePaymentMethod,
+  Seed,
+  SendPaymentMethod,
+  SendPaymentOptions,
+} from '@breeztech/breez-sdk-spark-react-native';
 
 // Create context with default values
 const BreezServiceContext = createContext<BreezServiceContextType | null>(null);
@@ -130,7 +145,7 @@ export const BreezeServiceProvider: React.FC<BreezServiceProviderProps> = ({ chi
         const prepareResponse = await client.prepareSendPayment({
           amount: amountSats,
           paymentRequest,
-          tokenIdentifier: undefined
+          tokenIdentifier: undefined,
         });
 
         return prepareResponse;

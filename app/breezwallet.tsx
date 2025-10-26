@@ -8,7 +8,11 @@ import { StyleSheet, ScrollView, TouchableOpacity, View, Button, Text } from 're
 import { Colors } from 'react-native/Libraries/NewAppScreen';
 import { useBreezService } from '@/context/BreezServiceContext';
 import { useEffect, useState } from 'react';
-import { ListPaymentsRequest, Payment, ReceivePaymentMethod } from '@breeztech/breez-sdk-spark-react-native';
+import {
+  ListPaymentsRequest,
+  Payment,
+  ReceivePaymentMethod,
+} from '@breeztech/breez-sdk-spark-react-native';
 
 export default function MyWalletManagementSecret() {
   const router = useRouter();
@@ -53,28 +57,45 @@ export default function MyWalletManagementSecret() {
         <ThemedView style={{ ...styles.content, gap: 10 }}>
           <ThemedView style={{ flexDirection: 'row' }}>
             <View>
-              <ThemedText type='subtitle' style={{ color: primaryTextColor }}>Balance</ThemedText>
-              <ThemedText type='title' style={{ color: primaryTextColor }}>{balanceInSats} sats</ThemedText>
+              <ThemedText type="subtitle" style={{ color: primaryTextColor }}>
+                Balance
+              </ThemedText>
+              <ThemedText type="title" style={{ color: primaryTextColor }}>
+                {balanceInSats} sats
+              </ThemedText>
             </View>
           </ThemedView>
-          <View style={ styles.sectionDivider } />
+          <View style={styles.sectionDivider} />
           <ThemedView style={{ flex: 1 }}>
-            <ScrollView>
-
-            </ScrollView>
+            <ScrollView></ScrollView>
           </ThemedView>
-          <ThemedView style={{ flexDirection: 'row', justifyContent: 'center' }} >
-            <ThemedView style={{ flexDirection: 'row', gap: 40, backgroundColor: buttonPrimaryColor, borderRadius: 25, paddingTop: 10, paddingBottom: 10, paddingLeft: 30, paddingRight: 30, }}>
+          <ThemedView style={{ flexDirection: 'row', justifyContent: 'center' }}>
+            <ThemedView
+              style={{
+                flexDirection: 'row',
+                gap: 40,
+                backgroundColor: buttonPrimaryColor,
+                borderRadius: 25,
+                paddingTop: 10,
+                paddingBottom: 10,
+                paddingLeft: 30,
+                paddingRight: 30,
+              }}
+            >
               <TouchableOpacity>
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <HandCoins color={buttonPrimaryTextColor} />
-                  <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>Receive</ThemedText>
+                  <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
+                    Receive
+                  </ThemedText>
                 </View>
               </TouchableOpacity>
               <TouchableOpacity>
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <Send color={buttonPrimaryTextColor} />
-                  <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>Send</ThemedText>
+                  <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
+                    Send
+                  </ThemedText>
                 </View>
               </TouchableOpacity>
             </ThemedView>
