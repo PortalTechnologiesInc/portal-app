@@ -5,10 +5,12 @@ import { ThemedView } from '@/components/ThemedView';
 import { ThemedText } from '@/components/ThemedText';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, ChevronRight, Wallet, Zap } from 'lucide-react-native';
+import { ArrowLeft, Star, StarOff, Wallet, Zap } from 'lucide-react-native';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { useWalletStatus } from '@/hooks/useWalletStatus';
 import { getWalletUrl, walletUrlEvents } from '@/services/SecureStorageService';
+import WalletType from '@/models/WalletType';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function WalletSettings() {
   const router = useRouter();
@@ -25,6 +27,27 @@ export default function WalletSettings() {
   const { hasLightningWallet, isLightningConnected, isLoading } = useWalletStatus();
   const { nwcConnectionStatus, nwcConnectionError, nwcConnecting } = nostrService;
   const statusConnectedColor = useThemeColor({}, 'statusConnected');
+
+  const [preferredWallet, setPreferredWallet] = useState<WalletType | null>(null);
+
+  async function togglePreferredWallet(wallet: WalletType) {
+    await setPreferredWallet(wallet);
+    await AsyncStorage.setItem('preferred_wallet', JSON.stringify(wallet));
+  }
+
+  useEffect(() => {
+    const fetchPreferredWallet = async () => {
+      const preferredWallet = await AsyncStorage.getItem('preferred_wallet');
+      if (preferredWallet) {
+        const tmp = JSON.parse(preferredWallet);
+        console.log('Preferred wallet loaded:', tmp);
+        setPreferredWallet(tmp);
+      } else {
+        setPreferredWallet(null);
+      }
+    };
+    fetchPreferredWallet();
+  }, []);
 
   useEffect(() => {
     const loadWalletUrl = async () => {
@@ -123,7 +146,14 @@ export default function WalletSettings() {
                   </View>
                 </View>
               </View>
-              <ChevronRight size={24} color={secondaryTextColor} />
+              {/* <ChevronRight size={24} color={secondaryTextColor} /> */}
+              <TouchableOpacity onPress={() => togglePreferredWallet(WalletType.BREEZ)}>
+                {preferredWallet === WalletType.BREEZ ? (
+                  <Star size={22} color={buttonPrimaryColor} fill={buttonPrimaryColor} />
+                ) : (
+                  <StarOff size={22} color={secondaryTextColor} />
+                )}
+              </TouchableOpacity>
             </View>
           </TouchableOpacity>
 
@@ -161,7 +191,14 @@ export default function WalletSettings() {
                   </View>
                 </View>
               </View>
-              <ChevronRight size={24} color={secondaryTextColor} />
+              {/* <ChevronRight size={24} color={secondaryTextColor} /> */}
+              <TouchableOpacity onPress={() => togglePreferredWallet(WalletType.NWC)}>
+                {preferredWallet === WalletType.NWC ? (
+                  <Star size={22} color={buttonPrimaryColor} fill={buttonPrimaryColor} />
+                ) : (
+                  <StarOff size={22} color={secondaryTextColor} />
+                )}
+              </TouchableOpacity>
             </View>
           </TouchableOpacity>
         </ScrollView>
