@@ -221,7 +221,7 @@ export default function Onboarding() {
     const trimmedPhrase = phrase.trim().toLowerCase();
 
     if (!trimmedPhrase) {
-      return { isValid: false, error: 'Please enter a seed phrase' };
+      return { isValid: false, error: 'Please enter a seed or nsec.' };
     }
 
     const words = trimmedPhrase.split(/\s+/);
@@ -241,6 +241,22 @@ export default function Onboarding() {
         error: 'Invalid seed phrase. Please check your words and try again.',
       };
     }
+  };
+
+  const validateImportedNsec = (nsec: string): { isValid: boolean; error?: string } => {
+    const trimmedNsec = nsec.trim().toLowerCase();
+
+    if (!trimmedNsec) {
+      return { isValid: false, error: 'Please enter a seed or nsec.' };
+    }
+
+    const validNsec = /^nsec1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{52}$/.test(trimmedNsec);
+
+    if (!validNsec) {
+      return { isValid: false, error: 'Invalid Nsec. Please check your Nsec and try again.' };
+    }
+
+    return { isValid: true };
   };
 
   const handleVerificationComplete = async () => {
@@ -321,7 +337,10 @@ export default function Onboarding() {
   };
 
   const handleImportComplete = async () => {
-    const validation = validateImportedMnemonic(seedPhrase);
+
+    const isNsec = seedPhrase.startsWith("nsec1");
+
+    const validation = isNsec ? validateImportedNsec(seedPhrase) : validateImportedMnemonic(seedPhrase);
 
     if (!validation.isValid) {
       Alert.alert(
@@ -624,10 +643,10 @@ export default function Onboarding() {
                   >
                     <Shield size={24} color={buttonPrimary} />
                     <ThemedText type="defaultSemiBold" style={styles.choiceButtonTitle}>
-                      Import Existing Seed
+                      Import Existing Seed or Nsec
                     </ThemedText>
                     <ThemedText style={styles.choiceButtonDescription}>
-                      Restore your identity using an existing seed phrase
+                      Restore your identity using an existing seed phrase or Nsec
                     </ThemedText>
                   </TouchableOpacity>
                 </View>
@@ -769,15 +788,15 @@ export default function Onboarding() {
                 <View style={[styles.pageContainer, styles.importPageContainer]}>
                   <View style={styles.importTextContainer}>
                     <ThemedText type="title" style={styles.title}>
-                      Import Seed Phrase
+                      Import Seed Phrase or Nsec
                     </ThemedText>
-                    <ThemedText style={styles.subtitle}>Enter your 12-word seed phrase</ThemedText>
+                    <ThemedText style={styles.subtitle}>Enter your 12-word seed phrase or Nsec</ThemedText>
                   </View>
 
                   <View style={styles.inputContainer}>
                     <TextInput
                       style={[styles.input, { backgroundColor: inputBackground, color: textPrimary }]}
-                      placeholder="Enter your seed phrase separated by spaces"
+                      placeholder="Enter your Nsec or 12-word seed phrase separated by spaces"
                       placeholderTextColor={inputPlaceholder}
                       value={seedPhrase}
                       onChangeText={setSeedPhrase}
