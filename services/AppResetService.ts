@@ -4,6 +4,7 @@ import { resetAllContexts } from './ContextResetService';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { router } from 'expo-router';
 import { PortalAppManager } from './PortalAppManager';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 /**
  * Global reset flag to coordinate reset process
@@ -43,7 +44,7 @@ export class AppResetService {
     // Set global reset flag
     isAppResetting = true;
 
-    const errors: Array<{ step: string; error: any }> = [];
+    const errors: Array<{ step: string; error: unknown }> = [];
 
     try {
       // Step 1: Clear all SecureStore data
@@ -88,7 +89,16 @@ export class AppResetService {
       errors.push({ step: 'Navigation', error });
     }
 
-    // Step 5: Deleting app instance
+    // Step 5: Clear AsyncStorage
+    try {
+      console.log('Step 5/5: Clearing storage...');
+      await AsyncStorage.clear();
+    } catch (error) {
+      console.error('❌ Failed to clear storage:', error);
+      errors.push({ step: 'Storage', error });
+    }
+
+    // Step 6: Deleting app instance
     PortalAppManager.clearInstance();
 
     // Clear global reset flag after a delay to allow reset to complete
