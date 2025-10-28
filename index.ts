@@ -26,10 +26,12 @@ TaskManager.defineTask<Notifications.NotificationTaskPayload>(
     console.log('Execution Info:', executionInfo);
     console.log('================================================');
 
-    // if (error) {
-    //   console.error('❌ Background notification error:', error);
-    //   return;
-    // }
+     // Check if the app is currently in the foreground (active state)
+    if (AppState.currentState === 'active') {
+    console.log('⚠️ App is in foreground, skipping background logic');
+
+      return; // Do not execute background logic if the app is active
+    }
 
     console.log('📦 Received notification data:', JSON.stringify(data, null, 2));
     
