@@ -118,6 +118,33 @@ export async function handleHeadlessNotification(event: String, databaseName: st
     const mnemonicObj = new Mnemonic(mnemonic);
     const keypair = mnemonicObj.getKeypair();
 
+    const notifyBackgroundError = async (title: string, detail: unknown) => {
+      const rawMessage =
+        detail instanceof Error
+          ? detail.message
+          : typeof detail === 'string'
+            ? detail
+            : detail !== undefined && detail !== null
+              ? String(detail)
+              : 'Unknown error';
+      const body = rawMessage.length > 160 ? `${rawMessage.slice(0, 157)}...` : rawMessage;
+
+      try {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title,
+            body,
+            data: {
+              type: 'background_error',
+            },
+          },
+          trigger: null,
+        });
+      } catch (_notificationError) {
+        // Intentionally swallow notification errors to avoid recursive failures
+      }
+    };
+
     let executeOperationForNotification = async <T,>(
       operation: (db: DatabaseService) => Promise<T>,
       fallback?: T
@@ -129,7 +156,7 @@ export async function handleHeadlessNotification(event: String, databaseName: st
         return await operation(db);
       } catch (error: any) {
         // Handle "Access to closed resource" errors gracefully
-        console.error('Database operation failed:', error?.message || error);
+        await notifyBackgroundError('Database operation failed', error?.message || error);
         if (fallback !== undefined) return fallback;
         throw error;
       }
@@ -167,7 +194,7 @@ export async function handleHeadlessNotification(event: String, databaseName: st
         );
       }
     } catch (error) {
-      console.error('Failed to initialize NWC wallet for headless notifications:', error);
+      await notifyBackgroundError('NWC initialization failed', error);
     }
 
     let app = await PortalAppManager.getInstance(keypair, notificationRelays, relayListener);
@@ -183,8 +210,8 @@ export async function handleHeadlessNotification(event: String, databaseName: st
         await handleCloseRecurringPaymentResponse(response, executeOperationForNotification, resolver);
         abortController.abort();
       }
-    )).catch(e => {
-      console.error('Error listening for recurring payments closing.', e);
+    )).catch(async e => {
+      await notifyBackgroundError('Recurring payment listener error', e);
     });
     console.warn("adding listeners 2");
 
@@ -194,7 +221,7 @@ export async function handleHeadlessNotification(event: String, databaseName: st
         const profile = await app.fetchProfile(publicKey);
         return getServiceNameFromProfile(profile);
       } catch (error) {
-        console.error('Error fetching service name:', error);
+        await notifyBackgroundError('Failed to fetch service profile', error);
         return null;
       }
     };
@@ -269,8 +296,8 @@ export async function handleHeadlessNotification(event: String, databaseName: st
           });
         }
       )
-    ).catch((e: any) => {
-      console.error('Error listening for payment request', e);
+    ).catch(async (e: any) => {
+      await notifyBackgroundError('Payment request listener error', e);
       // TODO: re-initialize the app
     });
 
@@ -300,13 +327,13 @@ export async function handleHeadlessNotification(event: String, databaseName: st
           });
         })
       )
-      .catch((e: any) => {
-        console.error('Error listening for auth challenge', e);
+      .catch(async (e: any) => {
+        await notifyBackgroundError('Auth challenge listener error', e);
         // TODO: re-initialize the app
       });
     console.warn("adding listeners end");
   } catch (e) {
-    console.error(e);
+    await notifyBackgroundError('Headless notification error', e);
   }
 }
 class NotificationRelayStatusListener implements RelayStatusListener {
