@@ -17,44 +17,18 @@ import { Asset } from 'expo-asset';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 import { CurrencyProvider } from '@/context/CurrencyContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import registerPubkeysForPushNotificationsAsync, { handleHeadlessNotification } from '@/services/NotificationService';
+import registerPubkeysForPushNotificationsAsync from '@/services/NotificationService';
 import { keyToHex } from 'portal-app-lib';
 import * as Notifications from 'expo-notifications';
 import { ECashProvider } from '@/context/ECashContext';
 import { SQLiteProvider } from 'expo-sqlite';
 import migrateDbIfNeeded from '@/migrations/DatabaseMigrations';
-import * as TaskManager from 'expo-task-manager';
 
 // Prevent splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
 
-
 // Database name constant to ensure consistency
 const DATABASE_NAME = 'portal-app.db';
-const BACKGROUND_NOTIFICATION_TASK = 'BACKGROUND-NOTIFICATION-TASK';
-
-TaskManager.defineTask<Notifications.NotificationTaskPayload>(BACKGROUND_NOTIFICATION_TASK, async ({ data, error, executionInfo }) => {
-  console.warn("background task launched")
-  // Check if the app is currently in the foreground (active state)
-  if (AppState.currentState === 'active') {
-    console.log('Notification task received but app is in foreground, skipping background logic.');
-    return; // Do not execute background logic if the app is active
-  }
-
-  if (error) {
-    console.error('Background notification error: ', error);
-  }
-
-  console.log('Received a notification task payload: ', data);
-  const isNotificationResponse = 'data' in data;
-  if (isNotificationResponse) {
-    let nostr_event_content = JSON.parse(data.data['body'] as any).event_content;
-    handleHeadlessNotification(nostr_event_content.toString(), DATABASE_NAME)
-    // Do something with the notification response from user
-  } else {
-    // Do something with the data from notification that was received
-  }
-});
 
 const NotificationConfigurator = () => {
   const { publicKey } = useNostrService();
