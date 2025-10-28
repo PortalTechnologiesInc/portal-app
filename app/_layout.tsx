@@ -28,7 +28,7 @@ import migrateDbIfNeeded from '@/migrations/DatabaseMigrations';
 SplashScreen.preventAutoHideAsync();
 
 // Database name constant to ensure consistency
-const DATABASE_NAME = 'portal-app.db';
+export const DATABASE_NAME = 'portal-app.db';
 
 const NotificationConfigurator = () => {
   const { publicKey } = useNostrService();

@@ -109,10 +109,7 @@ export default async function registerPubkeysForPushNotificationsAsync(pubkeys: 
 }
 
 export async function handleHeadlessNotification(event: String, databaseName: string) {
-  console.warn('0');
-  // initLogger(new Logger(), LogLevel.Trace)
   try {
-
     const abortController = new AbortController();
     let mnemonic = await getMnemonic();
     if (!mnemonic) return;
@@ -148,23 +145,9 @@ export async function handleHeadlessNotification(event: String, databaseName: st
 
     let app = await PortalAppManager.getInstance(keypair, relays, relayListener);
 
-    // TODO here inject the nostr event in the app lib
-
     app.listen({ signal: abortController.signal });
 
     console.warn("adding listeners");
-    try {
-      await fetch('https://notifications.getportal.cc/', {
-        // await fetch('http://localhost:8000/', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-    } catch (e) {
-      console.error('Failed to send push token to server', e);
-      return;
-    }
     // Listen for closed recurring payments
     app.listenClosedRecurringPayment(new LocalClosedRecurringPaymentListener(
       async (response: CloseRecurringPaymentResponse) => {
