@@ -34,18 +34,40 @@ TaskManager.defineTask<Notifications.NotificationTaskPayload>(
     }
 
     console.log('📦 Received notification data:', JSON.stringify(data, null, 2));
-    
+
     const isNotificationResponse = 'data' in data;
-    
+
     if (isNotificationResponse) {
       try {
         console.log('🔍 Parsing notification payload...');
-        const nostr_event_content = JSON.parse(data.data['body'] as any).event_content;
-        console.log('✅ Successfully parsed Nostr event content');
-        
-        console.log('🚀 Starting headless notification processing...');
-        await handleHeadlessNotification(nostr_event_content.toString(), DATABASE_NAME);
-        console.log('✅ Headless notification processing completed successfully');
+
+        const payload = data as Record<string, any>;
+        const rawBody =
+          payload?.data?.body ??
+          payload?.data?.UIApplicationLaunchOptionsRemoteNotificationKey?.body ??
+          payload?.notification?.request?.content?.data?.body;
+
+        if (!rawBody) {
+          console.warn('⚠️ Notification payload missing body field');
+        } else {
+          const parsedBody =
+            typeof rawBody === 'string'
+              ? (JSON.parse(rawBody) as Record<string, unknown>)
+              : (rawBody as Record<string, unknown>);
+
+          const eventContentValue =
+            parsedBody?.['event_content'] ?? parsedBody?.['eventContent'];
+
+          if (typeof eventContentValue !== 'string') {
+            console.warn('⚠️ Notification body missing Nostr event content');
+          } else {
+            console.log('✅ Successfully parsed Nostr event content');
+
+            console.log('🚀 Starting headless notification processing...');
+            await handleHeadlessNotification(eventContentValue, DATABASE_NAME);
+            console.log('✅ Headless notification processing completed successfully');
+          }
+        }
       } catch (e) {
         console.error('❌ Error processing headless notification:', e);
         console.error('Error details:', JSON.stringify(e, null, 2));
