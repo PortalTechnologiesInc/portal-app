@@ -10,6 +10,8 @@ import {
   Alert,
   Platform,
   KeyboardAvoidingView,
+  Keyboard,
+  useWindowDimensions,
 } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
 import { ThemedText } from '@/components/ThemedText';
@@ -81,6 +83,22 @@ export default function Onboarding() {
   const inputPlaceholder = useThemeColor({}, 'inputPlaceholder');
   const buttonPrimary = useThemeColor({}, 'buttonPrimary');
   const buttonPrimaryText = useThemeColor({}, 'buttonPrimaryText');
+
+  const { width, height } = useWindowDimensions();
+  const shortestSide = Math.min(width, height);
+  const isSmallDevice = shortestSide <= 375;
+
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener('keyboardDidShow', () => setIsKeyboardVisible(true));
+    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => setIsKeyboardVisible(false));
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   const goToPreviousStep = () => {
     const previousSteps: Record<OnboardingStep, OnboardingStep | null> = {
@@ -431,125 +449,134 @@ export default function Onboarding() {
             <TouchableOpacity onPress={getBackButtonHandler()} style={styles.backButton}>
               <ArrowLeft size={24} color={textPrimary} />
             </TouchableOpacity>
-            <ThemedText style={[styles.headerText, { color: textPrimary }]}>
-              Portal Setup
-            </ThemedText>
-            <View style={styles.headerSpacer} />
+            <ThemedText style={[styles.headerText, { color: textPrimary }]}>Portal Setup</ThemedText>
+            <View style={styles.headerLogoWrapper}>
+              <Image source={onboardingLogo} style={styles.headerLogo} resizeMode="contain" />
+            </View>
           </ThemedView>
         )}
 
         {/* Logo */}
-        <View style={styles.logoContainer}>
-          <Image source={onboardingLogo} style={styles.logo} resizeMode="contain" />
-        </View>
+        {currentStep === 'welcome' && (
+          <View style={styles.logoContainer}>
+            <Image source={onboardingLogo} style={styles.logo} resizeMode="contain" />
+          </View>
+        )}
 
         {/* Welcome Step */}
         {currentStep === 'welcome' && (
-          <ScrollView
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={styles.pageContainer}>
-              <ThemedText type="title" style={styles.mainTitle}>
-                Welcome to Portal
-              </ThemedText>
-              <ThemedText style={styles.subtitle}>Your sovereign digital identity app</ThemedText>
+          <View style={styles.stepWrapper}>
+            <ScrollView
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={[styles.pageContainer, styles.scrollPageContainer]}>
+                <ThemedText type="title" style={styles.mainTitle}>
+                  Welcome to Portal
+                </ThemedText>
+                <ThemedText style={styles.subtitle}>Your sovereign digital identity app</ThemedText>
 
-              {/* Feature Cards */}
-              <View style={styles.featureContainer}>
-                <View style={[styles.featureCard, { backgroundColor: cardBackgroundColor }]}>
-                  <Shield size={28} color={buttonPrimary} />
-                  <ThemedText type="defaultSemiBold" style={styles.featureTitle}>
-                    Self-Sovereign Identity
-                  </ThemedText>
-                  <ThemedText style={styles.featureDescription}>
-                    Own and control your digital identity without relying on centralized services
-                  </ThemedText>
-                </View>
+                {/* Feature Cards */}
+                <View style={styles.featureContainer}>
+                  <View style={[styles.featureCard, { backgroundColor: cardBackgroundColor }]}>
+                    <Shield size={28} color={buttonPrimary} />
+                    <ThemedText type="defaultSemiBold" style={styles.featureTitle}>
+                      Self-Sovereign Identity
+                    </ThemedText>
+                    <ThemedText style={styles.featureDescription}>
+                      Own and control your digital identity without relying on centralized services
+                    </ThemedText>
+                  </View>
 
-                <View style={[styles.featureCard, { backgroundColor: cardBackgroundColor }]}>
-                  <Zap size={28} color={buttonPrimary} />
-                  <ThemedText type="defaultSemiBold" style={styles.featureTitle}>
-                    Wallet Integration
-                  </ThemedText>
-                  <ThemedText style={styles.featureDescription}>
-                    Connect and interact with Lightning wallets through Nostr Wallet Connect
-                  </ThemedText>
+                  <View style={[styles.featureCard, { backgroundColor: cardBackgroundColor }]}>
+                    <Zap size={28} color={buttonPrimary} />
+                    <ThemedText type="defaultSemiBold" style={styles.featureTitle}>
+                      Wallet Integration
+                    </ThemedText>
+                    <ThemedText style={styles.featureDescription}>
+                      Connect and interact with Lightning wallets through Nostr Wallet Connect
+                    </ThemedText>
+                  </View>
                 </View>
               </View>
-
+            </ScrollView>
+            <View style={[styles.footer, styles.footerStack]}>
               <TouchableOpacity
                 style={[styles.button, { backgroundColor: buttonPrimary }]}
                 onPress={() => setCurrentStep('backup-warning')}
               >
-                <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>
-                  Get Started
-                </ThemedText>
+                <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>Get Started</ThemedText>
                 <ArrowRight size={20} color={buttonPrimaryText} style={styles.buttonIcon} />
               </TouchableOpacity>
             </View>
-          </ScrollView>
+          </View>
         )}
 
         {/* Backup Warning Step */}
         {currentStep === 'backup-warning' && (
-          <ScrollView
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={styles.pageContainer}>
-              <View style={styles.warningIconContainer}>
-                <AlertTriangle size={64} color="#f39c12" />
-              </View>
+          <View style={styles.stepWrapper}>
+            <ScrollView
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={[styles.pageContainer, styles.scrollPageContainer]}>
+                <View style={styles.warningIconContainer}>
+                  <AlertTriangle size={isSmallDevice ? 48 : 64} color="#f39c12" />
+                </View>
 
-              <ThemedText type="title" style={styles.warningTitle}>
-                Important Security Notice
-              </ThemedText>
-
-              <View style={[styles.warningCard, { backgroundColor: cardBackgroundColor }]}>
-                <ThemedText type="defaultSemiBold" style={styles.warningCardTitle}>
-                  Your seed phrase is your master key
+                <ThemedText type="title" style={styles.warningTitle}>
+                  Important Security Notice
                 </ThemedText>
-                <ThemedText style={styles.warningText}>
-                  Portal generates a unique 12-word seed phrase that gives you complete control over
-                  your digital identity and authentication.
-                </ThemedText>
+
+                <View style={[styles.warningCard, { backgroundColor: cardBackgroundColor }]}>
+                  <ThemedText
+                    type="defaultSemiBold"
+                    style={[styles.warningCardTitle, isSmallDevice && styles.warningCardTitleSmall]}
+                  >
+                    Your seed phrase is your master key
+                  </ThemedText>
+                  <ThemedText style={[styles.warningText, isSmallDevice && styles.warningTextSmall]}>
+                    Portal generates a unique 12-word seed phrase that gives you complete control over
+                    your digital identity and authentication.
+                  </ThemedText>
+                </View>
+
+                <View style={styles.warningPointsContainer}>
+                  <View style={styles.warningPoint}>
+                    <CheckCircle size={20} color="#27ae60" />
+                    <ThemedText style={styles.warningPointText}>
+                      <ThemedText type="defaultSemiBold">Write it down</ThemedText> on paper and store
+                      it safely
+                    </ThemedText>
+                  </View>
+
+                  <View style={styles.warningPoint}>
+                    <CheckCircle size={20} color="#27ae60" />
+                    <ThemedText style={styles.warningPointText}>
+                      <ThemedText type="defaultSemiBold">Never share it</ThemedText> with anyone - not
+                      even Portal support
+                    </ThemedText>
+                  </View>
+
+                  <View style={styles.warningPoint}>
+                    <CheckCircle size={20} color="#27ae60" />
+                    <ThemedText style={styles.warningPointText}>
+                      <ThemedText type="defaultSemiBold">Keep multiple copies</ThemedText> in secure,
+                      separate locations
+                    </ThemedText>
+                  </View>
+
+                  <View style={styles.warningPoint}>
+                    <AlertTriangle size={20} color="#e74c3c" />
+                    <ThemedText style={styles.warningPointText}>
+                      <ThemedText type="defaultSemiBold">If you lose it, you lose access</ThemedText>{' '}
+                      - we cannot recover it
+                    </ThemedText>
+                  </View>
+                </View>
               </View>
-
-              <View style={styles.warningPointsContainer}>
-                <View style={styles.warningPoint}>
-                  <CheckCircle size={20} color="#27ae60" />
-                  <ThemedText style={styles.warningPointText}>
-                    <ThemedText type="defaultSemiBold">Write it down</ThemedText> on paper and store
-                    it safely
-                  </ThemedText>
-                </View>
-
-                <View style={styles.warningPoint}>
-                  <CheckCircle size={20} color="#27ae60" />
-                  <ThemedText style={styles.warningPointText}>
-                    <ThemedText type="defaultSemiBold">Never share it</ThemedText> with anyone - not
-                    even Portal support
-                  </ThemedText>
-                </View>
-
-                <View style={styles.warningPoint}>
-                  <CheckCircle size={20} color="#27ae60" />
-                  <ThemedText style={styles.warningPointText}>
-                    <ThemedText type="defaultSemiBold">Keep multiple copies</ThemedText> in secure,
-                    separate locations
-                  </ThemedText>
-                </View>
-
-                <View style={styles.warningPoint}>
-                  <AlertTriangle size={20} color="#e74c3c" />
-                  <ThemedText style={styles.warningPointText}>
-                    <ThemedText type="defaultSemiBold">If you lose it, you lose access</ThemedText>{' '}
-                    - we cannot recover it
-                  </ThemedText>
-                </View>
-              </View>
-
+            </ScrollView>
+            <View style={[styles.footer, styles.footerStack]}>
               <TouchableOpacity
                 style={[styles.button, { backgroundColor: buttonPrimary }]}
                 onPress={() => setCurrentStep('choice')}
@@ -559,90 +586,100 @@ export default function Onboarding() {
                 </ThemedText>
               </TouchableOpacity>
             </View>
-          </ScrollView>
+          </View>
         )}
 
         {/* Choice Step */}
         {currentStep === 'choice' && (
-          <View style={styles.pageContainer}>
-            <ThemedText type="title" style={styles.title}>
-              Setup Your Identity
-            </ThemedText>
-            <ThemedText style={styles.subtitle}>
-              Choose how you want to create your digital identity
-            </ThemedText>
+          <View style={styles.stepWrapper}>
+            <ScrollView
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={[styles.pageContainer, styles.scrollPageContainer]}>
+                <ThemedText type="title" style={styles.title}>
+                  Setup Your Identity
+                </ThemedText>
+                <ThemedText style={styles.subtitle}>
+                  Choose how you want to create your digital identity
+                </ThemedText>
 
-            <View style={styles.buttonGroup}>
-              <TouchableOpacity
-                style={[styles.choiceButton, { backgroundColor: cardBackgroundColor }]}
-                onPress={handleGenerate}
-              >
-                <Key size={24} color={buttonPrimary} />
-                <ThemedText type="defaultSemiBold" style={styles.choiceButtonTitle}>
-                  Generate New Seed Phrase
-                </ThemedText>
-                <ThemedText style={styles.choiceButtonDescription}>
-                  Create a new 12-word seed phrase for a fresh start
-                </ThemedText>
-              </TouchableOpacity>
+                <View style={styles.buttonGroup}>
+                  <TouchableOpacity
+                    style={[styles.choiceButton, { backgroundColor: cardBackgroundColor }]}
+                    onPress={handleGenerate}
+                  >
+                    <Key size={24} color={buttonPrimary} />
+                    <ThemedText type="defaultSemiBold" style={styles.choiceButtonTitle}>
+                      Generate New Seed Phrase
+                    </ThemedText>
+                    <ThemedText style={styles.choiceButtonDescription}>
+                      Create a new 12-word seed phrase for a fresh start
+                    </ThemedText>
+                  </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.choiceButton, { backgroundColor: cardBackgroundColor }]}
-                onPress={handleImport}
-              >
-                <Shield size={24} color={buttonPrimary} />
-                <ThemedText type="defaultSemiBold" style={styles.choiceButtonTitle}>
-                  Import Existing Seed
-                </ThemedText>
-                <ThemedText style={styles.choiceButtonDescription}>
-                  Restore your identity using an existing seed phrase
-                </ThemedText>
-              </TouchableOpacity>
-            </View>
+                  <TouchableOpacity
+                    style={[styles.choiceButton, { backgroundColor: cardBackgroundColor }]}
+                    onPress={handleImport}
+                  >
+                    <Shield size={24} color={buttonPrimary} />
+                    <ThemedText type="defaultSemiBold" style={styles.choiceButtonTitle}>
+                      Import Existing Seed
+                    </ThemedText>
+                    <ThemedText style={styles.choiceButtonDescription}>
+                      Restore your identity using an existing seed phrase
+                    </ThemedText>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </ScrollView>
           </View>
         )}
 
         {/* Generate Step */}
         {currentStep === 'generate' && (
-          <ScrollView contentContainerStyle={styles.scrollContent}>
-            <ThemedText type="title" style={styles.title}>
-              Your Seed Phrase
-            </ThemedText>
-            <ThemedText style={styles.subtitle}>
-              Write down these 12 words and keep them safe
-            </ThemedText>
+          <View style={styles.stepWrapper}>
+            <ScrollView contentContainerStyle={styles.scrollContent}>
+              <View style={[styles.pageContainer, styles.scrollPageContainer]}>
+                <ThemedText type="title" style={styles.title}>
+                  Your Seed Phrase
+                </ThemedText>
+                <ThemedText style={styles.subtitle}>
+                  Write down these 12 words and keep them safe
+                </ThemedText>
 
-            <View style={styles.seedContainer}>
-              {seedPhrase.split(' ').map((word: string, index: number) => (
-                <View
-                  key={`word-${index}-${word}`}
-                  style={[styles.wordContainer, { backgroundColor: surfaceSecondary }]}
-                >
-                  <ThemedText style={styles.wordText}>
-                    {index + 1}. {word}
-                  </ThemedText>
+                <View style={styles.seedContainer}>
+                  {seedPhrase.split(' ').map((word: string, index: number) => (
+                    <View
+                      key={`word-${index}-${word}`}
+                      style={[styles.wordContainer, { backgroundColor: surfaceSecondary }]}
+                    >
+                      <ThemedText style={styles.wordText}>
+                        {index + 1}. {word}
+                      </ThemedText>
+                    </View>
+                  ))}
                 </View>
-              ))}
+              </View>
+            </ScrollView>
+            <View style={[styles.footer, styles.footerStack]}>
+              <TouchableOpacity
+                style={[styles.button, styles.copyButton, { backgroundColor: buttonPrimary }]}
+                onPress={handleCopySeedPhrase}
+              >
+                <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>Copy to Clipboard</ThemedText>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.button, styles.finishButton, { backgroundColor: buttonPrimary }]}
+                onPress={handleGenerateComplete}
+              >
+                <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>
+                  I've Written It Down
+                </ThemedText>
+              </TouchableOpacity>
             </View>
-
-            <TouchableOpacity
-              style={[styles.button, styles.copyButton, { backgroundColor: buttonPrimary }]}
-              onPress={handleCopySeedPhrase}
-            >
-              <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>
-                Copy to Clipboard
-              </ThemedText>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.button, styles.finishButton, { backgroundColor: buttonPrimary }]}
-              onPress={handleGenerateComplete}
-            >
-              <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>
-                I've Written It Down
-              </ThemedText>
-            </TouchableOpacity>
-          </ScrollView>
+          </View>
         )}
 
         {/* Verify Step */}
@@ -652,53 +689,56 @@ export default function Onboarding() {
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
           >
-            <ScrollView
-              contentContainerStyle={styles.scrollContent}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-              <View style={styles.pageContainer}>
-                <ThemedText type="title" style={styles.title}>
-                  Verify Your Seed Phrase
-                </ThemedText>
-                <ThemedText style={styles.subtitle}>
-                  Please enter the words you wrote down to confirm your backup
-                </ThemedText>
-
-                <View style={styles.verificationContainer}>
-                  <ThemedText style={styles.verificationText}>
-                    Enter word #{verificationWords.word1.index + 1}:
+            <View style={styles.stepWrapper}>
+              <ScrollView
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
+                <View style={[styles.pageContainer, styles.scrollPageContainer]}>
+                  <ThemedText type="title" style={styles.title}>
+                    Verify Your Seed Phrase
                   </ThemedText>
-                  <TextInput
-                    style={[
-                      styles.verificationInput,
-                      { backgroundColor: inputBackground, color: textPrimary },
-                    ]}
-                    placeholder={`Word ${verificationWords.word1.index + 1}`}
-                    placeholderTextColor={inputPlaceholder}
-                    value={userInputs.word1}
-                    onChangeText={text => setUserInputs(prev => ({ ...prev, word1: text }))}
-                    autoCorrect={false}
-                    autoCapitalize="none"
-                  />
-
-                  <ThemedText style={styles.verificationText}>
-                    Enter word #{verificationWords.word2.index + 1}:
+                  <ThemedText style={styles.subtitle}>
+                    Please enter the words you wrote down to confirm your backup
                   </ThemedText>
-                  <TextInput
-                    style={[
-                      styles.verificationInput,
-                      { backgroundColor: inputBackground, color: textPrimary },
-                    ]}
-                    placeholder={`Word ${verificationWords.word2.index + 1}`}
-                    placeholderTextColor={inputPlaceholder}
-                    value={userInputs.word2}
-                    onChangeText={text => setUserInputs(prev => ({ ...prev, word2: text }))}
-                    autoCorrect={false}
-                    autoCapitalize="none"
-                  />
+
+                  <View style={styles.verificationContainer}>
+                    <ThemedText style={styles.verificationText}>
+                      Enter word #{verificationWords.word1.index + 1}:
+                    </ThemedText>
+                    <TextInput
+                      style={[
+                        styles.verificationInput,
+                        { backgroundColor: inputBackground, color: textPrimary },
+                      ]}
+                      placeholder={`Word ${verificationWords.word1.index + 1}`}
+                      placeholderTextColor={inputPlaceholder}
+                      value={userInputs.word1}
+                      onChangeText={text => setUserInputs(prev => ({ ...prev, word1: text }))}
+                      autoCorrect={false}
+                      autoCapitalize="none"
+                    />
+
+                    <ThemedText style={styles.verificationText}>
+                      Enter word #{verificationWords.word2.index + 1}:
+                    </ThemedText>
+                    <TextInput
+                      style={[
+                        styles.verificationInput,
+                        { backgroundColor: inputBackground, color: textPrimary },
+                      ]}
+                      placeholder={`Word ${verificationWords.word2.index + 1}`}
+                      placeholderTextColor={inputPlaceholder}
+                      value={userInputs.word2}
+                      onChangeText={text => setUserInputs(prev => ({ ...prev, word2: text }))}
+                      autoCorrect={false}
+                      autoCapitalize="none"
+                    />
+                  </View>
                 </View>
-
+              </ScrollView>
+              <View style={[styles.footer, styles.footerStack]}>
                 <TouchableOpacity
                   style={[styles.button, styles.finishButton, { backgroundColor: buttonPrimary }]}
                   onPress={handleVerificationComplete}
@@ -708,97 +748,121 @@ export default function Onboarding() {
                   </ThemedText>
                 </TouchableOpacity>
               </View>
-            </ScrollView>
+            </View>
           </KeyboardAvoidingView>
         )}
 
         {/* Import Step */}
         {currentStep === 'import' && (
-          <View style={styles.pageContainer}>
-            <ThemedText type="title" style={styles.title}>
-              Import Seed Phrase
-            </ThemedText>
-            <ThemedText style={styles.subtitle}>Enter your 12-word seed phrase</ThemedText>
+          <KeyboardAvoidingView
+            style={styles.keyboardAvoidingView}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
+          >
+            <View style={styles.stepWrapper}>
+              <ScrollView
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+              >
+                <View style={[styles.pageContainer, styles.importPageContainer]}>
+                  <View style={styles.importTextContainer}>
+                    <ThemedText type="title" style={styles.title}>
+                      Import Seed Phrase
+                    </ThemedText>
+                    <ThemedText style={styles.subtitle}>Enter your 12-word seed phrase</ThemedText>
+                  </View>
 
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={[styles.input, { backgroundColor: inputBackground, color: textPrimary }]}
-                placeholder="Enter your seed phrase separated by spaces"
-                placeholderTextColor={inputPlaceholder}
-                value={seedPhrase}
-                onChangeText={setSeedPhrase}
-                multiline
-                numberOfLines={4}
-                autoCorrect={false}
-                autoCapitalize="none"
-              />
+                  <View style={styles.inputContainer}>
+                    <TextInput
+                      style={[styles.input, { backgroundColor: inputBackground, color: textPrimary }]}
+                      placeholder="Enter your seed phrase separated by spaces"
+                      placeholderTextColor={inputPlaceholder}
+                      value={seedPhrase}
+                      onChangeText={setSeedPhrase}
+                      multiline
+                      numberOfLines={4}
+                      autoCorrect={false}
+                      autoCapitalize="none"
+                      returnKeyType={Platform.OS === 'ios' ? 'done' : 'default'}
+                      blurOnSubmit
+                      onSubmitEditing={Keyboard.dismiss}
+                    />
+                  </View>
+                </View>
+              </ScrollView>
+              <View
+                style={[styles.footer, styles.footerStack, isKeyboardVisible && styles.footerCompact]}
+              >
+                <TouchableOpacity
+                  style={[styles.button, styles.finishButton, { backgroundColor: buttonPrimary }]}
+                  onPress={handleImportComplete}
+                >
+                  <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>Import</ThemedText>
+                </TouchableOpacity>
+              </View>
             </View>
-
-            <TouchableOpacity
-              style={[styles.button, styles.finishButton, { backgroundColor: buttonPrimary }]}
-              onPress={handleImportComplete}
-            >
-              <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>
-                Import
-              </ThemedText>
-            </TouchableOpacity>
-          </View>
+          </KeyboardAvoidingView>
         )}
 
         {/* Wallet Setup Step */}
         {currentStep === 'wallet-setup' && (
-          <ScrollView
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={styles.pageContainer}>
-              <View style={styles.walletIconContainer}>
-                <Zap size={64} color={buttonPrimary} />
-              </View>
+          <View style={styles.stepWrapper}>
+            <ScrollView
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={[styles.pageContainer, styles.scrollPageContainer]}>
+                <View style={styles.walletIconContainer}>
+                  <Zap size={64} color={buttonPrimary} />
+                </View>
 
-              <ThemedText type="title" style={styles.title}>
-                Connect Your Wallet
-              </ThemedText>
-              <ThemedText style={styles.subtitle}>
-                Add a Lightning wallet to enable payments and transactions
-              </ThemedText>
-
-              <View style={[styles.walletSetupCard, { backgroundColor: cardBackgroundColor }]}>
-                <ThemedText type="defaultSemiBold" style={styles.walletSetupCardTitle}>
-                  Why connect a wallet?
+                <ThemedText type="title" style={styles.title}>
+                  Connect Your Wallet
                 </ThemedText>
-                <ThemedText style={styles.walletSetupText}>
-                  Connecting a Lightning wallet allows you to make payments, receive refunds, and
-                  interact with Lightning-enabled services through the Nostr network.
+                <ThemedText style={styles.subtitle}>
+                  Add a Lightning wallet to enable payments and transactions
                 </ThemedText>
+
+                <View style={[styles.walletSetupCard, { backgroundColor: cardBackgroundColor }]}>
+                  <ThemedText type="defaultSemiBold" style={styles.walletSetupCardTitle}>
+                    Why connect a wallet?
+                  </ThemedText>
+                  <ThemedText style={styles.walletSetupText}>
+                    Connecting a Lightning wallet allows you to make payments, receive refunds, and
+                    interact with Lightning-enabled services through the Nostr network.
+                  </ThemedText>
+                </View>
+
+                <View style={styles.walletSetupPointsContainer}>
+                  <View style={styles.walletSetupPoint}>
+                    <CheckCircle size={20} color="#27ae60" />
+                    <ThemedText style={styles.walletSetupPointText}>
+                      <ThemedText type="defaultSemiBold">Make payments</ThemedText> to other users and
+                      services
+                    </ThemedText>
+                  </View>
+
+                  <View style={styles.walletSetupPoint}>
+                    <CheckCircle size={20} color="#27ae60" />
+                    <ThemedText style={styles.walletSetupPointText}>
+                      <ThemedText type="defaultSemiBold">Receive refunds</ThemedText> from Lightning
+                      payments
+                    </ThemedText>
+                  </View>
+
+                  <View style={styles.walletSetupPoint}>
+                    <CheckCircle size={20} color="#27ae60" />
+                    <ThemedText style={styles.walletSetupPointText}>
+                      <ThemedText type="defaultSemiBold">Subscriptions</ThemedText> management &
+                      recurring payouts
+                    </ThemedText>
+                  </View>
+                </View>
               </View>
-
-              <View style={styles.walletSetupPointsContainer}>
-                <View style={styles.walletSetupPoint}>
-                  <CheckCircle size={20} color="#27ae60" />
-                  <ThemedText style={styles.walletSetupPointText}>
-                    <ThemedText type="defaultSemiBold">Make payments</ThemedText> to other users and
-                    services
-                  </ThemedText>
-                </View>
-
-                <View style={styles.walletSetupPoint}>
-                  <CheckCircle size={20} color="#27ae60" />
-                  <ThemedText style={styles.walletSetupPointText}>
-                    <ThemedText type="defaultSemiBold">Receive refunds</ThemedText> from Lightning
-                    payments
-                  </ThemedText>
-                </View>
-
-                <View style={styles.walletSetupPoint}>
-                  <CheckCircle size={20} color="#27ae60" />
-                  <ThemedText style={styles.walletSetupPointText}>
-                    <ThemedText type="defaultSemiBold">Subscriptions</ThemedText> management &
-                    recurring payouts
-                  </ThemedText>
-                </View>
-              </View>
-
+            </ScrollView>
+            <View style={styles.footer}>
               <View style={styles.buttonGroup}>
                 <TouchableOpacity
                   style={[styles.button, { backgroundColor: buttonPrimary }]}
@@ -820,80 +884,83 @@ export default function Onboarding() {
                 </TouchableOpacity>
               </View>
             </View>
-          </ScrollView>
+          </View>
         )}
 
         {/* Wallet Connect Step */}
         {currentStep === 'wallet-connect' && (
-          <ScrollView
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={styles.pageContainer}>
-              <ThemedText type="title" style={styles.title}>
-                Connect Lightning Wallet
-              </ThemedText>
-              <ThemedText style={styles.subtitle}>Paste your Nostr Wallet Connect URL</ThemedText>
+          <View style={styles.stepWrapper}>
+            <ScrollView
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={[styles.pageContainer, styles.scrollPageContainer]}>
+                <ThemedText type="title" style={styles.title}>
+                  Connect Lightning Wallet
+                </ThemedText>
+                <ThemedText style={styles.subtitle}>Paste your Nostr Wallet Connect URL</ThemedText>
 
-              <View style={styles.inputContainer}>
-                <TextInput
-                  style={[styles.input, { backgroundColor: inputBackground, color: textPrimary }]}
-                  placeholder="nostr+walletconnect://..."
-                  placeholderTextColor={inputPlaceholder}
-                  value={walletInput}
-                  onChangeText={setWalletInput}
-                  autoCorrect={false}
-                  autoCapitalize="none"
-                />
-              </View>
-
-              {/* Single action button is below the status section */}
-
-              <View style={[styles.walletStatusContainer, { width: '100%' }]}>
-                <View style={styles.walletStatusRow}>
-                  <ThemedText style={styles.walletStatusLabel}>Connection:</ThemedText>
-                  <ThemedText
-                    style={[
-                      styles.walletStatusValue,
-                      nwcConnectionStatus === true && { color: '#27ae60' },
-                      nwcConnectionStatus === false && { color: '#e74c3c' },
-                    ]}
-                  >
-                    {!walletInput.trim() && !walletUrl
-                      ? 'Waiting'
-                      : nwcConnectionStatus === true
-                        ? 'Connected'
-                        : nwcConnectionStatus === false
-                          ? 'Error connecting'
-                          : nwcConnecting
-                            ? 'Connecting...'
-                            : 'Waiting'}
-                  </ThemedText>
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: inputBackground, color: textPrimary }]}
+                    placeholder="nostr+walletconnect://..."
+                    placeholderTextColor={inputPlaceholder}
+                    value={walletInput}
+                    onChangeText={setWalletInput}
+                    autoCorrect={false}
+                    autoCapitalize="none"
+                  />
                 </View>
 
-                <View style={styles.walletInfoRowMini}>
-                  <ThemedText style={styles.walletInfoLabelMini}>Balance:</ThemedText>
-                  {nwcConnectionStatus === true &&
-                  walletInfo?.data &&
-                  'get_balance' in walletInfo.data ? (
-                    <ThemedText style={styles.walletInfoValueMini}>
-                      ⚡ {Math.floor((walletInfo.data as any).get_balance / 1000).toLocaleString()}{' '}
-                      sats
-                    </ThemedText>
-                  ) : (
-                    <ThemedText style={[styles.walletInfoValueMini, { opacity: 0.5 }]}>
+                {/* Single action button is below the status section */}
+
+                <View style={[styles.walletStatusContainer, { width: '100%' }]}>
+                  <View style={styles.walletStatusRow}>
+                    <ThemedText style={styles.walletStatusLabel}>Connection:</ThemedText>
+                    <ThemedText
+                      style={[
+                        styles.walletStatusValue,
+                        nwcConnectionStatus === true && { color: '#27ae60' },
+                        nwcConnectionStatus === false && { color: '#e74c3c' },
+                      ]}
+                    >
                       {!walletInput.trim() && !walletUrl
                         ? 'Waiting'
-                        : nwcConnectionStatus === false
-                          ? 'Error connecting'
-                          : nwcConnecting
-                            ? 'Connecting...'
-                            : 'Waiting'}
+                        : nwcConnectionStatus === true
+                          ? 'Connected'
+                          : nwcConnectionStatus === false
+                            ? 'Error connecting'
+                            : nwcConnecting
+                              ? 'Connecting...'
+                              : 'Waiting'}
                     </ThemedText>
-                  )}
+                  </View>
+
+                  <View style={styles.walletInfoRowMini}>
+                    <ThemedText style={styles.walletInfoLabelMini}>Balance:</ThemedText>
+                    {nwcConnectionStatus === true &&
+                    walletInfo?.data &&
+                    'get_balance' in walletInfo.data ? (
+                      <ThemedText style={styles.walletInfoValueMini}>
+                        ⚡ {Math.floor((walletInfo.data as any).get_balance / 1000).toLocaleString()}{' '}
+                        sats
+                      </ThemedText>
+                    ) : (
+                      <ThemedText style={[styles.walletInfoValueMini, { opacity: 0.5 }]}>
+                        {!walletInput.trim() && !walletUrl
+                          ? 'Waiting'
+                          : nwcConnectionStatus === false
+                            ? 'Error connecting'
+                            : nwcConnecting
+                              ? 'Connecting...'
+                              : 'Waiting'}
+                      </ThemedText>
+                    )}
+                  </View>
                 </View>
               </View>
-
+            </ScrollView>
+            <View style={[styles.footer, styles.footerStack]}>
               <TouchableOpacity
                 style={[
                   styles.button,
@@ -945,7 +1012,7 @@ export default function Onboarding() {
                 </ThemedText>
               </TouchableOpacity>
             </View>
-          </ScrollView>
+          </View>
         )}
       </ThemedView>
     </SafeAreaView>
@@ -965,8 +1032,8 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 30,
+    marginTop: 12,
+    marginBottom: 20,
   },
   logo: {
     width: '60%',
@@ -977,6 +1044,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     width: '100%',
+  },
+  scrollPageContainer: {
+    justifyContent: 'flex-start',
+    paddingTop: 10,
+  },
+  stepWrapper: {
+    flex: 1,
+    width: '100%',
+  },
+  footer: {
+    width: '100%',
+    paddingTop: 12,
+    paddingBottom: 32,
+  },
+  footerStack: {
+    gap: 12,
   },
   mainTitle: {
     fontSize: 32,
@@ -999,7 +1082,7 @@ const styles = StyleSheet.create({
   // Feature Cards
   featureContainer: {
     width: '100%',
-    marginBottom: 40,
+    marginBottom: 30,
     gap: 15,
   },
   featureCard: {
@@ -1041,11 +1124,18 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     textAlign: 'center',
   },
+  warningCardTitleSmall: {
+    fontSize: 16,
+  },
   warningText: {
     fontSize: 16,
     textAlign: 'center',
     lineHeight: 22,
     opacity: 0.8,
+  },
+  warningTextSmall: {
+    fontSize: 14,
+    lineHeight: 20,
   },
   warningPointsContainer: {
     width: '100%',
@@ -1225,9 +1315,9 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
+    position: 'relative',
   },
   backButton: {
     padding: 8,
@@ -1236,11 +1326,21 @@ const styles = StyleSheet.create({
   headerText: {
     fontSize: 20,
     fontWeight: '600',
-    flex: 1,
     textAlign: 'center',
+    position: 'absolute',
+    left: 0,
+    right: 0,
   },
-  headerSpacer: {
-    width: 10,
+  headerLogoWrapper: {
+    padding: 8,
+    marginRight: -30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 'auto',
+  },
+  headerLogo: {
+    width: 36,
+    height: 36,
   },
   // Wallet connect mini status styles
   walletStatusContainer: {
@@ -1283,5 +1383,38 @@ const styles = StyleSheet.create({
   },
   keyboardAvoidingView: {
     flex: 1,
+  },
+  // New styles for choice step
+  choicePageContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 20,
+    paddingBottom: 40,
+    gap: 24,
+  },
+  choiceTextContainer: {
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+  },
+  choiceButtonGroup: {
+    width: '100%',
+    gap: 15,
+  },
+  // New styles for import step
+  importPageContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 20,
+    paddingBottom: 40,
+    gap: 24,
+  },
+  importTextContainer: {
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+  },
+  footerCompact: {
+    marginBottom: -50,
   },
 });
