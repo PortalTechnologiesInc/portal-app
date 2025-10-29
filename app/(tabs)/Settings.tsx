@@ -158,7 +158,7 @@ export default function SettingsScreen() {
     setIsCurrencyModalVisible(false);
   };
 
-  const currencies = Object.values(Currency);
+  const currencies = Object.values(Currency).filter(currency => currency !== Currency.MSATS);
 
   const onRefresh = async () => {
     setRefreshing(true);

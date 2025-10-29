@@ -308,7 +308,7 @@ export default function WalletManagementScreen() {
         <ThemedView style={styles.content}>
           <ThemedText style={[styles.description, { color: secondaryTextColor }]}>
             Connect your wallet by entering the wallet URL below or scanning a QR code. This allows
-            you to manage your crypto assets and make seamless transactions within the app.
+            you to manage your assets and make seamless transactions within the app.
           </ThemedText>
 
           {/* Wallet URL Input Section */}
