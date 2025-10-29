@@ -7,7 +7,9 @@ import {
   type ReactNode,
   useMemo,
   useCallback,
+  useRef,
 } from 'react';
+import { Platform } from 'react-native';
 import type {
   KeyHandshakeUrl,
   RecurringPaymentRequest,
@@ -72,7 +74,8 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
   const [isLoadingRequest, setIsLoadingRequest] = useState(false);
   const [pendingUrl, setPendingUrl] = useState<KeyHandshakeUrl | undefined>(undefined);
   const [requestFailed, setRequestFailed] = useState(false);
-  const [timeoutId, setTimeoutId] = useState<number | null>(null);
+  const [timeoutId, setTimeoutId] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Simple database access
   const { executeOperation } = useDatabaseContext();
@@ -95,8 +98,9 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
     setRequestFailed(false);
 
     // Clear any active timeouts
-    if (timeoutId) {
-      clearTimeout(timeoutId);
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
       setTimeoutId(null);
     }
 
@@ -147,11 +151,12 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
   // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
       }
     };
-  }, [timeoutId]);
+  }, []);
 
   // Memoize these functions to prevent recreation on every render
   const getByType = useCallback(
@@ -809,9 +814,20 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
         return;
       }
       // Clean up any existing timeout
-      if (timeoutId) {
-        clearTimeout(timeoutId);
+      if (timeoutRef.current) {
+        console.log('[PendingRequests] cancelExistingTimeout', {
+          platform: Platform.OS,
+          timeoutId: timeoutRef.current,
+        });
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
       }
+
+      console.log('[PendingRequests] scheduleTimeout', {
+        platform: Platform.OS,
+        serviceKey: parsedUrl.mainKey,
+        prevTimeoutId: timeoutId,
+      });
 
       setIsLoadingRequest(true);
       setPendingUrl(parsedUrl);
@@ -819,38 +835,59 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
       // Set new timeout for 10 seconds
       const newTimeoutId = setTimeout(() => {
+        console.log('[PendingRequests] timeoutFired', {
+          platform: Platform.OS,
+          serviceKey: parsedUrl.mainKey,
+          timeoutId: newTimeoutId,
+        });
         setIsLoadingRequest(false);
         setRequestFailed(true);
       }, 15000);
 
+      timeoutRef.current = newTimeoutId;
       setTimeoutId(newTimeoutId);
     },
     [timeoutId]
   );
 
   const cancelSkeletonLoader = useCallback(() => {
-    if (timeoutId) {
-      clearTimeout(timeoutId);
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
+    setTimeoutId(null);
 
     setIsLoadingRequest(false);
     setRequestFailed(false);
-  }, [timeoutId]);
+  }, []);
 
   // Check for expected pending requests and clear skeleton loader
   useEffect(() => {
     // Check for removing skeleton when we get the expected request
     for (const request of Object.values(nostrService.pendingRequests)) {
-      if ((request.metadata as SinglePaymentRequest).serviceKey === pendingUrl?.mainKey) {
-        // Clear timeout and reset loading states directly to avoid dependency issues
-        if (timeoutId) {
-          clearTimeout(timeoutId);
+      const serviceKey = (request.metadata as SinglePaymentRequest).serviceKey;
+      console.log('[PendingRequests] evaluatingPendingRequest', {
+        platform: Platform.OS,
+        requestId: request.id,
+        requestType: request.type,
+        requestServiceKey: serviceKey,
+        pendingMainKey: pendingUrl?.mainKey,
+        timeoutId,
+      });
+
+      if (serviceKey === pendingUrl?.mainKey) {
+        if (timeoutRef.current) {
+          console.log('[PendingRequests] clearTimeoutOnPendingRequest', {
+            platform: Platform.OS,
+            requestId: request.id,
+            serviceKey,
+            timeoutId: timeoutRef.current,
+          });
         }
-        setIsLoadingRequest(false);
-        setRequestFailed(false);
+        cancelSkeletonLoader();
       }
     }
-  }, [nostrService.pendingRequests, pendingUrl, timeoutId]);
+  }, [nostrService.pendingRequests, pendingUrl, cancelSkeletonLoader]);
 
   // Memoize the context value to prevent recreation on every render
   const contextValue = useMemo(
