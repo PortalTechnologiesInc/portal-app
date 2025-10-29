@@ -1,0 +1,104 @@
+import * as FileSystem from 'expo-file-system';
+import {
+  Seed,
+  defaultConfig,
+  Network,
+  connect,
+  BreezSdkInterface,
+  ReceivePaymentMethod,
+  SendPaymentOptions,
+  EventListener,
+  SendPaymentMethod,
+  OnchainConfirmationSpeed,
+} from '@breeztech/breez-sdk-spark-react-native';
+import { Wallet } from '@/models/WalletType';
+import { WalletInfo } from '@/utils';
+
+export class BreezService implements Wallet {
+  private client!: BreezSdkInterface;
+
+  static async create(mnemonic: string): Promise<BreezService> {
+    const instance = new BreezService();
+    await instance.init(mnemonic);
+    return instance;
+  }
+
+  private async init(mnemonic: string) {
+    const seed = new Seed.Mnemonic({ mnemonic, passphrase: undefined });
+    const config = defaultConfig(Network.Mainnet);
+    config.apiKey = process.env.EXPO_PUBLIC_BREEZ_API_KEY;
+
+    const dirUri = FileSystem.documentDirectory + 'breez-wallet';
+    const storageDir = dirUri.replace('file://', '');
+    await FileSystem.makeDirectoryAsync(dirUri, { intermediates: true });
+
+    this.client = await connect({
+      config,
+      seed,
+      storageDir,
+    });
+  }
+
+  async getWalletInfo(): Promise<WalletInfo> {
+    const res = await this.client.getInfo({ ensureSynced: true });
+    return {
+      alias: undefined,
+      balanceInSats: res.balanceSats,
+    };
+  }
+
+  // for now only bolt11 invoices are supported
+  async receivePayment(amountSats: bigint): Promise<string> {
+    const response = await this.client.receivePayment({
+      paymentMethod: new ReceivePaymentMethod.Bolt11Invoice({
+        description: 'Payment',
+        amountSats,
+      }),
+    });
+    return response.paymentRequest;
+  }
+
+  async sendPayment(paymentRequest: string, amountSats: bigint): Promise<string> {
+    if (!this.client) {
+      throw new Error('Breez SDK is not initialized');
+    }
+
+    try {
+      const prepareResponse = await this.client.prepareSendPayment({
+        amountSats,
+        paymentRequest,
+      });
+
+      let sendOptions: SendPaymentOptions | undefined;
+
+      if (prepareResponse.paymentMethod instanceof SendPaymentMethod.Bolt11Invoice) {
+        sendOptions = new SendPaymentOptions.Bolt11Invoice({
+          preferSpark: false,
+          completionTimeoutSecs: 10,
+        });
+      } else if (prepareResponse.paymentMethod instanceof SendPaymentMethod.BitcoinAddress) {
+        sendOptions = new SendPaymentOptions.BitcoinAddress({
+          confirmationSpeed: OnchainConfirmationSpeed.Medium,
+        });
+      }
+
+      const response = await this.client.sendPayment({
+        prepareResponse,
+        options: sendOptions,
+      });
+
+      return response.payment.id;
+    } catch (error) {
+      console.error('Error sending payment:', error);
+      throw error;
+    }
+  }
+
+  addEventListener(callback: EventListener) {
+    return this.client.addEventListener(callback);
+  }
+
+  removeEventListener(listenerId: string) {
+    return this.client.removeEventListener(listenerId);
+  }
+}

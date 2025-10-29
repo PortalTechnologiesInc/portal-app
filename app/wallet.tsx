@@ -561,7 +561,7 @@ export default function WalletManagementScreen() {
                             {walletInfo.data.alias || 'Lightning Wallet'}
                           </ThemedText>
                         </View>
-                        {walletInfo.data.get_balance !== undefined && (
+                        {walletInfo.data.balanceInSats !== undefined && (
                           <View style={styles.walletInfoField}>
                             <ThemedText
                               style={[styles.walletInfoFieldLabel, { color: secondaryTextColor }]}
@@ -571,7 +571,7 @@ export default function WalletManagementScreen() {
                             <ThemedText
                               style={[styles.walletInfoFieldValue, { color: statusConnectedColor }]}
                             >
-                              ⚡ {Math.floor(walletInfo.data.get_balance / 1000).toLocaleString()}{' '}
+                              ⚡ {Math.floor(walletInfo.data.balanceInSats / 1000).toLocaleString()}{' '}
                               sats
                             </ThemedText>
                           </View>

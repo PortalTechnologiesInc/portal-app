@@ -6,7 +6,6 @@ import {
   RecurringPaymentResponseContent,
   SinglePaymentRequest,
   PaymentStatus,
-  Nwc,
   parseCalendar,
   PortalAppInterface,
   parseBolt11,
@@ -15,6 +14,7 @@ import {
 import { DatabaseService, fromUnixSeconds, SubscriptionWithDates } from './DatabaseService';
 import { CurrencyConversionService } from './CurrencyConversionService';
 import { Currency } from '@/utils/currency';
+import { Wallet } from '@/models/WalletType';
 
 export async function handleAuthChallenge(
   event: AuthChallengeEvent,
@@ -25,7 +25,7 @@ export async function handleAuthChallenge(
 }
 
 export async function handleSinglePaymentRequest(
-  wallet: Nwc | null,
+  wallet: Wallet | null,
   request: SinglePaymentRequest,
   preferredCurrency: Currency,
   executeOperation: <T>(operation: (db: DatabaseService) => Promise<T>, fallback?: T) => Promise<T>,

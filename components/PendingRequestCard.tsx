@@ -176,7 +176,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
             // 1) Consider NWC LN wallet balance (msats)
             try {
               const nwcMsats =
-                (nostrService.walletInfo.data?.get_balance as number | undefined) ?? undefined;
+                (nostrService.walletInfo.data?.balanceInSats as number | undefined) ?? undefined;
               if (
                 nwcStatus === true &&
                 typeof nwcMsats === 'number' &&

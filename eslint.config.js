@@ -33,6 +33,8 @@ export default [
         require: 'readonly',
         URL: 'readonly',
         BackHandler: 'readonly',
+        process: 'readonly',
+        AbortController: 'readonly',
       },
     },
     plugins: {
