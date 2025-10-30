@@ -3,13 +3,13 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { View } from 'react-native';
 import { useOnboarding } from '@/context/OnboardingContext';
-import { useMnemonic } from '@/context/MnemonicContext';
+import { useKey } from '@/context/KeyContext';
 import { useNostrService } from '@/context/NostrServiceContext';
 
 export default function DeeplinkHandler() {
   const params = useLocalSearchParams();
   const { isOnboardingComplete } = useOnboarding();
-  const { mnemonic } = useMnemonic();
+  const { mnemonic } = useKey();
   const { isInitialized } = useNostrService();
 
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { useMnemonic } from '@/context/MnemonicContext';
+import { useKey } from '@/context/KeyContext';
 import { useECash } from '@/context/ECashContext';
 import { useNostrService } from '@/context/NostrServiceContext';
 
@@ -6,7 +6,7 @@ import { useNostrService } from '@/context/NostrServiceContext';
  * Unified hook to check wallet configuration status across all wallet types
  */
 export const useWalletStatus = () => {
-  const { mnemonic, isWalletConnected } = useMnemonic();
+  const { mnemonic, isWalletConnected } = useKey();
   const { wallets, isLoading: eCashLoading } = useECash();
   const { nwcConnectionStatus } = useNostrService();
 

@@ -9,7 +9,7 @@ import { PendingRequestsProvider } from '@/context/PendingRequestsContext';
 import { DeeplinkProvider } from '@/context/DeeplinkContext';
 import { ActivitiesProvider } from '@/context/ActivitiesContext';
 import { DatabaseProvider } from '@/context/DatabaseContext';
-import { MnemonicProvider, useMnemonic } from '@/context/MnemonicContext';
+import { KeyProvider, useKey } from '@/context/KeyContext';
 import NostrServiceProvider, { useNostrService } from '@/context/NostrServiceContext';
 import { StatusBar } from 'expo-status-bar';
 import { Colors } from '@/constants/Colors';
@@ -103,7 +103,7 @@ const LoadingScreenContent = () => {
 // AuthenticatedAppContent renders the actual app content after authentication checks
 const AuthenticatedAppContent = () => {
   const { isLoading: onboardingLoading } = useOnboarding();
-  const { mnemonic, walletUrl, isLoading: mnemonicLoading } = useMnemonic();
+  const { mnemonic, walletUrl, isLoading: mnemonicLoading } = useKey();
 
   // Don't render anything until both contexts are loaded
   // Let app/index.tsx handle the navigation logic
@@ -199,7 +199,7 @@ export default function RootLayout() {
   return (
     <Suspense fallback={<Text>Loading...</Text>}>
       <SQLiteProvider databaseName={DATABASE_NAME} onInit={migrateDbIfNeeded} useSuspense={true}>
-        <MnemonicProvider>
+        <KeyProvider>
           <DatabaseProvider>
             <ThemeProvider>
               <CurrencyProvider>
@@ -207,7 +207,7 @@ export default function RootLayout() {
               </CurrencyProvider>
             </ThemeProvider>
           </DatabaseProvider>
-        </MnemonicProvider>
+        </KeyProvider>
       </SQLiteProvider>
     </Suspense>
   );

@@ -13,7 +13,7 @@ import {
 import { generateMnemonic } from 'portal-app-lib';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 
-type MnemonicContextType = {
+type KeyContextType = {
   mnemonic: string | null;
   walletUrl: string | null;
   isLoading: boolean;
@@ -24,25 +24,29 @@ type MnemonicContextType = {
   setWalletUrl: (url: string) => Promise<void>;
   clearWalletUrl: () => Promise<void>;
   setWalletConnected: (connected: boolean) => Promise<void>;
-  resetMnemonic: () => void; // Add reset method to clear all mnemonic state
+  resetMnemonic: () => void; // Add reset method to clear all key state
 };
 
-const MnemonicContext = createContext<MnemonicContextType | null>(null);
+const KeyContext = createContext<KeyContextType | null>(null);
 
-export const MnemonicProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const KeyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [mnemonic, setMnemonicState] = useState<string | null>(null);
   const [walletUrl, setWalletUrlState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isWalletConnectedState, setIsWalletConnectedState] = useState(false);
 
-  // Reset all mnemonic state to initial values
+  // Reset all key state to initial values
   // This is called during app reset to ensure clean state
   const resetMnemonic = () => {
+    console.log('🔄 Resetting Key state...');
+
     // Reset local state to initial values
     setMnemonicState(null);
     setWalletUrlState(null);
     setIsWalletConnectedState(false);
     // Note: isLoading is not reset as it will be managed by data loading
+
+    console.log('✅ Key state reset completed');
   };
 
   // Register/unregister context reset function
@@ -81,6 +85,7 @@ export const MnemonicProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Listen for wallet URL changes from SecureStorageService
   useEffect(() => {
     const walletUrlSubscription = walletUrlEvents.addListener('walletUrlChanged', async newUrl => {
+      console.log('KeyContext: walletUrlChanged event received:', newUrl);
       setWalletUrlState(newUrl || null);
       setIsWalletConnectedState(Boolean(newUrl?.trim()));
     });
@@ -90,22 +95,25 @@ export const MnemonicProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
   }, []);
 
-  // Set a new mnemonic
+  // Set a new mnemonic or nsec
   const setMnemonic = useCallback(async (newMnemonic: string) => {
     try {
-      // Check if this is actually a different mnemonic
+      // Check if this is actually a different key
       const currentMnemonic = await getSecureMnemonic();
       const isNewMnemonic = currentMnemonic !== newMnemonic;
 
       await saveSecureMnemonic(newMnemonic);
 
-      // Only clear profile initialization flag if this is actually a new/different mnemonic
+      // Only clear profile initialization flag if this is actually a new/different key
       if (isNewMnemonic) {
         try {
           await SecureStore.deleteItemAsync('profile_initialized');
+          console.log('Cleared profile_initialized flag for new key');
         } catch (e) {
           // Silent fail - this is not critical
         }
+      } else {
+        console.log('Same key imported, keeping existing profile initialization state');
       }
 
       // Update state directly
@@ -114,12 +122,12 @@ export const MnemonicProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       // Still emit the event for other listeners in the app
       mnemonicEvents.emit('mnemonicChanged', newMnemonic);
     } catch (e) {
-      console.error('Failed to save mnemonic:', e);
+      console.error('Failed to save key:', e);
       throw e;
     }
   }, []);
 
-  // Clear the mnemonic
+  // Clear the mnemonic/nsec
   const clearMnemonic = useCallback(async () => {
     try {
       await deleteSecureMnemonic();
@@ -130,7 +138,7 @@ export const MnemonicProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       // Still emit the event for other listeners in the app
       mnemonicEvents.emit('mnemonicChanged', null);
     } catch (e) {
-      console.error('Failed to delete mnemonic:', e);
+      console.error('Failed to delete key:', e);
       throw e;
     }
   }, []);
@@ -188,7 +196,7 @@ export const MnemonicProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   return (
-    <MnemonicContext.Provider
+    <KeyContext.Provider
       value={{
         mnemonic,
         walletUrl,
@@ -204,16 +212,16 @@ export const MnemonicProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }}
     >
       {children}
-    </MnemonicContext.Provider>
+    </KeyContext.Provider>
   );
 };
 
-export const useMnemonic = () => {
-  const context = useContext(MnemonicContext);
+export const useKey = () => {
+  const context = useContext(KeyContext);
   if (!context) {
-    throw new Error('useMnemonic must be used within a MnemonicProvider');
+    throw new Error('useKey must be used within a KeyProvider');
   }
   return context;
 };
 
-export default MnemonicProvider;
+export default KeyProvider;

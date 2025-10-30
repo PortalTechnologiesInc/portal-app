@@ -2,7 +2,7 @@ import { type ReactNode, createContext, useContext } from 'react';
 import { useSQLiteContext } from 'expo-sqlite';
 import { DatabaseService } from '../services/DatabaseService';
 import { AppResetService } from '../services/AppResetService';
-import { useMnemonic } from './MnemonicContext';
+import { useKey } from './KeyContext';
 import { Mnemonic } from 'portal-app-lib';
 import defaultRelayList from '../assets/DefaultRelays.json';
 import NostrStoreService from '@/services/NostrStoreService';
@@ -31,7 +31,7 @@ interface DatabaseProviderProps {
 
 export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
   const sqliteContext = useSQLiteContext();
-  const { mnemonic } = useMnemonic();
+  const { mnemonic } = useKey();
 
   const executeOperation = async <T,>(
     operation: (db: DatabaseService) => Promise<T>,
