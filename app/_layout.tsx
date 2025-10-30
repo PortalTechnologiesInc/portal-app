@@ -103,17 +103,17 @@ const LoadingScreenContent = () => {
 // AuthenticatedAppContent renders the actual app content after authentication checks
 const AuthenticatedAppContent = () => {
   const { isLoading: onboardingLoading } = useOnboarding();
-  const { mnemonic, walletUrl, isLoading: mnemonicLoading } = useKey();
+  const { mnemonic, nsec, walletUrl, isLoading } = useKey();
 
   // Don't render anything until both contexts are loaded
   // Let app/index.tsx handle the navigation logic
-  if (onboardingLoading || mnemonicLoading) {
+  if (onboardingLoading || isLoading) {
     return null; // Show nothing while loading - app/index.tsx will show loading indicator
   }
 
   return (
-    <ECashProvider mnemonic={mnemonic || ''}>
-      <NostrServiceProvider mnemonic={mnemonic || ''} walletUrl={walletUrl}>
+    <ECashProvider mnemonic={mnemonic || ''} nsec={nsec || ''}>
+      <NostrServiceProvider mnemonic={mnemonic || ''} nsec={nsec || ''} walletUrl={walletUrl}>
         <UserProfileProvider>
           <ActivitiesProvider>
             <PendingRequestsProvider>

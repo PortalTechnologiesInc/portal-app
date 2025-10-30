@@ -7,6 +7,7 @@
 export const SECURE_STORE_KEYS = {
   // Authentication & Core
   MNEMONIC: 'portal_mnemonic',
+  NSEC: 'portal_nsec',
   WALLET_URL: 'portal_wallet_url',
 
   // Onboarding & First Launch

@@ -5,6 +5,9 @@ import {
   getMnemonic as getSecureMnemonic,
   saveMnemonic as saveSecureMnemonic,
   deleteMnemonic as deleteSecureMnemonic,
+  getNsec as getSecureNsec,
+  saveNsec as saveSecureNsec,
+  deleteNsec as deleteSecureNsec,
   mnemonicEvents,
   getWalletUrl as getSecureWalletUrl,
   saveWalletUrl as saveSecureWalletUrl,
@@ -12,15 +15,19 @@ import {
 } from '@/services/SecureStorageService';
 import { generateMnemonic } from 'portal-app-lib';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
+import { validateKeyMaterial, type KeyMaterial } from '@/utils/keyHelpers';
 
 type KeyContextType = {
   mnemonic: string | null;
+  nsec: string | null;
   walletUrl: string | null;
   isLoading: boolean;
   isWalletConnected: boolean;
   setMnemonic: (mnemonic: string) => Promise<void>;
   clearMnemonic: () => Promise<void>;
   generateNewMnemonic: () => Promise<string>;
+  setNsec: (nsec: string) => Promise<void>;
+  clearNsec: () => Promise<void>;
   setWalletUrl: (url: string) => Promise<void>;
   clearWalletUrl: () => Promise<void>;
   setWalletConnected: (connected: boolean) => Promise<void>;
@@ -31,6 +38,7 @@ const KeyContext = createContext<KeyContextType | null>(null);
 
 export const KeyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [mnemonic, setMnemonicState] = useState<string | null>(null);
+  const [nsec, setNsecState] = useState<string | null>(null);
   const [walletUrl, setWalletUrlState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isWalletConnectedState, setIsWalletConnectedState] = useState(false);
@@ -42,6 +50,7 @@ export const KeyProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Reset local state to initial values
     setMnemonicState(null);
+    setNsecState(null);
     setWalletUrlState(null);
     setIsWalletConnectedState(false);
     // Note: isLoading is not reset as it will be managed by data loading
@@ -58,25 +67,47 @@ export const KeyProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  // Load the mnemonic and wallet URL from secure storage on mount
+  // Load the mnemonic/nsec and wallet URL from secure storage on mount
   useEffect(() => {
     const loadData = async () => {
-      try {
-        const [savedMnemonic, savedWalletUrl] = await Promise.all([
-          getSecureMnemonic(),
-          getSecureWalletUrl(),
-        ]);
+      // Load each value separately to handle missing keys gracefully
+      let savedMnemonic: string | null = null;
+      let savedNsec: string | null = null;
+      let savedWalletUrl: string | null = null;
 
-        setMnemonicState(savedMnemonic);
-        setWalletUrlState(savedWalletUrl || null);
+      // Load mnemonic - null is expected if key doesn't exist
+      try {
+        savedMnemonic = await getSecureMnemonic();
       } catch (e) {
-        console.error('Failed to load secure data:', e);
-        // On error, set default values to prevent app from hanging
-        setMnemonicState(null);
-        setWalletUrlState(null);
-      } finally {
-        setIsLoading(false);
+        console.error('Failed to load mnemonic from SecureStore:', e);
+        // Only set to null if actual error occurred (not just missing key)
+        savedMnemonic = null;
       }
+
+      // Load nsec - null is expected if key doesn't exist
+      try {
+        savedNsec = await getSecureNsec();
+      } catch (e) {
+        console.error('Failed to load nsec from SecureStore:', e);
+        // Only set to null if actual error occurred (not just missing key)
+        savedNsec = null;
+      }
+
+      // Load wallet URL - null is expected if key doesn't exist
+      try {
+        const walletUrl = await getSecureWalletUrl();
+        savedWalletUrl = walletUrl || null;
+      } catch (e) {
+        console.error('Failed to load wallet URL from SecureStore:', e);
+        // Only set to null if actual error occurred (not just missing key)
+        savedWalletUrl = null;
+      }
+
+      // Update state with loaded values (null is valid if keys don't exist)
+      setMnemonicState(savedMnemonic);
+      setNsecState(savedNsec);
+      setWalletUrlState(savedWalletUrl);
+      setIsLoading(false);
     };
 
     loadData();
@@ -95,12 +126,26 @@ export const KeyProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  // Set a new mnemonic or nsec
+  // Set a new mnemonic
+  // Ensures mutual exclusivity by clearing nsec when mnemonic is set
   const setMnemonic = useCallback(async (newMnemonic: string) => {
     try {
+      // Validate mnemonic format using helper
+      const validation = validateKeyMaterial({ mnemonic: newMnemonic, nsec: null });
+      if (!validation.isValid) {
+        throw new Error(validation.error || 'Invalid mnemonic format');
+      }
+
       // Check if this is actually a different key
       const currentMnemonic = await getSecureMnemonic();
       const isNewMnemonic = currentMnemonic !== newMnemonic;
+
+      // Clear nsec to ensure mutual exclusivity
+      const currentNsec = await getSecureNsec();
+      if (currentNsec) {
+        await deleteSecureNsec();
+        setNsecState(null);
+      }
 
       await saveSecureMnemonic(newMnemonic);
 
@@ -127,7 +172,7 @@ export const KeyProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  // Clear the mnemonic/nsec
+  // Clear the mnemonic
   const clearMnemonic = useCallback(async () => {
     try {
       await deleteSecureMnemonic();
@@ -158,6 +203,54 @@ export const KeyProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       throw e;
     }
   }, [setMnemonic]);
+
+  // Set a new nsec
+  // Ensures mutual exclusivity by clearing mnemonic when nsec is set
+  const setNsec = useCallback(async (newNsec: string) => {
+    try {
+      // Validate nsec format using helper
+      const validation = validateKeyMaterial({ mnemonic: null, nsec: newNsec });
+      if (!validation.isValid) {
+        throw new Error(validation.error || 'Invalid nsec format');
+      }
+
+      // Clear mnemonic to ensure mutual exclusivity
+      const currentMnemonic = await getSecureMnemonic();
+      if (currentMnemonic) {
+        await deleteSecureMnemonic();
+        setMnemonicState(null);
+      }
+
+      await saveSecureNsec(newNsec);
+      
+      // Clear profile initialization flag for new key
+      try {
+        await SecureStore.deleteItemAsync('profile_initialized');
+        console.log('Cleared profile_initialized flag for new nsec');
+      } catch (e) {
+        // Silent fail - this is not critical
+        console.log('Could not clear profile_initialized flag:', e);
+      }
+
+      setNsecState(newNsec);
+      
+      // Emit event for other listeners
+      mnemonicEvents.emit('nsecChanged', newNsec);
+    } catch (e) {
+      console.error('Failed to save nsec:', e);
+      throw e;
+    }
+  }, []);
+
+  const clearNsec = useCallback(async () => {
+    try {
+      await deleteSecureNsec();
+      setNsecState(null);
+    } catch (e) {
+      console.error('Failed to delete nsec:', e);
+      throw e;
+    }
+  }, []);
 
   // Set a wallet URL
   const setWalletUrl = useCallback(async (url: string) => {
@@ -199,12 +292,15 @@ export const KeyProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     <KeyContext.Provider
       value={{
         mnemonic,
+        nsec,
         walletUrl,
         isLoading,
         isWalletConnected: isWalletConnectedState,
         setMnemonic,
         clearMnemonic,
         generateNewMnemonic,
+        setNsec,
+        clearNsec,
         setWalletUrl,
         clearWalletUrl,
         setWalletConnected,

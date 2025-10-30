@@ -2,14 +2,17 @@ import * as SecureStore from 'expo-secure-store';
 
 // Key constants
 const MNEMONIC_KEY = 'portal_mnemonic';
+const NSEC_KEY = 'portal_nsec';
 const WALLET_URL_KEY = 'portal_wallet_url';
 
 // Type for mnemonic data
 type MnemonicData = string | null;
+// Type for nsec data
+type NsecData = string | null;
 // Type for wallet URL data
 type WalletUrlData = string | null;
 // Type for any event data
-type EventData = MnemonicData | WalletUrlData;
+type EventData = MnemonicData | NsecData | WalletUrlData;
 
 // Create a simple event system using a class since we're in React Native
 class EventEmitter {
@@ -81,6 +84,38 @@ export const deleteMnemonic = async (): Promise<void> => {
     mnemonicEvents.emit('mnemonicChanged', null);
   } catch (error) {
     console.error('Failed to delete mnemonic:', error);
+    throw error;
+  }
+};
+
+export const saveNsec = async (nsec: string): Promise<void> => {
+  try {
+    await SecureStore.setItemAsync(NSEC_KEY, nsec);
+    // Emit an event when nsec is saved
+    mnemonicEvents.emit('nsecChanged', nsec);
+  } catch (error) {
+    console.error('Failed to save nsec:', error);
+    throw error;
+  }
+};
+
+export const getNsec = async (): Promise<string | null> => {
+  try {
+    const nsec = await SecureStore.getItemAsync(NSEC_KEY);
+    return nsec;
+  } catch (error) {
+    console.error('Failed to get nsec:', error);
+    throw error;
+  }
+};
+
+export const deleteNsec = async (): Promise<void> => {
+  try {
+    await SecureStore.deleteItemAsync(NSEC_KEY);
+    // Emit an event when nsec is deleted
+    mnemonicEvents.emit('nsecChanged', null);
+  } catch (error) {
+    console.error('Failed to delete nsec:', error);
     throw error;
   }
 };

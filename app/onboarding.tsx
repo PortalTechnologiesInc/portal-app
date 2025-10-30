@@ -34,7 +34,7 @@ import {
 import * as Clipboard from 'expo-clipboard';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { generateMnemonic, Mnemonic } from 'portal-app-lib';
+import { generateMnemonic, Mnemonic, Nsec } from 'portal-app-lib';
 import * as SecureStore from 'expo-secure-store';
 import { useRouter } from 'expo-router';
 import { useNostrService } from '@/context/NostrServiceContext';
@@ -58,7 +58,7 @@ type OnboardingStep =
 
 export default function Onboarding() {
   const { completeOnboarding } = useOnboarding();
-  const { setMnemonic, walletUrl, setWalletUrl } = useKey();
+  const { setMnemonic, setNsec, walletUrl, setWalletUrl } = useKey();
   const router = useRouter();
   const { walletInfo, refreshWalletInfo, nwcConnectionStatus, nwcConnectionError, nwcConnecting } =
     useNostrService();
@@ -255,13 +255,16 @@ export default function Onboarding() {
       return { isValid: false, error: 'Please enter a seed or nsec.' };
     }
 
-    const validNsec = /^nsec1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{52}$/.test(trimmedNsec);
-
-    if (!validNsec) {
-      return { isValid: false, error: 'Invalid Nsec. Please check your Nsec and try again.' };
+    // Use the actual Nsec class to validate, which handles all valid formats
+    try {
+      new Nsec(trimmedNsec);
+      return { isValid: true };
+    } catch (error) {
+      return {
+        isValid: false,
+        error: error instanceof Error ? error.message : 'Invalid Nsec. Please check your Nsec and try again.',
+      };
     }
-
-    return { isValid: true };
   };
 
   const handleVerificationComplete = async () => {
@@ -387,7 +390,7 @@ export default function Onboarding() {
 
     try {
       const normalizedNsec = seedPhrase.trim().toLowerCase();
-      await setMnemonic(normalizedNsec);
+      await setNsec(normalizedNsec);
 
       // Mark this as an imported seed (should fetch profile first)
       await SecureStore.setItemAsync(SEED_ORIGIN_KEY, 'imported');
