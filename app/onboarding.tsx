@@ -252,7 +252,7 @@ export default function Onboarding() {
     const trimmedNsec = nsec.trim().toLowerCase();
 
     if (!trimmedNsec) {
-      return { isValid: false, error: 'Please enter a seed or nsec.' };
+      return { isValid: false, error: 'Please enter an nsec.' };
     }
 
     // Use the actual Nsec class to validate, which handles all valid formats
