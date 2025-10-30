@@ -226,7 +226,7 @@ export default function Onboarding() {
     const trimmedPhrase = phrase.trim().toLowerCase();
 
     if (!trimmedPhrase) {
-      return { isValid: false, error: 'Please enter a seed or nsec.' };
+      return { isValid: false, error: 'Please enter a seed phrase.' };
     }
 
     const words = trimmedPhrase.split(/\s+/);
