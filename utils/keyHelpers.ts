@@ -224,6 +224,31 @@ export function getNsecFromKey(key: KeyMaterial): Nsec | null {
 }
 
 /**
+ * Get nsec string from key material
+ * - If nsec exists: returns the stored nsec string
+ * - If mnemonic exists: derives nsec from mnemonic and returns it
+ * - Otherwise: throws an error
+ * Used for exporting nsec in settings
+ */
+export function getNsecStringFromKey(key: KeyMaterial): string {
+  if (!hasKey(key)) {
+    throw new Error('No valid key material found. Please provide either mnemonic or nsec.');
+  }
+
+  // If nsec exists, return it directly
+  if (key.nsec?.trim()) {
+    return key.nsec.trim();
+  }
+
+  // If mnemonic exists, derive nsec from it
+  if (key.mnemonic?.trim()) {
+    return deriveNsecFromMnemonic(key.mnemonic.trim());
+  }
+
+  throw new Error('No valid key material found');
+}
+
+/**
  * Validate key material and return error message if invalid
  * Ensures mutual exclusivity (only one should exist)
  */
