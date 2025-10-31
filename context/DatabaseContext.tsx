@@ -2,10 +2,11 @@ import { type ReactNode, createContext, useContext } from 'react';
 import { useSQLiteContext } from 'expo-sqlite';
 import { DatabaseService } from '../services/DatabaseService';
 import { AppResetService } from '../services/AppResetService';
-import { useMnemonic } from './MnemonicContext';
+import { useKey } from './KeyContext';
 import { Mnemonic } from 'portal-app-lib';
 import defaultRelayList from '../assets/DefaultRelays.json';
 import NostrStoreService from '@/services/NostrStoreService';
+import { getKeypairFromKey, hasKey } from '@/utils/keyHelpers';
 
 // Create a context to expose database initialization state
 interface DatabaseContextType {
@@ -31,7 +32,7 @@ interface DatabaseProviderProps {
 
 export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
   const sqliteContext = useSQLiteContext();
-  const { mnemonic } = useMnemonic();
+  const { mnemonic, nsec } = useKey();
 
   const executeOperation = async <T,>(
     operation: (db: DatabaseService) => Promise<T>,
@@ -52,17 +53,16 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
     operation: (nostrStore: NostrStoreService) => Promise<T>,
     fallback?: T
   ): Promise<T> => {
+    // If no key material is available, return fallback gracefully (e.g., during onboarding)
+    if (!hasKey({ mnemonic, nsec })) {
+      if (fallback !== undefined) {
+        return fallback;
+      }
+      throw new Error('Cannot execute Nostr operation: key material not available');
+    }
 
     try {
-      if (!mnemonic) {
-        if (fallback !== undefined) {
-          return fallback;
-        }
-        throw new Error('Mnemonic is null or undefined');
-      }
-
-      const mnemonicObj = new Mnemonic(mnemonic);
-      const keypair = mnemonicObj.getKeypair();
+      const keypair = getKeypairFromKey({ mnemonic, nsec });
 
       let relays: string[] = [];
       try {

@@ -57,6 +57,7 @@ import { useDatabaseContext } from '@/context/DatabaseContext';
 import defaultRelayList from '../assets/DefaultRelays.json';
 import { useCurrency } from './CurrencyContext';
 import { useOnboarding } from './OnboardingContext';
+import { getKeypairFromKey, hasKey } from '@/utils/keyHelpers';
 
 // Helper function to extract service name from profile (nip05 only)
 const getServiceNameFromProfile = (profile: any): string | null => {
@@ -214,12 +215,14 @@ const NostrServiceContext = createContext<NostrServiceContextType | null>(null);
 // Provider component
 interface NostrServiceProviderProps {
   mnemonic: string;
+  nsec: string;
   walletUrl: string | null;
   children: React.ReactNode;
 }
 
 export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   mnemonic,
+  nsec,
   walletUrl,
   children,
 }) => {
@@ -451,17 +454,19 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
       return;
     }
 
-    // Skip initialization if mnemonic is not available yet
-    if (!mnemonic || mnemonic.trim() === '') {
+
+    // Skip initialization if no key material is available (e.g., during onboarding)
+    if (!hasKey({ mnemonic, nsec })) {
+      console.log('NostrService: Skipping initialization - no key material available');
       return;
     }
 
     const initializeNostrService = async () => {
       try {
+        console.log('Initializing NostrService with key material');
 
         // Create Mnemonic object
-        const mnemonicObj = new Mnemonic(mnemonic);
-        const keypair = mnemonicObj.getKeypair();
+        const keypair = getKeypairFromKey({ mnemonic, nsec });
         setKeypair(keypair);
         const publicKeyStr = keypair.publicKey().toString();
 
@@ -859,7 +864,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     return () => {
       abortController.abort();
     };
-  }, [mnemonic, reinitKey]);
+  }, [mnemonic, nsec, reinitKey]);
 
   useEffect(() => {
   }, [pendingRequests]);

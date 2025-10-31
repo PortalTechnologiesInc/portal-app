@@ -3,6 +3,7 @@ import { CashuWallet, CashuLocalStore, CashuWalletInterface, Mnemonic } from 'po
 import { DatabaseService } from '@/services/DatabaseService';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
+import { getCashuSeedFromKey, hasKey } from '@/utils/keyHelpers';
 
 // Centralized wallet key creation with unit normalization
 const createWalletKey = (mintUrl: string, unit: string): string =>
@@ -26,7 +27,7 @@ interface ECashContextType {
 
 const ECashContext = createContext<ECashContextType | undefined>(undefined);
 
-export function ECashProvider({ children, mnemonic }: { children: ReactNode; mnemonic: string }) {
+export function ECashProvider({ children, mnemonic, nsec }: { children: ReactNode; mnemonic: string; nsec: string }) {
   const [wallets, setWallets] = useState<{ [key: string]: CashuWalletInterface }>({});
   const [isLoading, setIsLoading] = useState(false);
   const { executeOperation } = useDatabaseContext();
@@ -49,6 +50,11 @@ export function ECashProvider({ children, mnemonic }: { children: ReactNode; mne
 
   useEffect(() => {
     const fetchWallets = async () => {
+      // Skip wallet fetching if no key material is available (e.g., during onboarding)
+      if (!hasKey({ mnemonic, nsec })) {
+        setIsLoading(false);
+        return;
+      }
 
       setIsLoading(true);
       try {
@@ -89,7 +95,7 @@ export function ECashProvider({ children, mnemonic }: { children: ReactNode; mne
     };
 
     fetchWallets();
-  }, [executeOperation]);
+  }, [executeOperation, mnemonic, nsec]);
 
   // Add a new wallet with simplified error handling
   const addWallet = async (mintUrl: string, unit: string): Promise<CashuWalletInterface> => {
@@ -102,12 +108,12 @@ export function ECashProvider({ children, mnemonic }: { children: ReactNode; mne
       return existingWallet;
     }
 
-    // Skip wallet creation if mnemonic is not available yet
-    if (!mnemonic || mnemonic.trim() === '') {
-      throw new Error('Cannot create wallet: mnemonic not available yet');
+    // Use new keyHelpers to validate key material existence
+    if (!hasKey({ mnemonic, nsec })) {
+      throw new Error('Cannot create wallet: key material not available');
     }
 
-    const seed = new Mnemonic(mnemonic).deriveCashu();
+    const seed = getCashuSeedFromKey({ mnemonic, nsec });
     const storage = await executeOperation(db => Promise.resolve(new CashuStorage(db)));
 
     // Create wallet with single timeout (no retry complexity)

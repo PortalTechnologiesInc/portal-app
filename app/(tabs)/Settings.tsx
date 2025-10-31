@@ -37,6 +37,8 @@ import { Currency, CurrencyHelpers } from '@/utils/currency';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useWalletStatus } from '@/hooks/useWalletStatus';
 import { useDatabaseContext } from '@/context/DatabaseContext';
+import { useKey } from '@/context/KeyContext';
+import { getNsecStringFromKey } from '@/utils/keyHelpers';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -49,6 +51,7 @@ export default function SettingsScreen() {
     getCurrentCurrencyDisplayName,
     getCurrentCurrencySymbol,
   } = useCurrency();
+  const { mnemonic, nsec } = useKey();
   const [refreshing, setRefreshing] = useState(false);
   const [isCurrencyModalVisible, setIsCurrencyModalVisible] = useState(false);
   const [walletUrl, setWalletUrl] = useState('');
@@ -125,6 +128,18 @@ export default function SettingsScreen() {
         showToast('Failed to export mnemonic', 'error');
       }
     }, 'Authenticate to export your seed phrase');
+  };
+
+  const handleExportNsec = () => {
+    authenticateForSensitiveAction(async () => {
+      let nsecStr = getNsecStringFromKey({ mnemonic, nsec });
+      if (nsecStr) {
+        Clipboard.setString(nsecStr);
+        showToast('Nsec copied to clipboard', 'success');
+      } else {
+        showToast('No nsec found', 'error');
+      }
+    }, 'Authenticate to export your nsec');
   };
 
   const handleExportAppData = () => {
@@ -487,13 +502,28 @@ export default function SettingsScreen() {
 
           {/* Export Section */}
           <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>Export</ThemedText>
+          {mnemonic && (
+            <TouchableOpacity
+              style={[styles.exportButton, { backgroundColor: buttonPrimaryColor }]}
+              onPress={handleExportMnemonic}
+            >
+              <View style={styles.exportButtonContent}>
+                <ThemedText style={[styles.exportButtonText, { color: buttonPrimaryTextColor }]}>
+                  Export Mnemonic
+                </ThemedText>
+                <View style={styles.fingerprintIcon}>
+                  <Fingerprint size={20} color={buttonPrimaryTextColor} />
+                </View>
+              </View>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             style={[styles.exportButton, { backgroundColor: buttonPrimaryColor }]}
-            onPress={handleExportMnemonic}
+            onPress={handleExportNsec}
           >
             <View style={styles.exportButtonContent}>
               <ThemedText style={[styles.exportButtonText, { color: buttonPrimaryTextColor }]}>
-                Export Mnemonic
+                Export Nsec
               </ThemedText>
               <View style={styles.fingerprintIcon}>
                 <Fingerprint size={20} color={buttonPrimaryTextColor} />

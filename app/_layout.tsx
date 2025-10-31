@@ -9,7 +9,7 @@ import { PendingRequestsProvider } from '@/context/PendingRequestsContext';
 import { DeeplinkProvider } from '@/context/DeeplinkContext';
 import { ActivitiesProvider } from '@/context/ActivitiesContext';
 import { DatabaseProvider } from '@/context/DatabaseContext';
-import { MnemonicProvider, useMnemonic } from '@/context/MnemonicContext';
+import { KeyProvider, useKey } from '@/context/KeyContext';
 import NostrServiceProvider, { useNostrService } from '@/context/NostrServiceContext';
 import { StatusBar } from 'expo-status-bar';
 import { Colors } from '@/constants/Colors';
@@ -103,17 +103,17 @@ const LoadingScreenContent = () => {
 // AuthenticatedAppContent renders the actual app content after authentication checks
 const AuthenticatedAppContent = () => {
   const { isLoading: onboardingLoading } = useOnboarding();
-  const { mnemonic, walletUrl, isLoading: mnemonicLoading } = useMnemonic();
+  const { mnemonic, nsec, walletUrl, isLoading } = useKey();
 
   // Don't render anything until both contexts are loaded
   // Let app/index.tsx handle the navigation logic
-  if (onboardingLoading || mnemonicLoading) {
+  if (onboardingLoading || isLoading) {
     return null; // Show nothing while loading - app/index.tsx will show loading indicator
   }
 
   return (
-    <ECashProvider mnemonic={mnemonic || ''}>
-      <NostrServiceProvider mnemonic={mnemonic || ''} walletUrl={walletUrl}>
+    <ECashProvider mnemonic={mnemonic || ''} nsec={nsec || ''}>
+      <NostrServiceProvider mnemonic={mnemonic || ''} nsec={nsec || ''} walletUrl={walletUrl}>
         <UserProfileProvider>
           <ActivitiesProvider>
             <PendingRequestsProvider>
@@ -199,7 +199,7 @@ export default function RootLayout() {
   return (
     <Suspense fallback={<Text>Loading...</Text>}>
       <SQLiteProvider databaseName={DATABASE_NAME} onInit={migrateDbIfNeeded} useSuspense={true}>
-        <MnemonicProvider>
+        <KeyProvider>
           <DatabaseProvider>
             <ThemeProvider>
               <CurrencyProvider>
@@ -207,7 +207,7 @@ export default function RootLayout() {
               </CurrencyProvider>
             </ThemeProvider>
           </DatabaseProvider>
-        </MnemonicProvider>
+        </KeyProvider>
       </SQLiteProvider>
     </Suspense>
   );

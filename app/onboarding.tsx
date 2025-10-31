@@ -16,7 +16,7 @@ import {
 import { ThemedView } from '@/components/ThemedView';
 import { ThemedText } from '@/components/ThemedText';
 import { useOnboarding } from '@/context/OnboardingContext';
-import { useMnemonic } from '@/context/MnemonicContext';
+import { useKey } from '@/context/KeyContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import {
   Shield,
@@ -28,12 +28,13 @@ import {
   CheckCircle,
   ArrowLeft,
   Copy,
+  Lock,
 } from 'lucide-react-native';
 
 import * as Clipboard from 'expo-clipboard';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { generateMnemonic, Mnemonic } from 'portal-app-lib';
+import { generateMnemonic, Mnemonic, Nsec } from 'portal-app-lib';
 import * as SecureStore from 'expo-secure-store';
 import { useRouter } from 'expo-router';
 import { useNostrService } from '@/context/NostrServiceContext';
@@ -57,7 +58,7 @@ type OnboardingStep =
 
 export default function Onboarding() {
   const { completeOnboarding } = useOnboarding();
-  const { setMnemonic, walletUrl, setWalletUrl } = useMnemonic();
+  const { setMnemonic, setNsec, walletUrl, setWalletUrl } = useKey();
   const router = useRouter();
   const { walletInfo, refreshWalletInfo, nwcConnectionStatus, nwcConnectionError, nwcConnecting } =
     useNostrService();
@@ -73,6 +74,7 @@ export default function Onboarding() {
   const [userInputs, setUserInputs] = useState({ word1: '', word2: '' });
   const [walletInput, setWalletInput] = useState('');
   const [isSavingWallet, setIsSavingWallet] = useState(false);
+  const [importType, setImportType] = useState<'seed' | 'nsec'>('seed');
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -156,7 +158,10 @@ export default function Onboarding() {
             okBack(() => setWalletInput(''));
             break;
           case 'import':
-            okBack(() => setSeedPhrase(''));
+            okBack(() => {
+              setSeedPhrase('');
+              setImportType('seed');
+            });
             break;
           case 'wallet-setup':
             // Clear wallet connection status when going back from wallet setup
@@ -221,7 +226,7 @@ export default function Onboarding() {
     const trimmedPhrase = phrase.trim().toLowerCase();
 
     if (!trimmedPhrase) {
-      return { isValid: false, error: 'Please enter a seed phrase' };
+      return { isValid: false, error: 'Please enter a seed phrase.' };
     }
 
     const words = trimmedPhrase.split(/\s+/);
@@ -239,6 +244,25 @@ export default function Onboarding() {
       return {
         isValid: false,
         error: 'Invalid seed phrase. Please check your words and try again.',
+      };
+    }
+  };
+
+  const validateImportedNsec = (nsec: string): { isValid: boolean; error?: string } => {
+    const trimmedNsec = nsec.trim().toLowerCase();
+
+    if (!trimmedNsec) {
+      return { isValid: false, error: 'Please enter an nsec.' };
+    }
+
+    // Use the actual Nsec class to validate, which handles all valid formats
+    try {
+      new Nsec(trimmedNsec);
+      return { isValid: true };
+    } catch (error) {
+      return {
+        isValid: false,
+        error: error instanceof Error ? error.message : 'Invalid Nsec. Please check your Nsec and try again.',
       };
     }
   };
@@ -313,6 +337,13 @@ export default function Onboarding() {
 
   const handleImport = async () => {
     await setSeedPhrase('');
+    setImportType('seed');
+    setCurrentStep('import');
+  };
+
+  const handleImportNsec = async () => {
+    await setSeedPhrase('');
+    setImportType('nsec');
     setCurrentStep('import');
   };
 
@@ -320,7 +351,7 @@ export default function Onboarding() {
     Clipboard.setStringAsync(seedPhrase);
   };
 
-  const handleImportComplete = async () => {
+  const handleImportMnemonicComplete = async () => {
     const validation = validateImportedMnemonic(seedPhrase);
 
     if (!validation.isValid) {
@@ -343,6 +374,32 @@ export default function Onboarding() {
     } catch (error) {
       console.error('Failed to save imported mnemonic:', error);
       Alert.alert('Error', 'Failed to save your seed phrase. Please try again.');
+    }
+  };
+
+  const handleImportNsecComplete = async () => {
+    const validation = validateImportedNsec(seedPhrase);
+
+    if (!validation.isValid) {
+      Alert.alert(
+        'Invalid Nsec',
+        validation.error || 'Please check your Nsec and try again.'
+      );
+      return;
+    }
+
+    try {
+      const normalizedNsec = seedPhrase.trim().toLowerCase();
+      await setNsec(normalizedNsec);
+
+      // Mark this as an imported seed (should fetch profile first)
+      await SecureStore.setItemAsync(SEED_ORIGIN_KEY, 'imported');
+
+      // Go to wallet setup step
+      setCurrentStep('wallet-setup');
+    } catch (error) {
+      console.error('Failed to save imported nsec:', error);
+      Alert.alert('Error', 'Failed to save your Nsec. Please try again.');
     }
   };
 
@@ -427,7 +484,10 @@ export default function Onboarding() {
       case 'wallet-connect':
         return () => okBack(() => setWalletInput(''));
       case 'import':
-        return () => okBack(() => setSeedPhrase(''));
+        return () => okBack(() => {
+          setSeedPhrase('');
+          setImportType('seed');
+        });
       case 'wallet-setup':
         return () => okBack(() => setIsSavingWallet(false));
       default:
@@ -624,10 +684,23 @@ export default function Onboarding() {
                   >
                     <Shield size={24} color={buttonPrimary} />
                     <ThemedText type="defaultSemiBold" style={styles.choiceButtonTitle}>
-                      Import Existing Seed
+                      Import Existing Seed Phrase
                     </ThemedText>
                     <ThemedText style={styles.choiceButtonDescription}>
-                      Restore your identity using an existing seed phrase
+                      Restore your identity using an existing 12-word seed phrase
+                    </ThemedText>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.choiceButton, { backgroundColor: cardBackgroundColor }]}
+                    onPress={handleImportNsec}
+                  >
+                    <Lock size={24} color={buttonPrimary} />
+                    <ThemedText type="defaultSemiBold" style={styles.choiceButtonTitle}>
+                      Import Nsec
+                    </ThemedText>
+                    <ThemedText style={styles.choiceButtonDescription}>
+                      Restore your identity using an existing Nsec private key
                     </ThemedText>
                   </TouchableOpacity>
                 </View>
@@ -769,15 +842,23 @@ export default function Onboarding() {
                 <View style={[styles.pageContainer, styles.importPageContainer]}>
                   <View style={styles.importTextContainer}>
                     <ThemedText type="title" style={styles.title}>
-                      Import Seed Phrase
+                      {importType === 'nsec' ? 'Import Nsec' : 'Import Seed Phrase'}
                     </ThemedText>
-                    <ThemedText style={styles.subtitle}>Enter your 12-word seed phrase</ThemedText>
+                    <ThemedText style={styles.subtitle}>
+                      {importType === 'nsec'
+                        ? 'Enter your Nsec private key'
+                        : 'Enter your 12-word seed phrase'}
+                    </ThemedText>
                   </View>
 
                   <View style={styles.inputContainer}>
                     <TextInput
                       style={[styles.input, { backgroundColor: inputBackground, color: textPrimary }]}
-                      placeholder="Enter your seed phrase separated by spaces"
+                      placeholder={
+                        importType === 'nsec'
+                          ? 'Enter your Nsec private key (nsec1...)'
+                          : 'Enter your 12-word seed phrase separated by spaces'
+                      }
                       placeholderTextColor={inputPlaceholder}
                       value={seedPhrase}
                       onChangeText={setSeedPhrase}
@@ -797,7 +878,7 @@ export default function Onboarding() {
               >
                 <TouchableOpacity
                   style={[styles.button, styles.finishButton, { backgroundColor: buttonPrimary }]}
-                  onPress={handleImportComplete}
+                  onPress={importType === 'nsec' ? handleImportNsecComplete : handleImportMnemonicComplete}
                 >
                   <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>Import</ThemedText>
                 </TouchableOpacity>
