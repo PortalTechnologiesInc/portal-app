@@ -201,7 +201,6 @@ export async function handleHeadlessNotification(event: String, databaseName: st
 
     app.listen({ signal: abortController.signal });
 
-    console.warn("adding listeners");
     // Listen for closed recurring payments
     app.listenClosedRecurringPayment(new LocalClosedRecurringPaymentListener(
       async (response: CloseRecurringPaymentResponse) => {
@@ -213,7 +212,6 @@ export async function handleHeadlessNotification(event: String, databaseName: st
     )).catch(async e => {
       await notifyBackgroundError('Recurring payment listener error', e);
     });
-    console.warn("adding listeners 2");
 
     // Helper function to get service name from profile
     const getServiceName = async (app: PortalAppInterface, publicKey: string): Promise<string | null> => {
@@ -239,7 +237,7 @@ export async function handleHeadlessNotification(event: String, databaseName: st
               requestId: request.content.requestId,
             });
           };
-          
+
           const askUser = await handleSinglePaymentRequest(
             nwcWallet,
             request,
@@ -249,7 +247,7 @@ export async function handleHeadlessNotification(event: String, databaseName: st
             getServiceName,
             app
           );
-          
+
           if (askUser) {
             // Show notification to user for manual approval
             Notifications.scheduleNotificationAsync({
@@ -265,7 +263,7 @@ export async function handleHeadlessNotification(event: String, databaseName: st
               trigger: null, // Show immediately
             });
           }
-          
+
           abortController.abort();
         },
         async (request: RecurringPaymentRequest): Promise<RecurringPaymentResponseContent> => {
@@ -331,9 +329,8 @@ export async function handleHeadlessNotification(event: String, databaseName: st
         await notifyBackgroundError('Auth challenge listener error', e);
         // TODO: re-initialize the app
       });
-    console.warn("adding listeners end");
   } catch (e) {
-    await notifyBackgroundError('Headless notification error', e);
+    console.error(e);
   }
 }
 class NotificationRelayStatusListener implements RelayStatusListener {
