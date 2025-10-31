@@ -113,12 +113,12 @@ export function ECashProvider({ children, mnemonic, nsec }: { children: ReactNod
       throw new Error('Cannot create wallet: key material not available');
     }
 
-    const seed = Buffer.from(getCashuSeedFromKey({ mnemonic, nsec }));
+    const seed = getCashuSeedFromKey({ mnemonic, nsec });
     const storage = await executeOperation(db => Promise.resolve(new CashuStorage(db)));
 
     // Create wallet with single timeout (no retry complexity)
     const wallet = await Promise.race([
-      CashuWallet.create(mintUrl, normalizedUnit, seed.buffer as ArrayBuffer, storage),
+      CashuWallet.create(mintUrl, normalizedUnit, seed, storage),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('Wallet creation timeout')), 8000)
       ),

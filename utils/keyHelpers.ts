@@ -155,7 +155,7 @@ export function deriveNsecFromMnemonic(mnemonic: string): string {
  * - If mnemonic exists: uses Mnemonic.deriveCashu()
  * - If nsec exists: uses Nsec.deriveCashu()
  */
-export function getCashuSeedFromKey(key: KeyMaterial): Buffer {
+export function getCashuSeedFromKey(key: KeyMaterial): ArrayBuffer {
   if (!hasKey(key)) {
     throw new Error('No valid key material found. Please provide either mnemonic or nsec.');
   }
@@ -166,7 +166,7 @@ export function getCashuSeedFromKey(key: KeyMaterial): Buffer {
       const mnemonicObj = new Mnemonic(key.mnemonic.trim());
       const cashuSeed = mnemonicObj.deriveCashu();
       // Convert ArrayBuffer to Buffer if needed
-      return Buffer.from(cashuSeed);
+      return cashuSeed;
     } catch (error) {
       throw new Error(`Failed to derive Cashu seed from mnemonic: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -178,7 +178,7 @@ export function getCashuSeedFromKey(key: KeyMaterial): Buffer {
       const nsecObj = new Nsec(key.nsec.trim());
       const cashuSeed = nsecObj.deriveCashu();
       // Convert ArrayBuffer to Buffer if needed
-      return Buffer.from(cashuSeed);
+      return cashuSeed;
     } catch (error) {
       throw new Error(`Failed to derive Cashu seed from nsec: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
