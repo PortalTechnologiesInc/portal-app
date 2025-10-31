@@ -171,10 +171,17 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
       refreshData();
     };
 
+    const handleActivityUpdated = () => {
+      console.log('ActivitiesContext: activityUpdated event received, refreshing activities');
+      refreshData();
+    };
+
     globalEvents.on('activityAdded', handleActivityAdded);
+    globalEvents.on('activityUpdated', handleActivityUpdated);
 
     return () => {
       globalEvents.off('activityAdded', handleActivityAdded);
+      globalEvents.off('activityUpdated', handleActivityUpdated);
     };
   }, [refreshData]);
 
