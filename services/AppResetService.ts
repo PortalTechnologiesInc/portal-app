@@ -39,7 +39,6 @@ export class AppResetService {
    */
   static async performCompleteReset(database?: SQLiteDatabase): Promise<void> {
     console.log('🔄 Starting complete app reset...');
-
     // Set global reset flag
     isAppResetting = true;
 
@@ -47,7 +46,6 @@ export class AppResetService {
 
     try {
       // Step 1: Clear all SecureStore data
-      console.log('Step 1/4: Clearing SecureStore...');
       await SecureStorageService.resetAll();
     } catch (error) {
       console.error('❌ Failed to clear SecureStore:', error);
@@ -56,14 +54,11 @@ export class AppResetService {
 
     try {
       // Step 2: Reset database and force reinitialization
-      console.log('Step 2/4: Resetting database...');
       if (database) {
         const dbService = new DatabaseService(database);
 
         // Then, force a full migration to recreate all tables
         await dbService.resetAndReinitializeDatabase();
-      } else {
-        console.warn('⚠️ No database provided for reset - skipping database reset');
       }
     } catch (error) {
       console.error('❌ Failed to reset database:', error);
@@ -72,7 +67,6 @@ export class AppResetService {
 
     try {
       // Step 3: Reset all application contexts
-      console.log('Step 3/4: Resetting application contexts...');
       resetAllContexts();
     } catch (error) {
       console.error('❌ Failed to reset contexts:', error);
@@ -81,7 +75,6 @@ export class AppResetService {
 
     try {
       // Step 4: Reset navigation to onboarding
-      console.log('Step 4/4: Resetting navigation...');
       router.replace('/onboarding');
     } catch (error) {
       console.error('❌ Failed to reset navigation:', error);
@@ -94,7 +87,6 @@ export class AppResetService {
     // Clear global reset flag after a delay to allow reset to complete
     setTimeout(() => {
       isAppResetting = false;
-      console.log('✅ App reset mode cleared');
     }, 10000); // 10 second delay
 
     // Report results

@@ -105,8 +105,6 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
   // Reset all profile state to initial values
   // This is called during app reset to ensure clean state
   const resetProfile = () => {
-    console.log('🔄 Resetting UserProfile state...');
-
     // Reset local state to initial values
     setUsernameState('');
     setDisplayNameState('');
@@ -118,8 +116,6 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setNetworkUsername('');
     setNetworkDisplayName('');
     setNetworkAvatarUri(null);
-
-    console.log('✅ UserProfile state reset completed');
   };
 
   // Register/unregister context reset function
@@ -167,7 +163,6 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
   useEffect(() => {
     if (syncStatus === 'syncing') {
       const timer = setTimeout(() => {
-        console.log('Profile sync timeout, resetting to failed');
         setSyncStatus('failed');
       }, 30000); // 30 second safety timeout
 
@@ -188,23 +183,17 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         return;
       }
 
-      console.log('Auto-fetching profile for:', nostrService.publicKey);
-
       try {
         // Fetch the profile from the network
         const result = await fetchProfile(nostrService.publicKey);
 
         if (result.found) {
-          console.log('Profile loaded from network');
+          // Profile loaded successfully
         } else {
-          console.log('No profile found on network');
-
           // Check if this is a newly generated seed (new user)
           try {
             const seedOrigin = await SecureStore.getItemAsync('portal_seed_origin');
             if (seedOrigin === 'generated') {
-              console.log('New user detected - auto-generating profile');
-
               // Generate a random username for new users
               const randomUsername = generateRandomGamertag();
 
@@ -215,24 +204,19 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
               // Clear the seed origin flag so this only happens once
               await SecureStore.deleteItemAsync('portal_seed_origin');
 
-              console.log('Auto-generated profile setup completed');
-
               // Auto-save the generated profile to the network with empty display name
               try {
                 await setProfile(randomUsername, ''); // Explicitly set empty display name
-                console.log('Auto-generated profile saved to network');
               } catch (error) {
-                console.log('Failed to auto-save profile to network:', error);
                 // Don't throw - let user manually save later
               }
             }
           } catch (error) {
-            console.log('Could not check seed origin, skipping auto-generation:', error);
+            // Could not check seed origin, skipping auto-generation
           }
         }
       } catch (error) {
-        console.log('Auto-fetch failed:', error);
-        // Don't throw - this is a background operation
+        // Auto-fetch failed - this is a background operation
       }
     };
 
@@ -248,12 +232,10 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     // Check if NostrService is ready
     if (!nostrService.isInitialized) {
-      console.log('NostrService not ready, will retry profile fetch later');
       setSyncStatus('failed');
       return { found: false };
     }
 
-    console.log('Fetching profile for:', publicKey);
     setSyncStatus('syncing');
 
     try {
@@ -269,9 +251,6 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
       ])) as any;
 
       if (fetchedProfile) {
-        console.log('Profile fetched successfully');
-        console.log('Raw profile data:', JSON.stringify(fetchedProfile, null, 2));
-
         // Extract data from fetched profile with proper normalization
         let fetchedUsername = '';
         let fetchedDisplayName = '';
@@ -281,52 +260,37 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
           const nip05Parts = fetchedProfile.nip05.split('@');
           if (nip05Parts.length > 0 && nip05Parts[0]) {
             fetchedUsername = nip05Parts[0];
-            console.log('Username extracted from nip05:', fetchedUsername);
           }
         }
 
         // Fallback to name field if nip05 didn't work
         if (!fetchedUsername && fetchedProfile.name) {
           fetchedUsername = fetchedProfile.name;
-          console.log('Username extracted from name field:', fetchedUsername);
         }
 
         // Fallback to displayName if nothing else worked
         if (!fetchedUsername && fetchedProfile.displayName) {
           fetchedUsername = fetchedProfile.displayName;
-          console.log('Username extracted from displayName field:', fetchedUsername);
         }
 
         // Always normalize the username to match server behavior
         // The server trims and lowercases, so we should do the same
         if (fetchedUsername) {
-          const originalUsername = fetchedUsername;
           fetchedUsername = fetchedUsername.trim().toLowerCase().replace(/\s+/g, '');
-
-          if (originalUsername !== fetchedUsername) {
-            console.log('Username normalized from:', originalUsername, 'to:', fetchedUsername);
-          }
         }
 
         // Extract display name (more flexible, keep as-is)
         if ('displayName' in fetchedProfile) {
           fetchedDisplayName = fetchedProfile.displayName || ''; // Allow empty string
-          console.log('Display name extracted (including empty):', fetchedDisplayName);
         } else if (fetchedProfile.name && fetchedProfile.name !== fetchedUsername) {
           // Fallback to name if it's different from username
           fetchedDisplayName = fetchedProfile.name;
-          console.log('Display name extracted from name field:', fetchedDisplayName);
         } else {
           // Final fallback to username
           fetchedDisplayName = fetchedUsername;
-          console.log('Display name set to username:', fetchedDisplayName);
         }
 
         const fetchedAvatarUri = fetchedProfile.picture || null; // Ensure null instead of empty string
-
-        console.log('Final extracted username:', fetchedUsername);
-        console.log('Final extracted display name:', fetchedDisplayName);
-        console.log('Final extracted avatarUri:', fetchedAvatarUri);
 
         // Save the fetched data to local storage
         if (fetchedUsername) {
@@ -365,7 +329,6 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
           avatarUri: fetchedAvatarUri || undefined,
         };
       } else {
-        console.log('No profile found for public key');
         setSyncStatus('completed');
         return { found: false }; // No profile found
       }
@@ -377,12 +340,11 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         errorMessage.includes('ListenerDisconnected') ||
         errorMessage.includes('AppError.ListenerDisconnected')
       ) {
-        console.log('Nostr listener disconnected during profile fetch, will retry...');
         setSyncStatus('failed');
         return { found: false };
       }
 
-      console.log('Failed to fetch profile:', error);
+      console.error('Failed to fetch profile:', error);
       setSyncStatus('failed');
       return { found: false };
     }
@@ -466,17 +428,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const displayNameChanged = newDisplayName !== networkDisplayName;
       const avatarChanged = newAvatarUri !== networkAvatarUri;
 
-      console.log(
-        'Updating profile - username changed:',
-        usernameChanged,
-        'display name changed:',
-        displayNameChanged,
-        'avatar changed:',
-        avatarChanged
-      );
-
       if (!usernameChanged && !displayNameChanged && !avatarChanged) {
-        console.log('No changes detected, skipping profile update');
         setSyncStatus('completed');
         return;
       }
@@ -486,11 +438,8 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
       let actualUsernameToUse = networkUsername; // Default to current network username
 
       if (usernameChanged) {
-        console.log('Registering NIP05 username:', normalizedUsername);
-
         try {
           await nostrService.submitNip05(normalizedUsername);
-          console.log('NIP05 registration successful');
           actualUsernameToUse = normalizedUsername; // Use new username if successful
         } catch (error: any) {
           console.error('NIP05 registration failed');
@@ -509,7 +458,6 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
             nip05Error = `Registration service offline. Please try again later.`;
           }
 
-          console.log('NIP05 failed, continuing with other profile updates...');
           // Keep actualUsernameToUse as networkUsername (previous valid username)
         }
       }
@@ -517,17 +465,13 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
       // Step 2: Handle avatar changes (submitImage)
       let imageUrl = '';
       if (avatarChanged && newAvatarUri) {
-        console.log('Processing and uploading image');
 
         let cleanBase64 = '';
 
         // Check if the avatar is already base64 (from network fetch)
         if (isBase64String(newAvatarUri)) {
-          console.log('Avatar is already base64, using directly');
           cleanBase64 = newAvatarUri;
         } else {
-          console.log('Converting file URI to base64');
-
           // Validate the image file
           const validation = await validateImage(newAvatarUri);
           if (!validation.isValid) {
@@ -554,10 +498,8 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
           }
         }
 
-        console.log('Uploading image to portal servers');
         try {
           await nostrService.submitImage(cleanBase64);
-          console.log('Image upload successful');
 
           // Generate portal image URL using hex pubkey
           const hexPubkey = keyToHex(nostrService.publicKey);
@@ -583,7 +525,6 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
       }
 
       // Step 3: Set complete profile (setUserProfile)
-      console.log('Setting complete profile');
 
       const profileUpdate = {
         nip05: `${actualUsernameToUse}@getportal.cc`,
@@ -593,7 +534,6 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
       };
 
       await nostrService.setUserProfile(profileUpdate);
-      console.log('Profile set successfully');
 
       // Update local state - use the actual username that worked
       await setUsername(actualUsernameToUse);
@@ -620,11 +560,9 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
       if (nip05Error) {
         // Profile was partially updated but NIP05 failed
-        console.log('Profile update completed with NIP05 error');
         setSyncStatus('completed'); // Still mark as completed so user can edit again
         throw new Error(nip05Error); // Throw the NIP05 error to show to user
       } else {
-        console.log('Profile update completed successfully');
         setSyncStatus('completed');
       }
     } catch (error) {

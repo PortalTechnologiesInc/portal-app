@@ -32,7 +32,6 @@ export default function TicketsScreen() {
       try {
         const { globalEvents } = await import('@/utils/index');
         const handleWalletBalancesChanged = () => {
-          console.log('Tickets: wallet balances changed, triggering re-render');
           setWalletUpdateTrigger(prev => prev + 1);
         };
 
@@ -61,14 +60,11 @@ export default function TicketsScreen() {
 
   useEffect(() => {
     async function mapWallets() {
-      console.log('Tickets: mapping wallets, count:', eCashWalletCount);
       const allTickets: Ticket[] = [];
 
       for (const [_, wallet] of Object.entries(wallets)) {
         const unitInfo = await wallet.getUnitInfo();
         const balance = await wallet.getBalance();
-        console.log('Tickets: wallet balance', balance, 'unit:', wallet.unit());
-        console.log('Tickets: full unitInfo:', JSON.stringify(unitInfo, null, 2));
 
         if (unitInfo?.showIndividually) {
           // Create separate tickets for each unit when showIndividually is true
@@ -109,9 +105,7 @@ export default function TicketsScreen() {
         }
       }
 
-      console.log('Tickets: setting tickets, count:', allTickets.length);
       setTickets(allTickets);
-      console.log('tickets', allTickets);
     }
     mapWallets();
   }, [wallets, walletUpdateTrigger]); // Add walletUpdateTrigger to trigger re-render when wallet balances change

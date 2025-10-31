@@ -109,7 +109,7 @@ export default function NFCScanScreen() {
       const isEnabled = await NfcManager.isEnabled();
       return isEnabled;
     } catch (error) {
-      console.log('NFC check error:', error);
+      console.error('NFC check error:', error);
       return false;
     }
   };
@@ -257,8 +257,6 @@ export default function NFCScanScreen() {
 
       const initializeNFC = async () => {
         try {
-          console.log('Initializing NFC on page focus...');
-
           // Initialize NFC Manager
           await NfcManager.start();
 
@@ -277,12 +275,11 @@ export default function NFCScanScreen() {
           // Set up real-time NFC state change listener
           isListenerActive = true;
           NfcManager.setEventListener(NfcEvents.StateChanged, (event: any) => {
-            console.log('NFC state changed:', event);
             const isEnabled = event.state === 'on' || event.state === 'turning_on';
             handleNFCStatusChange(isEnabled);
           });
         } catch (error) {
-          console.log('NFC initialization error:', error);
+          console.error('NFC initialization error:', error);
           // Fallback to basic status check
           const enabled = await checkNFCStatus();
           setIsNFCEnabled(enabled);
@@ -308,7 +305,6 @@ export default function NFCScanScreen() {
       appStateListener = AppState.addEventListener('change', handleAppStateChange);
 
       // Set page as focused and initialize NFC
-      console.log('NFC page focused - starting NFC operations');
       setIsPageFocused(true);
       isPageFocusedRef.current = true; // Set ref immediately for synchronous access
       isLeavingPageRef.current = false; // Reset leaving page flag
@@ -316,16 +312,13 @@ export default function NFCScanScreen() {
 
       // Cleanup when page loses focus
       return () => {
-        console.log('NFC page unfocused - stopping all NFC operations');
-        console.log('Cleaning up NFC on page unfocus...');
-
         // Mark that we're intentionally leaving the page
         isLeavingPageRef.current = true;
 
         // Stop any ongoing scanning
         if (scanningActive) {
           NfcManager.cancelTechnologyRequest().catch(e =>
-            console.log('Error canceling NFC request during cleanup:', e)
+            console.error('Error canceling NFC request during cleanup:', e)
           );
           scanningActive = false;
         }
@@ -351,8 +344,6 @@ export default function NFCScanScreen() {
 
         // Clear all timeouts
         clearAllTimeouts();
-
-        console.log('NFC cleanup completed');
       };
     }, [handleNFCStatusChange])
   );
@@ -415,8 +406,6 @@ export default function NFCScanScreen() {
               uri = String.fromCharCode.apply(null, Array.from(payload.slice(1)));
             }
 
-            console.log('Found URI record:', uri);
-
             // Check if URI starts with portal://
             if (uri.startsWith('portal://')) {
               return { isValid: true, portalUrl: uri };
@@ -437,8 +426,6 @@ export default function NFCScanScreen() {
               null,
               Array.from(payload.slice(1 + languageCodeLength))
             );
-
-            console.log('Found text record:', text);
 
             // Check if text contains portal:// URL
             if (text.includes('portal://')) {
@@ -461,7 +448,6 @@ export default function NFCScanScreen() {
   // NFC scanning using requestTechnology - Android manifest handles system chooser prevention
   const startScan = async () => {
     if (!isNFCEnabled || !isPageFocusedRef.current) {
-      console.log('Skipping scan - NFC disabled or page not focused');
       return;
     }
 
@@ -476,7 +462,6 @@ export default function NFCScanScreen() {
 
       // Read NFC tag
       const tag = await NfcManager.getTag();
-      console.log('NFC Tag detected:', tag);
 
       if (!tag) {
         setScanState('error');
@@ -492,7 +477,6 @@ export default function NFCScanScreen() {
 
       // Get NDEF records from tag
       const ndefRecords = tag.ndefMessage || [];
-      console.log('NDEF records:', ndefRecords);
 
       if (!ndefRecords || ndefRecords.length === 0) {
         setScanState('error');
@@ -541,15 +525,14 @@ export default function NFCScanScreen() {
         await NfcManager.cancelTechnologyRequest();
       }
     } catch (error) {
-      console.log('NFC scan error:', error);
+      console.error('NFC scan error:', error);
 
       // Don't show error toast if we're intentionally leaving the page or page is not focused
       if (isLeavingPageRef.current || !isPageFocusedRef.current) {
-        console.log('Scan cancelled due to page navigation or unfocus - skipping error toast');
         try {
           await NfcManager.cancelTechnologyRequest();
         } catch (e) {
-          console.log('Error canceling NFC request:', e);
+          console.error('Error canceling NFC request:', e);
         }
         return;
       }
@@ -572,7 +555,7 @@ export default function NFCScanScreen() {
       try {
         await NfcManager.cancelTechnologyRequest();
       } catch (e) {
-        console.log('Error canceling NFC request:', e);
+        console.error('Error canceling NFC request:', e);
       }
 
       // Don't auto-retry - let user manually retry

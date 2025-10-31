@@ -66,13 +66,12 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
 
     // Debug logging for relay filtering
     if (relayStatuses.length !== filtered.length) {
-      console.log('🔍 [CONNECTION INDICATOR] Filtering relays:');
-      console.log('  - Total relays:', relayStatuses.length);
-      console.log('  - Removed relays:', Array.from(removedRelays));
-      console.log('  - Filtered relays:', filtered.length);
       console.log(
-        '  - Visible relays:',
-        filtered.map(r => `${r.url} (${r.status})`)
+        '🔍 [CONNECTION INDICATOR] Filtering relays:\n' +
+        `  - Total relays: ${relayStatuses.length}\n` +
+        `  - Removed relays: ${JSON.stringify(Array.from(removedRelays))}\n` +
+        `  - Filtered relays: ${filtered.length}\n` +
+        `  - Visible relays: ${filtered.map(r => `${r.url} (${r.status})`).join(', ')}`
       );
     }
 

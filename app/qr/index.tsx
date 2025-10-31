@@ -53,18 +53,14 @@ export default function QRScannerScreen() {
       return;
     }
 
-    console.log('Permission status:', permission.status, 'granted:', permission.granted, 'canAskAgain:', permission.canAskAgain);
-
     if (!permission.granted) {
       if (permission.status === 'undetermined') {
         // First time - automatically request permission with small delay
-        console.log('Requesting permission automatically (undetermined)...');
         setTimeout(() => {
           requestPermission();
         }, 100);
       } else if (permission.canAskAgain) {
         // Previously denied but can ask again - automatically request
-        console.log('Requesting permission automatically (can ask again)...');
         setTimeout(() => {
           requestPermission();
         }, 100);
@@ -110,7 +106,6 @@ export default function QRScannerScreen() {
   };
 
   const validateQRCode = (data: string): { isValid: boolean; error?: string } => {
-    console.warn(mode);
     switch (mode) {
       case 'wallet':
         // Wallet mode: only accept nostr+walletconnect:// URLs
@@ -161,7 +156,6 @@ export default function QRScannerScreen() {
 
     const { type, data } = result;
     setScanned(true);
-    console.log(`Bar code with type ${type} and data ${data} has been scanned!`);
 
     // Validate the QR code first
     const validation = validateQRCode(data);
@@ -230,7 +224,6 @@ export default function QRScannerScreen() {
             mintUrl: tokenInfo.mintUrl,
             unit: tokenInfo.unit.toLowerCase(),
           });
-          console.log('walletBalancesChanged event emitted from QR scanner');
 
           // Record activity for token receipt
           try {
@@ -254,17 +247,13 @@ export default function QRScannerScreen() {
               converted_amount: null,
               converted_currency: null,
             };
-            console.warn(3);
 
             // Use database service for activity recording
             const activityId = await executeOperation(db => db.addActivity(activity), null);
 
             if (activityId) {
-              console.log('Activity added to database with ID:', activityId);
               // Emit event for UI updates
               globalEvents.emit('activityAdded', activity);
-              console.log('activityAdded event emitted');
-              console.log('Cashu direct activity recorded successfully');
             } else {
               console.warn('Failed to record Cashu token activity due to database issues');
             }

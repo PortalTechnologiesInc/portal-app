@@ -38,15 +38,11 @@ export const MnemonicProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Reset all mnemonic state to initial values
   // This is called during app reset to ensure clean state
   const resetMnemonic = () => {
-    console.log('🔄 Resetting Mnemonic state...');
-
     // Reset local state to initial values
     setMnemonicState(null);
     setWalletUrlState(null);
     setIsWalletConnectedState(false);
     // Note: isLoading is not reset as it will be managed by data loading
-
-    console.log('✅ Mnemonic state reset completed');
   };
 
   // Register/unregister context reset function
@@ -85,7 +81,6 @@ export const MnemonicProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Listen for wallet URL changes from SecureStorageService
   useEffect(() => {
     const walletUrlSubscription = walletUrlEvents.addListener('walletUrlChanged', async newUrl => {
-      console.log('MnemonicContext: walletUrlChanged event received:', newUrl);
       setWalletUrlState(newUrl || null);
       setIsWalletConnectedState(Boolean(newUrl?.trim()));
     });
@@ -108,13 +103,9 @@ export const MnemonicProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (isNewMnemonic) {
         try {
           await SecureStore.deleteItemAsync('profile_initialized');
-          console.log('Cleared profile_initialized flag for new mnemonic');
         } catch (e) {
           // Silent fail - this is not critical
-          console.log('Could not clear profile_initialized flag:', e);
         }
-      } else {
-        console.log('Same mnemonic imported, keeping existing profile initialization state');
       }
 
       // Update state directly

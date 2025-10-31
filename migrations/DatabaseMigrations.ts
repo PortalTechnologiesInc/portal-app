@@ -2,7 +2,6 @@ import { SQLiteDatabase } from 'expo-sqlite';
 
 // Function to migrate database schema if needed
 export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
-  console.log('Database initialization started');
   const DATABASE_VERSION = 15;
 
   try {
@@ -11,7 +10,6 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
     }>('PRAGMA user_version')) ?? { user_version: 0 };
 
     if (currentDbVersion >= DATABASE_VERSION) {
-      console.log(`Database already at version ${currentDbVersion}`);
       return;
     }
 
@@ -22,7 +20,6 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
         PRAGMA journal_mode = 'wal';
       `);
       currentDbVersion = 1;
-      console.log('Set journal mode to WAL - now at version 1');
     }
 
     if (currentDbVersion <= 1) {
@@ -64,7 +61,6 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
         CREATE INDEX IF NOT EXISTS idx_subscriptions_next_payment ON subscriptions(next_payment_date);
       `);
       currentDbVersion = 2;
-      console.log('Created tables - now at version 2');
     }
 
     if (currentDbVersion <= 2) {
@@ -76,7 +72,6 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
         CREATE INDEX IF NOT EXISTS idx_activities_subscription ON activities(subscription_id);
       `);
       currentDbVersion = 3;
-      console.log('Added subscription_id to activities - now at version 3');
     }
 
     if (currentDbVersion <= 3) {
@@ -93,7 +88,6 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
         CREATE INDEX IF NOT EXISTS idx_name_cache_expires ON name_cache(expires_at);
       `);
       currentDbVersion = 4;
-      console.log('Added name_cache table - now at version 4');
     }
 
     if (currentDbVersion <= 4) {
@@ -238,7 +232,6 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
         CREATE INDEX IF NOT EXISTS idx_activities_subscription ON activities(subscription_id);
       `);
       currentDbVersion = 8;
-      console.log('Updated activities table to support ticket type - now at version 8');
     }
 
     if (currentDbVersion <= 8) {
@@ -272,9 +265,6 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
         CREATE INDEX IF NOT EXISTS idx_activities_subscription ON activities(subscription_id);
       `);
       currentDbVersion = 9;
-      console.log(
-        'Updated activities table to support ticket_approved and ticket_denied types - now at version 9'
-      );
     }
 
     if (currentDbVersion <= 9) {
@@ -308,7 +298,6 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
         CREATE INDEX IF NOT EXISTS idx_activities_subscription ON activities(subscription_id);
       `);
       currentDbVersion = 10;
-      console.log('Updated activities table to support ticket_received type - now at version 10');
     }
 
     if (currentDbVersion <= 10) {
@@ -324,7 +313,6 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
         CREATE INDEX IF NOT EXISTS idx_processed_cashu_tokens_mint ON processed_cashu_tokens(mint_url);
       `);
       currentDbVersion = 11;
-      console.log('Created processed_cashu_tokens table - now at version 11');
     }
 
     if (currentDbVersion <= 11) {
@@ -344,9 +332,6 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
         CREATE INDEX IF NOT EXISTS idx_activities_status ON activities(status);
       `);
       currentDbVersion = 12;
-      console.log(
-        'Created payment_status table and added status column to activities - now at version 12'
-      );
     }
 
     if (currentDbVersion <= 12) {
@@ -356,7 +341,6 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
         CREATE INDEX IF NOT EXISTS idx_activities_invoice ON activities(invoice);
       `);
       currentDbVersion = 13;
-      console.log('Added invoice column to activities table - now at version 13');
     }
 
     if (currentDbVersion <= 13) {
@@ -367,9 +351,6 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
         CREATE INDEX IF NOT EXISTS idx_activities_converted_currency ON activities(converted_currency);
       `);
       currentDbVersion = 14;
-      console.log(
-        'Added converted amount and currency columns to activities table - now at version 14'
-      );
     }
 
     if (currentDbVersion <= 14) {
@@ -380,9 +361,6 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
         CREATE INDEX IF NOT EXISTS idx_subscriptions_converted_currency ON subscriptions(converted_currency);
       `);
       currentDbVersion = 15;
-      console.log(
-        'Added converted amount and currency columns to subscriptions table - now at version 15'
-      );
     }
 
     await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);

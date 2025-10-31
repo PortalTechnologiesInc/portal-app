@@ -111,15 +111,11 @@ export class DatabaseService {
    */
   async resetAndReinitializeDatabase(): Promise<void> {
     try {
-      console.log('🔄 Forcing database reinitialization...');
-
       const resetSQL = generateResetSQL();
 
       // Set user_version to 0 to force migration
       await this.db.execAsync(resetSQL);
       await migrateDbIfNeeded(this.db);
-
-      console.log('✅ Database reinitialization completed successfully');
     } catch (error) {
       console.error('❌ Failed to reinitialize database:', error);
       throw error;
@@ -160,7 +156,6 @@ export class DatabaseService {
           ]
         );
 
-        console.log(`Activity ${id} of type ${activity.type} added successfully`);
         return id;
       } catch (dbError) {
         console.error('Database operation failed when adding activity:', dbError);
@@ -944,11 +939,8 @@ export class DatabaseService {
   async getMintUnitPairs(): Promise<[string, string][]> {
     try {
       const query = 'SELECT DISTINCT mint_url, unit FROM cashu_proofs';
-      console.log('Database: Executing query:', query);
       const rows = await this.db.getAllAsync<{ mint_url: string; unit: string }>(query);
-      console.log('Database: Found rows:', rows);
       const result: [string, string][] = rows.map(row => [row.mint_url, row.unit]);
-      console.log('Database: Returning mint-unit pairs:', result);
       return result;
     } catch (error) {
       console.error('Database: Error getting mint-unit pairs:', error);

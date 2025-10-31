@@ -54,8 +54,6 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
   // Reset all Activities state to initial values
   // This is called during app reset to ensure clean state
   const resetActivities = () => {
-    console.log('🔄 Resetting Activities state...');
-
     // Reset all state to initial values
     setActivities([]);
     setSubscriptions([]);
@@ -67,8 +65,6 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
 
     // Reset the current offset ref as well
     currentOffsetRef.current = 0;
-
-    console.log('✅ Activities state reset completed');
   };
 
   // Register/unregister context reset function
@@ -83,7 +79,6 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
   const fetchActivities = useCallback(
     async (reset = false) => {
       const offset = reset ? 0 : currentOffsetRef.current;
-      console.log('fetchActivities: fetching with offset', offset);
 
       const fetchedActivities = await executeOperation(
         db =>
@@ -93,8 +88,6 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
           }),
         []
       );
-
-      console.log('fetchActivities: fetched activities count', fetchedActivities.length);
 
       if (reset) {
         // Complete refresh - replace all activities
@@ -118,7 +111,6 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
       // Get total count for reference (optional)
       const allActivities = await executeOperation(db => db.getActivities(), []);
       setTotalActivities(allActivities.length);
-      console.log('fetchActivities: total activities count', allActivities.length);
     },
     [executeOperation, ACTIVITIES_PER_PAGE]
   );
@@ -166,7 +158,6 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
       currentOffsetRef.current = 0;
       setHasMoreActivities(true);
       await Promise.all([fetchActivities(true), fetchSubscriptions()]);
-      console.log('Data refreshed successfully');
     } catch (error) {
       console.error('Failed to refresh data:', error);
     }
@@ -177,7 +168,6 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
     const { globalEvents } = require('@/utils/index');
 
     const handleActivityAdded = (activity: ActivityWithDates) => {
-      console.log('ActivitiesContext: activityAdded event received, refreshing activities');
       refreshData();
     };
 

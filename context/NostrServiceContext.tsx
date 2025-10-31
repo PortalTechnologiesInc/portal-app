@@ -260,8 +260,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   // Reset all NostrService state to initial values
   // This is called during app reset to ensure clean state
   const resetNostrService = () => {
-    console.log('🔄 Resetting NostrService state...');
-
     // Reset all state to initial values
     setIsInitialized(false);
     setPublicKey(null);
@@ -281,26 +279,15 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
     // Clear reconnection attempts tracking
     lastReconnectAttempts.current.clear();
-
-    console.log('✅ NostrService state reset completed');
   };
 
   // Stable AppState listener - runs only once, never recreated
   useEffect(() => {
-    console.log('🔄 Setting up STABLE AppState listener (runs once)');
-
     const handleAppStateChange = async (nextAppState: string) => {
-      const previousState = AppState.currentState;
-      console.log('AppState changed to:', nextAppState);
-
-      console.log(`App State Transition: ${previousState} → ${nextAppState}`);
-
       if (nextAppState === 'active') {
-        console.log('📱 App became active');
         isAppActive.current = true;
       } else if (nextAppState === 'background') {
         isAppActive.current = false;
-        console.log('App moved to background');
       }
     };
 
@@ -311,8 +298,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
     return () => {
       unregisterContextReset(resetNostrService);
-
-      console.log('🧹 Removing STABLE AppState listener (only on unmount)');
       subscription?.remove();
     };
   }, []);
@@ -463,19 +448,16 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
     // Prevent re-initialization if already initialized
     if (isInitialized && PortalAppManager.tryGetInstance()) {
-      console.log('NostrService already initialized, skipping re-initialization');
       return;
     }
 
     // Skip initialization if mnemonic is not available yet
     if (!mnemonic || mnemonic.trim() === '') {
-      console.log('NostrService: Skipping initialization - no mnemonic available yet');
       return;
     }
 
     const initializeNostrService = async () => {
       try {
-        console.log('Initializing NostrService with mnemonic');
 
         // Create Mnemonic object
         const mnemonicObj = new Mnemonic(mnemonic);
@@ -516,13 +498,11 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
         // Start listening and give it a moment to establish connections
         app.listen({ signal: abortController.signal });
-        console.log('PortalApp listening started...');
 
         // listener to receive tokens
         app
           .listenCashuDirect(
             new LocalCashuDirectListener(async (event: CashuDirectContentWithKey) => {
-              console.log('Cashu direct token received', event);
 
               try {
                 // Auto-process the Cashu token (receiving tokens)
@@ -544,7 +524,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                 );
 
                 if (isProcessed === true) {
-                  console.log('Cashu token already processed, skipping');
                   return;
                 } else if (isProcessed === null) {
                   console.warn(
@@ -606,11 +585,8 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                   const activityId = await executeOperation(db => db.addActivity(activity), null);
 
                   if (activityId) {
-                    console.log('Activity added to database with ID:', activityId);
                     // Emit event for UI updates
                     globalEvents.emit('activityAdded', activity);
-                    console.log('activityAdded event emitted');
-                    console.log('Cashu direct activity recorded successfully');
                     // Provide lightweight user feedback
                     const amountStr = tokenInfo.amount ? ` x${Number(tokenInfo.amount)}` : '';
                     showToast(`Ticket received: ${ticketTitle}${amountStr}`, 'success');
@@ -643,12 +619,9 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
             const eventId = `${event.inner.mintUrl}-${event.inner.unit}-${event.inner.amount}-${event.mainKey}`;
             const id = `cashu-request-${eventId}`;
 
-            console.log(`Cashu request with id ${id} received`, event);
-
             // Early deduplication check before processing
             const existingRequest = pendingRequests[id];
             if (existingRequest) {
-              console.log(`Duplicate Cashu request ${id} detected, ignoring duplicate event`);
               // Return a promise that will resolve when the original request is resolved
               return new Promise<CashuResponseStatus>(resolve => {
                 // Store the resolve function so it gets called when the original request completes
@@ -668,22 +641,13 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
               const requiredUnit = event.inner.unit.toLowerCase(); // Normalize unit name
               const requiredAmount = event.inner.amount;
 
-              console.log(
-                `Checking if we have unit: ${requiredUnit} from mint: ${requiredMintUrl} with amount: ${requiredAmount}`
-              );
-              console.log(`Available wallets:`, Object.keys(eCashContext.wallets));
-              console.log(`Looking for wallet key: ${requiredMintUrl}-${requiredUnit}`);
-
               // Check if we have a wallet for this mint and unit
               wallet = await eCashContext.getWallet(requiredMintUrl, requiredUnit);
-              console.log(`Wallet found in ECashContext:`, !!wallet);
 
               // If wallet not found in ECashContext, try to create it
               if (!wallet) {
-                console.log(`Wallet not found in ECashContext, trying to create it...`);
                 try {
                   wallet = await eCashContext.addWallet(requiredMintUrl, requiredUnit);
-                  console.log(`Successfully created wallet for ${requiredMintUrl}-${requiredUnit}`);
                 } catch (error) {
                   console.error(
                     `Error creating wallet for ${requiredMintUrl}-${requiredUnit}:`,
@@ -693,24 +657,14 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
               }
 
               if (!wallet) {
-                console.log(
-                  `No wallet found for mint: ${requiredMintUrl}, unit: ${requiredUnit} - auto-rejecting`
-                );
                 return new CashuResponseStatus.InsufficientFunds();
               }
 
               // Check if we have sufficient balance
               const balance = await wallet.getBalance();
               if (balance < requiredAmount) {
-                console.log(
-                  `Insufficient balance: ${balance} < ${requiredAmount} - auto-rejecting`
-                );
                 return new CashuResponseStatus.InsufficientFunds();
               }
-
-              console.log(
-                `Wallet found with sufficient balance: ${balance} >= ${requiredAmount} - creating pending request`
-              );
             } catch (error) {
               console.error('Error checking wallet availability:', error);
               return new CashuResponseStatus.InsufficientFunds();
@@ -736,17 +690,13 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                 result: resolve,
                 ticketTitle, // Set the ticket name for UI
               };
-              setPendingRequests(prev => {
-                // Check if request already exists to prevent duplicates
-                if (prev[id]) {
-                  console.log(`Request ${id} already exists, skipping duplicate`);
-                  return prev;
-                }
-                const newPendingRequests = { ...prev };
-                newPendingRequests[id] = newRequest;
-                console.log('Updated pending requests map:', newPendingRequests);
-                return newPendingRequests;
-              });
+                      setPendingRequests(prev => {
+                        // Check if request already exists to prevent duplicates
+                        if (prev[id]) {
+                          return prev;
+                        }
+                        return { ...prev, [id]: newRequest };
+                      });
             });
           })
         );
@@ -761,8 +711,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
             new LocalAuthChallengeListener((event: AuthChallengeEvent) => {
               const id = event.eventId;
 
-              console.log(`Auth challenge with id ${id} received`, event);
-
               return new Promise<AuthResponseStatus>(resolve => {
                 handleAuthChallenge(event, executeOperation, resolve).then(askUser => {
                   if (askUser) {
@@ -774,17 +722,13 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                       result: resolve,
                     };
 
-                    setPendingRequests(prev => {
-                      // Check if request already exists to prevent duplicates
-                      if (prev[id]) {
-                        console.log(`Request ${id} already exists, skipping duplicate`);
-                        return prev;
-                      }
-                      const newPendingRequests = { ...prev };
-                      newPendingRequests[id] = newRequest;
-                      console.log('Updated pending requests map:', newPendingRequests);
-                      return newPendingRequests;
-                    });
+                      setPendingRequests(prev => {
+                        // Check if request already exists to prevent duplicates
+                        if (prev[id]) {
+                          return prev;
+                        }
+                        return { ...prev, [id]: newRequest };
+                      });
                   }
                 });
               });
@@ -803,8 +747,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
             new LocalPaymentRequestListener(
               (event: SinglePaymentRequest, notifier: PaymentStatusNotifier) => {
                 const id = event.eventId;
-
-                console.log(`Single payment request with id ${id} received`, event);
 
                 return new Promise<void>(resolve => {
                   // Immediately resolve the promise, we use the notifier to notify the payment status
@@ -851,8 +793,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
               },
               (event: RecurringPaymentRequest) => {
                 const id = event.eventId;
-
-                console.log(`Recurring payment request with id ${id} received`, event);
 
                 return new Promise<RecurringPaymentResponseContent>(resolve => {
                   handleRecurringPaymentRequest(event, executeOperation, resolve).then(askUser => {
@@ -903,12 +843,10 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
             console.error('Error listening for recurring payments closing.', e);
           });
 
-        // Save portal app instance
-        console.log('NostrService initialized successfully with public key:', publicKeyStr);
-        console.log('Running on those relays:', relays);
-
         // Mark as initialized
         setIsInitialized(true);
+        setPublicKey(publicKeyStr);
+        console.log('✅ NostrService initialized successfully');
       } catch (error) {
         console.error('Failed to initialize NostrService:', error);
         setIsInitialized(false);
@@ -924,7 +862,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   }, [mnemonic, reinitKey]);
 
   useEffect(() => {
-    console.log('Updated pending requests:', pendingRequests);
   }, [pendingRequests]);
 
   // Optimized wallet connection effect with better separation of concerns
@@ -932,10 +869,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     if (!isInitialized) return;
 
     // Wallet URL changed
-    console.log('NostrServiceContext: Wallet URL changed to:', walletUrl);
-
     if (!walletUrl) {
-      console.log('Wallet URL cleared, disconnecting wallet');
       setNwcWallet(null);
       setNwcRelayStatus(null); // Clear NWC relay status when wallet is disconnected
       setNwcConnectionFailed(false); // Reset connection failed state
@@ -948,7 +882,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
     const connectWallet = async () => {
       try {
-        console.log('Connecting to wallet with URL:', walletUrl);
         setNwcConnectionFailed(false); // Reset failed state before attempting connection
         setNwcConnecting(true); // Set connecting state
 
@@ -964,7 +897,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         if (isCancelled) return;
         nwcWalletRef.current = wallet;
         setNwcWallet(wallet);
-        console.log('Wallet connected successfully');
 
         // Initialize wallet info after connection
         timeoutId = setTimeout(async () => {
@@ -972,13 +904,10 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
           try {
             // Call getInfo to establish relay connections
-            console.log('Calling getInfo to establish relay connections...');
             await wallet.getInfo();
-            console.log('Wallet initialization completed');
             setNwcConnecting(false); // Clear connecting state on success
           } catch (error) {
             if (isCancelled) return;
-            console.log('Wallet initialization encountered an error (non-fatal):', error);
             setNwcConnecting(false); // Clear connecting state even on non-fatal error
           }
         }, 1000);
@@ -1076,23 +1005,13 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
           !relayStatusesRef.current.length ||
           relayStatusesRef.current.every(r => r.status != 'Connected')
         ) {
-          console.warn('DEBUG: No relays connected, cannot fetch service profile for:', pubKey);
           throw new Error(
             'No relay connections available. Please check your internet connection and try again.'
           );
         }
 
-        console.log('DEBUG: NostrService.getServiceName fetching from network for pubKey:', pubKey);
-        console.log(
-          'DEBUG: Connected relays:',
-          connectedCount,
-          '/',
-          relayStatusesRef.current.length
-        );
-
         // Step 3: Fetch from network
         const profile = await app.fetchProfile(pubKey);
-        console.log('DEBUG: portalApp.fetchProfile returned:', profile);
 
         // Step 4: Extract service name from profile
         const serviceName = getServiceNameFromProfile(profile);
@@ -1100,14 +1019,12 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         if (serviceName) {
           // Step 5: Cache the result
           await executeOperation(db => db.setCachedServiceName(pubKey, serviceName), null);
-          console.log('DEBUG: Cached new service name for:', pubKey, '->', serviceName);
           return serviceName;
         } else {
-          console.log('DEBUG: No service name found in profile for:', pubKey);
           return null;
         }
       } catch (error) {
-        console.error('DEBUG: getServiceName error for:', pubKey, error);
+        console.error('Error fetching service name for:', pubKey, error);
         throw error;
       }
     },

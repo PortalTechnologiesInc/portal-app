@@ -46,18 +46,14 @@ export class SecureStorageService {
    * This clears ALL SecureStore items used by the app
    */
   static async resetAll(): Promise<void> {
-    console.log('🧹 Starting SecureStore reset...');
-
     const allKeys = getAllSecureStoreKeys();
     const errors: Array<{ key: string; error: any }> = [];
 
     for (const key of allKeys) {
       try {
         await SecureStore.deleteItemAsync(key);
-        console.log(`✅ Cleared SecureStore key: ${key}`);
       } catch (error) {
         // Some keys might not exist, which is fine
-        console.log(`⚠️ Could not clear SecureStore key ${key}:`, error);
         errors.push({ key, error });
       }
     }
@@ -65,14 +61,6 @@ export class SecureStorageService {
     // Emit events for the critical keys that other components listen to
     mnemonicEvents.emit('mnemonicChanged', null);
     walletUrlEvents.emit('walletUrlChanged', null);
-
-    console.log(
-      `🧹 SecureStore reset completed. Cleared ${allKeys.length - errors.length}/${allKeys.length} keys.`
-    );
-
-    if (errors.length > 0) {
-      console.log('Non-critical errors during SecureStore reset:', errors);
-    }
   }
 
   /**

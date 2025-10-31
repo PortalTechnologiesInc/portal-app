@@ -29,8 +29,6 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
   // Handle deeplink URLs
   const handleDeepLink = useCallback(
     async (url: string) => {
-      console.log('Handling deeplink URL:', url);
-
       try {
         switch (true) {
           case url.startsWith('portal://'):
@@ -98,18 +96,14 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
                 const activityId = await executeOperation(db => db.addActivity(activity), null);
 
                 if (activityId) {
-                  console.log('Activity added to database with ID:', activityId);
                   // Emit event for UI updates
                   globalEvents.emit('activityAdded', activity);
-                  console.log('activityAdded event emitted');
-                  console.log('Cashu direct activity recorded successfully');
                 } else {
                   console.warn('Failed to record Cashu token activity due to database issues');
                 }
               } catch (activityError) {
                 console.error('Error recording Cashu direct activity:', activityError);
               }
-              console.log
               Alert.alert(
                 'Ticket Added Successfully!',
                 `Great! You've received a ${tokenInfo.unit} ticket from ${tokenInfo.mintUrl}.`
@@ -126,7 +120,6 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
             break;
 
           default:
-            console.log('Invalid URL, skipping:', url);
             break;
         }
       } catch (error: any) {
@@ -140,7 +133,6 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     // Only add event listener for URL events that happen while the app is running
     const subscription = Linking.addEventListener('url', event => {
-      console.log('Got URL event while app running:', event.url);
       handleDeepLink(event.url);
     });
 
@@ -157,7 +149,6 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
       try {
         const initialUrl = await Linking.getInitialURL();
         if (initialUrl) {
-          console.log('Processing initial URL on cold start:', initialUrl);
           handleDeepLink(initialUrl);
         }
       } catch (e) {
