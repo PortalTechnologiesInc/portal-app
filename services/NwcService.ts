@@ -1,6 +1,6 @@
 import { Wallet } from '@/models/WalletType';
 import { RelayConnectionStatus, WalletInfo } from '@/utils';
-import { GetInfoResponse, LookupInvoiceResponse, Nwc, RelayStatusListener } from 'portal-app-lib';
+import { GetInfoResponse, Nwc, RelayStatusListener } from 'portal-app-lib';
 
 function mapNumericStatusToString(numericStatus: number): RelayConnectionStatus {
   switch (numericStatus) {
@@ -143,11 +143,17 @@ export class NwcService implements Wallet {
     }
   }
 
-  async lookupInvoice(invoice: string): Promise<LookupInvoiceResponse> {
+  async prepareSendPayment(paymentRequest: string, amountSats: bigint): Promise<string> {
     if (!this.client) {
       throw new Error('NWC client not initialized');
     }
 
-    return this.client.lookupInvoice(invoice);
+    const response = await this.client.lookupInvoice(paymentRequest);
+
+    if (response) {
+      return response.paymentHash;
+    }
+
+    return '';
   }
 }

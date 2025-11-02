@@ -62,19 +62,19 @@ export class BreezService implements Wallet {
     if (!this.client) {
       throw new Error('Breez SDK is not initialized');
     }
-
+    console.log('Sending payment:', { paymentRequest, amountSats });
     try {
       const prepareResponse = await this.client.prepareSendPayment({
         amountSats,
         paymentRequest,
       });
-
+      console.log('Prepare send payment response:', prepareResponse);
       let sendOptions: SendPaymentOptions | undefined;
 
       if (prepareResponse.paymentMethod instanceof SendPaymentMethod.Bolt11Invoice) {
         sendOptions = new SendPaymentOptions.Bolt11Invoice({
           preferSpark: false,
-          completionTimeoutSecs: 10,
+          completionTimeoutSecs: 60,
         });
       } else if (prepareResponse.paymentMethod instanceof SendPaymentMethod.BitcoinAddress) {
         sendOptions = new SendPaymentOptions.BitcoinAddress({
@@ -89,9 +89,22 @@ export class BreezService implements Wallet {
 
       return response.payment.id;
     } catch (error) {
-      console.error('Error sending payment:', error);
+      console.error('Error sending payment:', JSON.stringify(error));
       throw error;
     }
+  }
+
+  async prepareSendPayment(paymentRequest: string, amountSats: bigint): Promise<string> {
+    if (!this.client) {
+      throw new Error('Breez SDK is not initialized');
+    }
+
+    const prepareResponse = await this.client.prepareSendPayment({
+      amountSats,
+      paymentRequest,
+    });
+
+    return prepareResponse.amountSats.toString();
   }
 
   addEventListener(callback: EventListener) {

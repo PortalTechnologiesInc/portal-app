@@ -11,6 +11,7 @@ export type WalletType = (typeof WALLET_TYPE)[keyof typeof WALLET_TYPE];
 
 export type Wallet = {
   getWalletInfo: () => Promise<WalletInfo>;
-  sendPayment: (paymentRequest: string, amountSats: bigint) => Promise<string>;
   receivePayment: (amountSats: bigint) => Promise<string>;
+  prepareSendPayment: (paymentRequest: string, amountSats: bigint) => Promise<string>;
+  sendPayment: (paymentRequest: string, amountSats: bigint) => Promise<string>;
 };

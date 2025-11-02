@@ -35,6 +35,7 @@ export default [
         BackHandler: 'readonly',
         process: 'readonly',
         AbortController: 'readonly',
+        URLSearchParams: 'readonly',
       },
     },
     plugins: {

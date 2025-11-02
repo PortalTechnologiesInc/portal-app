@@ -13,6 +13,7 @@ export interface WalletManagerContextType {
   refreshWalletInfo: () => Promise<void>;
   preferredWallet?: WalletType | null;
   getWallet: (walletType: WalletType) => Promise<Wallet>;
+  prepareSendPayment: (paymentRequest: string, amountSats: bigint) => Promise<string>;
   sendPayment: (paymentRequest: string, amountSats: bigint) => Promise<string>;
   receivePayment: (amountSats: bigint) => Promise<string>;
 }
@@ -137,6 +138,14 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
     [activeWallet]
   );
 
+  const prepareSendPayment = useCallback(
+    async (paymentRequest: string, amountSats: bigint) => {
+      if (!activeWallet) throw new Error('No active wallet available');
+      return activeWallet.prepareSendPayment(paymentRequest, amountSats);
+    },
+    [activeWallet]
+  );
+
   const contextValue: WalletManagerContextType = {
     activeWallet,
     walletInfo,
@@ -146,6 +155,7 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
     getWallet,
     sendPayment,
     receivePayment,
+    prepareSendPayment,
   };
 
   return (

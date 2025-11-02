@@ -15,6 +15,7 @@ import { useNostrService } from '@/context/NostrServiceContext';
 import type { RelayInfo } from '@/utils/types';
 import { Wifi, Wallet, X, CheckCircle, XCircle } from 'lucide-react-native';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { useWalletManager } from '@/context/WalletManagerContext';
 
 type ConnectionStatus = 'connected' | 'partial' | 'disconnected';
 
@@ -45,7 +46,8 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
   const expandTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevStatus = useRef<ConnectionStatus | null>(null);
 
-  const { relayStatuses, allRelaysConnected, removedRelays, refreshWalletInfo } = useNostrService();
+  const { relayStatuses, allRelaysConnected, removedRelays } = useNostrService();
+  const { refreshWalletInfo } = useWalletManager();
 
   // Filter out removed relays from relay statuses (defensive programming)
   const filteredRelayStatuses = useMemo(() => {

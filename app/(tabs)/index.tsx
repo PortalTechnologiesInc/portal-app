@@ -25,6 +25,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
 import { formatAvatarUri } from '@/utils';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { useWalletManager } from '@/context/WalletManagerContext';
+import { usePortalApp } from '@/context/PortalAppContext';
 
 const FIRST_LAUNCH_KEY = 'portal_first_launch_completed';
 
@@ -32,6 +34,8 @@ export default function Home() {
   const { isLoading } = useOnboarding();
   const { username, displayName, avatarUri, avatarRefreshKey } = useUserProfile();
   const nostrService = useNostrService();
+  const walletService = useWalletManager();
+  const appService = usePortalApp();
   const [isFirstLaunch, setIsFirstLaunch] = useState<boolean | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0); // For triggering immediate ConnectionStatusIndicator updates
@@ -64,11 +68,11 @@ export default function Home() {
   useEffect(() => {
     if (!isFirstLaunch) return;
 
-    const sortedRequests = Object.values(nostrService.pendingRequests);
+    const sortedRequests = Object.values(appService.pendingRequests);
     if (sortedRequests.length > 0) {
       markWelcomeAsViewed();
     }
-  }, [nostrService.pendingRequests]);
+  }, [appService.pendingRequests]);
 
   useEffect(() => {
     // Cleanup function to set mounted state to false
@@ -102,7 +106,7 @@ export default function Home() {
     setRefreshing(true);
     try {
       // Refresh wallet info
-      await nostrService.refreshWalletInfo();
+      await walletService.refreshWalletInfo();
 
       // Trigger ConnectionStatusIndicator update
       setRefreshTrigger(prev => prev + 1);

@@ -21,7 +21,7 @@ import { getWalletUrl, saveWalletUrl, walletUrlEvents } from '@/services/SecureS
 import { useNostrService } from '@/context/NostrServiceContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useWalletStatus } from '@/hooks/useWalletStatus';
-import { useBreezService } from '@/context/BreezServiceContext';
+import { useWalletManager } from '@/context/WalletManagerContext';
 
 // NWC connection states
 type NwcConnectionState = 'none' | 'connecting' | 'connected' | 'disconnected' | 'error';
@@ -113,11 +113,9 @@ export default function WalletManagementScreen() {
   const params = useLocalSearchParams();
   const handledUrlRef = useRef<string | null>(null);
 
-  const { walletInfo, refreshWalletInfo, nwcConnectionStatus, nwcConnectionError, nwcConnecting } =
-    useNostrService();
+  const { walletInfo, refreshWalletInfo } = useWalletManager();
 
-  const { hasLightningWallet, isLightningConnected, isLoading } = useWalletStatus();
-  const { balanceInSats } = useBreezService();
+  const { isLoading } = useWalletStatus();
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -336,13 +334,13 @@ export default function WalletManagementScreen() {
             Connect your wallet by entering the wallet URL below or scanning a QR code. This allows
             you to manage your crypto assets and make seamless transactions within the app.
           </ThemedText>
-          {balanceInSats !== undefined && (
+          {walletInfo?.balanceInSats !== undefined && (
             <View style={styles.walletInfoField}>
               <ThemedText style={[styles.walletInfoFieldLabel, { color: secondaryTextColor }]}>
                 Balance:
               </ThemedText>
               <ThemedText style={[styles.walletInfoFieldValue, { color: statusConnectedColor }]}>
-                ⚡ {(balanceInSats / BigInt(1000)).toLocaleString()} sats
+                ⚡ {(walletInfo?.balanceInSats / BigInt(1000)).toLocaleString()} sats
               </ThemedText>
             </View>
           )}
@@ -532,7 +530,7 @@ export default function WalletManagementScreen() {
                   Wallet Details
                 </ThemedText>
 
-                {walletInfo.isLoading && (
+                {isLoading && (
                   <ThemedText style={[styles.walletInfoLoading, { color: secondaryTextColor }]}>
                     Loading wallet information...
                   </ThemedText>

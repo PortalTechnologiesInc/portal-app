@@ -1,5 +1,5 @@
 import React, { useEffect, useState, Suspense } from 'react';
-import { Text, View, SafeAreaView, Button, Platform } from 'react-native';
+import { Text, View, SafeAreaView } from 'react-native';
 import { Stack, usePathname, useGlobalSearchParams } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -23,7 +23,8 @@ import * as Notifications from 'expo-notifications';
 import { ECashProvider } from '@/context/ECashContext';
 import { SQLiteProvider } from 'expo-sqlite';
 import migrateDbIfNeeded from '@/migrations/DatabaseMigrations';
-import BreezServiceProvider from '@/context/BreezServiceContext';
+import { PortalAppProvider } from '@/context/PortalAppContext';
+import WalletManagerContextProvider from '@/context/WalletManagerContext';
 
 // Prevent splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -104,7 +105,7 @@ const LoadingScreenContent = () => {
 // AuthenticatedAppContent renders the actual app content after authentication checks
 const AuthenticatedAppContent = () => {
   const { isLoading: onboardingLoading } = useOnboarding();
-  const { mnemonic, walletUrl, isLoading: mnemonicLoading } = useMnemonic();
+  const { mnemonic, isLoading: mnemonicLoading } = useMnemonic();
 
   // Don't render anything until both contexts are loaded
   // Let app/index.tsx handle the navigation logic
@@ -114,19 +115,21 @@ const AuthenticatedAppContent = () => {
 
   return (
     <ECashProvider mnemonic={mnemonic || ''}>
-      <NostrServiceProvider mnemonic={mnemonic || ''} walletUrl={walletUrl}>
-        <BreezServiceProvider>
-          <UserProfileProvider>
-            <ActivitiesProvider>
-              <PendingRequestsProvider>
-                <DeeplinkProvider>
-                  <NotificationConfigurator />
-                  <Stack screenOptions={{ headerShown: false }} />
-                </DeeplinkProvider>
-              </PendingRequestsProvider>
-            </ActivitiesProvider>
-          </UserProfileProvider>
-        </BreezServiceProvider>
+      <NostrServiceProvider mnemonic={mnemonic || ''}>
+        <WalletManagerContextProvider>
+          <PortalAppProvider>
+            <UserProfileProvider>
+              <ActivitiesProvider>
+                <PendingRequestsProvider>
+                  <DeeplinkProvider>
+                    <NotificationConfigurator />
+                    <Stack screenOptions={{ headerShown: false }} />
+                  </DeeplinkProvider>
+                </PendingRequestsProvider>
+              </ActivitiesProvider>
+            </UserProfileProvider>
+          </PortalAppProvider>
+        </WalletManagerContextProvider>
       </NostrServiceProvider>
     </ECashProvider>
   );

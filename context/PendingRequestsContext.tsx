@@ -37,6 +37,8 @@ import type {
 import { PortalAppManager } from '@/services/PortalAppManager';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 import { useBreezService } from './BreezServiceContext';
+import { usePortalApp } from './PortalAppContext';
+import { useWalletManager } from './WalletManagerContext';
 
 // Helper function to get service name with fallback
 const getServiceNameWithFallback = async (
@@ -78,10 +80,11 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
   // Simple database access
   const { executeOperation } = useDatabaseContext();
 
+  const appService = usePortalApp();
   const nostrService = useNostrService();
   const eCashContext = useECash();
   const { preferredCurrency } = useCurrency();
-  const breezService = useBreezService();
+  const walletService = useWalletManager();
 
   // Get the refreshData function from ActivitiesContext
   const { refreshData } = useActivities();
@@ -157,17 +160,17 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
   // Memoize these functions to prevent recreation on every render
   const getByType = useCallback(
     (type: PendingRequestType) => {
-      return Object.values(nostrService.pendingRequests).filter(request => request.type === type);
+      return Object.values(appService.pendingRequests).filter(request => request.type === type);
     },
-    [nostrService.pendingRequests]
+    [appService.pendingRequests]
   );
 
   const getById = useCallback(
     (id: string) => {
-      console.log(nostrService.pendingRequests);
-      return nostrService.pendingRequests[id];
+      console.log(appService.pendingRequests);
+      return appService.pendingRequests[id];
     },
-    [nostrService.pendingRequests]
+    [appService.pendingRequests]
   );
 
   const approve = useCallback(
@@ -180,7 +183,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
         return;
       }
 
-      nostrService.dismissPendingRequest(id);
+      appService.dismissPendingRequest(id);
       await executeOperation(db => db.storePendingRequest(id, true), null);
 
       switch (request.type) {
@@ -291,12 +294,12 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             );
 
             try {
-              // const preimage = await nostrService.payInvoice(metadata.content.invoice);
-              const prepareResponse = await breezService.prepareSendPaymentRequest(
+              const response = await walletService.sendPayment(
                 metadata.content.invoice,
                 BigInt(amount)
               );
-              const preimage = await breezService.sendPayment(prepareResponse);
+
+              console.log(response);
 
               await executeOperation(
                 db => db.addPaymentStatusEntry(metadata.content.invoice, 'payment_completed'),
@@ -571,7 +574,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
         return;
       }
 
-      nostrService.dismissPendingRequest(id);
+      appService.dismissPendingRequest(id);
       await executeOperation(db => db.storePendingRequest(id, false), null);
 
       switch (request?.type) {
@@ -797,7 +800,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           break;
       }
     },
-    [getById, addActivityWithFallback, nostrService]
+    [getById, addActivityWithFallback, appService]
   );
 
   // Show skeleton loader and set timeout for request
@@ -838,7 +841,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
   // Check for expected pending requests and clear skeleton loader
   useEffect(() => {
     // Check for removing skeleton when we get the expected request
-    for (const request of Object.values(nostrService.pendingRequests)) {
+    for (const request of Object.values(appService.pendingRequests)) {
       if ((request.metadata as SinglePaymentRequest).serviceKey === pendingUrl?.mainKey) {
         // Clear timeout and reset loading states directly to avoid dependency issues
         if (timeoutId) {
@@ -848,7 +851,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
         setRequestFailed(false);
       }
     }
-  }, [nostrService.pendingRequests, pendingUrl, timeoutId]);
+  }, [appService.pendingRequests, pendingUrl, timeoutId]);
 
   // Memoize the context value to prevent recreation on every render
   const contextValue = useMemo(
