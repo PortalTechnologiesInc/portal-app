@@ -12,7 +12,8 @@ import { LocalAuthChallengeListener, LocalClosedRecurringPaymentListener, LocalP
 import { handleAuthChallenge, handleCloseRecurringPaymentResponse, handleRecurringPaymentRequest, handleSinglePaymentRequest } from './EventFilters';
 import { mapNumericStatusToString, getServiceNameFromProfile } from '@/utils/nostrHelper';
 import { RelayInfo } from '@/utils';
-import { Currency } from '@/utils/currency';
+import { Currency, CurrencyHelpers } from '@/utils/currency';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const EXPO_PUSH_TOKEN_KEY = 'expo_push_token_key';
 
@@ -97,7 +98,6 @@ export default async function registerPubkeysForPushNotificationsAsync(pubkeys: 
           projectId: projectId,
         })
       ).data;
-      console.warn("expo-push-token: ", pushTokenString);
       subscribeToNotificationService(pushTokenString, pubkeys);
     } catch (e: unknown) {
       console.error('Error while subscribing for notifications: ', e);
@@ -238,13 +238,19 @@ export async function handleHeadlessNotification(event: String, databaseName: st
             });
           };
 
+          let preferredCurrency: Currency = Currency.SATS;
+          const savedCurrency = await AsyncStorage.getItem('preferred_currency');
+          if (savedCurrency && CurrencyHelpers.isValidCurrency(savedCurrency)) {
+            preferredCurrency = savedCurrency;
+          }
+
+
           const askUser = await handleSinglePaymentRequest(
             nwcWallet,
             request,
-            Currency.SATS,
+            preferredCurrency,
             executeOperationForNotification,
             resolver,
-            getServiceName,
             app
           );
 
@@ -290,7 +296,9 @@ export async function handleHeadlessNotification(event: String, databaseName: st
                   });
                 }
               })
-            abortController.abort();
+              .finally(() => {
+                abortController.abort();
+              });
           });
         }
       )
@@ -320,8 +328,10 @@ export async function handleHeadlessNotification(event: String, databaseName: st
                   },
                   trigger: null, // Show immediately
                 });
+              })
+              .finally(() => {
+                abortController.abort();
               });
-            abortController.abort();
           });
         })
       )
