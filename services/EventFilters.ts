@@ -248,13 +248,6 @@ export async function handleSinglePaymentRequest(
         console.log('16a');
         const preimage = await wallet.payInvoice(request.content.invoice);
 
-        await executeOperation(
-          db => db.addPaymentStatusEntry(request.content.invoice, 'payment_completed'),
-          null
-        );
-        console.log('16b');
-
-        console.log('17');
         // Update the subscription last payment date
         await executeOperation(
           db => db.updateSubscriptionLastPayment(subscription.id, new Date()),
@@ -320,6 +313,7 @@ export async function handleSinglePaymentRequest(
             request_id: request.eventId,
             status: 'negative',
             subscription_id: request.content.subscriptionId || null,
+            invoice: request.content.invoice
           }),
         null
       );

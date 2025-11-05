@@ -133,8 +133,8 @@ export class DatabaseService {
       const now = toUnixSeconds(Date.now());
 
       try {
-        await this.db.runAsync(
-          `INSERT INTO activities (
+        const result = await this.db.runAsync(
+          `INSERT OR IGNORE INTO activities (
             id, type, service_name, service_key, detail, date, amount, currency, converted_amount, converted_currency, request_id, created_at, subscription_id, status, invoice
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
@@ -155,7 +155,16 @@ export class DatabaseService {
             activity.invoice || null,
           ]
         );
-
+        if (result.changes && result.changes > 0) {
+          return id;
+        }
+        // If insert was ignored (likely due to unique request_id), fetch existing row id
+        const existing = await this.db.getFirstAsync<{ id: string }>(
+          'SELECT id FROM activities WHERE request_id = ? LIMIT 1',
+          [activity.request_id]
+        );
+        if (existing?.id) return existing.id;
+        // Fallback: return generated id (shouldn't happen if IGNORE occurred and existing found)
         return id;
       } catch (dbError) {
         console.error('Database operation failed when adding activity:', dbError);
@@ -164,6 +173,22 @@ export class DatabaseService {
     } catch (error) {
       console.error('Failed to add activity:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Check if an activity already exists for the given request_id
+   */
+  async hasActivityWithRequestId(requestId: string): Promise<boolean> {
+    try {
+      const existing = await this.db.getFirstAsync<{ id: string }>(
+        'SELECT id FROM activities WHERE request_id = ? LIMIT 1',
+        [requestId]
+      );
+      return !!existing?.id;
+    } catch (error) {
+      console.error('Database error checking activity by request_id:', error);
+      return false;
     }
   }
 
@@ -1028,7 +1053,7 @@ export class DatabaseService {
   async getPendingPayments(): Promise<
     Array<{
       id: string;
-      invoice: string;
+      invoice: string | null;
       action_type: 'payment_started' | 'payment_completed' | 'payment_failed';
       created_at: Date;
     }>
@@ -1042,7 +1067,7 @@ export class DatabaseService {
 
       return records.map(record => ({
         id: record.id,
-        invoice: record.request_id, // Assuming request_id contains the invoice
+        invoice: record.invoice ?? null,
         action_type: 'payment_started' as const, // All pending payments are started
         created_at: fromUnixSeconds(record.created_at),
       }));

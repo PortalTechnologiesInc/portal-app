@@ -2,7 +2,7 @@ import { SQLiteDatabase } from 'expo-sqlite';
 
 // Function to migrate database schema if needed
 export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
-  const DATABASE_VERSION = 15;
+  const DATABASE_VERSION = 16;
 
   try {
     let { user_version: currentDbVersion } = (await db.getFirstAsync<{
@@ -361,6 +361,29 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
         CREATE INDEX IF NOT EXISTS idx_subscriptions_converted_currency ON subscriptions(converted_currency);
       `);
       currentDbVersion = 15;
+    }
+
+    if (currentDbVersion <= 15) {
+      // Deduplicate existing rows by request_id before enforcing uniqueness
+      try {
+        await db.execAsync(`
+          -- Remove duplicate activities keeping the earliest row per request_id
+          DELETE FROM activities
+          WHERE rowid NOT IN (
+            SELECT MIN(rowid)
+            FROM activities
+            GROUP BY request_id
+          );
+        `);
+      } catch (_) {
+        // Best-effort cleanup; continue even if this fails
+      }
+
+      await db.execAsync(`
+        -- Ensure request_id is unique to deduplicate activities at the DB level
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_activities_request_id_unique ON activities(request_id);
+      `);
+      currentDbVersion = 16;
     }
 
     await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
