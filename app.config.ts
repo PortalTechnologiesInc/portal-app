@@ -1,7 +1,7 @@
 export default {
   expo: {
     name: 'Portal',
-    slug: 'Portal',
+    slug: 'portal',
     version: '1.0.8',
     orientation: 'portrait',
     owner: 'portaltechnologiesinc',
@@ -24,6 +24,7 @@ export default {
       associatedDomains: ['applinks:portal.app'],
       infoPlist: {
         NSCameraUsageDescription: 'Portal uses your camera to scan for QR codes',
+        // UIBackgroundModes: ['remote-notification'],
       },
       config: {
         usesNonExemptEncryption: false,
@@ -43,6 +44,12 @@ export default {
       },
       package: 'cc.getportal.portal',
       userInterfaceStyle: 'dark',
+      // permissions: [
+      //   "RECEIVE_BOOT_COMPLETED",
+      //   "VIBRATE",
+      //   "WAKE_LOCK",
+      //   "POST_NOTIFICATIONS"
+      // ],
       intentFilters: [
         {
           action: 'VIEW',

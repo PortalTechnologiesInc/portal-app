@@ -1,5 +1,5 @@
 import React, { useEffect, useState, Suspense } from 'react';
-import { Text, View, SafeAreaView, Button, Platform } from 'react-native';
+import { Text, View, SafeAreaView, Button, Platform, AppState } from 'react-native';
 import { Stack, usePathname, useGlobalSearchParams } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -27,10 +27,10 @@ import migrateDbIfNeeded from '@/migrations/DatabaseMigrations';
 // Prevent splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
 
-const NotificationConfigurator = () => {
-  // Disable notifications for now
-  return;
+// Database name constant to ensure consistency
+export const DATABASE_NAME = 'portal-app.db';
 
+const NotificationConfigurator = () => {
   const { publicKey } = useNostrService();
 
   useEffect(() => {
@@ -192,9 +192,6 @@ export default function RootLayout() {
       </ThemeProvider>
     );
   }
-
-  // Database name constant to ensure consistency
-  const DATABASE_NAME = 'portal-app.db';
 
   return (
     <Suspense fallback={<Text>Loading...</Text>}>
