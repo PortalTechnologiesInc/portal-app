@@ -12,6 +12,7 @@ import {
   parseBolt11,
   Currency_Tags,
 } from 'portal-app-lib';
+import * as Notifications from 'expo-notifications';
 import { DatabaseService, fromUnixSeconds, SubscriptionWithDates } from './DatabaseService';
 import { CurrencyConversionService } from './CurrencyConversionService';
 import { Currency } from '@/utils/currency';
@@ -33,7 +34,6 @@ export async function handleSinglePaymentRequest(
   preferredCurrency: Currency,
   executeOperation: <T>(operation: (db: DatabaseService) => Promise<T>, fallback?: T) => Promise<T>,
   resolve: (status: PaymentStatus) => void,
-  app: PortalAppInterface
 ): Promise<boolean> {
   try {
     // Fast in-memory dedup to avoid double-processing when invoked concurrently
@@ -74,6 +74,13 @@ export async function handleSinglePaymentRequest(
     let subId = request.content.subscriptionId;
     if (!subId) {
       console.log(`👤 Not a subscription, required user interaction!`);
+      Notifications.scheduleNotificationAsync({
+        content: {
+          title: 'New Payment Request',
+          body: `You have a new payment request that requires confirmation.`,
+        },
+        trigger: null,
+      });
       return true;
     }
 

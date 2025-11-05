@@ -738,8 +738,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                     event,
                     preferredCurrency,
                     executeOperation,
-                    resolver,
-                    app
+                    resolver
                   ).then(askUser => {
                     if (askUser) {
                       const newRequest: PendingRequest = {

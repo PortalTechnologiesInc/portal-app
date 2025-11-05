@@ -244,14 +244,12 @@ export async function handleHeadlessNotification(event: String, databaseName: st
             preferredCurrency = savedCurrency;
           }
 
-
           const askUser = await handleSinglePaymentRequest(
             nwcWallet,
             request,
             preferredCurrency,
             executeOperationForNotification,
             resolver,
-            app
           );
 
           if (askUser) {
