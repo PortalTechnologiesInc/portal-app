@@ -664,13 +664,13 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                 result: resolve,
                 ticketTitle, // Set the ticket name for UI
               };
-                      setPendingRequests(prev => {
-                        // Check if request already exists to prevent duplicates
-                        if (prev[id]) {
-                          return prev;
-                        }
-                        return { ...prev, [id]: newRequest };
-                      });
+              setPendingRequests(prev => {
+                // Check if request already exists to prevent duplicates
+                if (prev[id]) {
+                  return prev;
+                }
+                return { ...prev, [id]: newRequest };
+              });
             });
           })
         );
@@ -696,13 +696,13 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                       result: resolve,
                     };
 
-                      setPendingRequests(prev => {
-                        // Check if request already exists to prevent duplicates
-                        if (prev[id]) {
-                          return prev;
-                        }
-                        return { ...prev, [id]: newRequest };
-                      });
+                    setPendingRequests(prev => {
+                      // Check if request already exists to prevent duplicates
+                      if (prev[id]) {
+                        return prev;
+                      }
+                      return { ...prev, [id]: newRequest };
+                    });
                   }
                 });
               });
@@ -739,7 +739,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                     preferredCurrency,
                     executeOperation,
                     resolver,
-                    getServiceName,
                     app
                   ).then(askUser => {
                     if (askUser) {
