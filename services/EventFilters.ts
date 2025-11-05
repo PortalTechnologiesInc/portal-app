@@ -271,7 +271,7 @@ export async function handleSinglePaymentRequest(
         console.warn(`🚫 Payment failed! Error is: ${error}`);
       }
     } else {
-      const id = executeOperation(
+      const id = await executeOperation(
         db =>
           db.addActivity({
             type: 'pay',

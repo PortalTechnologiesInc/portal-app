@@ -17,35 +17,40 @@ export function PaymentControllerProvider({ children }: { children: ReactNode })
   useEffect(() => {
     if (!nwcWallet) return;
     executeOperation(async (db) => {
-      (await db.getPendingPayments()).forEach(element => {
-
+      const pendingPayments = await db.getPendingPayments();
+      for (const element of pendingPayments) {
         let invoice = element.invoice;
         if (!invoice) {
-          console.error(`Activity invoice is null!`)
-          return;
+          console.error(`Activity invoice is null!`);
+          continue;
         }
 
-        nwcWallet.lookupInvoice(invoice).then((lookupResponse) => {
+        try {
+          const lookupResponse = await nwcWallet.lookupInvoice(invoice);
           if (lookupResponse.settledAt || lookupResponse.preimage) {
-            db.updateActivityStatus(element.id, 'positive', 'Payment completed');
+            await db.updateActivityStatus(element.id, 'positive', 'Payment completed');
             void import('@/utils/index').then(({ globalEvents }) => {
               globalEvents.emit('activityUpdated', { activityId: element.id });
             });
-
-            db.addPaymentStatusEntry(invoice, 'payment_completed')
-
-          } else if (!lookupResponse.settledAt && lookupResponse.expiresAt && (Number(lookupResponse.expiresAt) * 1000) < Date.now()) {
-            db.updateActivityStatus(element.id, 'negative', 'Invoice expired');
+            await db.addPaymentStatusEntry(invoice, 'payment_completed');
+          } else if (
+            !lookupResponse.settledAt &&
+            lookupResponse.expiresAt &&
+            Number(lookupResponse.expiresAt) * 1000 < Date.now()
+          ) {
+            await db.updateActivityStatus(element.id, 'negative', 'Invoice expired');
             void import('@/utils/index').then(({ globalEvents }) => {
               globalEvents.emit('activityUpdated', { activityId: element.id });
             });
-
-            db.addPaymentStatusEntry(invoice, 'payment_failed')
+            await db.addPaymentStatusEntry(invoice, 'payment_failed');
           }
-        }).catch((error) => {
-          console.error('Error while looking for invoice:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
-        });
-      });
+        } catch (error) {
+          console.error(
+            'Error while looking for invoice:',
+            JSON.stringify(error, Object.getOwnPropertyNames(error))
+          );
+        }
+      }
     });
   }, [nwcWallet, activities]);
 
