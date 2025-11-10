@@ -722,10 +722,10 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         app
           .listenForPaymentRequest(
             new LocalPaymentRequestListener(
-              (event: SinglePaymentRequest, notifier: PaymentStatusNotifier) => {
+              async (event: SinglePaymentRequest, notifier: PaymentStatusNotifier) => {
                 const id = event.eventId;
 
-                void executeOperation(db => db.markNotificationEventProcessed(id), false);
+                const alreadyTracked = await executeOperation(db => db.markNotificationEventProcessed(id), false);
 
                 return new Promise<void>(resolve => {
                   // Immediately resolve the promise, we use the notifier to notify the payment status
@@ -743,7 +743,8 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                     event,
                     preferredCurrency,
                     executeOperation,
-                    resolver
+                    resolver,
+                    (AppState.currentState !== 'active' && !alreadyTracked)
                   ).then(askUser => {
                     if (askUser) {
                       const newRequest: PendingRequest = {

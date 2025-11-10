@@ -20,6 +20,16 @@ import { Currency } from '@/utils/currency';
 // In-memory guard to prevent concurrent duplicate handling within a short window
 const inFlightRequestIds = new Set<string>();
 
+const debugNotification = async (title, body = '') => {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title,
+        body,
+      },
+      trigger: null, // Show immediately
+    });
+};
+
 export async function handleAuthChallenge(
   event: AuthChallengeEvent,
   executeOperation: <T>(operation: (db: DatabaseService) => Promise<T>, fallback?: T) => Promise<T>,
@@ -34,7 +44,7 @@ export async function handleSinglePaymentRequest(
   preferredCurrency: Currency,
   executeOperation: <T>(operation: (db: DatabaseService) => Promise<T>, fallback?: T) => Promise<T>,
   resolve: (status: PaymentStatus) => void,
-  origin: 'foreground' | 'notification' = 'foreground'
+  sendNotification: bool = false
 ): Promise<boolean> {
   try {
     // Fast in-memory dedup to avoid double-processing when invoked concurrently
@@ -73,15 +83,21 @@ export async function handleSinglePaymentRequest(
     }
 
     let subId = request.content.subscriptionId;
-    if (!subId && origin === 'notification') {
+    if (!subId) {
       console.log(`👤 Not a subscription, required user interaction!`);
-      Notifications.scheduleNotificationAsync({
-        content: {
-          title: 'New Payment Request',
-          body: `You have a new payment request that requires confirmation.`,
-        },
-        trigger: null,
-      });
+
+      if (sendNotification) {
+        // Show notification to user for manual approval
+        // TODO: format currency and amount
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: 'Payment Request',
+            body: `Payment request for ${request.content.amount} ${request.content.currency.tag === Currency_Tags.Fiat ? request.content.currency.inner : 'msat'} requires approval`,
+          },
+          trigger: null, // Show immediately
+        });
+      }
+
       return true;
     }
 
@@ -90,6 +106,7 @@ export async function handleSinglePaymentRequest(
     let subscriptionServiceName: string;
     try {
       let subscriptionFromDb = await executeOperation(db => db.getSubscription(subId), null);
+      await debugNotification('sub', JSON.stringify(subscriptionFromDb));
       if (!subscriptionFromDb) {
         resolve(
           new PaymentStatus.Rejected({
@@ -97,6 +114,7 @@ export async function handleSinglePaymentRequest(
           })
         );
         console.warn(`🚫 Payment rejected! The request is a subscription payment, but no subscription found with id ${subId}`);
+        await debugNotification('no subscription found with id', `${subId}`);
         return false;
       }
       subscription = subscriptionFromDb;
@@ -109,6 +127,7 @@ export async function handleSinglePaymentRequest(
         })
       );
       console.warn(`🚫 Payment rejected! Failing to connect to database.`);
+      await debugNotification('db failed', JSON.stringify(e));
       return false;
     }
 
@@ -154,6 +173,8 @@ export async function handleSinglePaymentRequest(
     } catch (error) {
       console.error('Currency conversion error during payment:', error);
       // Continue without conversion - convertedAmount will remain null
+      await debugNotification('conversion falied', `${error}`);
+      return false;
     }
     if (amount != subscription.amount || currency != subscription.currency) {
       resolve(
@@ -161,9 +182,11 @@ export async function handleSinglePaymentRequest(
           reason: `Payment amount does not match subscription amount.\nExpected: ${subscription.amount} ${subscription.currency}\nReceived: ${amount} ${request.content.currency}`,
         })
       );
+      await debugNotification('invalid amount', `${amount} ${currency}`);
       console.warn(`🚫 Payment rejected! Amount does not match subscription amount.\nExpected: ${subscription.amount} ${subscription.currency}\nReceived: ${amount} ${request.content.currency}`);
       return false;
     }
+    await debugNotification('conversion done', '');
 
     // If no payment has been executed, the nextOccurrence is the first payment due time
     let nextOccurrence: bigint | undefined = BigInt(
@@ -180,11 +203,14 @@ export async function handleSinglePaymentRequest(
           reason: 'Payment is not due yet. Please wait till the next payment is scheduled.',
         })
       );
+      await debugNotification('payment not due yet', `${nextOccurrence}`);
       console.warn(`🚫 Payment rejected! The request arrived too soon.\nNext occurrence is: ${fromUnixSeconds(nextOccurrence!)}\nBut today is: ${new Date()}`);
       return false;
     }
 
     if (wallet) {
+      await debugNotification('starting payment', 'wallet is present');
+
       // Save the payment
       const id = await executeOperation(
         db =>
@@ -221,6 +247,7 @@ export async function handleSinglePaymentRequest(
       try {
         console.warn("🧾 paying invoice -----------------------> ", request.content.invoice);
         const preimage = await wallet.payInvoice(request.content.invoice);
+        await debugNotification('invoice paid', `${preimage}`);
         console.warn("🧾 Invoice paid!");
 
         // Update the subscription last payment date
@@ -314,6 +341,7 @@ export async function handleSinglePaymentRequest(
         reason: `An unexpected error occurred while processing the payment: ${e}.\nPlease try again or contact support if the issue persists.`,
       })
     );
+    await debugNotification('unexpected error', JSON.stringify(e));
     console.warn(`🚫 Payment rejected! Error is: ${e}`);
     return false;
   } finally {

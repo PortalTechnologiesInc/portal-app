@@ -240,30 +240,14 @@ export async function handleHeadlessNotification(event: String, databaseName: st
             preferredCurrency = savedCurrency;
           }
 
-          const askUser = await handleSinglePaymentRequest(
+          await handleSinglePaymentRequest(
             nwcWallet,
             request,
             preferredCurrency,
             executeOperationForNotification,
             resolver,
-            'notification'
+            true
           );
-
-          if (askUser) {
-            // Show notification to user for manual approval
-            Notifications.scheduleNotificationAsync({
-              content: {
-                title: 'Payment Request',
-                body: `Payment request for ${request.content.amount} ${request.content.currency.tag === Currency_Tags.Fiat && request.content.currency.inner} requires approval`,
-                data: {
-                  type: 'payment_request',
-                  requestId: id,
-                  amount: request.content.amount,
-                },
-              },
-              trigger: null, // Show immediately
-            });
-          }
 
           abortController.abort();
         },
