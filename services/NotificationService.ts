@@ -179,14 +179,14 @@ export async function handleHeadlessNotification(event: String, databaseName: st
         };
 
         const walletInstance = new Nwc(walletUrl, nwcRelayListener);
-        try {
-          await walletInstance.getInfo();
-        } catch (initializationError) {
-          console.warn(
-            'NWC wallet initialization during headless notification completed with non-fatal error:',
-            initializationError
-          );
-        }
+        // try {
+        //   await walletInstance.getInfo();
+        // } catch (initializationError) {
+        //   console.warn(
+        //     'NWC wallet initialization during headless notification completed with non-fatal error:',
+        //     initializationError
+        //   );
+        // }
         nwcWallet = walletInstance;
       } else {
         console.log(
@@ -197,7 +197,7 @@ export async function handleHeadlessNotification(event: String, databaseName: st
       await notifyBackgroundError('NWC initialization failed', error);
     }
 
-    let app = await PortalAppManager.getInstance(keypair, notificationRelays, relayListener);
+    let app = await PortalAppManager.getInstance(keypair, notificationRelays, relayListener, true);
 
     app.listen({ signal: abortController.signal });
 
@@ -317,8 +317,8 @@ export async function handleHeadlessNotification(event: String, databaseName: st
               .then(askUser => {
                 Notifications.scheduleNotificationAsync({
                   content: {
-                    title: 'Subscription Request',
-                    body: `Authentication request from ${event.recipient} requires approval`,
+                    title: 'Authentication Request',
+                    body: `Authentication request requires approval`,
                     data: {
                       type: 'authentication_request',
                       requestId: id,

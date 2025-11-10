@@ -467,7 +467,8 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         const app = await PortalAppManager.getInstance(
           keypair,
           relays,
-          new LocalRelayStatusListener()
+          new LocalRelayStatusListener(),
+          true
         );
 
         // Start listening and give it a moment to establish connections
@@ -1155,37 +1156,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     if (nwcRelayStatus.connected) return null; // No error when connected
     return `Connection ${nwcRelayStatus.status.toLowerCase()}`; // Show status as error message
   }, [walletUrl, nwcConnectionFailed, nwcConnecting, nwcWallet, nwcRelayStatus]);
-
-  /* useEffect(() => {
-    class Logger implements LogCallback {
-      log(entry: LogEntry) {
-        const message = `[${entry.target}] ${entry.message}`;
-        switch (entry.level) {
-          case LogLevel.Trace:
-            console.trace(message);
-            break;
-          case LogLevel.Debug:
-            console.debug(message);
-            break;
-          case LogLevel.Info:
-            console.info(message);
-            break;
-          case LogLevel.Warn:
-            console.warn(message);
-            break;
-          case LogLevel.Error:
-            console.error(message);
-            break;
-        }
-      }
-    }
-    try {
-      initLogger(new Logger(), LogLevel.Trace);
-      console.log('Logger initialized');
-    } catch (error) {
-      console.error('Error initializing logger:', error);
-    }
-  }, []); */
 
   // Context value
   const contextValue: NostrServiceContextType = {

@@ -218,7 +218,9 @@ export async function handleSinglePaymentRequest(
 
       // make the payment with nwc
       try {
+        console.warn("🧾 paying invoice -----------------------> ", request.content.invoice);
         const preimage = await wallet.payInvoice(request.content.invoice);
+        console.warn("🧾 Invoice paid!");
 
         // Update the subscription last payment date
         await executeOperation(
