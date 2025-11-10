@@ -34,6 +34,7 @@ export async function handleSinglePaymentRequest(
   preferredCurrency: Currency,
   executeOperation: <T>(operation: (db: DatabaseService) => Promise<T>, fallback?: T) => Promise<T>,
   resolve: (status: PaymentStatus) => void,
+  origin: 'foreground' | 'notification' = 'foreground'
 ): Promise<boolean> {
   try {
     // Fast in-memory dedup to avoid double-processing when invoked concurrently
@@ -72,7 +73,7 @@ export async function handleSinglePaymentRequest(
     }
 
     let subId = request.content.subscriptionId;
-    if (!subId) {
+    if (!subId && origin === 'notification') {
       console.log(`👤 Not a subscription, required user interaction!`);
       Notifications.scheduleNotificationAsync({
         content: {

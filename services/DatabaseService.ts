@@ -1000,6 +1000,25 @@ export class DatabaseService {
     }
   }
 
+  /**
+   * Marks a notification event as processed. Returns true if the event was already recorded.
+   */
+  async markNotificationEventProcessed(eventId: string): Promise<boolean> {
+    try {
+      const now = toUnixSeconds(Date.now());
+      const result = await this.db.runAsync(
+        `INSERT OR IGNORE INTO processed_notification_events (
+          event_id, processed_at
+        ) VALUES (?, ?)`,
+        [eventId, now]
+      );
+      return result.changes === 0;
+    } catch (error) {
+      console.error('Error recording processed notification event:', error);
+      return false;
+    }
+  }
+
   // Payment status log methods
   async addPaymentStatusEntry(
     invoice: string,

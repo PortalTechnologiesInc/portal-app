@@ -2,7 +2,7 @@ import { SQLiteDatabase } from 'expo-sqlite';
 
 // Function to migrate database schema if needed
 export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
-  const DATABASE_VERSION = 16;
+  const DATABASE_VERSION = 17;
 
   try {
     let { user_version: currentDbVersion } = (await db.getFirstAsync<{
@@ -384,6 +384,18 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
         CREATE UNIQUE INDEX IF NOT EXISTS idx_activities_request_id_unique ON activities(request_id);
       `);
       currentDbVersion = 16;
+    }
+
+    if (currentDbVersion <= 16) {
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS processed_notification_events (
+          event_id TEXT PRIMARY KEY NOT NULL,
+          processed_at INTEGER NOT NULL -- Unix timestamp
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_processed_notification_events_processed_at ON processed_notification_events(processed_at);
+      `);
+      currentDbVersion = 17;
     }
 
     await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
