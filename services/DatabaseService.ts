@@ -1019,6 +1019,58 @@ export class DatabaseService {
     }
   }
 
+  /**
+   * Marks a subscription as processing. Returns the number of rows removed.
+   */
+  async markSubscriptionAsProcessing(subscriptionId: string): Promise<number> {
+    const now = toUnixSeconds(Date.now());
+    try {
+      const result =await this.db.runAsync(
+        `INSERT OR IGNORE INTO processing_subscriptions (
+          subscription_id, processed_at
+        ) VALUES (?, ?)`,
+        [subscriptionId, now]
+      );
+      return result.changes;
+    } catch (error) {
+      console.error('Error marking subscription as processing:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Deletes the subscription from the list of processing. Returns the number of rows removed.
+   */
+  async deleteProcessingSubscription(subscriptionId: string): Promise<number> {
+    try {
+      const result = await this.db.runAsync(
+        `DELETE FROM processing_subscriptions WHERE subscription_id = ?`,
+        [subscriptionId]
+      );
+      return result.changes;
+    } catch (error) {
+      console.error('Error deleting processing subscription:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Deletes all processing subscriptions older than 10 minutes. Returns the number of rows removed.
+   */
+  async deleteStaleProcessingSubscriptions(): Promise<number> {
+    try {
+      const tenMinutesAgo = toUnixSeconds(Date.now()) - 60;
+      const result = await this.db.runAsync(
+        `DELETE FROM processing_subscriptions WHERE processed_at <= ?`,
+        [tenMinutesAgo]
+      );
+      return result.changes ?? 0;
+    } catch (error) {
+      console.error('Error deleting stale processing subscriptions:', error);
+      return 0;
+    }
+  }
+
   // Payment status log methods
   async addPaymentStatusEntry(
     invoice: string,
