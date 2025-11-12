@@ -220,28 +220,38 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             const serviceName = await getServiceNameWithFallback(nostrService, metadata.serviceKey);
 
             // Convert BigInt to number if needed
-            let amount =
+            const rawAmount =
               typeof metadata.content.amount === 'bigint'
                 ? Number(metadata.content.amount)
-                : metadata.content.amount;
+                : Number(metadata.content.amount ?? 0);
 
-            // Store original amount for currency conversion
-            const originalAmount = amount;
-
-            // Extract currency symbol from the Currency object and convert amount for storage
+            let amount = rawAmount;
             let currency: string | null = null;
             const currencyObj = metadata.content.currency;
+            let conversionSourceAmount = rawAmount;
+            let conversionSourceCurrency = 'MSATS';
             switch (currencyObj.tag) {
               case Currency_Tags.Fiat:
-                if (typeof currencyObj === 'string') {
-                  currency = currencyObj;
-                } else {
-                  currency = 'unknown';
+                {
+                  const fiatCodeRaw = (currencyObj as any).inner;
+                  const fiatCodeValue = Array.isArray(fiatCodeRaw)
+                    ? fiatCodeRaw[0]
+                    : fiatCodeRaw;
+                  const fiatCode =
+                    typeof fiatCodeValue === 'string'
+                      ? String(fiatCodeValue).toUpperCase()
+                      : 'UNKNOWN';
+                  currency = fiatCode;
+                  amount = rawAmount / 100; // store fiat in major units
+                  conversionSourceAmount = rawAmount / 100;
+                  conversionSourceCurrency = fiatCode;
                 }
                 break;
               case Currency_Tags.Millisats:
                 amount = amount / 1000; // Convert to sats for database storage
                 currency = 'sats';
+                conversionSourceAmount = rawAmount;
+                conversionSourceCurrency = 'MSATS';
                 break;
             }
 
@@ -250,12 +260,9 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             let convertedCurrency: string | null = null;
 
             try {
-              const sourceCurrency =
-                currencyObj?.tag === Currency_Tags.Fiat ? (currencyObj as any).inner : 'MSATS';
-
               convertedAmount = await CurrencyConversionService.convertAmount(
-                originalAmount, // Use original millisats amount for conversion
-                sourceCurrency,
+                conversionSourceAmount,
+                conversionSourceCurrency,
                 preferredCurrency // Currency enum values are already strings
               );
               convertedCurrency = preferredCurrency;
@@ -350,28 +357,38 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 (request.metadata as RecurringPaymentRequest).serviceKey
               );
 
-              let amount =
+              const rawAmount =
                 typeof req.content.amount === 'bigint'
                   ? Number(req.content.amount)
-                  : req.content.amount;
+                  : Number(req.content.amount ?? 0);
 
-              // Store original amount for currency conversion
-              const originalAmount = amount;
-
-              // Extract currency symbol from the Currency object and convert amount for storage
+              let amount = rawAmount;
               let currency: string | null = null;
               const currencyObj = req.content.currency;
+              let conversionSourceAmount = rawAmount;
+              let conversionSourceCurrency = 'MSATS';
               switch (currencyObj.tag) {
                 case Currency_Tags.Fiat:
-                  if (typeof currencyObj === 'string') {
-                    currency = currencyObj;
-                  } else {
-                    currency = 'unknown';
+                  {
+                    const fiatCodeRaw = (currencyObj as any).inner;
+                    const fiatCodeValue = Array.isArray(fiatCodeRaw)
+                      ? fiatCodeRaw[0]
+                      : fiatCodeRaw;
+                    const fiatCode =
+                      typeof fiatCodeValue === 'string'
+                        ? String(fiatCodeValue).toUpperCase()
+                        : 'UNKNOWN';
+                    currency = fiatCode;
+                    amount = rawAmount / 100;
+                    conversionSourceAmount = rawAmount / 100;
+                    conversionSourceCurrency = fiatCode;
                   }
                   break;
                 case Currency_Tags.Millisats:
                   amount = amount / 1000; // Convert to sats for database storage
                   currency = 'sats';
+                  conversionSourceAmount = rawAmount;
+                  conversionSourceCurrency = 'MSATS';
                   break;
               }
 
@@ -380,12 +397,9 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               let convertedCurrency: string | null = null;
 
               try {
-                const sourceCurrency =
-                  currencyObj?.tag === Currency_Tags.Fiat ? (currencyObj as any).inner : 'MSATS';
-
                 convertedAmount = await CurrencyConversionService.convertAmount(
-                  originalAmount, // Use original millisats amount for conversion
-                  sourceCurrency,
+                  conversionSourceAmount,
+                  conversionSourceCurrency,
                   preferredCurrency // Currency enum values are already strings
                 );
                 convertedCurrency = preferredCurrency;
@@ -399,7 +413,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 service_name: serviceName,
                 service_key: (request.metadata as RecurringPaymentRequest).serviceKey,
                 amount: amount,
-                currency: currency,
+                currency: currency ?? 'UNKNOWN',
                 converted_amount: convertedAmount,
                 converted_currency: convertedCurrency,
                 status: 'active',
@@ -589,28 +603,38 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           // Add denied payment activity to database
           try {
             const req = request.metadata as SinglePaymentRequest;
-            let amount =
+            const rawAmount =
               typeof req.content.amount === 'bigint'
                 ? Number(req.content.amount)
-                : req.content.amount;
+                : Number(req.content.amount ?? 0);
 
-            // Store original amount for currency conversion
-            const originalAmount = amount;
-
-            // Extract currency symbol from the Currency object and convert amount for storage
+            let amount = rawAmount;
             let currency: string | null = null;
             const currencyObj = req.content.currency;
+            let conversionSourceAmount = rawAmount;
+            let conversionSourceCurrency = 'MSATS';
             switch (currencyObj.tag) {
               case Currency_Tags.Fiat:
-                if (typeof currencyObj === 'string') {
-                  currency = currencyObj;
-                } else {
-                  currency = 'unknown';
+                {
+                  const fiatCodeRaw = (currencyObj as any).inner;
+                  const fiatCodeValue = Array.isArray(fiatCodeRaw)
+                    ? fiatCodeRaw[0]
+                    : fiatCodeRaw;
+                  const fiatCode =
+                    typeof fiatCodeValue === 'string'
+                      ? String(fiatCodeValue).toUpperCase()
+                      : 'UNKNOWN';
+                  currency = fiatCode;
+                  amount = rawAmount / 100;
+                  conversionSourceAmount = rawAmount / 100;
+                  conversionSourceCurrency = fiatCode;
                 }
                 break;
               case Currency_Tags.Millisats:
                 amount = amount / 1000; // Convert to sats for database storage
                 currency = 'sats';
+                conversionSourceAmount = rawAmount;
+                conversionSourceCurrency = 'MSATS';
                 break;
             }
 
@@ -619,12 +643,9 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             let convertedCurrency: string | null = null;
 
             try {
-              const sourceCurrency =
-                currencyObj?.tag === Currency_Tags.Fiat ? (currencyObj as any).inner : 'MSATS';
-
               convertedAmount = await CurrencyConversionService.convertAmount(
-                originalAmount, // Use original millisats amount for conversion
-                sourceCurrency,
+                conversionSourceAmount,
+                conversionSourceCurrency,
                 preferredCurrency // Currency enum values are already strings
               );
               convertedCurrency = preferredCurrency;

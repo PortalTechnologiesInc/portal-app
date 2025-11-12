@@ -107,14 +107,18 @@ export async function handleSinglePaymentRequest(
 
     const checkAmount = async () => {
       const invoiceAmountMsat = Number(invoiceData.amountMsat);
-      console.warn("TASDASDASAS 22222222", invoiceData.amountMsat);
+      console.warn('[checkAmount] Invoice amount (msat):', invoiceAmountMsat);
       // 1% tolerance for amounts up to 10,000,000 msats, 0.5% for larger amounts
       const TOLERANCE_PERCENT = invoiceAmountMsat <= 10_000_000 ? 0.01 : 0.005;
+      console.warn('[checkAmount] Tolerance percent:', TOLERANCE_PERCENT);
 
       if (request.content.currency.tag === Currency_Tags.Millisats) {
         const requestAmountMsat = Number(request.content.amount);
+        console.warn('[checkAmount] Request amount (msat):', requestAmountMsat);
         const difference = Math.abs(invoiceAmountMsat - requestAmountMsat);
         const tolerance = invoiceAmountMsat * TOLERANCE_PERCENT;
+        console.warn('[checkAmount] Difference (msat):', difference);
+        console.warn('[checkAmount] Tolerance threshold (msat):', tolerance);
         return difference <= tolerance;
       } else if (request.content.currency.tag === Currency_Tags.Fiat) {
         // Convert fiat amount to msat for comparison
@@ -128,16 +132,22 @@ export async function handleSinglePaymentRequest(
             : 'UNKNOWN';
         const rawFiatAmount = Number(request.content.amount);
         const normalizedFiatAmount = rawFiatAmount / 100; // incoming amount is in minor units (e.g., cents)
+        console.warn('[checkAmount] Fiat request:', {
+          rawAmount: rawFiatAmount,
+          normalizedAmount: normalizedFiatAmount,
+          currency: fiatCurrency,
+        });
         const amountInMsat = await CurrencyConversionService.convertAmount(
           normalizedFiatAmount,
           fiatCurrency,
           'MSATS'
         );
         const requestAmountMsat = Math.round(amountInMsat);
-        console.warn("TASDASDASAS 11111111", requestAmountMsat, invoiceAmountMsat);
+        console.warn('[checkAmount] Request amount converted to msat:', requestAmountMsat);
         const difference = Math.abs(invoiceAmountMsat - requestAmountMsat);
         const tolerance = invoiceAmountMsat * TOLERANCE_PERCENT;
-        console.warn("TASDASDASAS", requestAmountMsat, difference, tolerance);
+        console.warn('[checkAmount] Difference (msat):', difference);
+        console.warn('[checkAmount] Tolerance threshold (msat):', tolerance);
         return difference <= tolerance;
       }
       return false;
