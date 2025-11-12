@@ -15,7 +15,56 @@ import {
 import * as Notifications from 'expo-notifications';
 import { DatabaseService, fromUnixSeconds, SubscriptionWithDates } from './DatabaseService';
 import { CurrencyConversionService } from './CurrencyConversionService';
-import { Currency } from '@/utils/currency';
+import { Currency, CurrencyHelpers } from '@/utils/currency';
+
+/**
+ * Sends a local notification for payment-related events with human-readable formatting
+ * @param title - Notification title
+ * @param amount - Payment amount
+ * @param currency - Currency string (e.g., 'sats', 'USD')
+ * @param serviceName - Name of the service
+ * @param convertedAmount - Optional converted amount in user's preferred currency
+ * @param convertedCurrency - Optional converted currency
+ */
+async function sendPaymentNotification(
+  title: string,
+  amount: number,
+  currency: string,
+  serviceName: string,
+): Promise<void> {
+  try {
+    // Format the amount - prefer converted amount if available
+    let formattedAmount: string;
+    // Use converted amount with proper formatting
+    const currencyEnum = currency as Currency;
+    const symbol = CurrencyHelpers.getSymbol(currencyEnum);
+
+    if (currencyEnum === Currency.SATS) {
+      formattedAmount = `${Math.round(amount)} ${symbol}`;
+    } else if (currencyEnum === Currency.BTC) {
+      const fixed = amount.toFixed(8);
+      const trimmed = fixed.replace(/\.0+$/, '').replace(/(\.\d*?[1-9])0+$/, '$1');
+      formattedAmount = `${symbol}${trimmed}`;
+    } else {
+      formattedAmount = `${symbol}${amount.toFixed(2)}`;
+    }
+    const body = `${serviceName}: ${formattedAmount}`;
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title,
+        body,
+        data: {
+          type: 'payment',
+        },
+      },
+      trigger: null, // Show immediately
+    });
+  } catch (error) {
+    // Silently fail - notification errors shouldn't break payment flow
+    console.error('Failed to send payment notification:', error);
+  }
+}
 
 export async function handleAuthChallenge(
   event: AuthChallengeEvent,
@@ -68,19 +117,61 @@ export async function handleSinglePaymentRequest(
       return false;
     }
 
+    let amount =
+      typeof request.content.amount === 'bigint'
+        ? Number(request.content.amount)
+        : request.content.amount;
+
+    // Store original amount for currency conversion
+    const originalAmount = amount;
+
+    // Extract currency symbol from the Currency object and convert amount for storage
+    let currency: string | null = null;
+    const currencyObj = request.content.currency;
+    switch (currencyObj.tag) {
+      case Currency_Tags.Fiat:
+        if (typeof currencyObj === 'string') {
+          currency = currencyObj;
+        } else {
+          currency = 'unknown';
+        }
+        break;
+      case Currency_Tags.Millisats:
+        amount = amount / 1000; // Convert to sats for database storage
+        currency = 'sats';
+        break;
+    }
+
+    // Convert currency for user's preferred currency using original amount
+    let convertedAmount: number | null = null;
+    let convertedCurrency: string | null = null;
+
+    try {
+      const sourceCurrency =
+        currencyObj?.tag === Currency_Tags.Fiat ? (currencyObj as any).inner : 'MSATS';
+
+      convertedAmount = await CurrencyConversionService.convertAmount(
+        originalAmount, // Use original millisats amount for conversion
+        sourceCurrency,
+        preferredCurrency // Currency enum values are already strings
+      );
+      convertedCurrency = preferredCurrency;
+    } catch (error) {
+      console.error('Currency conversion error during payment:', error);
+      // Continue without conversion - convertedAmount will remain null
+      return false;
+    }
+
     if (!subId) {
       console.log(`👤 Not a subscription, required user interaction!`);
 
       if (sendNotification) {
-        // Show notification to user for manual approval
-        // TODO: format currency and amount
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title: 'Payment Request',
-            body: `Payment request for ${request.content.amount} ${request.content.currency.tag === Currency_Tags.Fiat ? request.content.currency.inner : 'msat'} requires approval`,
-          },
-          trigger: null, // Show immediately
-        });
+        await sendPaymentNotification(
+          'Payment Request',
+          convertedAmount,
+          convertedCurrency,
+          'Payment request',
+        );
       }
 
       return true;
@@ -128,50 +219,6 @@ export async function handleSinglePaymentRequest(
       return false;
     }
 
-    let amount =
-      typeof request.content.amount === 'bigint'
-        ? Number(request.content.amount)
-        : request.content.amount;
-
-    // Store original amount for currency conversion
-    const originalAmount = amount;
-
-    // Extract currency symbol from the Currency object and convert amount for storage
-    let currency: string | null = null;
-    const currencyObj = request.content.currency;
-    switch (currencyObj.tag) {
-      case Currency_Tags.Fiat:
-        if (typeof currencyObj === 'string') {
-          currency = currencyObj;
-        } else {
-          currency = 'unknown';
-        }
-        break;
-      case Currency_Tags.Millisats:
-        amount = amount / 1000; // Convert to sats for database storage
-        currency = 'sats';
-        break;
-    }
-
-    // Convert currency for user's preferred currency using original amount
-    let convertedAmount: number | null = null;
-    let convertedCurrency: string | null = null;
-
-    try {
-      const sourceCurrency =
-        currencyObj?.tag === Currency_Tags.Fiat ? (currencyObj as any).inner : 'MSATS';
-
-      convertedAmount = await CurrencyConversionService.convertAmount(
-        originalAmount, // Use original millisats amount for conversion
-        sourceCurrency,
-        preferredCurrency // Currency enum values are already strings
-      );
-      convertedCurrency = preferredCurrency;
-    } catch (error) {
-      console.error('Currency conversion error during payment:', error);
-      // Continue without conversion - convertedAmount will remain null
-      return false;
-    }
     if (amount != subscription.amount || currency != subscription.currency) {
       resolve(
         new PaymentStatus.Rejected({
@@ -238,6 +285,14 @@ export async function handleSinglePaymentRequest(
       try {
         const preimage = await wallet.payInvoice(request.content.invoice);
         console.log("🧾 Invoice paid!");
+
+        // Send notification to user about successful payment
+        await sendPaymentNotification(
+          'Payment Successful',
+          convertedAmount,
+          convertedCurrency,
+          subscriptionServiceName,
+        );
 
         // Update the subscription last payment date
         await executeOperation(
