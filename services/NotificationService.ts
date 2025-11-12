@@ -4,7 +4,7 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { getMnemonic, getWalletUrl } from './SecureStorageService';
-import { AuthChallengeEvent, AuthResponseStatus, CloseRecurringPaymentResponse, Currency_Tags, Mnemonic, Nwc, PaymentResponseContent, PaymentStatus, PaymentStatusNotifier, PortalApp, PortalAppInterface, RecurringPaymentRequest, RecurringPaymentResponseContent, RelayStatusListener, RelayStatusListenerImpl, SinglePaymentRequest } from 'portal-app-lib';
+import { AuthChallengeEvent, AuthResponseStatus, CloseRecurringPaymentResponse, Currency_Tags, Mnemonic, Nwc, PaymentResponseContent, PaymentStatus, PaymentStatusNotifier, PortalApp, PortalAppInterface, RecurringPaymentRequest, RecurringPaymentResponseContent, RecurringPaymentStatus, RelayStatusListener, RelayStatusListenerImpl, SinglePaymentRequest } from 'portal-app-lib';
 import { openDatabaseAsync } from 'expo-sqlite';
 import { DatabaseService } from './DatabaseService';
 import { PortalAppManager } from './PortalAppManager';
@@ -179,14 +179,6 @@ export async function handleHeadlessNotification(event: String, databaseName: st
         };
 
         const walletInstance = new Nwc(walletUrl, nwcRelayListener);
-        // try {
-        //   await walletInstance.getInfo();
-        // } catch (initializationError) {
-        //   console.warn(
-        //     'NWC wallet initialization during headless notification completed with non-fatal error:',
-        //     initializationError
-        //   );
-        // }
         nwcWallet = walletInstance;
       } else {
         console.log(

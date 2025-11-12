@@ -1025,7 +1025,7 @@ export class DatabaseService {
   async markSubscriptionAsProcessing(subscriptionId: string): Promise<number> {
     const now = toUnixSeconds(Date.now());
     try {
-      const result =await this.db.runAsync(
+      const result = await this.db.runAsync(
         `INSERT OR IGNORE INTO processing_subscriptions (
           subscription_id, processed_at
         ) VALUES (?, ?)`,
@@ -1055,7 +1055,7 @@ export class DatabaseService {
   }
 
   /**
-   * Deletes all processing subscriptions older than 10 minutes. Returns the number of rows removed.
+   * Deletes all processing subscriptions older than 1 minute. Returns the number of rows removed.
    */
   async deleteStaleProcessingSubscriptions(): Promise<number> {
     try {

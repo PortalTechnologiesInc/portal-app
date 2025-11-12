@@ -25,7 +25,7 @@ export function PaymentControllerProvider({ children }: { children: ReactNode })
         }
 
         try {
-          console.warn("🧾 looking up for invoice -----------------------> ", invoice);
+          console.warn("🧾 looking up for invoice: ", invoice);
           const lookupResponse = await nwcWallet.lookupInvoice(invoice);
           if (lookupResponse.settledAt || lookupResponse.preimage) {
             await db.updateActivityStatus(element.id, 'positive', 'Payment completed');

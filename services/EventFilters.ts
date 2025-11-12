@@ -17,16 +17,6 @@ import { DatabaseService, fromUnixSeconds, SubscriptionWithDates } from './Datab
 import { CurrencyConversionService } from './CurrencyConversionService';
 import { Currency } from '@/utils/currency';
 
-const debugNotification = async (title: string, body = '') => {
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title,
-      body,
-    },
-    trigger: null, // Show immediately
-  });
-};
-
 export async function handleAuthChallenge(
   event: AuthChallengeEvent,
   executeOperation: <T>(operation: (db: DatabaseService) => Promise<T>, fallback?: T) => Promise<T>,
@@ -116,7 +106,6 @@ export async function handleSinglePaymentRequest(
     let subscriptionServiceName: string;
     try {
       let subscriptionFromDb = await executeOperation(db => db.getSubscription(subId), null);
-      await debugNotification('sub', JSON.stringify(subscriptionFromDb));
       if (!subscriptionFromDb) {
         resolve(
           new PaymentStatus.Rejected({
@@ -124,7 +113,6 @@ export async function handleSinglePaymentRequest(
           })
         );
         console.warn(`🚫 Payment rejected! The request is a subscription payment, but no subscription found with id ${subId}`);
-        await debugNotification('no subscription found with id', `${subId}`);
         return false;
       }
       subscription = subscriptionFromDb;
@@ -137,7 +125,6 @@ export async function handleSinglePaymentRequest(
         })
       );
       console.warn(`🚫 Payment rejected! Failing to connect to database.`);
-      await debugNotification('db failed', JSON.stringify(e));
       return false;
     }
 
@@ -183,7 +170,6 @@ export async function handleSinglePaymentRequest(
     } catch (error) {
       console.error('Currency conversion error during payment:', error);
       // Continue without conversion - convertedAmount will remain null
-      await debugNotification('conversion falied', `${error}`);
       return false;
     }
     if (amount != subscription.amount || currency != subscription.currency) {
@@ -192,11 +178,9 @@ export async function handleSinglePaymentRequest(
           reason: `Payment amount does not match subscription amount.\nExpected: ${subscription.amount} ${subscription.currency}\nReceived: ${amount} ${request.content.currency}`,
         })
       );
-      await debugNotification('invalid amount', `${amount} ${currency}`);
       console.warn(`🚫 Payment rejected! Amount does not match subscription amount.\nExpected: ${subscription.amount} ${subscription.currency}\nReceived: ${amount} ${request.content.currency}`);
       return false;
     }
-    await debugNotification('conversion done', '');
 
     // If no payment has been executed, the nextOccurrence is the first payment due time
     let nextOccurrence: bigint | undefined = BigInt(
@@ -213,14 +197,11 @@ export async function handleSinglePaymentRequest(
           reason: 'Payment is not due yet. Please wait till the next payment is scheduled.',
         })
       );
-      await debugNotification('payment not due yet', `${nextOccurrence}`);
       console.warn(`🚫 Payment rejected! The request arrived too soon.\nNext occurrence is: ${fromUnixSeconds(nextOccurrence!)}\nBut today is: ${new Date()}`);
       return false;
     }
 
     if (wallet) {
-      await debugNotification('starting payment', 'wallet is present');
-
       // Save the payment
       const id = await executeOperation(
         db =>
@@ -256,7 +237,6 @@ export async function handleSinglePaymentRequest(
       // make the payment with nwc
       try {
         const preimage = await wallet.payInvoice(request.content.invoice);
-        await debugNotification('invoice paid', `${preimage}`);
         console.log("🧾 Invoice paid!");
 
         // Update the subscription last payment date
@@ -350,7 +330,6 @@ export async function handleSinglePaymentRequest(
         reason: `An unexpected error occurred while processing the payment: ${e}.\nPlease try again or contact support if the issue persists.`,
       })
     );
-    await debugNotification('unexpected error', JSON.stringify(e));
     console.warn(`🚫 Payment rejected! Error is: ${e}`);
     return false;
   } finally {
