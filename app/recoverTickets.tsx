@@ -16,7 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useECash } from '@/context/ECashContext';
 import { useDatabaseContext } from '@/context/DatabaseContext';
-import { globalEvents } from '@/utils/index';
+import { globalEvents } from '@/utils/common';
 
 export default function RecoverTicketsScreen() {
   const router = useRouter();

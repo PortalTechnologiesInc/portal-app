@@ -30,7 +30,7 @@ export default function TicketsScreen() {
   useEffect(() => {
     const setupWalletBalanceListener = async () => {
       try {
-        const { globalEvents } = await import('@/utils/index');
+        const { globalEvents } = await import('@/utils/common');
         const handleWalletBalancesChanged = () => {
           setWalletUpdateTrigger(prev => prev + 1);
         };

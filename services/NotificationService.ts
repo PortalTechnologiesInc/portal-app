@@ -11,7 +11,7 @@ import { PortalAppManager } from './PortalAppManager';
 import { LocalAuthChallengeListener, LocalClosedRecurringPaymentListener, LocalPaymentRequestListener } from '@/context/NostrServiceContext';
 import { handleAuthChallenge, handleCloseRecurringPaymentResponse, handleRecurringPaymentRequest, handleSinglePaymentRequest } from './EventFilters';
 import { mapNumericStatusToString, getServiceNameFromProfile } from '@/utils/nostrHelper';
-import { RelayInfo } from '@/utils';
+import { RelayInfo } from '@/utils/common';
 import { Currency, CurrencyHelpers } from '@/utils/currency';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 

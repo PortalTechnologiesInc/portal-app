@@ -12,7 +12,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Colors } from '@/constants/Colors';
-import { formatDayAndDate } from '@/utils';
+import { formatDayAndDate } from '@/utils/common';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { useActivities } from '@/context/ActivitiesContext';
 import { parseCalendar } from 'portal-app-lib';

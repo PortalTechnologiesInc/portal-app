@@ -15,7 +15,7 @@ import {
 import * as Notifications from 'expo-notifications';
 import { DatabaseService, fromUnixSeconds, SubscriptionWithDates } from './DatabaseService';
 import { CurrencyConversionService } from './CurrencyConversionService';
-import { globalEvents } from '@/utils/index';
+import { globalEvents } from '@/utils/common';
 import { Currency, CurrencyHelpers } from '@/utils/currency';
 
 /**
@@ -107,6 +107,7 @@ export async function handleSinglePaymentRequest(
 
     const checkAmount = async () => {
       const invoiceAmountMsat = Number(invoiceData.amountMsat);
+      console.warn("TASDASDASAS 22222222", invoiceData.amountMsat);
       // 1% tolerance for amounts up to 10,000,000 msats, 0.5% for larger amounts
       const TOLERANCE_PERCENT = invoiceAmountMsat <= 10_000_000 ? 0.01 : 0.005;
 
@@ -133,8 +134,10 @@ export async function handleSinglePaymentRequest(
           'MSATS'
         );
         const requestAmountMsat = Math.round(amountInMsat);
+        console.warn("TASDASDASAS 11111111", requestAmountMsat, invoiceAmountMsat);
         const difference = Math.abs(invoiceAmountMsat - requestAmountMsat);
         const tolerance = invoiceAmountMsat * TOLERANCE_PERCENT;
+        console.warn("TASDASDASAS", requestAmountMsat, difference, tolerance);
         return difference <= tolerance;
       }
       return false;
@@ -466,7 +469,7 @@ export async function handleCloseRecurringPaymentResponse(
 
     // Refresh UI to reflect the subscription status change
     console.log('Refreshing subscriptions UI after subscription closure');
-    // Import the global event emitter to notify ActivitiesProvider
+    // Use the global event emitter to notify ActivitiesProvider
     globalEvents.emit('subscriptionStatusChanged', {
       subscriptionId: response.content.subscriptionId,
       status: 'cancelled',

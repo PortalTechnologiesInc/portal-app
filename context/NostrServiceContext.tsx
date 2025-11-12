@@ -526,7 +526,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                 console.log('Cashu token processed successfully');
 
                 // Emit event to notify that wallet balances have changed
-                const { globalEvents } = await import('@/utils/index');
+                const { globalEvents } = await import('@/utils/common');
                 globalEvents.emit('walletBalancesChanged', {
                   mintUrl: tokenInfo.mintUrl,
                   unit: tokenInfo.unit.toLowerCase(),

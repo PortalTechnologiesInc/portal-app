@@ -2,7 +2,7 @@ import type React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Key, BanknoteIcon, Ticket } from 'lucide-react-native';
 import { ThemedText } from './ThemedText';
-import { formatRelativeTime, ActivityType } from '@/utils';
+import { formatRelativeTime, ActivityType } from '@/utils/common';
 import type { ActivityWithDates } from '@/services/DatabaseService';
 import { router } from 'expo-router';
 import { useThemeColor } from '@/hooks/useThemeColor';

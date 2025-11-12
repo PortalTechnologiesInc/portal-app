@@ -219,7 +219,7 @@ export default function QRScannerScreen() {
           });
 
 
-          const { globalEvents } = await import('@/utils/index');
+          const { globalEvents } = await import('@/utils/common');
           globalEvents.emit('walletBalancesChanged', {
             mintUrl: tokenInfo.mintUrl,
             unit: tokenInfo.unit.toLowerCase(),

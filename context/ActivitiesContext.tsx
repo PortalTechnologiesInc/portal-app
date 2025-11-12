@@ -165,7 +165,7 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
 
   // Listen for activity events to refresh activities list
   useEffect(() => {
-    const { globalEvents } = require('@/utils/index');
+    const { globalEvents } = require('@/utils/common');
 
     const handleActivityAdded = (activity: ActivityWithDates) => {
       refreshData();

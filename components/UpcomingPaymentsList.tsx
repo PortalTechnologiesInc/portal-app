@@ -4,7 +4,7 @@ import { View, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
 import { router } from 'expo-router';
 import { ThemedText } from './ThemedText';
 import type { UpcomingPayment } from '@/utils/types';
-import { formatRelativeTime } from '@/utils';
+import { formatRelativeTime } from '@/utils/common';
 import { useActivities } from '@/context/ActivitiesContext';
 import { parseCalendar } from 'portal-app-lib';
 import { fromUnixSeconds } from '@/services/DatabaseService';

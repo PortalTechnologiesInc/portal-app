@@ -3,7 +3,7 @@ import { createContext, useContext, useState, useEffect } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import * as FileSystem from 'expo-file-system';
 import { useNostrService } from './NostrServiceContext';
-import { generateRandomGamertag } from '@/utils';
+import { generateRandomGamertag } from '@/utils/common';
 import { keyToHex } from 'portal-app-lib';
 import type { ProfileSyncStatus } from '@/utils/types';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';

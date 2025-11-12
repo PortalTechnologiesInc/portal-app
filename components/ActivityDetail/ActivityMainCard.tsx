@@ -3,7 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import { Key, BanknoteIcon, Ticket } from 'lucide-react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { ActivityType } from '@/utils';
+import { ActivityType } from '@/utils/common';
 import {
   getStatusIcon,
   getStatusColor,

@@ -23,7 +23,7 @@ import { QrCode, ArrowRight, User, Nfc } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
-import { formatAvatarUri } from '@/utils';
+import { formatAvatarUri } from '@/utils/common';
 import { useThemeColor } from '@/hooks/useThemeColor';
 
 const FIRST_LAUNCH_KEY = 'portal_first_launch_completed';

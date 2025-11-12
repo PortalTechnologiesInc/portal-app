@@ -2,7 +2,7 @@ import React from 'react';
 import { View, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { Ticket } from '@/utils';
+import { Ticket } from '@/utils/common';
 
 const TicketCard: React.FC<{
   ticket: Ticket | null | undefined;

@@ -479,7 +479,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               const token = await wallet.sendAmount(amount);
 
               // Emit event to notify that wallet balances have changed
-              const { globalEvents } = await import('@/utils/index');
+              const { globalEvents } = await import('@/utils/common');
               globalEvents.emit('walletBalancesChanged', {
                 mintUrl: cashuEvent.inner.mintUrl,
                 unit: cashuEvent.inner.unit.toLowerCase(),
