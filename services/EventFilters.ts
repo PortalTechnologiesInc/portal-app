@@ -90,21 +90,6 @@ export async function handleSinglePaymentRequest(
 
     let invoiceData = parseBolt11(request.content.invoice);
 
-    // Deduplication guard: skip if an activity with the same request/event id already exists
-    try {
-      const alreadyExists = await executeOperation(
-        db => db.hasActivityWithRequestId(request.eventId),
-        false
-      );
-      if (alreadyExists) {
-        console.warn(`🔁 Skipping duplicate payment activity for request_id/eventId: ${request.eventId}`);
-        return false;
-      }
-    } catch (e) {
-      // If the check fails, proceed without blocking, but log the error
-      console.error('Failed to check duplicate activity:', e);
-    }
-
     const checkAmount = async () => {
       const invoiceAmountMsat = Number(invoiceData.amountMsat);
       // 1% tolerance for amounts up to 10,000,000 msats, 0.5% for larger amounts
@@ -148,6 +133,20 @@ export async function handleSinglePaymentRequest(
       );
       console.warn(`🚫 Payment rejected! The invoice amount do not match the requested amount.\nReceived ${invoiceData.amountMsat}\nRequired ${request.content.amount}`);
       return false;
+    }
+    // Deduplication guard: skip if an activity with the same request/event id already exists
+    try {
+      const alreadyExists = await executeOperation(
+        db => db.hasActivityWithRequestId(request.eventId),
+        false
+      );
+      if (alreadyExists) {
+        console.warn(`🔁 Skipping duplicate payment activity for request_id/eventId: ${request.eventId}`);
+        return false;
+      }
+    } catch (e) {
+      // If the check fails, proceed without blocking, but log the error
+      console.error('Failed to check duplicate activity:', e);
     }
 
     let amount =
