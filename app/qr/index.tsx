@@ -13,6 +13,7 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useECash } from '@/context/ECashContext';
 import { useDatabaseContext } from '@/context/DatabaseContext';
+import { globalEvents } from '@/utils/common';
 
 // Define the type for the barcode scanner result
 type BarcodeResult = {
@@ -219,7 +220,6 @@ export default function QRScannerScreen() {
           });
 
 
-          const { globalEvents } = await import('@/utils/index');
           globalEvents.emit('walletBalancesChanged', {
             mintUrl: tokenInfo.mintUrl,
             unit: tokenInfo.unit.toLowerCase(),

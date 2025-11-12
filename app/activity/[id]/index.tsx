@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { formatDayAndDate, ActivityType } from '@/utils';
+import { formatDayAndDate, ActivityType } from '@/utils/common';
 import {
   Calendar,
   AlertCircle,

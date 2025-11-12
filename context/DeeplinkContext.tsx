@@ -4,9 +4,10 @@ import * as Linking from 'expo-linking';
 import { parseCashuToken, parseKeyHandshakeUrl } from 'portal-app-lib';
 import { usePendingRequests } from '@/context/PendingRequestsContext';
 import { useNostrService } from '@/context/NostrServiceContext';
-import { useECash } from './ECashContext';
 import { Alert } from 'react-native';
 import { router } from 'expo-router';
+import { globalEvents } from '@/utils/common';
+import { useECash } from './ECashContext';
 import { useDatabaseContext } from './DatabaseContext';
 import { useOnboarding } from './OnboardingContext';
 
@@ -64,7 +65,6 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
               });
 
               // Emit event to notify that wallet balances have changed
-              const { globalEvents } = await import('@/utils/index');
               globalEvents.emit('walletBalancesChanged', {
                 mintUrl: tokenInfo.mintUrl,
                 unit: tokenInfo.unit.toLowerCase(),

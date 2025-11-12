@@ -1,6 +1,6 @@
 import React from 'react';
 import { CheckCircle, Clock, XCircle, AlertCircle, Info } from 'lucide-react-native';
-import { ActivityType } from '@/utils';
+import { ActivityType } from '@/utils/common';
 import type { ActivityWithDates } from '@/services/DatabaseService';
 
 export type ActivityStatus = 'success' | 'failed' | 'pending' | 'received';

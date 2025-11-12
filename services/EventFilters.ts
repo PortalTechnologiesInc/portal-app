@@ -15,6 +15,7 @@ import {
 import * as Notifications from 'expo-notifications';
 import { DatabaseService, fromUnixSeconds, SubscriptionWithDates } from './DatabaseService';
 import { CurrencyConversionService } from './CurrencyConversionService';
+import { globalEvents } from '@/utils/common';
 import { Currency, CurrencyHelpers } from '@/utils/currency';
 
 /**
@@ -87,11 +88,52 @@ export async function handleSinglePaymentRequest(
     //clean old stale subs
     await executeOperation((db) => db.deleteStaleProcessingSubscriptions());
 
-    // Fast in-memory dedup to avoid double-processing when invoked concurrently
-    const requestKey = request.eventId;
-
     let invoiceData = parseBolt11(request.content.invoice);
 
+    const checkAmount = async () => {
+      const invoiceAmountMsat = Number(invoiceData.amountMsat);
+      // 1% tolerance for amounts up to 10,000,000 msats, 0.5% for larger amounts
+      const TOLERANCE_PERCENT = invoiceAmountMsat <= 10_000_000 ? 0.01 : 0.005;
+
+      if (request.content.currency.tag === Currency_Tags.Millisats) {
+        const requestAmountMsat = Number(request.content.amount);
+        const difference = Math.abs(invoiceAmountMsat - requestAmountMsat);
+        const tolerance = invoiceAmountMsat * TOLERANCE_PERCENT;
+        return difference <= tolerance;
+      } else if (request.content.currency.tag === Currency_Tags.Fiat) {
+        // Convert fiat amount to msat for comparison
+        const fiatCurrencyRaw = (request.content.currency as any).inner;
+        const fiatCurrencyValue = Array.isArray(fiatCurrencyRaw)
+          ? fiatCurrencyRaw[0]
+          : fiatCurrencyRaw;
+        const fiatCurrency =
+          typeof fiatCurrencyValue === 'string'
+            ? String(fiatCurrencyValue).toUpperCase()
+            : 'UNKNOWN';
+        const rawFiatAmount = Number(request.content.amount);
+        const normalizedFiatAmount = rawFiatAmount / 100; // incoming amount is in minor units (e.g., cents)
+        const amountInMsat = await CurrencyConversionService.convertAmount(
+          normalizedFiatAmount,
+          fiatCurrency,
+          'MSATS'
+        );
+        const requestAmountMsat = Math.round(amountInMsat);
+        const difference = Math.abs(invoiceAmountMsat - requestAmountMsat);
+        const tolerance = invoiceAmountMsat * TOLERANCE_PERCENT;
+        return difference <= tolerance;
+      }
+      return false;
+    };
+
+    if (!(await checkAmount())) {
+      resolve(
+        new PaymentStatus.Rejected({
+          reason: `Invoice amount does not match the requested amount.`,
+        })
+      );
+      console.warn(`🚫 Payment rejected! The invoice amount do not match the requested amount.\nReceived ${invoiceData.amountMsat}\nRequired ${request.content.amount}`);
+      return false;
+    }
     // Deduplication guard: skip if an activity with the same request/event id already exists
     try {
       const alreadyExists = await executeOperation(
@@ -107,16 +149,6 @@ export async function handleSinglePaymentRequest(
       console.error('Failed to check duplicate activity:', e);
     }
 
-    if (invoiceData.amountMsat != request.content.amount) {
-      resolve(
-        new PaymentStatus.Rejected({
-          reason: `Invoice amount does not match the requested amount.`,
-        })
-      );
-      console.warn(`🚫 Payment rejected! The invoice amount do not match the requested amount.\nReceived ${invoiceData.amountMsat}\nRequired ${request.content.amount}`);
-      return false;
-    }
-
     let amount =
       typeof request.content.amount === 'bigint'
         ? Number(request.content.amount)
@@ -130,10 +162,17 @@ export async function handleSinglePaymentRequest(
     const currencyObj = request.content.currency;
     switch (currencyObj.tag) {
       case Currency_Tags.Fiat:
-        if (typeof currencyObj === 'string') {
-          currency = currencyObj;
-        } else {
-          currency = 'unknown';
+        {
+          const fiatCurrencyRaw = (currencyObj as any).inner;
+          const fiatCurrencyValue = Array.isArray(fiatCurrencyRaw)
+            ? fiatCurrencyRaw[0]
+            : fiatCurrencyRaw;
+          currency =
+            typeof fiatCurrencyValue === 'string'
+              ? String(fiatCurrencyValue).toUpperCase()
+              : 'UNKNOWN';
+          // Normalize fiat amount from minor units (cents) to major units (dollars) for storage
+          amount = amount / 100;
         }
         break;
       case Currency_Tags.Millisats:
@@ -147,11 +186,27 @@ export async function handleSinglePaymentRequest(
     let convertedCurrency: string | null = null;
 
     try {
-      const sourceCurrency =
-        currencyObj?.tag === Currency_Tags.Fiat ? (currencyObj as any).inner : 'MSATS';
+      let sourceCurrency: string;
+      let conversionAmount: number;
+
+      if (currencyObj?.tag === Currency_Tags.Fiat) {
+        const fiatCurrencyRaw = (currencyObj as any).inner;
+        const fiatCurrencyValue = Array.isArray(fiatCurrencyRaw)
+          ? fiatCurrencyRaw[0]
+          : fiatCurrencyRaw;
+        sourceCurrency =
+          typeof fiatCurrencyValue === 'string'
+            ? String(fiatCurrencyValue).toUpperCase()
+            : 'UNKNOWN';
+        // Normalize fiat amount from minor units (cents) to major units (dollars)
+        conversionAmount = originalAmount / 100;
+      } else {
+        sourceCurrency = 'MSATS';
+        conversionAmount = originalAmount; // Already in millisats
+      }
 
       convertedAmount = await CurrencyConversionService.convertAmount(
-        originalAmount, // Use original millisats amount for conversion
+        conversionAmount,
         sourceCurrency,
         preferredCurrency // Currency enum values are already strings
       );
@@ -270,9 +325,7 @@ export async function handleSinglePaymentRequest(
         null
       );
 
-      void import('@/utils/index').then(({ globalEvents }) => {
-        globalEvents.emit('activityAdded', { activityId: id });
-      });
+      globalEvents.emit('activityAdded', { activityId: id });
 
       resolve(new PaymentStatus.Approved());
 
@@ -307,9 +360,7 @@ export async function handleSinglePaymentRequest(
             null
           );
         }
-        void import('@/utils/index').then(({ globalEvents }) => {
-          globalEvents.emit('activityUpdated', { activityId: id });
-        });
+        globalEvents.emit('activityUpdated', { activityId: id });
 
         resolve(
           new PaymentStatus.Success({
@@ -364,9 +415,7 @@ export async function handleSinglePaymentRequest(
           }),
         null
       );
-      void import('@/utils/index').then(({ globalEvents }) => {
-        globalEvents.emit('activityAdded', { activityId: id });
-      });
+      globalEvents.emit('activityAdded', { activityId: id });
 
       resolve(
         new PaymentStatus.Rejected({
@@ -416,8 +465,7 @@ export async function handleCloseRecurringPaymentResponse(
 
     // Refresh UI to reflect the subscription status change
     console.log('Refreshing subscriptions UI after subscription closure');
-    // Import the global event emitter to notify ActivitiesProvider
-    const { globalEvents } = await import('@/utils/index');
+    // Use the global event emitter to notify ActivitiesProvider
     globalEvents.emit('subscriptionStatusChanged', {
       subscriptionId: response.content.subscriptionId,
       status: 'cancelled',

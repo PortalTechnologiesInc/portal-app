@@ -11,6 +11,7 @@ import {
 import { type ActivityWithDates, type SubscriptionWithDates } from '@/services/DatabaseService';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
+import { globalEvents } from '@/utils/common';
 
 interface ActivitiesContextType {
   // Activity management
@@ -165,8 +166,6 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
 
   // Listen for activity events to refresh activities list
   useEffect(() => {
-    const { globalEvents } = require('@/utils/index');
-
     const handleActivityAdded = (activity: ActivityWithDates) => {
       refreshData();
     };

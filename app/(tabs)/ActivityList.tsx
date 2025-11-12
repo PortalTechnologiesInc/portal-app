@@ -9,7 +9,7 @@ import { ActivityRow } from '@/components/ActivityRow';
 import { router } from 'expo-router';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useFocusEffect } from '@react-navigation/native';
-import { ActivityType } from '@/utils';
+import { ActivityType } from '@/utils/common';
 
 const ItemList: React.FC = () => {
   const {

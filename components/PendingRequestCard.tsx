@@ -134,8 +134,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const isTicketRequest = type === 'ticket';
     const content = (metadata as SinglePaymentRequest)?.content;
     const amount =
-      content?.amount ||
-      content?.amount ||
+      content?.amount ??
       (isTicketRequest ? (metadata as any)?.inner?.amount : null);
 
     // Check for insufficient balance on payment requests
@@ -157,16 +156,44 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
         }
 
         const content = (metadata as SinglePaymentRequest)?.content;
-        if (!content || !amount) {
+        if (!content || amount == null) {
           setHasInsufficientBalance(false);
           return;
         }
 
         try {
-          // For Lightning/fiat payments, we assume NWC wallet handles this
-          // The NWC wallet connection status is handled by the "no wallet configured" warning
           if (content.currency.tag === Currency_Tags.Fiat) {
-            setHasInsufficientBalance(false);
+            // For fiat payments, convert to msats and check NWC wallet balance
+            try {
+              const fiatCurrency = (content.currency as any).inner;
+              const rawFiatAmount = Number(amount);
+              const normalizedFiatAmount = rawFiatAmount / 100; // incoming amount is in minor units (e.g., cents)
+              const amountInMsat = await CurrencyConversionService.convertAmount(
+                normalizedFiatAmount,
+                fiatCurrency[0],
+                'MSATS'
+              );
+              const requestedMsats = Math.round(amountInMsat);
+
+              // Check NWC wallet balance (fiat payments only use NWC wallet)
+              let canPay = false;
+              if (nwcStatus === true) {
+                try {
+                  const nwcMsats =
+                    (nostrService.walletInfo.data?.get_balance as number | undefined) ?? undefined;
+                  if (typeof nwcMsats === 'number' && nwcMsats >= requestedMsats) {
+                    canPay = true;
+                  }
+                } catch (e) {
+                  // ignore
+                }
+              }
+
+              setHasInsufficientBalance(!canPay);
+            } catch (error) {
+              console.error('Error converting fiat amount for balance check:', error);
+              setHasInsufficientBalance(false);
+            }
           } else {
             // For eCash/sats payments, check if we have a wallet with sufficient balance
             const requestedMsats = Number(amount);
@@ -226,7 +253,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
         if (!isMounted.current) return;
 
         // Only convert for payment and subscription requests with amounts
-        if ((!isPaymentRequest && !isSubscriptionRequest) || !amount) {
+        if ((!isPaymentRequest && !isSubscriptionRequest) || amount == null) {
           setConvertedAmount(null);
           setIsConvertingCurrency(false);
           return;
@@ -243,12 +270,16 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
           setIsConvertingCurrency(true);
 
           // Determine source currency
-          const sourceCurrency =
-            content.currency.tag === Currency_Tags.Fiat ? (content.currency as any).inner : 'MSATS';
+          const isFiat = content.currency.tag === Currency_Tags.Fiat;
+          const fiatCurrency = isFiat ? (content.currency as any).inner : null;
+          const sourceCurrency = isFiat
+            ? (Array.isArray(fiatCurrency) ? fiatCurrency[0] : fiatCurrency)
+            : 'MSATS';
+          const sourceAmount = isFiat ? Number(amount) / 100 : Number(amount);
 
           // Convert to user's preferred currency
           const converted = await CurrencyConversionService.convertAmount(
-            Number(amount),
+            sourceAmount,
             sourceCurrency,
             preferredCurrency
           );
@@ -367,9 +398,17 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
             {isSubscriptionRequest ? (
               <View style={styles.amountRow}>
                 <Text style={[styles.amountText, { color: primaryTextColor }]}>
-                  {content.currency.tag === Currency_Tags.Fiat
-                    ? `${Number(amount)} ${content.currency.inner}`
-                    : `${Number(amount) / 1000} sats`}
+                  {(() => {
+                    if (!content) return '';
+                    if (content.currency.tag === Currency_Tags.Fiat) {
+                      const fiatCodeRaw = (content.currency as any).inner;
+                      const fiatCode = Array.isArray(fiatCodeRaw)
+                        ? fiatCodeRaw[0]
+                        : fiatCodeRaw;
+                      return `${(Number(amount) / 100).toFixed(2)} ${fiatCode}`;
+                    }
+                    return `${Number(amount) / 1000} sats`;
+                  })()}
                 </Text>
                 <Text style={[styles.recurranceText, { color: primaryTextColor }]}>
                   {recurrence?.toLowerCase()}
@@ -377,22 +416,30 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
               </View>
             ) : (
               <Text style={[styles.amountText, { color: primaryTextColor }]}>
-                {content.currency.tag === Currency_Tags.Fiat
-                  ? `${Number(amount)} ${content.currency.inner}`
-                  : `${Number(amount) / 1000} sats`}
+                {(() => {
+                  if (!content) return '';
+                  if (content.currency.tag === Currency_Tags.Fiat) {
+                    const fiatCode = (content.currency as any).inner;
+                    return `${(Number(amount) / 100).toFixed(2)} ${fiatCode}`;
+                  }
+                  return `${Number(amount) / 1000} sats`;
+                })()}
               </Text>
             )}
 
             {/* Converted amount display - only show if currencies are different */}
             {(isConvertingCurrency || convertedAmount !== null) &&
               (() => {
-                const content = (metadata as SinglePaymentRequest)?.content;
-                if (!content) return false;
-                const sourceCurrency =
-                  content.currency.tag === Currency_Tags.Fiat
-                    ? (content.currency as any).inner
-                    : 'SATS';
-                return sourceCurrency !== preferredCurrency;
+                if (!content || amount == null) return false;
+                const isFiat = content.currency.tag === Currency_Tags.Fiat;
+                if (isFiat) {
+                  const fiatCodeRaw = (content.currency as any).inner;
+                  const fiatCode = Array.isArray(fiatCodeRaw)
+                    ? fiatCodeRaw[0]
+                    : fiatCodeRaw;
+                  return fiatCode !== preferredCurrency;
+                }
+                return 'MSATS' !== preferredCurrency;
               })() && (
                 <View style={styles.convertedAmountContainer}>
                   {isConvertingCurrency ? (

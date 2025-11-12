@@ -59,6 +59,7 @@ import { useCurrency } from './CurrencyContext';
 import { useOnboarding } from './OnboardingContext';
 import { getKeypairFromKey, hasKey } from '@/utils/keyHelpers';
 import { getServiceNameFromProfile, mapNumericStatusToString } from '@/utils/nostrHelper';
+import { globalEvents } from '@/utils/common';
 
 export class LocalCashuDirectListener implements CashuDirectListener {
   private callback: (event: CashuDirectContentWithKey) => Promise<void>;
@@ -526,7 +527,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                 console.log('Cashu token processed successfully');
 
                 // Emit event to notify that wallet balances have changed
-                const { globalEvents } = await import('@/utils/index');
                 globalEvents.emit('walletBalancesChanged', {
                   mintUrl: tokenInfo.mintUrl,
                   unit: tokenInfo.unit.toLowerCase(),

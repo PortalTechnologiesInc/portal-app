@@ -20,7 +20,7 @@ import { useUserProfile } from '@/context/UserProfileContext';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { requestMediaLibraryPermissionsAsync, launchImageLibraryAsync } from 'expo-image-picker';
 import { showToast } from '@/utils/Toast';
-import { formatAvatarUri } from '@/utils';
+import { formatAvatarUri } from '@/utils/common';
 
 export type IdentityListProps = {
   onManageIdentity: (identity: Identity) => void;

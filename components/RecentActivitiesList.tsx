@@ -2,7 +2,7 @@ import React, { useCallback, useMemo } from 'react';
 import { View, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
 import { router } from 'expo-router';
 import { ThemedText } from './ThemedText';
-import { formatDayAndDate } from '@/utils';
+import { formatDayAndDate } from '@/utils/common';
 import { useActivities } from '@/context/ActivitiesContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { ActivityRow } from './ActivityRow';

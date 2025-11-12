@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { formatDayAndDate } from '@/utils';
+import { formatDayAndDate } from '@/utils/common';
 import { useActivities } from '@/context/ActivitiesContext';
 import { fromUnixSeconds, type SubscriptionWithDates } from '@/services/DatabaseService';
 import { parseCalendar } from 'portal-app-lib';
