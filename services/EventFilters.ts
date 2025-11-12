@@ -17,9 +17,6 @@ import { DatabaseService, fromUnixSeconds, SubscriptionWithDates } from './Datab
 import { CurrencyConversionService } from './CurrencyConversionService';
 import { Currency } from '@/utils/currency';
 
-// In-memory guard to prevent concurrent duplicate handling within a short window
-const inFlightRequestIds = new Set<string>();
-
 export async function handleAuthChallenge(
   event: AuthChallengeEvent,
   executeOperation: <T>(operation: (db: DatabaseService) => Promise<T>, fallback?: T) => Promise<T>,
@@ -34,15 +31,15 @@ export async function handleSinglePaymentRequest(
   preferredCurrency: Currency,
   executeOperation: <T>(operation: (db: DatabaseService) => Promise<T>, fallback?: T) => Promise<T>,
   resolve: (status: PaymentStatus) => void,
+  sendNotification: boolean = false
 ): Promise<boolean> {
+  let subId = request.content.subscriptionId;
   try {
+    //clean old stale subs
+    await executeOperation((db) => db.deleteStaleProcessingSubscriptions());
+
     // Fast in-memory dedup to avoid double-processing when invoked concurrently
     const requestKey = request.eventId;
-    if (inFlightRequestIds.has(requestKey)) {
-      console.warn(`🔁 Skipping duplicate payment activity for request_id/eventId: ${request.eventId}`);
-      return false;
-    }
-    inFlightRequestIds.add(requestKey);
 
     let invoiceData = parseBolt11(request.content.invoice);
 
@@ -71,17 +68,37 @@ export async function handleSinglePaymentRequest(
       return false;
     }
 
-    let subId = request.content.subscriptionId;
     if (!subId) {
       console.log(`👤 Not a subscription, required user interaction!`);
-      Notifications.scheduleNotificationAsync({
-        content: {
-          title: 'New Payment Request',
-          body: `You have a new payment request that requires confirmation.`,
-        },
-        trigger: null,
-      });
+
+      if (sendNotification) {
+        // Show notification to user for manual approval
+        // TODO: format currency and amount
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: 'Payment Request',
+            body: `Payment request for ${request.content.amount} ${request.content.currency.tag === Currency_Tags.Fiat ? request.content.currency.inner : 'msat'} requires approval`,
+          },
+          trigger: null, // Show immediately
+        });
+      }
+
       return true;
+    }
+
+    let lockTry = 0;
+    while (true) {
+      const lockAcquired = (await executeOperation((db) => db.markSubscriptionAsProcessing(subId))) > 0;
+      if (lockAcquired) {
+        console.log(`💂 Lock acquired!. Processing subscription with id ${subId}`);
+        break;
+      } else if (lockTry > 4) {
+        console.warn(`💂 Execution terminated. Could not acquire lock on subscription processing`);
+        return false;
+      }
+      lockTry++;
+      console.warn(`💂 Execution delayed. Subscription with id ${subId} is already processing`);
+      await new Promise(resolve => setTimeout(resolve, 600));
     }
 
     console.log(`🤖 The request is from a subscription with id ${subId}. Checking to make automatic action.`);
@@ -153,6 +170,7 @@ export async function handleSinglePaymentRequest(
     } catch (error) {
       console.error('Currency conversion error during payment:', error);
       // Continue without conversion - convertedAmount will remain null
+      return false;
     }
     if (amount != subscription.amount || currency != subscription.currency) {
       resolve(
@@ -219,6 +237,7 @@ export async function handleSinglePaymentRequest(
       // make the payment with nwc
       try {
         const preimage = await wallet.payInvoice(request.content.invoice);
+        console.log("🧾 Invoice paid!");
 
         // Update the subscription last payment date
         await executeOperation(
@@ -314,10 +333,10 @@ export async function handleSinglePaymentRequest(
     console.warn(`🚫 Payment rejected! Error is: ${e}`);
     return false;
   } finally {
-    // Allow future processing; DB uniqueness handles longer-term dedup
-    try {
-      inFlightRequestIds.delete(request.eventId);
-    } catch { }
+    if (subId) {
+      await executeOperation((db) => db.deleteProcessingSubscription(subId));
+      console.log(`💂 Lock is freed. Subscription with id ${subId} is removed from processing list.`);
+    }
   }
 }
 

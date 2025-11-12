@@ -12,7 +12,6 @@ const PaymentControllerContext = createContext<PaymentControllerContextType | un
 export function PaymentControllerProvider({ children }: { children: ReactNode }) {
   let { executeOperation } = useDatabaseContext();
   let { nwcWallet } = useNostrService();
-  let { activities } = useActivities();
 
   useEffect(() => {
     if (!nwcWallet) return;
@@ -26,6 +25,7 @@ export function PaymentControllerProvider({ children }: { children: ReactNode })
         }
 
         try {
+          console.warn("🧾 looking up for invoice: ", invoice);
           const lookupResponse = await nwcWallet.lookupInvoice(invoice);
           if (lookupResponse.settledAt || lookupResponse.preimage) {
             await db.updateActivityStatus(element.id, 'positive', 'Payment completed');
@@ -52,7 +52,7 @@ export function PaymentControllerProvider({ children }: { children: ReactNode })
         }
       }
     });
-  }, [nwcWallet, activities]);
+  }, [nwcWallet]);
 
   return (
     <PaymentControllerContext.Provider value={{}}>
