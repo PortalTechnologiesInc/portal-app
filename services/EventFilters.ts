@@ -12,9 +12,59 @@ import {
   parseBolt11,
   Currency_Tags,
 } from 'portal-app-lib';
+import * as Notifications from 'expo-notifications';
 import { DatabaseService, fromUnixSeconds, SubscriptionWithDates } from './DatabaseService';
 import { CurrencyConversionService } from './CurrencyConversionService';
-import { Currency } from '@/utils/currency';
+import { Currency, CurrencyHelpers } from '@/utils/currency';
+
+/**
+ * Sends a local notification for payment-related events with human-readable formatting
+ * @param title - Notification title
+ * @param amount - Payment amount
+ * @param currency - Currency string (e.g., 'sats', 'USD')
+ * @param serviceName - Name of the service
+ * @param convertedAmount - Optional converted amount in user's preferred currency
+ * @param convertedCurrency - Optional converted currency
+ */
+async function sendPaymentNotification(
+  title: string,
+  amount: number,
+  currency: string,
+  serviceName: string,
+): Promise<void> {
+  try {
+    // Format the amount - prefer converted amount if available
+    let formattedAmount: string;
+    // Use converted amount with proper formatting
+    const currencyEnum = currency as Currency;
+    const symbol = CurrencyHelpers.getSymbol(currencyEnum);
+
+    if (currencyEnum === Currency.SATS) {
+      formattedAmount = `${Math.round(amount)} ${symbol}`;
+    } else if (currencyEnum === Currency.BTC) {
+      const fixed = amount.toFixed(8);
+      const trimmed = fixed.replace(/\.0+$/, '').replace(/(\.\d*?[1-9])0+$/, '$1');
+      formattedAmount = `${symbol}${trimmed}`;
+    } else {
+      formattedAmount = `${symbol}${amount.toFixed(2)}`;
+    }
+    const body = `${serviceName}: ${formattedAmount}`;
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title,
+        body,
+        data: {
+          type: 'payment',
+        },
+      },
+      trigger: null, // Show immediately
+    });
+  } catch (error) {
+    // Silently fail - notification errors shouldn't break payment flow
+    console.error('Failed to send payment notification:', error);
+  }
+}
 
 export async function handleAuthChallenge(
   event: AuthChallengeEvent,
@@ -30,11 +80,32 @@ export async function handleSinglePaymentRequest(
   preferredCurrency: Currency,
   executeOperation: <T>(operation: (db: DatabaseService) => Promise<T>, fallback?: T) => Promise<T>,
   resolve: (status: PaymentStatus) => void,
-  getServiceName: (app: PortalAppInterface, serviceKey: string) => Promise<string | null>,
-  app: PortalAppInterface
+  sendNotification: boolean = false
 ): Promise<boolean> {
+  let subId = request.content.subscriptionId;
   try {
+    //clean old stale subs
+    await executeOperation((db) => db.deleteStaleProcessingSubscriptions());
+
+    // Fast in-memory dedup to avoid double-processing when invoked concurrently
+    const requestKey = request.eventId;
+
     let invoiceData = parseBolt11(request.content.invoice);
+
+    // Deduplication guard: skip if an activity with the same request/event id already exists
+    try {
+      const alreadyExists = await executeOperation(
+        db => db.hasActivityWithRequestId(request.eventId),
+        false
+      );
+      if (alreadyExists) {
+        console.warn(`🔁 Skipping duplicate payment activity for request_id/eventId: ${request.eventId}`);
+        return false;
+      }
+    } catch (e) {
+      // If the check fails, proceed without blocking, but log the error
+      console.error('Failed to check duplicate activity:', e);
+    }
 
     if (invoiceData.amountMsat != request.content.amount) {
       resolve(
@@ -42,47 +113,10 @@ export async function handleSinglePaymentRequest(
           reason: `Invoice amount does not match the requested amount.`,
         })
       );
-      console.warn(`🚫 Payment rejected! The invoice amount do not match the requested amount.\nRecieved ${invoiceData.amountMsat}\nRequired ${request.content.amount}`);
+      console.warn(`🚫 Payment rejected! The invoice amount do not match the requested amount.\nReceived ${invoiceData.amountMsat}\nRequired ${request.content.amount}`);
       return false;
     }
 
-    let subId = request.content.subscriptionId;
-    if (!subId) {
-      console.log(`👤 Not a subscription, required user interaction!`);
-      return true;
-    }
-
-    console.log(`🤖 The request is from a subscription with id ${subId}. Checking to make automatic action.`);
-    let subscription: SubscriptionWithDates;
-    let subsrciptioServiceName: string;
-    try {
-      console.log('0');
-      let subscriptionFromDb = await executeOperation(db => db.getSubscription(subId), null);
-      if (!subscriptionFromDb) {
-        resolve(
-          new PaymentStatus.Rejected({
-            reason: `Subscription with ID ${subId} not found in database`,
-          })
-        );
-        console.warn(`🚫 Payment rejected! The request is a subscription payment, but no subscription found with id ${subId}`);
-        return false;
-      }
-      subscription = subscriptionFromDb;
-      subsrciptioServiceName = subscriptionFromDb.service_name;
-    } catch (e) {
-      resolve(
-        new PaymentStatus.Rejected({
-          reason:
-            'Failed to retrieve subscription from database. Please try again or contact support if the issue persists.',
-        })
-      );
-      console.warn(`🚫 Payment rejected! Failing to connect to database.`);
-      return false;
-    }
-
-    console.log('1');
-
-    console.log('3');
     let amount =
       typeof request.content.amount === 'bigint'
         ? Number(request.content.amount)
@@ -90,7 +124,6 @@ export async function handleSinglePaymentRequest(
 
     // Store original amount for currency conversion
     const originalAmount = amount;
-    console.log('4');
 
     // Extract currency symbol from the Currency object and convert amount for storage
     let currency: string | null = null;
@@ -109,12 +142,10 @@ export async function handleSinglePaymentRequest(
         break;
     }
 
-    console.log('5');
     // Convert currency for user's preferred currency using original amount
     let convertedAmount: number | null = null;
     let convertedCurrency: string | null = null;
 
-    console.log('6');
     try {
       const sourceCurrency =
         currencyObj?.tag === Currency_Tags.Fiat ? (currencyObj as any).inner : 'MSATS';
@@ -128,8 +159,66 @@ export async function handleSinglePaymentRequest(
     } catch (error) {
       console.error('Currency conversion error during payment:', error);
       // Continue without conversion - convertedAmount will remain null
+      return false;
     }
-    console.log('7');
+
+    if (!subId) {
+      console.log(`👤 Not a subscription, required user interaction!`);
+
+      if (sendNotification) {
+        await sendPaymentNotification(
+          'Payment Request',
+          convertedAmount,
+          convertedCurrency,
+          'Payment request',
+        );
+      }
+
+      return true;
+    }
+
+    let lockTry = 0;
+    while (true) {
+      const lockAcquired = (await executeOperation((db) => db.markSubscriptionAsProcessing(subId))) > 0;
+      if (lockAcquired) {
+        console.log(`💂 Lock acquired!. Processing subscription with id ${subId}`);
+        break;
+      } else if (lockTry > 4) {
+        console.warn(`💂 Execution terminated. Could not acquire lock on subscription processing`);
+        return false;
+      }
+      lockTry++;
+      console.warn(`💂 Execution delayed. Subscription with id ${subId} is already processing`);
+      await new Promise(resolve => setTimeout(resolve, 600));
+    }
+
+    console.log(`🤖 The request is from a subscription with id ${subId}. Checking to make automatic action.`);
+    let subscription: SubscriptionWithDates;
+    let subscriptionServiceName: string;
+    try {
+      let subscriptionFromDb = await executeOperation(db => db.getSubscription(subId), null);
+      if (!subscriptionFromDb) {
+        resolve(
+          new PaymentStatus.Rejected({
+            reason: `Subscription with ID ${subId} not found in database`,
+          })
+        );
+        console.warn(`🚫 Payment rejected! The request is a subscription payment, but no subscription found with id ${subId}`);
+        return false;
+      }
+      subscription = subscriptionFromDb;
+      subscriptionServiceName = subscriptionFromDb.service_name;
+    } catch (e) {
+      resolve(
+        new PaymentStatus.Rejected({
+          reason:
+            'Failed to retrieve subscription from database. Please try again or contact support if the issue persists.',
+        })
+      );
+      console.warn(`🚫 Payment rejected! Failing to connect to database.`);
+      return false;
+    }
+
     if (amount != subscription.amount || currency != subscription.currency) {
       resolve(
         new PaymentStatus.Rejected({
@@ -139,19 +228,16 @@ export async function handleSinglePaymentRequest(
       console.warn(`🚫 Payment rejected! Amount does not match subscription amount.\nExpected: ${subscription.amount} ${subscription.currency}\nReceived: ${amount} ${request.content.currency}`);
       return false;
     }
-    console.log('8');
 
     // If no payment has been executed, the nextOccurrence is the first payment due time
     let nextOccurrence: bigint | undefined = BigInt(
       subscription.recurrence_first_payment_due.getTime() / 1000
     );
-    console.log('9');
     if (subscription.last_payment_date) {
       let lastPayment = BigInt(subscription.last_payment_date.getTime() / 1000);
       nextOccurrence = parseCalendar(subscription.recurrence_calendar).nextOccurrence(lastPayment);
     }
 
-    console.log('10');
     if (!nextOccurrence || fromUnixSeconds(nextOccurrence) > new Date()) {
       resolve(
         new PaymentStatus.Rejected({
@@ -162,57 +248,6 @@ export async function handleSinglePaymentRequest(
       return false;
     }
 
-    console.log('11');
-    // let balance: number | undefined;
-
-    // if (wallet) {
-    //   try {
-    //     await wallet.getInfo();
-    //     console.log('11a');
-    //     balance = Number(await wallet.getBalance());
-    //     console.log('11b');
-    //   } catch (error) {
-    //     resolve(
-    //       new PaymentStatus.Rejected({
-    //         reason: 'Error while getting wallet info.',
-    //       })
-    //     );
-    //     console.warn(`🚫 Payment rejected! Error is: ${error}}`);
-    //   }
-    // }
-
-    // console.log('12');
-    // if (balance && request.content.amount > balance) {
-    //   executeOperation(
-    //     db =>
-    //       db.addActivity({
-    //         type: 'pay',
-    //         service_key: request.serviceKey,
-    //         service_name: null,
-    //         detail: 'Recurrent payment failed: insufficient wallet balance.',
-    //         date: new Date(),
-    //         amount: amount,
-    //         currency: currency,
-    //         converted_amount: convertedAmount,
-    //         converted_currency: convertedCurrency,
-    //         request_id: request.eventId,
-    //         status: 'negative',
-    //         subscription_id: request.content.subscriptionId || null,
-    //       }),
-    //     null
-    //   );
-
-    //   console.log('13');
-    //   resolve(
-    //     new PaymentStatus.Rejected({
-    //       reason: 'Recurrent payment failed: insufficient wallet balance.',
-    //     })
-    //   );
-    //   console.warn(`🚫 Payment rejected! Insufficient wallet balance.\nRequired: ${request.content.amount}\nBut you have: ${balance}`);
-    //   return false;
-    // }
-
-    console.log('14');
     if (wallet) {
       // Save the payment
       const id = await executeOperation(
@@ -220,7 +255,7 @@ export async function handleSinglePaymentRequest(
           db.addActivity({
             type: 'pay',
             service_key: request.serviceKey,
-            service_name: subsrciptioServiceName,
+            service_name: subscriptionServiceName,
             detail: 'Recurrent payment',
             date: new Date(),
             amount: amount,
@@ -230,11 +265,15 @@ export async function handleSinglePaymentRequest(
             request_id: request.eventId,
             status: 'pending',
             subscription_id: request.content.subscriptionId || null,
+            invoice: request.content.invoice
           }),
         null
       );
 
-      console.log('15');
+      void import('@/utils/index').then(({ globalEvents }) => {
+        globalEvents.emit('activityAdded', { activityId: id });
+      });
+
       resolve(new PaymentStatus.Approved());
 
       await executeOperation(
@@ -242,19 +281,19 @@ export async function handleSinglePaymentRequest(
         null
       );
 
-      console.log('16');
       // make the payment with nwc
       try {
-        console.log('16a');
         const preimage = await wallet.payInvoice(request.content.invoice);
+        console.log("🧾 Invoice paid!");
 
-        await executeOperation(
-          db => db.addPaymentStatusEntry(request.content.invoice, 'payment_completed'),
-          null
+        // Send notification to user about successful payment
+        await sendPaymentNotification(
+          'Payment Successful',
+          convertedAmount,
+          convertedCurrency,
+          subscriptionServiceName,
         );
-        console.log('16b');
 
-        console.log('17');
         // Update the subscription last payment date
         await executeOperation(
           db => db.updateSubscriptionLastPayment(subscription.id, new Date()),
@@ -268,22 +307,23 @@ export async function handleSinglePaymentRequest(
             null
           );
         }
+        void import('@/utils/index').then(({ globalEvents }) => {
+          globalEvents.emit('activityUpdated', { activityId: id });
+        });
 
-        console.log('18');
         resolve(
           new PaymentStatus.Success({
             preimage,
           })
         );
-      } catch (error) {
-        console.error('Error paying invoice:', error);
+      } catch (error: any) {
+        console.error('Error paying invoice:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
 
         await executeOperation(
           db => db.addPaymentStatusEntry(request.content.invoice, 'payment_failed'),
           null
         );
 
-        console.log('19');
         // Update the activity status to negative
         if (id) {
           await executeOperation(
@@ -305,12 +345,12 @@ export async function handleSinglePaymentRequest(
         console.warn(`🚫 Payment failed! Error is: ${error}`);
       }
     } else {
-      executeOperation(
+      const id = await executeOperation(
         db =>
           db.addActivity({
             type: 'pay',
             service_key: request.serviceKey,
-            service_name: subsrciptioServiceName,
+            service_name: subscriptionServiceName,
             detail: 'Recurrent payment failed: no wallet is connected.',
             date: new Date(),
             amount: amount,
@@ -320,10 +360,13 @@ export async function handleSinglePaymentRequest(
             request_id: request.eventId,
             status: 'negative',
             subscription_id: request.content.subscriptionId || null,
+            invoice: request.content.invoice
           }),
         null
       );
-      console.log('20');
+      void import('@/utils/index').then(({ globalEvents }) => {
+        globalEvents.emit('activityAdded', { activityId: id });
+      });
 
       resolve(
         new PaymentStatus.Rejected({
@@ -344,6 +387,11 @@ export async function handleSinglePaymentRequest(
     );
     console.warn(`🚫 Payment rejected! Error is: ${e}`);
     return false;
+  } finally {
+    if (subId) {
+      await executeOperation((db) => db.deleteProcessingSubscription(subId));
+      console.log(`💂 Lock is freed. Subscription with id ${subId} is removed from processing list.`);
+    }
   }
 }
 

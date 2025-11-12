@@ -11,6 +11,7 @@ expo-env.d.ts
 android
 ios
 modules
+build
 
 # Native
 *.orig.*

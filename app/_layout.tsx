@@ -23,6 +23,7 @@ import * as Notifications from 'expo-notifications';
 import { ECashProvider } from '@/context/ECashContext';
 import { SQLiteProvider } from 'expo-sqlite';
 import migrateDbIfNeeded from '@/migrations/DatabaseMigrations';
+import { PaymentControllerProvider } from '@/context/PaymentControllerContext';
 
 // Prevent splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -117,10 +118,12 @@ const AuthenticatedAppContent = () => {
         <UserProfileProvider>
           <ActivitiesProvider>
             <PendingRequestsProvider>
-              <DeeplinkProvider>
-                <NotificationConfigurator />
-                <Stack screenOptions={{ headerShown: false }} />
-              </DeeplinkProvider>
+              <PaymentControllerProvider>
+                <DeeplinkProvider>
+                  <NotificationConfigurator />
+                  <Stack screenOptions={{ headerShown: false }} />
+                </DeeplinkProvider>
+              </PaymentControllerProvider>
             </PendingRequestsProvider>
           </ActivitiesProvider>
         </UserProfileProvider>
