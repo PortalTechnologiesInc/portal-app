@@ -162,10 +162,38 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
         }
 
         try {
-          // For Lightning/fiat payments, we assume NWC wallet handles this
-          // The NWC wallet connection status is handled by the "no wallet configured" warning
           if (content.currency.tag === Currency_Tags.Fiat) {
-            setHasInsufficientBalance(false);
+            // For fiat payments, convert to msats and check NWC wallet balance
+            try {
+              const fiatCurrency = (content.currency as any).inner;
+              const rawFiatAmount = Number(amount);
+              const normalizedFiatAmount = rawFiatAmount / 100; // incoming amount is in minor units (e.g., cents)
+              const amountInMsat = await CurrencyConversionService.convertAmount(
+                normalizedFiatAmount,
+                fiatCurrency[0],
+                'MSATS'
+              );
+              const requestedMsats = Math.round(amountInMsat);
+
+              // Check NWC wallet balance (fiat payments only use NWC wallet)
+              let canPay = false;
+              if (nwcStatus === true) {
+                try {
+                  const nwcMsats =
+                    (nostrService.walletInfo.data?.get_balance as number | undefined) ?? undefined;
+                  if (typeof nwcMsats === 'number' && nwcMsats >= requestedMsats) {
+                    canPay = true;
+                  }
+                } catch (e) {
+                  // ignore
+                }
+              }
+
+              setHasInsufficientBalance(!canPay);
+            } catch (error) {
+              console.error('Error converting fiat amount for balance check:', error);
+              setHasInsufficientBalance(false);
+            }
           } else {
             // For eCash/sats payments, check if we have a wallet with sufficient balance
             const requestedMsats = Number(amount);
