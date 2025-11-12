@@ -38,6 +38,7 @@ import type {
 } from '@/utils/types';
 import { PortalAppManager } from '@/services/PortalAppManager';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
+import { globalEvents } from '@/utils/common';
 
 // Helper function to get service name with fallback
 const getServiceNameWithFallback = async (
@@ -479,7 +480,6 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               const token = await wallet.sendAmount(amount);
 
               // Emit event to notify that wallet balances have changed
-              const { globalEvents } = await import('@/utils/common');
               globalEvents.emit('walletBalancesChanged', {
                 mintUrl: cashuEvent.inner.mintUrl,
                 unit: cashuEvent.inner.unit.toLowerCase(),

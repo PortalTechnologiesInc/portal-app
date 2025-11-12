@@ -1,4 +1,5 @@
 import React, { createContext, useContext, ReactNode, useEffect } from 'react';
+import { globalEvents } from '@/utils/common';
 import { useDatabaseContext } from './DatabaseContext';
 import { useNostrService } from './NostrServiceContext';
 import { useActivities } from './ActivitiesContext';
@@ -29,9 +30,7 @@ export function PaymentControllerProvider({ children }: { children: ReactNode })
           const lookupResponse = await nwcWallet.lookupInvoice(invoice);
           if (lookupResponse.settledAt || lookupResponse.preimage) {
             await db.updateActivityStatus(element.id, 'positive', 'Payment completed');
-            void import('@/utils/common').then(({ globalEvents }) => {
-              globalEvents.emit('activityUpdated', { activityId: element.id });
-            });
+            globalEvents.emit('activityUpdated', { activityId: element.id });
             await db.addPaymentStatusEntry(invoice, 'payment_completed');
           } else if (
             !lookupResponse.settledAt &&
@@ -39,9 +38,7 @@ export function PaymentControllerProvider({ children }: { children: ReactNode })
             Number(lookupResponse.expiresAt) * 1000 < Date.now()
           ) {
             await db.updateActivityStatus(element.id, 'negative', 'Invoice expired');
-            void import('@/utils/common').then(({ globalEvents }) => {
-              globalEvents.emit('activityUpdated', { activityId: element.id });
-            });
+            globalEvents.emit('activityUpdated', { activityId: element.id });
             await db.addPaymentStatusEntry(invoice, 'payment_failed');
           }
         } catch (error) {
@@ -50,9 +47,7 @@ export function PaymentControllerProvider({ children }: { children: ReactNode })
             JSON.stringify(error, Object.getOwnPropertyNames(error))
           );
           await db.updateActivityStatus(element.id, 'negative', 'Payment failed');
-          void import('@/utils/common').then(({ globalEvents }) => {
-            globalEvents.emit('activityUpdated', { activityId: element.id });
-          });
+          globalEvents.emit('activityUpdated', { activityId: element.id });
         }
       }
     });

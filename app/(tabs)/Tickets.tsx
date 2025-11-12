@@ -14,6 +14,7 @@ import TicketCard from '@/components/TicketCard';
 import { useECash } from '@/context/ECashContext';
 import uuid from 'react-native-uuid';
 import { router } from 'expo-router';
+import { globalEvents } from '@/utils/common';
 
 export default function TicketsScreen() {
   const [filter, setFilter] = useState<'all' | 'active' | 'used' | 'expired'>('all');
@@ -28,33 +29,14 @@ export default function TicketsScreen() {
 
   // Listen for wallet balance changes
   useEffect(() => {
-    const setupWalletBalanceListener = async () => {
-      try {
-        const { globalEvents } = await import('@/utils/common');
-        const handleWalletBalancesChanged = () => {
-          setWalletUpdateTrigger(prev => prev + 1);
-        };
-
-        globalEvents.on('walletBalancesChanged', handleWalletBalancesChanged);
-
-        return () => {
-          globalEvents.off('walletBalancesChanged', handleWalletBalancesChanged);
-        };
-      } catch (error) {
-        console.error('Error setting up wallet balance listener:', error);
-        return () => {};
-      }
+    const handleWalletBalancesChanged = () => {
+      setWalletUpdateTrigger(prev => prev + 1);
     };
 
-    let cleanup: (() => void) | undefined;
-    setupWalletBalanceListener().then(cleanupFn => {
-      cleanup = cleanupFn;
-    });
+    globalEvents.on('walletBalancesChanged', handleWalletBalancesChanged);
 
     return () => {
-      if (cleanup) {
-        cleanup();
-      }
+      globalEvents.off('walletBalancesChanged', handleWalletBalancesChanged);
     };
   }, []);
 
