@@ -13,6 +13,7 @@ interface AppLockContextType {
   isLockEnabled: boolean;
   lockTimerDuration: LockTimerDuration;
   authMethod: AuthMethod;
+  isFingerprintSupported: boolean;
   timerOptions: typeof TIMER_OPTIONS;
   unlockApp: () => void;
   setLockEnabled: (enabled: boolean) => Promise<void>;
@@ -30,14 +31,25 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
   const [isLockEnabled, setIsLockEnabled] = useState(false);
   const [lockTimerDuration, setLockTimerDurationState] = useState<LockTimerDuration>(null);
   const [authMethod, setAuthMethodState] = useState<AuthMethod>(null);
+  const [isFingerprintSupported, setIsFingerprintSupported] = useState(false);
 
   // Load app lock settings on mount
   useEffect(() => {
     const loadSettings = async () => {
       try {
+        // First, check fingerprint support (this will check and store if not present)
+        const fingerprintSupported = await AppLockService.getFingerprintSupported();
+        setIsFingerprintSupported(fingerprintSupported);
+
         const enabled = await AppLockService.isAppLockEnabled();
         const duration = await AppLockService.getLockTimerDuration();
-        const method = await AppLockService.getAuthMethod();
+        let method = await AppLockService.getAuthMethod();
+
+        // If enabled but no method set, determine based on fingerprint support
+        if (enabled && !method) {
+          method = fingerprintSupported ? 'biometric' : 'pin';
+          await AppLockService.setAuthMethod(method);
+        }
 
         setIsLockEnabled(enabled);
         setLockTimerDurationState(duration);
@@ -91,7 +103,14 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
     try {
       await AppLockService.setAppLockEnabled(enabled);
       setIsLockEnabled(enabled);
-      if (!enabled) {
+      if (enabled) {
+        // Determine auth method based on fingerprint support
+        const fingerprintSupported = await AppLockService.getFingerprintSupported();
+        setIsFingerprintSupported(fingerprintSupported);
+        const method = fingerprintSupported ? 'biometric' : 'pin';
+        await AppLockService.setAuthMethod(method);
+        setAuthMethodState(method);
+      } else {
         setIsLocked(false);
         setAuthMethodState(null);
       }
@@ -150,6 +169,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
         isLockEnabled,
         lockTimerDuration,
         authMethod,
+        isFingerprintSupported,
         timerOptions: TIMER_OPTIONS,
         unlockApp,
         setLockEnabled,

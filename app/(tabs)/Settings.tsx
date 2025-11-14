@@ -41,8 +41,9 @@ import { useDatabaseContext } from '@/context/DatabaseContext';
 import { useKey } from '@/context/KeyContext';
 import { getNsecStringFromKey } from '@/utils/keyHelpers';
 import { useAppLock } from '@/context/AppLockContext';
-import { AppLockService, LockTimerDuration } from '@/services/AppLockService';
+import { LockTimerDuration } from '@/services/AppLockService';
 import { PINSetupScreen } from '@/components/PINSetupScreen';
+import { PINKeypad } from '@/components/PINKeypad';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -63,12 +64,16 @@ export default function SettingsScreen() {
     setLockEnabled,
     setLockTimerDuration,
     setupPIN,
-    isBiometricAvailable,
+    isFingerprintSupported,
+    authMethod,
+    verifyPIN,
   } = useAppLock();
   const [refreshing, setRefreshing] = useState(false);
   const [isCurrencyModalVisible, setIsCurrencyModalVisible] = useState(false);
   const [isTimerModalVisible, setIsTimerModalVisible] = useState(false);
   const [isPINSetupVisible, setIsPINSetupVisible] = useState(false);
+  const [isPINVerifyVisible, setIsPINVerifyVisible] = useState(false);
+  const [pinError, setPinError] = useState(false);
   const [walletUrl, setWalletUrl] = useState('');
 
   // Unified wallet status
@@ -191,23 +196,39 @@ export default function SettingsScreen() {
   const handleAppLockToggle = async (enabled: boolean) => {
     try {
       if (enabled) {
-        // Check if biometric is available
-        const biometricAvailable = await isBiometricAvailable();
-        if (biometricAvailable) {
-          // Require biometric to enable
+        // Use fingerprint support to determine path
+        if (isFingerprintSupported) {
+          // Fingerprint supported - use biometric path
           authenticateForSensitiveAction(async () => {
             await setLockEnabled(true);
-            await AppLockService.setAuthMethod('biometric');
             showToast('App lock enabled', 'success');
           }, 'Authenticate to enable app lock');
         } else {
-          // Show PIN setup
+          // No fingerprint support - show PIN setup
           setIsPINSetupVisible(true);
         }
       } else {
-        // Disable app lock directly (no authentication required)
-        await setLockEnabled(false);
-        showToast('App lock disabled', 'success');
+        // Disable app lock - require authentication
+        if (authMethod === 'biometric' && isFingerprintSupported) {
+          // Use biometric authentication
+          authenticateForSensitiveAction(async () => {
+            await setLockEnabled(false);
+            showToast('App lock disabled', 'success');
+          }, 'Authenticate to disable app lock');
+        } else if (authMethod === 'pin') {
+          // Show PIN verification
+          setIsPINVerifyVisible(true);
+        } else {
+          // Fallback: try biometric first, then PIN
+          if (isFingerprintSupported) {
+            authenticateForSensitiveAction(async () => {
+              await setLockEnabled(false);
+              showToast('App lock disabled', 'success');
+            }, 'Authenticate to disable app lock');
+          } else {
+            setIsPINVerifyVisible(true);
+          }
+        }
       }
     } catch (error) {
       console.error('Error toggling app lock:', error);
@@ -224,6 +245,25 @@ export default function SettingsScreen() {
     } catch (error) {
       console.error('Error setting up PIN:', error);
       showToast('Failed to set up PIN', 'error');
+    }
+  };
+
+  const handlePINVerifyComplete = async (pin: string) => {
+    try {
+      const isValid = await verifyPIN(pin);
+      if (isValid) {
+        await setLockEnabled(false);
+        setIsPINVerifyVisible(false);
+        setPinError(false);
+        showToast('App lock disabled', 'success');
+      } else {
+        setPinError(true);
+        setTimeout(() => setPinError(false), 2000);
+      }
+    } catch (error) {
+      console.error('Error verifying PIN:', error);
+      setPinError(true);
+      setTimeout(() => setPinError(false), 2000);
     }
   };
 
@@ -767,6 +807,58 @@ export default function SettingsScreen() {
         onComplete={handlePINSetupComplete}
         onCancel={() => setIsPINSetupVisible(false)}
       />
+
+      {/* PIN Verification Modal */}
+      <Modal
+        visible={isPINVerifyVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => {
+          setIsPINVerifyVisible(false);
+          setPinError(false);
+        }}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => {
+            setIsPINVerifyVisible(false);
+            setPinError(false);
+          }}
+        >
+          <TouchableOpacity
+            style={[styles.modalContent, { backgroundColor: cardBackgroundColor }]}
+            activeOpacity={1}
+            onPress={e => e.stopPropagation()}
+          >
+            <View style={styles.modalHeader}>
+              <ThemedText style={[styles.modalTitle, { color: primaryTextColor }]}>
+                Verify PIN to Disable App Lock
+              </ThemedText>
+              <TouchableOpacity
+                onPress={() => {
+                  setIsPINVerifyVisible(false);
+                  setPinError(false);
+                }}
+              >
+                <X size={24} color={secondaryTextColor} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.pinContainer}>
+              <ThemedText style={[styles.pinInstruction, { color: secondaryTextColor }]}>
+                Enter your 5-digit PIN to disable app lock
+              </ThemedText>
+              <PINKeypad
+                onPINComplete={handlePINVerifyComplete}
+                maxLength={5}
+                showDots={true}
+                error={pinError}
+                onError={() => setPinError(false)}
+              />
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1055,5 +1147,14 @@ const styles = StyleSheet.create({
   },
   walletSection: {
     marginBottom: 12,
+  },
+  pinContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  pinInstruction: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 24,
   },
 });
