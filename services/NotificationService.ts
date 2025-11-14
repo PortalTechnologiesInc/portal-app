@@ -62,7 +62,6 @@ Notifications.setNotificationHandler({
 });
 
 function handleRegistrationError(errorMessage: string) {
-  alert(errorMessage);
   console.error(errorMessage);
 }
 
@@ -104,7 +103,8 @@ export default async function registerPubkeysForPushNotificationsAsync(pubkeys: 
       handleRegistrationError(`${e}`);
     }
   } else {
-    handleRegistrationError('Must use physical device for push notifications');
+    // Silently skip push notification registration on emulator/simulator
+    console.log('Skipping push notification registration (emulator/simulator detected)');
   }
 }
 
