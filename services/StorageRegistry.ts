@@ -24,6 +24,12 @@ export const SECURE_STORE_KEYS = {
   // App State
   PENDING_DEEPLINK: 'PENDING_DEEPLINK',
   EXPO_PUSH_TOKEN: 'expo_push_token_key',
+
+  // App Lock
+  APP_LOCK_ENABLED: 'portal_app_lock_enabled',
+  APP_LOCK_TIMER_DURATION: 'portal_app_lock_timer_duration',
+  APP_LOCK_AUTH_METHOD: 'portal_app_lock_auth_method',
+  APP_LOCK_PIN_HASH: 'portal_app_lock_pin_hash',
 } as const;
 
 // All database tables that need to be cleared during reset

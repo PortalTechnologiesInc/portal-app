@@ -24,6 +24,7 @@ import {
   Wallet,
   Wifi,
   RotateCcw,
+  Clock,
 } from 'lucide-react-native';
 import { Moon, Sun, Smartphone } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -39,6 +40,10 @@ import { useWalletStatus } from '@/hooks/useWalletStatus';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import { useKey } from '@/context/KeyContext';
 import { getNsecStringFromKey } from '@/utils/keyHelpers';
+import { useAppLock } from '@/context/AppLockContext';
+import { LockTimerDuration } from '@/services/AppLockService';
+import { PINSetupScreen } from '@/components/PINSetupScreen';
+import { PINKeypad } from '@/components/PINKeypad';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -52,8 +57,23 @@ export default function SettingsScreen() {
     getCurrentCurrencySymbol,
   } = useCurrency();
   const { mnemonic, nsec } = useKey();
+  const {
+    isLockEnabled,
+    lockTimerDuration,
+    timerOptions,
+    setLockEnabled,
+    setLockTimerDuration,
+    setupPIN,
+    isFingerprintSupported,
+    authMethod,
+    verifyPIN,
+  } = useAppLock();
   const [refreshing, setRefreshing] = useState(false);
   const [isCurrencyModalVisible, setIsCurrencyModalVisible] = useState(false);
+  const [isTimerModalVisible, setIsTimerModalVisible] = useState(false);
+  const [isPINSetupVisible, setIsPINSetupVisible] = useState(false);
+  const [isPINVerifyVisible, setIsPINVerifyVisible] = useState(false);
+  const [pinError, setPinError] = useState(false);
   const [walletUrl, setWalletUrl] = useState('');
 
   // Unified wallet status
@@ -171,6 +191,93 @@ export default function SettingsScreen() {
   const handleCurrencySelect = (currency: Currency) => {
     setPreferredCurrency(currency);
     setIsCurrencyModalVisible(false);
+  };
+
+  const handleAppLockToggle = async (enabled: boolean) => {
+    try {
+      if (enabled) {
+        // Use fingerprint support to determine path
+        if (isFingerprintSupported) {
+          // Fingerprint supported - use biometric path
+          authenticateForSensitiveAction(async () => {
+            await setLockEnabled(true);
+            showToast('App lock enabled', 'success');
+          }, 'Authenticate to enable app lock');
+        } else {
+          // No fingerprint support - show PIN setup
+          setIsPINSetupVisible(true);
+        }
+      } else {
+        // Disable app lock - require authentication
+        if (authMethod === 'biometric' && isFingerprintSupported) {
+          // Use biometric authentication
+          authenticateForSensitiveAction(async () => {
+            await setLockEnabled(false);
+            showToast('App lock disabled', 'success');
+          }, 'Authenticate to disable app lock');
+        } else if (authMethod === 'pin') {
+          // Show PIN verification
+          setIsPINVerifyVisible(true);
+        } else {
+          // Fallback: try biometric first, then PIN
+          if (isFingerprintSupported) {
+            authenticateForSensitiveAction(async () => {
+              await setLockEnabled(false);
+              showToast('App lock disabled', 'success');
+            }, 'Authenticate to disable app lock');
+          } else {
+            setIsPINVerifyVisible(true);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling app lock:', error);
+      showToast('Failed to update app lock setting', 'error');
+    }
+  };
+
+  const handlePINSetupComplete = async (pin: string) => {
+    try {
+      await setupPIN(pin);
+      await setLockEnabled(true);
+      setIsPINSetupVisible(false);
+      showToast('App lock enabled with PIN', 'success');
+    } catch (error) {
+      console.error('Error setting up PIN:', error);
+      showToast('Failed to set up PIN', 'error');
+    }
+  };
+
+  const handlePINVerifyComplete = async (pin: string) => {
+    try {
+      const isValid = await verifyPIN(pin);
+      if (isValid) {
+        await setLockEnabled(false);
+        setIsPINVerifyVisible(false);
+        setPinError(false);
+        showToast('App lock disabled', 'success');
+      } else {
+        setPinError(true);
+        setTimeout(() => setPinError(false), 2000);
+      }
+    } catch (error) {
+      console.error('Error verifying PIN:', error);
+      setPinError(true);
+      setTimeout(() => setPinError(false), 2000);
+    }
+  };
+
+  const handleTimerSelect = (duration: LockTimerDuration) => {
+    setLockTimerDuration(duration);
+    setIsTimerModalVisible(false);
+    const option = timerOptions.find(opt => opt.value === duration);
+    showToast(`Lock timer set to ${option?.label || 'Immediate'}`, 'success');
+  };
+
+  const getTimerLabel = (): string => {
+    if (!isLockEnabled) return 'Not configured';
+    const option = timerOptions.find(opt => opt.value === lockTimerDuration);
+    return option?.label || 'Immediate';
   };
 
   const currencies = Object.values(Currency).filter(currency => currency !== Currency.MSATS);
@@ -447,29 +554,54 @@ export default function SettingsScreen() {
           <View style={[styles.appLockOption, { backgroundColor: cardBackgroundColor }]}>
             <View style={styles.appLockLeft}>
               <View style={styles.appLockIconContainer}>
-                <Shield size={24} color={secondaryTextColor} />
+                <Shield size={24} color={buttonPrimaryColor} />
               </View>
               <View style={styles.appLockTextContainer}>
-                <ThemedText style={[styles.appLockTitle, { color: secondaryTextColor }]}>
+                <ThemedText style={[styles.appLockTitle, { color: primaryTextColor }]}>
                   App Lock
                 </ThemedText>
                 <ThemedText style={[styles.appLockDescription, { color: secondaryTextColor }]}>
-                  App lock feature has been disabled
+                  Lock your app with biometric or PIN
                 </ThemedText>
               </View>
             </View>
             <Switch
-              value={false}
-              onValueChange={() => {}}
-              disabled={true}
+              value={isLockEnabled}
+              onValueChange={handleAppLockToggle}
               trackColor={{
                 false: inputBorderColor,
-                true: inputBorderColor,
+                true: buttonPrimaryColor,
               }}
-              thumbColor={inputBorderColor}
+              thumbColor={isLockEnabled ? buttonPrimaryTextColor : '#ffffff'}
               ios_backgroundColor={inputBorderColor}
             />
           </View>
+          {isLockEnabled && (
+            <TouchableOpacity
+              style={[styles.card, { backgroundColor: cardBackgroundColor }]}
+              onPress={() => setIsTimerModalVisible(true)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.cardContent}>
+                <View style={styles.cardLeft}>
+                  <View style={styles.cardHeader}>
+                    <View style={[styles.iconContainer]}>
+                      <Clock size={20} color={buttonPrimaryColor} />
+                    </View>
+                    <View style={styles.cardText}>
+                      <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
+                        Lock Timer
+                      </ThemedText>
+                      <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
+                        {getTimerLabel()}
+                      </ThemedText>
+                    </View>
+                  </View>
+                </View>
+                <ChevronRight size={24} color={secondaryTextColor} />
+              </View>
+            </TouchableOpacity>
+          )}
 
           {/* Recover Tickets Section */}
           <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
@@ -603,6 +735,127 @@ export default function SettingsScreen() {
                 No currencies available
               </ThemedText>
             )}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Timer Selector Modal */}
+      <Modal
+        visible={isTimerModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setIsTimerModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setIsTimerModalVisible(false)}
+        >
+          <TouchableOpacity
+            style={[styles.modalContent, { backgroundColor: backgroundColor }]}
+            activeOpacity={1}
+            onPress={e => e.stopPropagation()}
+          >
+            <View style={styles.modalHeader}>
+              <ThemedText style={[styles.modalTitle, { color: primaryTextColor }]}>
+                Select Lock Timer
+              </ThemedText>
+              <TouchableOpacity
+                onPress={() => setIsTimerModalVisible(false)}
+                style={styles.modalCloseButton}
+              >
+                <X size={24} color={secondaryTextColor} />
+              </TouchableOpacity>
+            </View>
+            {timerOptions.length > 0 ? (
+              <FlatList
+                data={timerOptions}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={[styles.currencyItem, { backgroundColor: cardBackgroundColor }]}
+                    onPress={() => handleTimerSelect(item.value)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.currencyItemContent}>
+                      <View style={styles.currencyItemLeft}>
+                        <ThemedText style={[styles.currencyItemName, { color: primaryTextColor }]}>
+                          {item.label}
+                        </ThemedText>
+                      </View>
+                      {lockTimerDuration === item.value && (
+                        <Check size={20} color={statusConnectedColor} />
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                )}
+                keyExtractor={item => item.value?.toString() || 'never'}
+                style={styles.currencyList}
+                showsVerticalScrollIndicator={false}
+              />
+            ) : (
+              <ThemedText style={[{ color: primaryTextColor, textAlign: 'center', padding: 20 }]}>
+                No timer options available
+              </ThemedText>
+            )}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* PIN Setup Modal */}
+      <PINSetupScreen
+        visible={isPINSetupVisible}
+        onComplete={handlePINSetupComplete}
+        onCancel={() => setIsPINSetupVisible(false)}
+      />
+
+      {/* PIN Verification Modal */}
+      <Modal
+        visible={isPINVerifyVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => {
+          setIsPINVerifyVisible(false);
+          setPinError(false);
+        }}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => {
+            setIsPINVerifyVisible(false);
+            setPinError(false);
+          }}
+        >
+          <TouchableOpacity
+            style={[styles.modalContent, { backgroundColor: cardBackgroundColor }]}
+            activeOpacity={1}
+            onPress={e => e.stopPropagation()}
+          >
+            <View style={styles.modalHeader}>
+              <ThemedText style={[styles.modalTitle, { color: primaryTextColor }]}>
+                Verify PIN to Disable App Lock
+              </ThemedText>
+              <TouchableOpacity
+                onPress={() => {
+                  setIsPINVerifyVisible(false);
+                  setPinError(false);
+                }}
+              >
+                <X size={24} color={secondaryTextColor} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.pinContainer}>
+              <ThemedText style={[styles.pinInstruction, { color: secondaryTextColor }]}>
+                Enter your 5-digit PIN to disable app lock
+              </ThemedText>
+              <PINKeypad
+                onPINComplete={handlePINVerifyComplete}
+                maxLength={5}
+                showDots={true}
+                error={pinError}
+                onError={() => setPinError(false)}
+              />
+            </View>
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
@@ -894,5 +1147,14 @@ const styles = StyleSheet.create({
   },
   walletSection: {
     marginBottom: 12,
+  },
+  pinContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  pinInstruction: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 24,
   },
 });

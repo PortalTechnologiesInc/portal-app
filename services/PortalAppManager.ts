@@ -25,7 +25,7 @@ export class PortalAppManager {
 
     if (logRust) {
       try {
-        initLogger(new Logger(), LogLevel.Trace);
+        initLogger(new Logger(), LogLevel.Error);
         console.log('Logger initialized');
       } catch (error) {
         console.error('Error initializing logger:', error);
