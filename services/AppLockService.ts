@@ -1,6 +1,9 @@
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SECURE_STORE_KEYS } from './StorageRegistry';
 import { isBiometricAuthAvailable } from './BiometricAuthService';
+
+const FINGERPRINT_SUPPORTED_KEY = 'isFingerprintSupported';
 
 export type AuthMethod = 'biometric' | 'pin' | null;
 export type LockTimerDuration = 0 | 30000 | 60000 | 300000 | 900000 | 1800000 | 3600000 | null;
@@ -157,11 +160,20 @@ export class AppLockService {
   static async verifyPIN(pin: string): Promise<boolean> {
     try {
       const storedHash = await SecureStore.getItemAsync(SECURE_STORE_KEYS.APP_LOCK_PIN_HASH);
-      if (!storedHash) {
+      
+      // In dev mode, if no PIN is set, default to hash of "00000"
+      let hashToCompare = storedHash;
+      if (!hashToCompare && __DEV__) {
+        hashToCompare = hashPIN('00000');
+        console.log('🔧 Dev mode: Using default PIN hash for "00000"');
+      }
+      
+      if (!hashToCompare) {
         return false;
       }
+      
       const enteredHash = hashPIN(pin);
-      return storedHash === enteredHash;
+      return hashToCompare === enteredHash;
     } catch (error) {
       console.error('Error verifying PIN:', error);
       return false;
@@ -224,6 +236,39 @@ export class AppLockService {
    */
   static async isBiometricAvailable(): Promise<boolean> {
     return await isBiometricAuthAvailable();
+  }
+
+  /**
+   * Get fingerprint support status from storage or check and store it
+   */
+  static async getFingerprintSupported(): Promise<boolean> {
+    try {
+      const stored = await AsyncStorage.getItem(FINGERPRINT_SUPPORTED_KEY);
+      if (stored !== null) {
+        return stored === 'true';
+      }
+
+      // Key not present - check biometric support and store it
+      const isSupported = await isBiometricAuthAvailable();
+      await AsyncStorage.setItem(FINGERPRINT_SUPPORTED_KEY, isSupported ? 'true' : 'false');
+      return isSupported;
+    } catch (error) {
+      console.error('Error getting fingerprint support status:', error);
+      // On error, check directly and return
+      return await isBiometricAuthAvailable();
+    }
+  }
+
+  /**
+   * Set fingerprint support status (for testing/manual override)
+   */
+  static async setFingerprintSupported(supported: boolean): Promise<void> {
+    try {
+      await AsyncStorage.setItem(FINGERPRINT_SUPPORTED_KEY, supported ? 'true' : 'false');
+    } catch (error) {
+      console.error('Error setting fingerprint support status:', error);
+      throw error;
+    }
   }
 }
 

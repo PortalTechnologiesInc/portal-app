@@ -10,8 +10,7 @@ import { authenticateAsync } from '@/services/BiometricAuthService';
 import { Fingerprint, Shield } from 'lucide-react-native';
 
 export function AppLockScreen() {
-  const { isLocked, authMethod, unlockApp, verifyPIN, isBiometricAvailable } = useAppLock();
-  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const { isLocked, authMethod, unlockApp, verifyPIN, isFingerprintSupported } = useAppLock();
   const [pinError, setPinError] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const hasAutoTriggeredRef = React.useRef(false);
@@ -43,35 +42,25 @@ export function AppLockScreen() {
   useEffect(() => {
     if (!isLocked) {
       hasAutoTriggeredRef.current = false;
-      setBiometricAvailable(false);
     }
   }, [isLocked]);
 
-  // Check biometric availability and auto-trigger on first lock
+  // Auto-trigger biometric authentication on first lock (only if fingerprint supported)
   useEffect(() => {
-    const checkAndAutoTrigger = async () => {
-      if (!isLocked) return;
-
-      const available = await isBiometricAvailable();
-      setBiometricAvailable(available);
-
-      // Auto-trigger biometric authentication only the first time
-      if (
-        available &&
-        authMethod === 'biometric' &&
-        !hasAutoTriggeredRef.current &&
-        !isAuthenticating
-      ) {
-        hasAutoTriggeredRef.current = true;
-        // Small delay to ensure modal is fully rendered
-        setTimeout(() => {
-          handleBiometricAuth();
-        }, 100);
-      }
-    };
-
-    checkAndAutoTrigger();
-  }, [isLocked, authMethod, isAuthenticating, isBiometricAvailable, handleBiometricAuth]);
+    if (
+      isLocked &&
+      isFingerprintSupported &&
+      authMethod === 'biometric' &&
+      !hasAutoTriggeredRef.current &&
+      !isAuthenticating
+    ) {
+      hasAutoTriggeredRef.current = true;
+      // Small delay to ensure modal is fully rendered
+      setTimeout(() => {
+        handleBiometricAuth();
+      }, 100);
+    }
+  }, [isLocked, authMethod, isAuthenticating, isFingerprintSupported, handleBiometricAuth]);
 
   const handlePINComplete = async (pin: string) => {
     if (isAuthenticating) return;
@@ -101,8 +90,9 @@ export function AppLockScreen() {
     return null;
   }
 
-  const showBiometric = authMethod === 'biometric' && biometricAvailable;
-  const showPIN = authMethod === 'pin' || (authMethod === 'biometric' && !biometricAvailable);
+  // Determine UI based on fingerprint support
+  const showBiometric = isFingerprintSupported && authMethod === 'biometric';
+  const showPIN = !isFingerprintSupported || authMethod === 'pin';
 
   return (
     <Modal visible={isLocked} animationType="fade" transparent={false}>
