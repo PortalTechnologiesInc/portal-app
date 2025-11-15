@@ -6,13 +6,18 @@ import { ArrowLeft, Send } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StyleSheet, ScrollView, TouchableOpacity, View } from 'react-native';
 import { Colors } from 'react-native/Libraries/NewAppScreen';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useWalletManager } from '@/context/WalletManagerContext';
+import WALLET_TYPE from '@/models/WalletType';
+import { BreezService } from '@/services/BreezService';
+import { WalletInfo } from '@/utils';
 
 export default function MyWalletManagementSecret() {
   const router = useRouter();
 
-  const { walletInfo, refreshWalletInfo, receivePayment } = useWalletManager();
+  const { getWallet } = useWalletManager();
+  const [breezWallet, setBreezWallet] = useState<BreezService | null>(null);
+  const [walletInfo, setWalletInfo] = useState<WalletInfo | null>(null);
 
   const backgroundColor = useThemeColor({}, 'background');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
@@ -20,10 +25,24 @@ export default function MyWalletManagementSecret() {
   const buttonPrimaryTextColor = useThemeColor({}, 'buttonPrimaryText');
 
   useEffect(() => {
-    setInterval(() => {
-      refreshWalletInfo();
+    let active = true;
+
+    getWallet(WALLET_TYPE.BREEZ).then(wallet => {
+      if (active) setBreezWallet(wallet);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [getWallet]);
+
+  useEffect(() => {
+    if (breezWallet == null) return;
+    setInterval(async () => {
+      const info = await breezWallet.getWalletInfo();
+      setWalletInfo(info);
     }, 1000);
-  }, [receivePayment, refreshWalletInfo]);
+  }, [breezWallet]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
