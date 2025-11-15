@@ -1073,44 +1073,41 @@ export class DatabaseService {
 
   async getNip05Contacts(): Promise<Array<Nip05Contact>> {
     try {
-      const contacts = await this.db.getAllAsync<Nip05Contact>(
-        `SELECT * FROM nip05_contacts`
-      );
+      const contacts = await this.db.getAllAsync<Nip05Contact>(`SELECT * FROM nip05_contacts`);
 
       return contacts;
-    } catch(error) {
+    } catch (error) {
       console.error('Error getting nip05 contacts:', error);
       return [];
     }
   }
 
-  async saveNip05Contact(contact: Omit<Nip05Contact, 'id' | 'created_at'>): Promise<Nip05Contact | null> {
+  async saveNip05Contact(
+    contact: Omit<Nip05Contact, 'id' | 'created_at'>
+  ): Promise<Nip05Contact | null> {
     try {
       await this.db.runAsync(
         `INSERT INTO nip05_contacts(name, npub, domain, display_name, nickname, avatar_uri)
          VALUES(?, ?, ?, ?, ?, ?)`,
-         [
+        [
           contact.name,
           contact.npub,
           contact.domain,
           contact.display_name,
           contact.nickname,
           contact.avatar_uri,
-         ]
+        ]
       );
 
       const newContact = await this.db.getFirstAsync<Nip05Contact>(
         `SELECT *
          FROM nip05_contacts
          WHERE npub = ? AND name = ?`,
-         [
-          contact.npub,
-          contact.name,
-         ]
+        [contact.npub, contact.name]
       );
 
       return newContact;
-    } catch(error) {
+    } catch (error) {
       console.error('Error saving nip05 contact', error);
       return null;
     }
@@ -1122,7 +1119,7 @@ export class DatabaseService {
         `UPDATE nip05_contacts
          SET name = ?, npub = ?, domain = ?, display_name = ?, nickname = ?, avatar_uri = ?
          WHERE id = ?`,
-         [
+        [
           newContact.name,
           newContact.npub,
           newContact.domain,
@@ -1130,10 +1127,9 @@ export class DatabaseService {
           newContact.nickname,
           newContact.avatar_uri,
           newContact.id,
-         ]
+        ]
       );
-
-    } catch(error) {
+    } catch (error) {
       console.error('Error updating nip05 contact', error);
     }
   }

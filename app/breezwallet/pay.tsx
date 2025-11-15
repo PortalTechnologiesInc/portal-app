@@ -1,24 +1,37 @@
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { useRouter } from 'expo-router';
-import { ArrowLeft, HandCoins, Send } from 'lucide-react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { ArrowLeft, Send } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { StyleSheet, ScrollView, TouchableOpacity, View, Button, Text } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { Colors } from 'react-native/Libraries/NewAppScreen';
+import { useCallback, useEffect, useState } from 'react';
+import bolt11 from 'light-bolt11-decoder';
+import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import { useCurrency } from '@/context/CurrencyContext';
 import { useBreezService } from '@/context/BreezServiceContext';
-import { useEffect, useState } from 'react';
 import {
-  ListPaymentsRequest,
-  Payment,
-  ReceivePaymentMethod,
+  PrepareSendPaymentRequest,
+  PrepareSendPaymentResponse,
+  SendPaymentMethod,
 } from '@breeztech/breez-sdk-spark-react-native';
 
 export default function MyWalletManagementSecret() {
+  const params = useLocalSearchParams();
   const router = useRouter();
 
-  const { balanceInSats, refreshWalletInfo, receivePayment } = useBreezService();
-  const [invoice, setInvoice] = useState('');
+  const { preferredCurrency } = useCurrency();
+  const { prepareSendPaymentRequest, sendPayment } = useBreezService();
+
+  const [amountMillisats, setAmountMillisats] = useState<number | null>(null);
+  const [convertedAmount, setConvertedAmount] = useState<number | null>(null);
+  const [feesInSats, setFeesInSats] = useState<number | null>(null);
+  const [convertedFeesInSats, setConvertedFeesInSats] = useState<number | null>(null);
+  const [description, setDescription] = useState<string | null>(null);
+  const [prepareSendPaymentResponse, setPrepareSendPaymentResponse] =
+    useState<PrepareSendPaymentResponse | null>(null);
+  const [isSendPaymentLoading, setIsSendPaymentLoading] = useState(false);
 
   const backgroundColor = useThemeColor({}, 'background');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
@@ -26,22 +39,52 @@ export default function MyWalletManagementSecret() {
   const buttonPrimaryColor = useThemeColor({}, 'buttonPrimary');
   const buttonPrimaryTextColor = useThemeColor({}, 'buttonPrimaryText');
 
+  const confirmPayment = useCallback(async () => {
+    if (prepareSendPaymentResponse == null) return;
+
+    setIsSendPaymentLoading(true);
+    sendPayment(prepareSendPaymentResponse);
+    setIsSendPaymentLoading(false);
+  }, [prepareSendPaymentResponse]);
+
   useEffect(() => {
-    const getInfo = async () => {
-      const paymentMethod = new ReceivePaymentMethod.Bolt11Invoice({
-        description: 'Turetta',
-        amountSats: BigInt(1000),
+    const invoice = params.invoice as string;
+
+    const parseInvoiceData = async () => {
+      bolt11.decode(invoice).sections.map(async section => {
+        if (section.name === 'amount') {
+          setAmountMillisats(Number(section.value));
+          const converted = await CurrencyConversionService.convertAmount(
+            Number(section.value) / 1000,
+            'sats',
+            preferredCurrency
+          );
+          setConvertedAmount(converted);
+
+          const prepareResponse = await prepareSendPaymentRequest(
+            invoice,
+            BigInt(Number(section.value) / 1000)
+          );
+          setPrepareSendPaymentResponse(prepareResponse);
+          if (prepareResponse.paymentMethod instanceof SendPaymentMethod.Bolt11Invoice) {
+            const { lightningFeeSats, sparkTransferFeeSats } = prepareResponse.paymentMethod.inner;
+            const totalFees = lightningFeeSats + (sparkTransferFeeSats ?? BigInt(0));
+            const convertedFees = await CurrencyConversionService.convertAmount(
+              Number(totalFees),
+              'sats',
+              preferredCurrency
+            );
+            setFeesInSats(Number(totalFees));
+            setConvertedFeesInSats(convertedFees);
+          }
+        } else if (section.name === 'description') {
+          setDescription(section.value);
+        }
       });
-      const invoice = await receivePayment(paymentMethod);
-      setInvoice(invoice);
     };
 
-    getInfo();
-
-    setInterval(() => {
-      refreshWalletInfo();
-    }, 1000);
-  }, []);
+    parseInvoiceData();
+  }, [params]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
@@ -50,55 +93,82 @@ export default function MyWalletManagementSecret() {
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <ArrowLeft size={20} color={primaryTextColor} />
           </TouchableOpacity>
-          <ThemedText style={[styles.headerText, { color: primaryTextColor }]}>
-            Wallet Management
-          </ThemedText>
+          <ThemedText style={[styles.headerText, { color: primaryTextColor }]}>Pay</ThemedText>
         </ThemedView>
-        <ThemedView style={{ ...styles.content, gap: 10 }}>
-          <ThemedView style={{ flexDirection: 'row' }}>
-            <View>
-              <ThemedText type="subtitle" style={{ color: primaryTextColor }}>
-                Balance
-              </ThemedText>
-              <ThemedText type="title" style={{ color: primaryTextColor }}>
-                {balanceInSats} sats
-              </ThemedText>
-            </View>
-          </ThemedView>
-          <View style={styles.sectionDivider} />
-          <ThemedView style={{ flex: 1 }}>
-            <ScrollView></ScrollView>
-          </ThemedView>
-          <ThemedView style={{ flexDirection: 'row', justifyContent: 'center' }}>
-            <ThemedView
-              style={{
-                flexDirection: 'row',
-                gap: 40,
-                backgroundColor: buttonPrimaryColor,
-                borderRadius: 25,
-                paddingTop: 10,
-                paddingBottom: 10,
-                paddingLeft: 30,
-                paddingRight: 30,
-              }}
-            >
-              <TouchableOpacity>
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <HandCoins color={buttonPrimaryTextColor} />
-                  <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
-                    Receive
-                  </ThemedText>
-                </View>
-              </TouchableOpacity>
-              <TouchableOpacity>
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <Send color={buttonPrimaryTextColor} />
-                  <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
-                    Send
-                  </ThemedText>
-                </View>
-              </TouchableOpacity>
+
+        <ThemedView style={{ ...styles.content, flex: 1, justifyContent: 'center', alignItems: 'center', gap: 20 }}>
+          <ThemedView style={{ gap: 5, alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+            <ThemedView style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-end' }}>
+              <Text style={{ color: primaryTextColor, fontSize: 50, fontWeight: 'bold' }}>{amountMillisats ? amountMillisats / 1000 : 0}</Text>
+              <Text style={{ color: secondaryTextColor, fontSize: 30 }}>sats</Text>
             </ThemedView>
+
+            <ThemedView style={{ flexDirection: 'row', alignItems: 'flex-end' }}>
+              <Text style={{ color: secondaryTextColor, fontSize: 30 }}>
+                {CurrencyConversionService.formatConvertedAmountWithFallback(
+                  convertedAmount,
+                  preferredCurrency
+                )}
+              </Text>
+            </ThemedView>
+
+            <ThemedView>
+              <ThemedView style={{ flexDirection: 'row', gap: 10, width: '70%' }}>
+                <ThemedView style={{ width: '40%', alignItems: 'flex-end' }}>
+                  <ThemedText type="defaultSemiBold">Description</ThemedText>
+                </ThemedView>
+                <ThemedView style={{ width: '60%', alignItems: 'flex-start' }}>
+                  <ThemedText>{description ?? 'No description'}</ThemedText>
+                </ThemedView>
+              </ThemedView>
+            </ThemedView>
+
+            <ThemedView style={{ flexDirection: 'row', gap: 10, width: '70%' }}>
+              <ThemedView style={{ width: '40%', alignItems: 'flex-end' }}>
+                <ThemedText type="defaultSemiBold">Fee</ThemedText>
+              </ThemedView>
+              <ThemedView style={{ width: '60%', alignItems: 'flex-start' }}>
+                <ThemedView style={{ flexDirection: 'row', gap: 5 }}>
+                  <ThemedText>{feesInSats} sats</ThemedText>
+                  <ThemedText style={{ color: secondaryTextColor }}>
+                    {CurrencyConversionService.formatConvertedAmountWithFallback(
+                      convertedFeesInSats,
+                      preferredCurrency
+                    )}
+                  </ThemedText>
+                </ThemedView>
+              </ThemedView>
+            </ThemedView>
+          </ThemedView>
+
+          <ThemedView
+            style={{
+              flexDirection: 'row',
+              gap: 40,
+              backgroundColor: buttonPrimaryColor,
+              borderRadius: 25,
+              paddingTop: 10,
+              paddingBottom: 10,
+              paddingLeft: 30,
+              paddingRight: 30,
+            }}
+          >
+            <TouchableOpacity onPress={confirmPayment} disabled={isSendPaymentLoading}>
+              <ThemedView
+                style={{ flexDirection: 'row', gap: 10, backgroundColor: buttonPrimaryColor }}
+              >
+                {isSendPaymentLoading ? (
+                  <ActivityIndicator size="small" color={buttonPrimaryTextColor} />
+                ) : (
+                  <>
+                    <Send color={buttonPrimaryTextColor} />
+                    <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
+                      Pay
+                    </ThemedText>
+                  </>
+                )}
+              </ThemedView>
+            </TouchableOpacity>
           </ThemedView>
         </ThemedView>
       </ThemedView>

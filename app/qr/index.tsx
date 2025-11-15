@@ -155,6 +155,15 @@ export default function QRScannerScreen() {
           };
         }
         break;
+
+      case 'lightning':
+        if (!data.startsWith('lnbc')) {
+          return {
+            isValid: false,
+            error: 'Invalid ticket QR code. Please scan a valid lightning invoice.',
+          };
+        }
+        break;
     }
     return { isValid: true };
   };
@@ -299,6 +308,15 @@ export default function QRScannerScreen() {
         }
         break;
 
+      case 'lightning':
+        router.replace({
+          pathname: '/breezwallet/pay',
+          params: {
+            invoice: data,
+          },
+        });
+        break;
+
       default:
         // Main QR handling - process the URL
         try {
@@ -325,6 +343,8 @@ export default function QRScannerScreen() {
         return 'Scan Wallet QR';
       case 'ticket':
         return 'Scan Ticket QR';
+      case 'lightning':
+        return 'Scan a lightning invoice';
       default:
         return 'Scan Authentication QR';
     }
@@ -336,6 +356,8 @@ export default function QRScannerScreen() {
         return 'Point your camera at a wallet connection QR code';
       case 'ticket':
         return 'Point your camera at a ticket QR code';
+      case 'lightning':
+        return 'Point your camera at a lightning invoice';
       default:
         return 'Point your camera at a Portal authentication QR code';
     }
