@@ -10,19 +10,21 @@ import { useCallback, useEffect, useState } from 'react';
 import bolt11 from 'light-bolt11-decoder';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 import { useCurrency } from '@/context/CurrencyContext';
-import { useBreezService } from '@/context/BreezServiceContext';
 import {
-  PrepareSendPaymentRequest,
   PrepareSendPaymentResponse,
   SendPaymentMethod,
 } from '@breeztech/breez-sdk-spark-react-native';
+import { useWalletManager } from '@/context/WalletManagerContext';
+import { BreezService } from '@/services/BreezService';
+import WALLET_TYPE from '@/models/WalletType';
 
 export default function MyWalletManagementSecret() {
   const params = useLocalSearchParams();
   const router = useRouter();
 
   const { preferredCurrency } = useCurrency();
-  const { prepareSendPaymentRequest, sendPayment } = useBreezService();
+  const { getWallet } = useWalletManager();
+  const [breezWallet, setBreezWallet] = useState<BreezService | null>(null);
 
   const [amountMillisats, setAmountMillisats] = useState<number | null>(null);
   const [convertedAmount, setConvertedAmount] = useState<number | null>(null);
@@ -40,14 +42,28 @@ export default function MyWalletManagementSecret() {
   const buttonPrimaryTextColor = useThemeColor({}, 'buttonPrimaryText');
 
   const confirmPayment = useCallback(async () => {
+    if (breezWallet == null) return;
     if (prepareSendPaymentResponse == null) return;
 
     setIsSendPaymentLoading(true);
-    sendPayment(prepareSendPaymentResponse);
+    await breezWallet.sendPaymentWithPrepareResponse(prepareSendPaymentResponse);
     setIsSendPaymentLoading(false);
-  }, [prepareSendPaymentResponse]);
+  }, [prepareSendPaymentResponse, breezWallet]);
 
   useEffect(() => {
+    let active = true;
+
+    getWallet(WALLET_TYPE.BREEZ).then(wallet => {
+      if (active) setBreezWallet(wallet);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [getWallet]);
+
+  useEffect(() => {
+    if (breezWallet == null) return;
     const invoice = params.invoice as string;
 
     const parseInvoiceData = async () => {
@@ -61,10 +77,11 @@ export default function MyWalletManagementSecret() {
           );
           setConvertedAmount(converted);
 
-          const prepareResponse = await prepareSendPaymentRequest(
+          const prepareResponse = await breezWallet?.prepareSendPayment(
             invoice,
             BigInt(Number(section.value) / 1000)
           );
+
           setPrepareSendPaymentResponse(prepareResponse);
           if (prepareResponse.paymentMethod instanceof SendPaymentMethod.Bolt11Invoice) {
             const { lightningFeeSats, sparkTransferFeeSats } = prepareResponse.paymentMethod.inner;
@@ -84,7 +101,7 @@ export default function MyWalletManagementSecret() {
     };
 
     parseInvoiceData();
-  }, [params]);
+  }, [params, breezWallet, preferredCurrency]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
@@ -96,10 +113,20 @@ export default function MyWalletManagementSecret() {
           <ThemedText style={[styles.headerText, { color: primaryTextColor }]}>Pay</ThemedText>
         </ThemedView>
 
-        <ThemedView style={{ ...styles.content, flex: 1, justifyContent: 'center', alignItems: 'center', gap: 20 }}>
+        <ThemedView
+          style={{
+            ...styles.content,
+            flex: 1,
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: 20,
+          }}
+        >
           <ThemedView style={{ gap: 5, alignItems: 'center', justifyContent: 'center', flex: 1 }}>
             <ThemedView style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-end' }}>
-              <Text style={{ color: primaryTextColor, fontSize: 50, fontWeight: 'bold' }}>{amountMillisats ? amountMillisats / 1000 : 0}</Text>
+              <Text style={{ color: primaryTextColor, fontSize: 50, fontWeight: 'bold' }}>
+                {amountMillisats ? amountMillisats / 1000 : 0}
+              </Text>
               <Text style={{ color: secondaryTextColor, fontSize: 30 }}>sats</Text>
             </ThemedView>
 

@@ -2,18 +2,17 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, HandCoins, Send } from 'lucide-react-native';
+import { ArrowLeft, Send } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StyleSheet, ScrollView, TouchableOpacity, View } from 'react-native';
 import { Colors } from 'react-native/Libraries/NewAppScreen';
-import { useEffect, useState } from 'react';
-import { ListPaymentsRequest, Payment } from '@breeztech/breez-sdk-spark-react-native';
-import { format } from 'date-fns';
+import { useEffect } from 'react';
+import { useWalletManager } from '@/context/WalletManagerContext';
 
 export default function MyWalletManagementSecret() {
   const router = useRouter();
 
-  const { balanceInSats, refreshWalletInfo } = useBreezService();
+  const { walletInfo, refreshWalletInfo, receivePayment } = useWalletManager();
 
   const backgroundColor = useThemeColor({}, 'background');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
@@ -44,7 +43,7 @@ export default function MyWalletManagementSecret() {
                 Balance
               </ThemedText>
               <ThemedText type="title" style={{ color: primaryTextColor }}>
-                {balanceInSats} sats
+                {walletInfo?.balanceInSats ?? 0} sats
               </ThemedText>
             </View>
           </ThemedView>

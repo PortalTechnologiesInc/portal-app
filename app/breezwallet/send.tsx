@@ -86,7 +86,7 @@ export default function BreezWalletSelectSendMethod() {
     console.log(newContacts);
 
     setFilteredContacts(newContacts);
-  }, [activeFilter]);
+  }, [activeFilter, contacts]);
 
   useEffect(() => {
     getContacts();

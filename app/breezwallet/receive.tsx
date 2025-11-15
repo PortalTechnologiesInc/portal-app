@@ -7,15 +7,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { Colors } from 'react-native/Libraries/NewAppScreen';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 import { useCurrency } from '@/context/CurrencyContext';
-import { useBreezService } from '@/context/BreezServiceContext';
-import {
-  ReceivePaymentMethod,
-} from '@breeztech/breez-sdk-spark-react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { showToast } from '@/utils/Toast';
+import { useWalletManager } from '@/context/WalletManagerContext';
+import { BreezService } from '@/services/BreezService';
+import WALLET_TYPE from '@/models/WalletType';
 
 const portalLogo = require('../../assets/images/iosLight.png');
 
@@ -29,7 +28,6 @@ export default function MyWalletManagementSecret() {
   const router = useRouter();
 
   const { preferredCurrency } = useCurrency();
-  const { receivePayment } = useBreezService();
 
   const backgroundColor = useThemeColor({}, 'background');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
@@ -37,7 +35,8 @@ export default function MyWalletManagementSecret() {
   const buttonPrimaryColor = useThemeColor({}, 'buttonPrimary');
   const buttonPrimaryTextColor = useThemeColor({}, 'buttonPrimaryText');
   const inputBackground = useThemeColor({}, 'inputBackground');
-
+  const { getWallet } = useWalletManager();
+  const [breezWallet, setBreezWallet] = useState<BreezService | null>(null);
   const [amount, setAmount] = useState('0');
   const [description, setDescription] = useState('');
   const [convertedAmount, setConvertedAmount] = useState(0);
@@ -63,18 +62,27 @@ export default function MyWalletManagementSecret() {
     }, 1000);
   };
 
-  const generateInvoice = useCallback(async() => {
+  const generateInvoice = useCallback(async () => {
+    if (!breezWallet) return;
     setPageState(PageState.InvoiceCreating);
-    const createdInvoice = await receivePayment(new ReceivePaymentMethod.Bolt11Invoice({
-      amountSats: BigInt(amount),
-      description: description,
-    }));
+    const createdInvoice = await breezWallet?.receivePayment(BigInt(amount), description);
 
     console.log(createdInvoice);
     setInvoice(createdInvoice);
     setPageState(PageState.ShowInvoiceInfo);
-  }, [amount, description]);
+  }, [amount, breezWallet, description]);
 
+  useEffect(() => {
+    let active = true;
+
+    getWallet(WALLET_TYPE.BREEZ).then(wallet => {
+      if (active) setBreezWallet(wallet);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [getWallet]);
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
       <ThemedView style={[styles.container, { backgroundColor }]}>
@@ -86,8 +94,24 @@ export default function MyWalletManagementSecret() {
         </ThemedView>
 
         {pageState === PageState.GetInvoiceInfo ? (
-          <ThemedView style={{ ...styles.content, flex: 1, justifyContent: 'center', alignItems: 'center', gap: 20 }}>
-            <ThemedView style={{ gap: 20, alignItems: 'center', justifyContent: 'center', width: '80%', flex: 1 }}>
+          <ThemedView
+            style={{
+              ...styles.content,
+              flex: 1,
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: 20,
+            }}
+          >
+            <ThemedView
+              style={{
+                gap: 20,
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '80%',
+                flex: 1,
+              }}
+            >
               <ThemedView style={{ alignItems: 'center' }}>
                 <TextInput
                   style={{
@@ -143,7 +167,7 @@ export default function MyWalletManagementSecret() {
                 keyboardType="default"
                 placeholder="Description"
                 value={description}
-                onChangeText={(text) => setDescription(text)}
+                onChangeText={text => setDescription(text)}
               />
             </ThemedView>
 
@@ -177,8 +201,17 @@ export default function MyWalletManagementSecret() {
           </ThemedView>
         ) : (
           <ThemedView style={{ ...styles.content, flex: 1, gap: 20, alignItems: 'center' }}>
-            <ThemedView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 20 }}>
-              <ThemedView style={{ borderColor: primaryTextColor, borderWidth: 2, padding: 10, borderRadius: 10 }}>
+            <ThemedView
+              style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 20 }}
+            >
+              <ThemedView
+                style={{
+                  borderColor: primaryTextColor,
+                  borderWidth: 2,
+                  padding: 10,
+                  borderRadius: 10,
+                }}
+              >
                 <QRCode size={300} value={invoice} quietZone={5} logo={portalLogo} />
               </ThemedView>
 
@@ -186,7 +219,12 @@ export default function MyWalletManagementSecret() {
                 <Text style={{ color: primaryTextColor, fontSize: 20 }}>Amount</Text>
                 <ThemedView>
                   <Text style={{ color: secondaryTextColor, fontSize: 20 }}>{amount} sats</Text>
-                  <Text style={{ color: secondaryTextColor, fontSize: 20 }}>{CurrencyConversionService.formatConvertedAmountWithFallback(convertedAmount, preferredCurrency)}</Text>
+                  <Text style={{ color: secondaryTextColor, fontSize: 20 }}>
+                    {CurrencyConversionService.formatConvertedAmountWithFallback(
+                      convertedAmount,
+                      preferredCurrency
+                    )}
+                  </Text>
                 </ThemedView>
               </ThemedView>
 
@@ -202,10 +240,12 @@ export default function MyWalletManagementSecret() {
                   paddingRight: 30,
                 }}
               >
-                <TouchableOpacity onPress={() => {
-                  Clipboard.setString(invoice);
-                  showToast('Invoice copied in the clipboard!', 'success');
-                }}>
+                <TouchableOpacity
+                  onPress={() => {
+                    Clipboard.setString(invoice);
+                    showToast('Invoice copied in the clipboard!', 'success');
+                  }}
+                >
                   <ThemedView
                     style={{ flexDirection: 'row', gap: 10, backgroundColor: buttonPrimaryColor }}
                   >
@@ -219,34 +259,35 @@ export default function MyWalletManagementSecret() {
             </ThemedView>
 
             <ThemedView
-            style={{
-              flexDirection: 'row',
-              gap: 40,
-              backgroundColor: buttonPrimaryColor,
-              borderRadius: 25,
-              paddingTop: 10,
-              paddingBottom: 10,
-              paddingLeft: 30,
-              paddingRight: 30,
-            }}
-          >
-            <TouchableOpacity onPress={() => {
-              setAmount('0');
-              setDescription('');
-              setPageState(PageState.GetInvoiceInfo);
-              setInvoice('');
-            }}>
-              <ThemedView
-                style={{ flexDirection: 'row', gap: 10, backgroundColor: buttonPrimaryColor }}
+              style={{
+                flexDirection: 'row',
+                gap: 40,
+                backgroundColor: buttonPrimaryColor,
+                borderRadius: 25,
+                paddingTop: 10,
+                paddingBottom: 10,
+                paddingLeft: 30,
+                paddingRight: 30,
+              }}
+            >
+              <TouchableOpacity
+                onPress={() => {
+                  setAmount('0');
+                  setDescription('');
+                  setPageState(PageState.GetInvoiceInfo);
+                  setInvoice('');
+                }}
               >
-                <X color={buttonPrimaryTextColor} />
-                <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
-                  Cancel
-                </ThemedText>
-              </ThemedView>
-            </TouchableOpacity>
-          </ThemedView>
-
+                <ThemedView
+                  style={{ flexDirection: 'row', gap: 10, backgroundColor: buttonPrimaryColor }}
+                >
+                  <X color={buttonPrimaryTextColor} />
+                  <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
+                    Cancel
+                  </ThemedText>
+                </ThemedView>
+              </TouchableOpacity>
+            </ThemedView>
           </ThemedView>
         )}
       </ThemedView>

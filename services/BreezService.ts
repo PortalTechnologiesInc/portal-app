@@ -10,6 +10,7 @@ import {
   EventListener,
   SendPaymentMethod,
   OnchainConfirmationSpeed,
+  PrepareSendPaymentResponse,
 } from '@breeztech/breez-sdk-spark-react-native';
 import { Wallet } from '@/models/WalletType';
 import { WalletInfo } from '@/utils';
@@ -48,10 +49,10 @@ export class BreezService implements Wallet {
   }
 
   // for now only bolt11 invoices are supported
-  async receivePayment(amountSats: bigint): Promise<string> {
+  async receivePayment(amountSats: bigint, description?: string): Promise<string> {
     const response = await this.client.receivePayment({
       paymentMethod: new ReceivePaymentMethod.Bolt11Invoice({
-        description: 'Payment',
+        description: description || 'Payment',
         amountSats,
       }),
     });
@@ -65,8 +66,9 @@ export class BreezService implements Wallet {
     console.log('Sending payment:', { paymentRequest, amountSats });
     try {
       const prepareResponse = await this.client.prepareSendPayment({
-        amountSats,
+        amount: amountSats,
         paymentRequest,
+        tokenIdentifier: undefined,
       });
       console.log('Prepare send payment response:', prepareResponse);
       let sendOptions: SendPaymentOptions | undefined;
@@ -94,17 +96,21 @@ export class BreezService implements Wallet {
     }
   }
 
-  async prepareSendPayment(paymentRequest: string, amountSats: bigint): Promise<string> {
+  async prepareSendPayment(
+    paymentRequest: string,
+    amountSats: bigint
+  ): Promise<PrepareSendPaymentResponse> {
     if (!this.client) {
       throw new Error('Breez SDK is not initialized');
     }
 
     const prepareResponse = await this.client.prepareSendPayment({
-      amountSats,
+      amount: amountSats,
       paymentRequest,
+      tokenIdentifier: undefined,
     });
 
-    return prepareResponse.amountSats.toString();
+    return prepareResponse;
   }
 
   addEventListener(callback: EventListener) {
@@ -113,5 +119,29 @@ export class BreezService implements Wallet {
 
   removeEventListener(listenerId: string) {
     return this.client.removeEventListener(listenerId);
+  }
+
+  async sendPaymentWithPrepareResponse(
+    prepareResponse: PrepareSendPaymentResponse
+  ): Promise<string> {
+    let sendOptions: SendPaymentOptions | undefined;
+
+    if (prepareResponse.paymentMethod instanceof SendPaymentMethod.Bolt11Invoice) {
+      sendOptions = new SendPaymentOptions.Bolt11Invoice({
+        preferSpark: false,
+        completionTimeoutSecs: 60,
+      });
+    } else if (prepareResponse.paymentMethod instanceof SendPaymentMethod.BitcoinAddress) {
+      sendOptions = new SendPaymentOptions.BitcoinAddress({
+        confirmationSpeed: OnchainConfirmationSpeed.Medium,
+      });
+    }
+
+    const response = await this.client.sendPayment({
+      prepareResponse,
+      options: sendOptions,
+    });
+
+    return response.payment.id;
   }
 }

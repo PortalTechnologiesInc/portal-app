@@ -123,7 +123,7 @@ export class NwcService implements Wallet {
     }
   }
 
-  async receivePayment(amountSats: bigint): Promise<string> {
+  async receivePayment(amountSats: bigint, description?: string): Promise<string> {
     if (!this.client) {
       throw new Error('NWC client not initialized');
     }
@@ -131,7 +131,7 @@ export class NwcService implements Wallet {
     try {
       const invoice = await this.client.makeInvoice({
         amount: amountSats,
-        description: undefined,
+        description: description || 'Payment',
         descriptionHash: undefined,
         expiry: undefined,
       });

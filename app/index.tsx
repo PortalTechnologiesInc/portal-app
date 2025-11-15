@@ -1,9 +1,7 @@
 import { Redirect } from 'expo-router';
-import { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { Colors } from '@/constants/Colors';
-import * as Linking from 'expo-linking';
 
 const isDevelopmentDeeplink = (url: string): boolean => {
   // Check if it's an Expo development client deeplink
