@@ -4,7 +4,7 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, ClipboardCopy, QrCode, X } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity } from 'react-native';
+import { ActivityIndicator, Image, StyleSheet, Text, TextInput, TouchableOpacity } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { Colors } from 'react-native/Libraries/NewAppScreen';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -210,9 +210,24 @@ export default function MyWalletManagementSecret() {
                   borderWidth: 2,
                   padding: 10,
                   borderRadius: 10,
+                  justifyContent: 'center',
+                  alignItems: 'center',
                 }}
               >
-                <QRCode size={300} value={invoice} quietZone={5} logo={portalLogo} />
+                <QRCode size={300} value={invoice} quietZone={5} />
+
+                <Image
+                  source={portalLogo}
+                  style={{
+                    position: 'absolute',
+                    width: 100,
+                    height: 100,
+                    backgroundColor: 'white',
+                    borderRadius: 30,
+                    borderColor: 'black',
+                    borderWidth: 2,
+                  }}
+                />
               </ThemedView>
 
               <ThemedView style={{ flexDirection: 'row', gap: 10 }}>
