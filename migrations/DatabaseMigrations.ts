@@ -3,7 +3,7 @@ import { SQLiteDatabase } from 'expo-sqlite';
 // Function to migrate database schema if needed
 export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
   console.log('Database initialization started');
-  const DATABASE_VERSION = 15;
+  const DATABASE_VERSION = 16;
 
   try {
     let { user_version: currentDbVersion } = (await db.getFirstAsync<{
@@ -383,6 +383,27 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
       console.log(
         'Added converted amount and currency columns to subscriptions table - now at version 15'
       );
+    }
+
+    if (currentDbVersion <= 15) {
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS nip05_contacts (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          npub TEXT NOT NULL,
+          domain TEXT NOT NULL,
+          display_name TEXT,
+          nickname TEXT,
+          avatar_uri TEXT,
+          created_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_nip05_contacts_name ON nip05_contacts(name);
+        CREATE INDEX IF NOT EXISTS idx_nip05_contacts_npub ON nip05_contacts(npub);
+        CREATE INDEX IF NOT EXISTS idx_nip05_contacts_nickname ON nip05_contacts(nickname);
+      `);
+      currentDbVersion = 16;
+      console.log('Created nip05_contacts table- now at version 16');
     }
 
     await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);

@@ -65,6 +65,17 @@ export interface NameCacheRecord {
   created_at: number; // Unix timestamp in seconds
 }
 
+export interface Nip05Contact {
+  id: number;
+  name: string;
+  npub: string;
+  domain: string;
+  display_name: string | null;
+  nickname: string | null;
+  avatar_uri: string | null;
+  created_at: number; // Unix timestamp in seconds
+}
+
 // Application layer types (with Date objects)
 export interface ActivityWithDates extends Omit<ActivityRecord, 'date' | 'created_at'> {
   date: Date;
@@ -1057,6 +1068,69 @@ export class DatabaseService {
     } catch (error) {
       console.error('Error getting pending payments:', error);
       return [];
+    }
+  }
+
+  async getNip05Contacts(): Promise<Array<Nip05Contact>> {
+    try {
+      const contacts = await this.db.getAllAsync<Nip05Contact>(`SELECT * FROM nip05_contacts`);
+
+      return contacts;
+    } catch (error) {
+      console.error('Error getting nip05 contacts:', error);
+      return [];
+    }
+  }
+
+  async saveNip05Contact(
+    contact: Omit<Nip05Contact, 'id' | 'created_at'>
+  ): Promise<Nip05Contact | null> {
+    try {
+      await this.db.runAsync(
+        `INSERT INTO nip05_contacts(name, npub, domain, display_name, nickname, avatar_uri)
+         VALUES(?, ?, ?, ?, ?, ?)`,
+        [
+          contact.name,
+          contact.npub,
+          contact.domain,
+          contact.display_name,
+          contact.nickname,
+          contact.avatar_uri,
+        ]
+      );
+
+      const newContact = await this.db.getFirstAsync<Nip05Contact>(
+        `SELECT *
+         FROM nip05_contacts
+         WHERE npub = ? AND name = ?`,
+        [contact.npub, contact.name]
+      );
+
+      return newContact;
+    } catch (error) {
+      console.error('Error saving nip05 contact', error);
+      return null;
+    }
+  }
+
+  async updateNip05Contact(newContact: Omit<Nip05Contact, 'created_at'>): Promise<void> {
+    try {
+      await this.db.runAsync(
+        `UPDATE nip05_contacts
+         SET name = ?, npub = ?, domain = ?, display_name = ?, nickname = ?, avatar_uri = ?
+         WHERE id = ?`,
+        [
+          newContact.name,
+          newContact.npub,
+          newContact.domain,
+          newContact.display_name,
+          newContact.nickname,
+          newContact.avatar_uri,
+          newContact.id,
+        ]
+      );
+    } catch (error) {
+      console.error('Error updating nip05 contact', error);
     }
   }
 }
