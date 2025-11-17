@@ -65,6 +65,21 @@ export interface NameCacheRecord {
   created_at: number; // Unix timestamp in seconds
 }
 
+export interface KeyValueCacheRecord {
+  key: string;
+  value: string;
+  expires_at: number | null; // Unix timestamp in seconds, null means never expires
+}
+
+export interface QueuedTaskRecord {
+  id: number;
+  task_name: string;
+  arguments: string; // JSON string representation
+  added_at: number; // Unix timestamp in seconds
+  expires_at: number | null; // Unix timestamp in seconds, null means never expires
+  priority: number; // Higher numbers = higher priority
+}
+
 // Application layer types (with Date objects)
 export interface ActivityWithDates extends Omit<ActivityRecord, 'date' | 'created_at'> {
   date: Date;
@@ -120,6 +135,28 @@ export class DatabaseService {
       console.error('❌ Failed to reinitialize database:', error);
       throw error;
     }
+  }
+
+  async beginTransaction(): Promise<void> {
+    await this.db.runAsync('BEGIN TRANSACTION');
+  }
+
+  async commitTransaction(): Promise<void> {
+    while (true) {
+      try {
+        await this.db.runAsync('COMMIT');
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('database is locked')) { // TODO: test this case
+          await new Promise(resolve => setTimeout(resolve, 100));
+          continue;
+        }
+        throw error;
+      }
+    }
+  }
+
+  async rollbackTransaction(): Promise<void> {
+    await this.db.runAsync('ROLLBACK');
   }
 
   // Activity methods
@@ -548,6 +585,199 @@ export class DatabaseService {
     const result = await this.db.runAsync('DELETE FROM name_cache WHERE expires_at <= ?', [now]);
 
     return result.changes;
+  }
+
+  // Key-value cache methods
+
+  /**
+   * Get a cached value if it exists and hasn't expired
+   * @param key The cache key
+   * @returns The cached value or null if not found/expired
+   */
+  async getCache(key: string): Promise<string | null> {
+    const now = toUnixSeconds(Date.now());
+
+    const record = await this.db.getFirstAsync<KeyValueCacheRecord>(
+      'SELECT * FROM key_value_cache WHERE key = ? AND (expires_at IS NULL OR expires_at > ?)',
+      [key, now]
+    );
+
+    return record?.value || null;
+  }
+
+  /**
+   * Store a value in the cache with an expiration timestamp
+   * @param key The cache key
+   * @param value The value to cache
+   * @param expiresAt The expiration timestamp (Date, Unix seconds, null for 'forever', or 'forever' string)
+   */
+  async setCache(
+    key: string,
+    value: string,
+    expiresAt: Date | number | null | 'forever'
+  ): Promise<void> {
+    const expiresAtSeconds =
+      expiresAt === null || expiresAt === 'forever' ? null : toUnixSeconds(expiresAt);
+
+    await this.db.runAsync(
+      `INSERT OR REPLACE INTO key_value_cache (
+        key, value, expires_at
+      ) VALUES (?, ?, ?)`,
+      [key, value, expiresAtSeconds]
+    );
+  }
+
+  /**
+   * Delete a cache entry by key
+   * @param key The cache key to delete
+   */
+  async deleteCache(key: string): Promise<void> {
+    await this.db.runAsync('DELETE FROM key_value_cache WHERE key = ?', [key]);
+  }
+
+  /**
+   * Clean up expired cache entries (optional maintenance method)
+   * Only deletes entries with non-NULL expires_at that have expired
+   * @returns The number of entries deleted
+   */
+  async cleanExpiredCache(): Promise<number> {
+    const now = toUnixSeconds(Date.now());
+
+    const result = await this.db.runAsync(
+      'DELETE FROM key_value_cache WHERE expires_at IS NOT NULL AND expires_at <= ?',
+      [now]
+    );
+
+    return result.changes ?? 0;
+  }
+
+  // Queued tasks methods
+
+  /**
+   * Add a task to the queue
+   * @param taskName The name of the task
+   * @param argumentsJson JSON string representation of the task arguments
+   * @param expiresAt Optional expiration timestamp (Date, Unix seconds, null for 'forever', or 'forever' string)
+   * @param priority Optional priority (defaults to 0, higher numbers = higher priority)
+   * @returns The ID of the inserted task
+   */
+  async addQueuedTask(
+    taskName: string,
+    argumentsJson: string,
+    expiresAt?: Date | number | null | 'forever',
+    priority: number = 0
+  ): Promise<number> {
+    const now = toUnixSeconds(Date.now());
+    const expiresAtSeconds =
+      expiresAt === undefined || expiresAt === null || expiresAt === 'forever'
+        ? null
+        : toUnixSeconds(expiresAt);
+
+    const result = await this.db.runAsync(
+      `INSERT INTO queued_tasks (
+        task_name, arguments, added_at, expires_at, priority
+      ) VALUES (?, ?, ?, ?, ?)`,
+      [taskName, argumentsJson, now, expiresAtSeconds, priority]
+    );
+
+    return result.lastInsertRowId;
+  }
+
+  /**
+   * Get queued tasks, optionally filtered by task name and excluding expired tasks
+   * @param options Filtering options
+   * @returns Array of queued task records
+   */
+  async getQueuedTasks(options: {
+    taskName?: string;
+    excludeExpired?: boolean;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<QueuedTaskRecord[]> {
+    const conditions: string[] = [];
+    const params: (string | number)[] = [];
+
+    if (options.taskName) {
+      conditions.push('task_name = ?');
+      params.push(options.taskName);
+    }
+
+    if (options.excludeExpired !== false) {
+      // Default to excluding expired tasks
+      const now = toUnixSeconds(Date.now());
+      conditions.push('(expires_at IS NULL OR expires_at > ?)');
+      params.push(now);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const limitClause = options.limit ? `LIMIT ${options.limit}` : '';
+    const offsetClause = options.offset ? `OFFSET ${options.offset}` : '';
+
+    const records = await this.db.getAllAsync<QueuedTaskRecord>(
+      `SELECT * FROM queued_tasks ${whereClause} ORDER BY priority DESC, added_at ASC ${limitClause} ${offsetClause}`,
+      params
+    );
+
+    return records;
+  }
+
+  /**
+   * Get a queued task by ID
+   * @param id The task ID
+   * @returns The queued task record or null if not found
+   */
+  async getQueuedTask(id: number): Promise<QueuedTaskRecord | null> {
+    const record = await this.db.getFirstAsync<QueuedTaskRecord>(
+      'SELECT * FROM queued_tasks WHERE id = ?',
+      [id]
+    );
+
+    return record || null;
+  }
+
+  /**
+   * Extract the next task from the queue
+   * Returns the highest priority task (or oldest if same priority) that hasn't expired.
+   * The task remains in the queue and should be deleted manually once completed.
+   * @returns The next queued task record or null if no tasks available
+   */
+  async extractNextQueuedTask(): Promise<QueuedTaskRecord | null> {
+    const now = toUnixSeconds(Date.now());
+
+    // Get the next task (highest priority, oldest, not expired)
+    const task = await this.db.getFirstAsync<QueuedTaskRecord>(
+      `SELECT * FROM queued_tasks 
+       WHERE (expires_at IS NULL OR expires_at > ?)
+       ORDER BY priority DESC, added_at ASC 
+       LIMIT 1`,
+      [now]
+    );
+
+    return task || null;
+  }
+
+  /**
+   * Delete a queued task by ID
+   * @param id The task ID to delete
+   */
+  async deleteQueuedTask(id: number): Promise<void> {
+    await this.db.runAsync('DELETE FROM queued_tasks WHERE id = ?', [id]);
+  }
+
+  /**
+   * Clean up expired queued tasks
+   * Only deletes tasks with non-NULL expires_at that have expired
+   * @returns The number of tasks deleted
+   */
+  async cleanExpiredQueuedTasks(): Promise<number> {
+    const now = toUnixSeconds(Date.now());
+
+    const result = await this.db.runAsync(
+      'DELETE FROM queued_tasks WHERE expires_at IS NOT NULL AND expires_at <= ?',
+      [now]
+    );
+
+    return result.changes ?? 0;
   }
 
   // Subscription methods

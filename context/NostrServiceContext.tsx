@@ -59,6 +59,8 @@ import { useCurrency } from './CurrencyContext';
 import { useOnboarding } from './OnboardingContext';
 import { getKeypairFromKey, hasKey } from '@/utils/keyHelpers';
 import { getServiceNameFromProfile, mapNumericStatusToString } from '@/utils/nostrHelper';
+import { DefaultProviders, ProviderRepository, runTask, Task } from '@/queue/WorkQueue';
+import { ActivityWithDates, DatabaseService } from '@/services/DatabaseService';
 
 export class LocalCashuDirectListener implements CashuDirectListener {
   private callback: (event: CashuDirectContentWithKey) => Promise<void>;
@@ -252,6 +254,10 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     // Clear reconnection attempts tracking
     lastReconnectAttempts.current.clear();
   };
+
+  useEffect(() => {
+    ProviderRepository.register(new SetPendingRequestsProvider(setPendingRequests));
+  }, [setPendingRequests]);
 
   // Stable AppState listener - runs only once, never recreated
   useEffect(() => {
@@ -698,14 +704,10 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                       type: 'login',
                       result: resolve,
                     };
-
-                    setPendingRequests(prev => {
-                      // Check if request already exists to prevent duplicates
-                      if (prev[id]) {
-                        return prev;
-                      }
-                      return { ...prev, [id]: newRequest };
-                    });
+                    const task = new ProcessIncomingRequestTask(newRequest);
+                    executeOperation(db => {
+                      return runTask(db, task);
+                    })
                   }
                 });
               });
@@ -1010,6 +1012,102 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     },
     [relayStatuses]
   );
+
+  class FetchServiceNameTask extends Task<[string], [PortalAppInterface], Profile | undefined> {
+    static {
+      Task.register(FetchServiceNameTask);
+    }
+    constructor(key: string) {
+      super([key], ['PortalAppInterface'], async ([portal], key) => {
+        return await portal.fetchProfile(key);
+      });
+      this.expiry = new Date(Date.now() + 1000 * 60 * 60 * 24);
+    }
+  }
+
+  type SaveActivityArgs = Omit<ActivityWithDates, 'id' | 'created_at'>;
+  class SaveActivityTask extends Task<[SaveActivityArgs], [DatabaseService], string> {
+    static {
+      Task.register(SaveActivityTask);
+    }
+    constructor(activity: SaveActivityArgs) {
+      super([activity], ['DatabaseService'], async ([db], activity) => {
+        return await db.addActivity(activity);
+      });
+    }
+  }
+
+  class SetPendingRequestsProvider {
+    constructor(private readonly cb: (update: (prev: { [key: string]: PendingRequest }) => { [key: string]: PendingRequest }) => void) {}
+
+    addPendingRequest(request: PendingRequest): void {
+      this.cb((prev) => ({ ...prev, [request.id]: request }));
+    }
+  }
+
+  class RequestUserApprovalTask extends Task<[PendingRequest], [SetPendingRequestsProvider], boolean> {
+    static {
+      Task.register(RequestUserApprovalTask);
+    }
+    constructor(request: PendingRequest) {
+      super([request], ['SetPendingRequestsProvider'], async ([setPendingRequests], request) => {
+        console.log('Requesting user approval for:', request);
+        setPendingRequests.addPendingRequest(request);
+        return true;
+      });
+    }
+  }
+
+  class ProcessIncomingRequestTask extends Task<[PendingRequest], [], void> {
+    static {
+      Task.register(ProcessIncomingRequestTask);
+    }
+    constructor(request: PendingRequest) {
+      super([request], [], async ([], request) => {
+        if (request.type !== 'login') {
+          return;
+        }
+
+        const serviceKey = (request.metadata as AuthChallengeEvent).serviceKey;
+        const profile = await new FetchServiceNameTask(serviceKey).run();
+        const name = getServiceNameFromProfile(profile);
+
+        const approved = await new RequestUserApprovalTask(request).run();
+
+        if (approved) {
+          const approvedAuthResponse = new AuthResponseStatus.Approved({
+            grantedPermissions: [],
+            sessionToken: 'testtoken',
+            // sessionToken: nostrService.issueJWT!(
+            //   (request.metadata as SinglePaymentRequest).serviceKey,
+            //   168n
+            // ),
+          });
+          request.result(approvedAuthResponse);
+        } else {
+          const deniedAuthResponse = new AuthResponseStatus.Declined({  
+            reason: 'Not approved by user',
+          });
+          request.result(deniedAuthResponse);
+        }
+
+        await new SaveActivityTask({
+          type: 'auth',
+          service_key: serviceKey,
+          detail: 'User approved login',
+          date: new Date(),
+          service_name: name || 'Unknown Service',
+          amount: null,
+          currency: null,
+          converted_amount: null,
+          converted_currency: null,
+          request_id: request.id,
+          subscription_id: null,
+          status: approved ? 'positive' : 'negative',
+        }).run();
+      });
+    }
+  }
 
   const dismissPendingRequest = useCallback((id: string) => {
     setPendingRequests(prev => {

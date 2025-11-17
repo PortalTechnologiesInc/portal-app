@@ -18,6 +18,7 @@
     "preset": "jest-expo"
   },
   "dependencies": {
+    "@aws-crypto/sha256-js": "^5.2.0",
     "@expo/vector-icons": "~14.1.0",
     "@react-native-async-storage/async-storage": "2.1.2",
     "@react-native-clipboard/clipboard": "^1.16.2",

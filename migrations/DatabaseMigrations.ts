@@ -2,7 +2,7 @@ import { SQLiteDatabase } from 'expo-sqlite';
 
 // Function to migrate database schema if needed
 export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
-  const DATABASE_VERSION = 18;
+  const DATABASE_VERSION = 20;
 
   try {
     let { user_version: currentDbVersion } = (await db.getFirstAsync<{
@@ -408,6 +408,38 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
         CREATE INDEX IF NOT EXISTS idx_processing_subscriptions_processed_at ON processing_subscriptions(processed_at);
       `);
       currentDbVersion = 18;
+    }
+
+    if (currentDbVersion <= 18) {
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS key_value_cache (
+          key TEXT PRIMARY KEY NOT NULL,
+          value TEXT NOT NULL,
+          expires_at INTEGER -- Unix timestamp in seconds, NULL means never expires
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_key_value_cache_expires_at ON key_value_cache(expires_at);
+      `);
+      currentDbVersion = 19;
+    }
+
+    if (currentDbVersion <= 19) {
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS queued_tasks (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          task_name TEXT NOT NULL,
+          arguments TEXT NOT NULL,
+          added_at INTEGER NOT NULL,
+          expires_at INTEGER, -- Unix timestamp in seconds, NULL means never expires
+          priority INTEGER NOT NULL DEFAULT 0 -- Higher numbers = higher priority
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_queued_tasks_task_name ON queued_tasks(task_name);
+        CREATE INDEX IF NOT EXISTS idx_queued_tasks_added_at ON queued_tasks(added_at);
+        CREATE INDEX IF NOT EXISTS idx_queued_tasks_expires_at ON queued_tasks(expires_at);
+        CREATE INDEX IF NOT EXISTS idx_queued_tasks_priority_added_at ON queued_tasks(priority DESC, added_at ASC);
+      `);
+      currentDbVersion = 20;
     }
 
     await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
