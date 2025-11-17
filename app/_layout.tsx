@@ -105,11 +105,15 @@ const LoadingScreenContent = () => {
 const AuthenticatedAppContent = () => {
   const { isLoading: onboardingLoading } = useOnboarding();
   const { mnemonic, nsec, walletUrl, isLoading } = useKey();
+  const backgroundColor = useThemeColor({}, 'background');
 
-  // Don't render anything until both contexts are loaded
-  // Let app/index.tsx handle the navigation logic
+  // Show loading screen with proper background while contexts are loading
   if (onboardingLoading || isLoading) {
-    return null; // Show nothing while loading - app/index.tsx will show loading indicator
+    return (
+      <View style={{ flex: 1, backgroundColor }}>
+        <LoadingScreenContent />
+      </View>
+    );
   }
 
   return (
@@ -147,7 +151,6 @@ const ThemedRootView = () => {
 };
 
 export default function RootLayout() {
-  const [isReady, setIsReady] = useState(false);
   const pathname = usePathname();
   const globalParams = useGlobalSearchParams();
 
@@ -175,11 +178,9 @@ export default function RootLayout() {
 
         // Increase delay to ensure all SecureStore operations complete on first launch
         await new Promise(resolve => setTimeout(resolve, 500));
-        setIsReady(true);
       } catch (error) {
         console.error('Error preparing app:', error);
         // Set ready to true even on error to prevent infinite loading
-        setIsReady(true);
       } finally {
         await SplashScreen.hideAsync();
       }
@@ -188,16 +189,17 @@ export default function RootLayout() {
     prepare();
   }, []);
 
-  if (!isReady) {
+  // Suspense fallback with splash screen background to prevent white flash
+  const SuspenseFallback = () => {
     return (
-      <ThemeProvider>
-        <LoadingScreenContent />
-      </ThemeProvider>
+      <View style={{ flex: 1, backgroundColor: '#141416' }}>
+        <StatusBar style="light" backgroundColor="#141416" />
+      </View>
     );
-  }
+  };
 
   return (
-    <Suspense fallback={<Text>Loading...</Text>}>
+    <Suspense fallback={<SuspenseFallback />}>
       <SQLiteProvider databaseName={DATABASE_NAME} onInit={migrateDbIfNeeded} useSuspense={true}>
         <KeyProvider>
           <DatabaseProvider>
