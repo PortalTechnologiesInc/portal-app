@@ -197,7 +197,9 @@ export default function QRScannerScreen() {
           tokenInfo = await parseCashuToken(token);
           wallet = await eCash.addWallet(tokenInfo.mintUrl, tokenInfo.unit);
         } catch (error) {
-          console.error('Failed to process ticket QR code:', error);
+          const jsonErr = JSON.stringify(error, Object.getOwnPropertyNames(error));
+          console.error('Failed to process ticket QR code:', jsonErr);
+          // todo
           Alert.alert(
             'Ticket Processing Error',
             'There was a problem processing the ticket. Please try again or contact support if the problem persists.'
@@ -266,7 +268,8 @@ export default function QRScannerScreen() {
             `Great! You've received a ${tokenInfo.unit} ticket from ${tokenInfo.mintUrl}.`
           );
         } catch (error) {
-          console.error('Failed to process ticket QR code:', error);
+          const jsonErr = JSON.stringify(error, Object.getOwnPropertyNames(error));
+          console.error('Failed to process ticket QR code:', jsonErr);
           Alert.alert(
             'Ticket Processing Error',
             'There was a problem redeeming the ticket. The ticket may have already been used.'
