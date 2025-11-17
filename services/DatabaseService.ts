@@ -619,6 +619,11 @@ export class DatabaseService {
     const expiresAtSeconds =
       expiresAt === null || expiresAt === 'forever' ? null : toUnixSeconds(expiresAt);
 
+    if (value === null || value === undefined) {
+      value = '(null)'; // FIXME: make the column nullable
+    }
+
+    console.warn('Setting cache', key, value, expiresAtSeconds);
     await this.db.runAsync(
       `INSERT OR REPLACE INTO key_value_cache (
         key, value, expires_at

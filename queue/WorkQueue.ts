@@ -2,7 +2,7 @@ import { DatabaseService, QueuedTaskRecord, toUnixSeconds } from "@/services/Dat
 import { PortalAppInterface } from "portal-app-lib";
 import { Sha256 } from '@aws-crypto/sha256-js';
 
-type Expiry = number | Date | 'forever';
+type Expiry = Date | 'forever';
 type Waiter<T> = (result: T | null, error: any) => void;
 
 const locksMap = new Map<string, Promise<any>>();
@@ -47,7 +47,15 @@ export class JsonArguments<TArgs extends unknown[] = unknown[]> extends Argument
       return toReturn;
     };
     const flattenedArgs = flattenObject(this.args);
-    const jsonArgs = JSON.stringify(flattenedArgs, Object.keys(flattenedArgs).sort());
+    const jsonArgs = JSON.stringify(flattenedArgs, (_, v) => {
+      if (typeof v === 'function') {
+        return null;
+      } else if (typeof v === 'bigint') {
+        return `BigInt(${v.toString()})`;
+      } else {
+        return v;
+      }
+    });
     const hash = new Sha256();
     hash.update(jsonArgs);
     const result = hash.digestSync();
@@ -90,6 +98,7 @@ export abstract class Task<A extends unknown[], P extends unknown[], T> {
     const key = `${this.constructor.name}:${this.args.hash()}`;
     const cached = await this.db.getCache(key);
     if (cached) {
+      console.warn(`Cache hit for ${key}: ${cached}`);
       return JSON.parse(cached);
     }
 
@@ -119,14 +128,22 @@ export abstract class Task<A extends unknown[], P extends unknown[], T> {
     return {
       id: 0,
       task_name: this.constructor.name,
-      arguments: JSON.stringify(this.args.values()),
+      arguments: JSON.stringify(this.args.values(), (_, v) => {
+        if (typeof v === 'function') {
+          return null;
+        } else if (typeof v === 'bigint') {
+          return `BigInt(${v.toString()})`;
+        } else {
+          return v;
+        }
+      }),
       added_at: toUnixSeconds(Date.now()),
-      expires_at: this.expiry === 'forever' ? null : toUnixSeconds(this.expiry),
+      expires_at: this.expiry === 'forever' ? null : this.expiry.getTime(),
       priority: 0,
     };
   }
 
-  protected static register<A extends unknown[], P extends unknown[], T>(instance: new (...args: any[]) => Task<A, P, T>) {
+  static register<A extends unknown[], P extends unknown[], T>(instance: new (...args: any[]) => Task<A, P, T>) {
     Task.registry.set(instance.name, instance as TaskConstructor<any[], any, any>);
   }
 
@@ -139,7 +156,13 @@ export abstract class Task<A extends unknown[], P extends unknown[], T> {
     if (!constructor) {
       throw new Error(`Task constructor not found: ${serialized.task_name}`);
     }
-    return new constructor(...JSON.parse(serialized.arguments));
+    return new constructor(...JSON.parse(serialized.arguments, (key, value) => {
+      if (typeof value === 'string' && value.startsWith('BigInt(')) {
+        return BigInt(value.slice(7, -1));
+      } else {
+        return value;
+      }
+    }));
   }
 }
 
@@ -154,6 +177,7 @@ export class ProviderRepository {
   private static providers = new Map<string, any>();
 
   static register(provider: any) {
+    console.warn('Registering provider', provider.constructor.name);
     ProviderRepository.providers.set(provider.constructor.name, provider);
   }
 
@@ -162,37 +186,60 @@ export class ProviderRepository {
   }
 }
 
-export async function processQueue(db: DatabaseService) {
-  while (true) {
-    const record = await db.extractNextQueuedTask();
-    if (!record) {
-      break;
-    }
+async function runTask(db: DatabaseService, record: QueuedTaskRecord) {
+  try {
     const task = Task.deserialize(record);
-    try {
-      const result = await task.run();
+    const result = await task.run();
 
-      const waiter = waitersMap.get(record.id);
-      if (waiter) {
-        waiter(result, null);
-      }
-    } catch (error) {
-      console.error('Error running task:', error);
-
-      const waiter = waitersMap.get(record.id);
-      if (waiter) {
-        waiter(null, error);
-      }
-    } finally {
-      await db.deleteQueuedTask(record.id);
-      waitersMap.delete(record.id);
+    const waiter = waitersMap.get(record.id);
+    if (waiter) {
+      waiter(result, null);
     }
+  } catch (error) {
+    console.error('Error running task:', error);
+
+    const waiter = waitersMap.get(record.id);
+    if (waiter) {
+      waiter(null, error);
+    }
+  } finally {
+    // await db.deleteQueuedTask(record.id);
+    waitersMap.delete(record.id);
   }
 }
 
-export async function runTask<T>(db: DatabaseService, task: Task<any[], any, T>): Promise<T> {
+export async function processQueue() {
+  const db = ProviderRepository.get<DatabaseService>('DatabaseService');
+  if (!db) {
+    throw new Error('DatabaseService not found');
+  }
+
+  // const tasks = await db.getQueuedTasks({ excludeExpired: false });
+  // for (const task of tasks) {
+  //   // await db.deleteQueuedTask(task.id);
+  //   console.warn('debug task:', task);
+  // }
+
+  while (true) {
+    const record = await db.extractNextQueuedTask();
+    console.log('Extracted task from queue', record);
+    if (!record) {
+      break;
+    }
+
+    await runTask(db, record);
+ }
+}
+
+export async function enqueueTask<T>(task: Task<any[], any, T>): Promise<T> {
+  const db = ProviderRepository.get<DatabaseService>('DatabaseService');
+  if (!db) {
+    throw new Error('DatabaseService not found');
+  }
+
   const record = task.serialize();
   const id = await db.addQueuedTask(record.task_name, record.arguments, record.expires_at, record.priority);
+  console.log('Added task to queue', id);
   const promise = new Promise<T>((resolve, reject) => {
     waitersMap.set(id, (result: T | null, error: any) => {
       if (error) {
@@ -203,7 +250,7 @@ export async function runTask<T>(db: DatabaseService, task: Task<any[], any, T>)
     });
   });
 
-  processQueue(db); // TODO: this could conflict with another instance of processQueue running in parallel
+  runTask(db, record);
 
   return promise;
 }

@@ -5,6 +5,9 @@ import { AppState } from 'react-native';
 import 'expo-router/entry';
 import { DATABASE_NAME } from './app/_layout';
 import { handleHeadlessNotification } from './services/NotificationService';
+import { DatabaseService } from './services/DatabaseService';
+import { openDatabaseAsync } from 'expo-sqlite';
+import { ProviderRepository } from './queue/WorkQueue';
 
 const BACKGROUND_NOTIFICATION_TASK = 'BACKGROUND-NOTIFICATION-TASK';
 /**
@@ -84,3 +87,17 @@ TaskManager.defineTask<Notifications.NotificationTaskPayload>(
 // Register background notification handler
 // This must be called before requesting permissions
 Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
+
+async function initializeDatabase() {
+  const sqlite = await openDatabaseAsync(DATABASE_NAME);
+  const db = new DatabaseService(sqlite);
+  ProviderRepository.register(db);
+}
+
+initializeDatabase()
+  .then(() => {
+    console.log('Database initialized');
+  })
+  .catch(error => {
+    console.error('Error initializing database', error);
+  });

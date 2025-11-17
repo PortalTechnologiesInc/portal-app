@@ -23,14 +23,14 @@ export class PortalAppManager {
       PortalAppManager.instance = await PortalApp.create(keypair, relays, relayStatusCallback);
     }
 
-    if (logRust) {
-      try {
-        initLogger(new Logger(), LogLevel.Trace);
-        console.log('Logger initialized');
-      } catch (error) {
-        console.error('Error initializing logger:', error);
-      }
-    }
+    // if (logRust) {
+    //   try {
+    //     initLogger(new Logger(), LogLevel.Trace);
+    //     console.log('Logger initialized');
+    //   } catch (error) {
+    //     console.error('Error initializing logger:', error);
+    //   }
+    // }
 
     return this.instance!;
   }
