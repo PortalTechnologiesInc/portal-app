@@ -4,10 +4,9 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { useWalletStatus } from '@/hooks/useWalletStatus';
 import { Ticket } from '@/utils/types';
 import { Colors } from '@/constants/Colors';
-import { Nfc, CheckCircle, XCircle, Upload } from 'lucide-react-native';
+import { Nfc, CheckCircle, XCircle, Upload, AlertTriangle } from 'lucide-react-native';
 import NfcManager from 'react-native-nfc-manager';
 import { canOpenURL, openURL, openSettings } from 'expo-linking';
 import TicketCard from '@/components/TicketCard';
@@ -22,9 +21,9 @@ export default function TicketsScreen() {
   const [isNFCEnabled, setIsNFCEnabled] = useState<boolean | null>(null);
   const [isCheckingNFC, setIsCheckingNFC] = useState(false);
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [mintStatuses, setMintStatuses] = useState<Record<string, 'good' | 'bad'>>({});
   const scrollViewRef = useRef<ScrollView>(null);
   const { wallets, isLoading: eCashLoading } = useECash();
-  const { eCashWalletCount } = useWalletStatus();
   const [walletUpdateTrigger, setWalletUpdateTrigger] = useState(0);
 
   // Listen for wallet balance changes
@@ -43,21 +42,42 @@ export default function TicketsScreen() {
   useEffect(() => {
     async function mapWallets() {
       const allTickets: Ticket[] = [];
+      const statusMap: Record<string, 'good' | 'bad'> = {};
 
       for (const [_, wallet] of Object.entries(wallets)) {
-        const unitInfo = await wallet.getUnitInfo();
-        const balance = await wallet.getBalance();
+        const mintUrl = wallet.getMintUrl();
+        try {
+          const unitInfo = await wallet.getUnitInfo();
+          const balance = await wallet.getBalance();
+          statusMap[mintUrl] = 'good';
 
-        if (unitInfo?.showIndividually) {
-          // Create separate tickets for each unit when showIndividually is true
-          for (let i = 0; i < balance; i++) {
+          if (unitInfo?.showIndividually) {
+            // Create separate tickets for each unit when showIndividually is true
+            for (let i = 0; i < balance; i++) {
+              allTickets.push({
+                id: uuid.v4(),
+                title: unitInfo?.title || wallet.unit(),
+                description: unitInfo?.description,
+                isNonFungible: unitInfo?.showIndividually || false,
+                mintUrl,
+                balance: BigInt(1), // Each ticket represents 1 unit
+                // Rich metadata
+                frontCardBackground: unitInfo?.frontCardBackground,
+                backCardBackground: unitInfo?.backCardBackground,
+                location: unitInfo?.kind?.tag === 'Event' ? unitInfo.kind.inner.location : undefined,
+                date: unitInfo?.kind?.tag === 'Event' ? unitInfo.kind.inner.date : undefined,
+                kind: unitInfo?.kind?.tag || 'Other',
+              });
+            }
+          } else if (balance > 0) {
+            // Create a single aggregated ticket when showIndividually is false
             allTickets.push({
               id: uuid.v4(),
               title: unitInfo?.title || wallet.unit(),
               description: unitInfo?.description,
               isNonFungible: unitInfo?.showIndividually || false,
-              mintUrl: wallet.getMintUrl(),
-              balance: BigInt(1), // Each ticket represents 1 unit
+              mintUrl,
+              balance, // balance is already bigint from wallet.getBalance()
               // Rich metadata
               frontCardBackground: unitInfo?.frontCardBackground,
               backCardBackground: unitInfo?.backCardBackground,
@@ -66,28 +86,14 @@ export default function TicketsScreen() {
               kind: unitInfo?.kind?.tag || 'Other',
             });
           }
-        } else {
-          // Create a single aggregated ticket when showIndividually is false
-          if (balance > 0) {
-            allTickets.push({
-              id: uuid.v4(),
-              title: unitInfo?.title || wallet.unit(),
-              description: unitInfo?.description,
-              isNonFungible: unitInfo?.showIndividually || false,
-              mintUrl: wallet.getMintUrl(),
-              balance: balance, // balance is already bigint from wallet.getBalance()
-              // Rich metadata
-              frontCardBackground: unitInfo?.frontCardBackground,
-              backCardBackground: unitInfo?.backCardBackground,
-              location: unitInfo?.kind?.tag === 'Event' ? unitInfo.kind.inner.location : undefined,
-              date: unitInfo?.kind?.tag === 'Event' ? unitInfo.kind.inner.date : undefined,
-              kind: unitInfo?.kind?.tag || 'Other',
-            });
-          }
+        } catch (error) {
+          console.error(`TicketsScreen: Failed to load tickets for mint ${mintUrl}`, error);
+          statusMap[mintUrl] = 'bad';
         }
       }
 
       setTickets(allTickets);
+      setMintStatuses(statusMap);
     }
     mapWallets();
   }, [wallets, walletUpdateTrigger]); // Add walletUpdateTrigger to trigger re-render when wallet balances change
@@ -119,7 +125,7 @@ export default function TicketsScreen() {
       } else {
         await openSettings();
       }
-    } catch {}
+    } catch { }
   };
 
   const showNFCEnableDialog = () => {
@@ -146,9 +152,15 @@ export default function TicketsScreen() {
   const buttonSecondaryColor = useThemeColor({}, 'buttonSecondary');
   const buttonPrimaryColor = useThemeColor({}, 'buttonPrimary');
   const buttonSecondaryTextColor = useThemeColor({}, 'buttonSecondaryText');
-  const buttonPrimaryTextColor = useThemeColor({}, 'buttonPrimaryText');
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');
   const surfaceSecondaryColor = useThemeColor({}, 'surfaceSecondary');
+  const badMints = useMemo(
+    () =>
+      Object.entries(mintStatuses)
+        .filter(([, status]) => status === 'bad')
+        .map(([mintUrl]) => mintUrl),
+    [mintStatuses]
+  );
 
   const handleFilterPress = useCallback((filterType: 'all' | 'active' | 'used' | 'expired') => {
     setFilter(filterType);
@@ -183,15 +195,15 @@ export default function TicketsScreen() {
   }, []);
 
   const handleImportTickets = useCallback(() => {
-      router.push({
-        pathname: '/qr',
-        params: {
-          mode: 'ticket',
-          source: 'tickets',
-          scanType: 'qr',
-          timestamp: Date.now(),
-        },
-      });
+    router.push({
+      pathname: '/qr',
+      params: {
+        mode: 'ticket',
+        source: 'tickets',
+        scanType: 'qr',
+        timestamp: Date.now(),
+      },
+    });
   }, []);
 
   return (
@@ -214,6 +226,19 @@ export default function TicketsScreen() {
             </ThemedText>
           </TouchableOpacity>
         </View>
+        {badMints.length > 0 && (
+          <View style={[styles.mintStatusBanner, { backgroundColor: surfaceSecondaryColor }]}>
+            <AlertTriangle size={20} color={Colors.warning} />
+            <View style={styles.mintStatusTextContainer}>
+              <ThemedText type="subtitle" style={[styles.mintStatusTitle, { color: primaryTextColor }]}>
+                {badMints.length === 1 ? 'Mint unreachable' : `${badMints.length} mints unreachable`}
+              </ThemedText>
+              <ThemedText style={[styles.mintStatusSubtitle, { color: secondaryTextColor }]}>
+                Error while getting tickets from {badMints.join(', ')}. Tickets are hidden for now, try again later.
+              </ThemedText>
+            </View>
+          </View>
+        )}
         {/* We don't need filters for now */}
         {/* <View style={styles.filterContainer}>
           <TouchableOpacity
@@ -295,7 +320,9 @@ export default function TicketsScreen() {
         ) : tickets.length === 0 ? (
           <View style={[styles.emptyContainer, { backgroundColor: cardBackgroundColor }]}>
             <ThemedText style={[styles.emptyText, { color: secondaryTextColor }]}>
-              No tickets found
+              {badMints.length > 0
+                ? 'No tickets available right now.'
+                : 'No tickets found'}
             </ThemedText>
           </View>
         ) : (
@@ -316,44 +343,44 @@ export default function TicketsScreen() {
                     isFocused={true}
                     onPress={() => handleCardPress(focusedCardId)}
                   />
-                <View style={[styles.nfcSection, { backgroundColor: surfaceSecondaryColor }]}>
-                  <View style={styles.nfcIconContainer}>
-                    {isCheckingNFC ? (
-                      <View style={styles.nfcStatusContainer}>
-                        <ThemedText style={[styles.nfcStatusText, { color: secondaryTextColor }]}>
-                          Checking NFC...
-                        </ThemedText>
-                      </View>
-                    ) : isNFCEnabled === null ? (
-                      <Nfc size={48} color={buttonPrimaryColor} />
-                    ) : isNFCEnabled ? (
-                      <CheckCircle size={48} color={Colors.success} />
-                    ) : (
-                      <XCircle size={48} color={Colors.error} />
-                    )}
+                  <View style={[styles.nfcSection, { backgroundColor: surfaceSecondaryColor }]}>
+                    <View style={styles.nfcIconContainer}>
+                      {isCheckingNFC ? (
+                        <View style={styles.nfcStatusContainer}>
+                          <ThemedText style={[styles.nfcStatusText, { color: secondaryTextColor }]}>
+                            Checking NFC...
+                          </ThemedText>
+                        </View>
+                      ) : isNFCEnabled === null ? (
+                        <Nfc size={48} color={buttonPrimaryColor} />
+                      ) : isNFCEnabled ? (
+                        <CheckCircle size={48} color={Colors.success} />
+                      ) : (
+                        <XCircle size={48} color={Colors.error} />
+                      )}
+                    </View>
+                    <ThemedText
+                      type="subtitle"
+                      style={[styles.nfcTitle, { color: primaryTextColor }]}
+                    >
+                      {isCheckingNFC
+                        ? 'Checking NFC...'
+                        : isNFCEnabled === null
+                          ? 'Validate Ticket'
+                          : isNFCEnabled
+                            ? 'NFC Ready'
+                            : 'NFC Required'}
+                    </ThemedText>
+                    <ThemedText style={[styles.nfcDescription, { color: secondaryTextColor }]}>
+                      {isCheckingNFC
+                        ? 'Checking if NFC is available on your device'
+                        : isNFCEnabled === null
+                          ? 'Hold your device near the NFC reader to validate your ticket'
+                          : isNFCEnabled
+                            ? 'NFC is enabled. Hold your device near the NFC reader to validate your ticket'
+                            : 'NFC is disabled. Enable NFC in your device settings to validate tickets'}
+                    </ThemedText>
                   </View>
-                  <ThemedText
-                    type="subtitle"
-                    style={[styles.nfcTitle, { color: primaryTextColor }]}
-                  >
-                    {isCheckingNFC
-                      ? 'Checking NFC...'
-                      : isNFCEnabled === null
-                        ? 'Validate Ticket'
-                        : isNFCEnabled
-                          ? 'NFC Ready'
-                          : 'NFC Required'}
-                  </ThemedText>
-                  <ThemedText style={[styles.nfcDescription, { color: secondaryTextColor }]}>
-                    {isCheckingNFC
-                      ? 'Checking if NFC is available on your device'
-                      : isNFCEnabled === null
-                        ? 'Hold your device near the NFC reader to validate your ticket'
-                        : isNFCEnabled
-                          ? 'NFC is enabled. Hold your device near the NFC reader to validate your ticket'
-                          : 'NFC is disabled. Enable NFC in your device settings to validate tickets'}
-                  </ThemedText>
-                </View>
                 </View>
               ) : null;
             })()}
@@ -494,6 +521,25 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     textAlign: 'center',
+  },
+  mintStatusBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 16,
+    padding: 12,
+    gap: 12,
+    marginBottom: 16,
+  },
+  mintStatusTextContainer: {
+    flex: 1,
+  },
+  mintStatusTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  mintStatusSubtitle: {
+    fontSize: 12,
+    lineHeight: 18,
   },
   loadingContainer: {
     flex: 1,
