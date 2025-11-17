@@ -195,6 +195,10 @@ export default function SettingsScreen() {
     router.push('/relays');
   };
 
+  const handleRemoteSigningPress = () => {
+    router.push('/remoteSigning');
+  };
+
   const handleRecoverTicketsPress = () => {
     router.push('/recoverTickets');
   };
@@ -777,6 +781,35 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             </ThemedView>
           </ThemedView>
+
+          {/* Remote Signing */}
+          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
+            Remote Signing
+          </ThemedText>
+          <TouchableOpacity
+            style={[styles.card, { backgroundColor: cardBackgroundColor }]}
+            onPress={handleRemoteSigningPress}
+            activeOpacity={0.7}
+          >
+            <View style={styles.cardContent}>
+              <View style={styles.cardLeft}>
+                <View style={styles.cardHeader}>
+                  <View style={[styles.iconContainer]}>
+                    <Fingerprint size={20} color={buttonPrimaryColor} />
+                  </View>
+                  <View style={styles.cardText}>
+                    <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
+                      Remote signer setup
+                    </ThemedText>
+                    <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
+                      Configure bunker URLs or respond to nostrconnect requests
+                    </ThemedText>
+                  </View>
+                </View>
+              </View>
+              <ChevronRight size={24} color={secondaryTextColor} />
+            </View>
+          </TouchableOpacity>
 
           {/* Nostr Section */}
           <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>Relays</ThemedText>
