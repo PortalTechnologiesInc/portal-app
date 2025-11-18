@@ -21,6 +21,7 @@ export const TIMER_OPTIONS: Array<{ label: string; value: LockTimerDuration }> =
 
 // In-memory storage for background timestamp (not persisted)
 let backgroundTimestamp: number | null = null;
+let lastUnlockTimestamp: number | null = null;
 
 /**
  * Simple hash function for PIN
@@ -93,11 +94,13 @@ export class AppLockService {
     try {
       if (enabled) {
         await SecureStore.setItemAsync(SECURE_STORE_KEYS.APP_LOCK_ENABLED, 'true');
+        this.markSessionAuthenticated();
       } else {
         await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.APP_LOCK_ENABLED);
         // Also clear auth method and PIN when disabling
         await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.APP_LOCK_AUTH_METHOD);
         await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.APP_LOCK_PIN_HASH);
+        this.resetSessionState();
       }
     } catch (error) {
       console.error('Error setting app lock enabled:', error);
@@ -197,8 +200,13 @@ export class AppLockService {
       }
 
       if (backgroundTimestamp === null) {
-        // No background timestamp recorded - lock immediately
-        return true;
+        // No background event recorded yet - lock only if we haven't authenticated this session
+        return lastUnlockTimestamp === null;
+      }
+
+      if (lastUnlockTimestamp !== null && lastUnlockTimestamp >= backgroundTimestamp) {
+        // We've authenticated after the last background event - no need to lock
+        return false;
       }
 
       const timeSinceBackground = Date.now() - backgroundTimestamp;
@@ -228,7 +236,17 @@ export class AppLockService {
    * Unlock app (clear lock state)
    */
   static unlockApp(): void {
+    this.markSessionAuthenticated();
+  }
+
+  private static markSessionAuthenticated(): void {
+    lastUnlockTimestamp = Date.now();
     this.clearBackgroundTime();
+  }
+
+  private static resetSessionState(): void {
+    backgroundTimestamp = null;
+    lastUnlockTimestamp = null;
   }
 
   /**
