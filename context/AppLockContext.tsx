@@ -14,6 +14,7 @@ interface AppLockContextType {
   lockTimerDuration: LockTimerDuration;
   authMethod: AuthMethod;
   isFingerprintSupported: boolean;
+  isInitialized: boolean;
   timerOptions: typeof TIMER_OPTIONS;
   unlockApp: () => void;
   setLockEnabled: (enabled: boolean) => Promise<void>;
@@ -32,6 +33,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
   const [lockTimerDuration, setLockTimerDurationState] = useState<LockTimerDuration>(null);
   const [authMethod, setAuthMethodState] = useState<AuthMethod>(null);
   const [isFingerprintSupported, setIsFingerprintSupported] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // Load app lock settings on mount
   useEffect(() => {
@@ -67,7 +69,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    loadSettings();
+    loadSettings().finally(() => setIsInitialized(true));
   }, []);
 
   // AppState listener to handle background/foreground transitions and device lock
@@ -170,6 +172,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
         lockTimerDuration,
         authMethod,
         isFingerprintSupported,
+        isInitialized,
         timerOptions: TIMER_OPTIONS,
         unlockApp,
         setLockEnabled,
