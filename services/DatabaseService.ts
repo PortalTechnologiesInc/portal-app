@@ -620,7 +620,7 @@ export class DatabaseService {
       expiresAt === null || expiresAt === 'forever' ? null : toUnixSeconds(expiresAt);
 
     if (value === null || value === undefined) {
-      value = '(null)'; // FIXME: make the column nullable
+      value = '{}'; // FIXME: make the column nullable
     }
 
     console.warn('Setting cache', key, value, expiresAtSeconds);

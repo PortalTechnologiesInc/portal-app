@@ -203,7 +203,7 @@ async function runTask(db: DatabaseService, record: QueuedTaskRecord) {
       waiter(null, error);
     }
   } finally {
-    // await db.deleteQueuedTask(record.id);
+    await db.deleteQueuedTask(record.id);
     waitersMap.delete(record.id);
   }
 }

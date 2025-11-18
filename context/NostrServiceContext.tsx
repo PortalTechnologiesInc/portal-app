@@ -179,7 +179,8 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
   useEffect(() => {
     ProviderRepository.register(new SetPendingRequestsProvider(setPendingRequests));
-  }, [setPendingRequests]);
+    ProviderRepository.register(new RelayStatusesProvider(relayStatuses));
+  }, [setPendingRequests, relayStatuses]);
 
   // Stable AppState listener - runs only once, never recreated
   useEffect(() => {
@@ -971,9 +972,48 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     [relayStatuses]
   );
 
+  class RelayStatusesProvider {
+    constructor(public readonly relayStatuses: RelayInfo[]) {}
+
+    areRelaysConnected(): boolean {
+      return this.relayStatuses.some(r => r.connected);
+    }
+  }
+
+  class CheckRelayStatusTask extends Task<[], [RelayStatusesProvider], boolean> {
+    constructor() {
+      super([], ['RelayStatusesProvider'], async ([relayStatusesProvider]) => {
+        return relayStatusesProvider.areRelaysConnected();
+      });
+      this.expiry = new Date(Date.now() + 1000);
+    }
+  }
+  Task.register(CheckRelayStatusTask);
+
+  class WaitForRelaysConnectedTask extends Task<[], [], void> {
+    constructor() {
+      super([], [], async ([]) => {
+        let count = 0;
+        while (count < 5) {
+          if (await new CheckRelayStatusTask().run()) {
+            return;
+          }
+
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          count++;
+        }
+
+        throw new Error('Relays did not connect in time');
+      });
+      this.expiry = new Date(0);
+    }
+  }
+  Task.register(WaitForRelaysConnectedTask);
+
   class FetchServiceNameTask extends Task<[string], [PortalApp], Profile | undefined> {
     constructor(key: string) {
       super([key], ['PortalApp'], async ([portal], key) => {
+        await new WaitForRelaysConnectedTask().run();
         return await portal.fetchProfile(key);
       });
       this.expiry = new Date(Date.now() + 1000 * 60 * 60 * 24);
@@ -1015,6 +1055,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   class SendAuthChallengeResponseTask extends Task<[PendingRequest, AuthResponseStatus], [PortalApp], void> {
     constructor(request: PendingRequest, response: AuthResponseStatus) {
       super([request, response], ['PortalApp'], async ([portalApp], request) => {
+        await new WaitForRelaysConnectedTask().run();
         return await portalApp.replyAuthChallenge(request.metadata as AuthChallengeEvent, response);
       });
     }
