@@ -5,6 +5,7 @@ import { ThemedText } from './ThemedText';
 import { PINKeypad } from './PINKeypad';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { Shield, X } from 'lucide-react-native';
+import { PIN_MIN_LENGTH, PIN_MAX_LENGTH } from '@/services/AppLockService';
 
 interface PINSetupScreenProps {
   visible: boolean;
@@ -70,8 +71,13 @@ export function PINSetupScreen({
   };
 
   const headerTitle = title ?? 'Set PIN';
-  const enterText = enterMessage ?? 'Enter a 5-digit PIN to secure your app';
+  const enterText = enterMessage ?? 'Enter a PIN to secure your app';
   const confirmText = confirmMessage ?? 'Confirm your PIN';
+  const isConfirmStep = step === 'confirm';
+  const confirmLength = enteredPIN.length || PIN_MIN_LENGTH;
+  const keypadMinLength = isConfirmStep ? confirmLength : PIN_MIN_LENGTH;
+  const keypadMaxLength = PIN_MAX_LENGTH;
+  const keypadAutoSubmit = false;
 
   return (
     <Modal visible={visible} animationType="slide" transparent={true}>
@@ -103,7 +109,11 @@ export function PINSetupScreen({
             <PINKeypad
               key={step}
               onPINComplete={handlePINEnter}
-              maxLength={5}
+              minLength={keypadMinLength}
+              maxLength={keypadMaxLength}
+              autoSubmit={keypadAutoSubmit}
+              submitLabel={keypadAutoSubmit ? undefined : 'OK'}
+              showSubmitButton={!keypadAutoSubmit}
               showDots={true}
               error={error}
               onError={() => setError(false)}

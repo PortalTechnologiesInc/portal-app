@@ -7,18 +7,26 @@ import { Delete } from 'lucide-react-native';
 
 interface PINKeypadProps {
   onPINComplete: (pin: string) => void;
+  minLength?: number;
   maxLength?: number;
   showDots?: boolean;
   error?: boolean;
   onError?: () => void;
+  autoSubmit?: boolean;
+  submitLabel?: string;
+  showSubmitButton?: boolean;
 }
 
 export function PINKeypad({
   onPINComplete,
+  minLength: providedMinLength = 5,
   maxLength = 5,
   showDots = true,
   error = false,
   onError,
+  autoSubmit = true,
+  submitLabel = 'Enter',
+  showSubmitButton = true,
 }: PINKeypadProps) {
   const [pin, setPin] = useState('');
 
@@ -30,12 +38,14 @@ export function PINKeypad({
   const buttonPrimaryTextColor = useThemeColor({}, 'buttonPrimaryText');
   const inputBorderColor = useThemeColor({}, 'inputBorder');
   const errorColor = useThemeColor({}, 'buttonDanger');
+  const normalizedMinLength = Math.min(Math.max(providedMinLength, 1), maxLength);
+  const canSubmit = pin.length >= Math.max(normalizedMinLength, 4);
 
   const handleNumberPress = (number: string) => {
     if (pin.length < maxLength) {
       const newPin = pin + number;
       setPin(newPin);
-      if (newPin.length === maxLength) {
+      if (autoSubmit && newPin.length === maxLength) {
         onPINComplete(newPin);
       }
     }
@@ -47,10 +57,9 @@ export function PINKeypad({
     }
   };
 
-  const handleClear = () => {
-    setPin('');
-    if (onError) {
-      onError();
+  const handleSubmit = () => {
+    if (canSubmit) {
+      onPINComplete(pin);
     }
   };
 
@@ -61,30 +70,60 @@ export function PINKeypad({
     }
   }, [error]);
 
+  const renderDots = () => {
+    if (!showDots) {
+      return null;
+    }
+
+    if (pin.length === 0) {
+      return (
+        <View style={styles.dotsContainer}>
+          <View style={styles.dotPlaceholder} />
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.dotsContainer}>
+        {Array.from({ length: pin.length }).map((_, index) => (
+          <View
+            key={`dot-${index}-${pin.length}`}
+            style={[
+              styles.dot,
+              {
+                backgroundColor:
+                  error
+                    ? errorColor
+                    : buttonPrimaryColor,
+                borderColor: error ? errorColor : buttonPrimaryColor,
+              },
+            ]}
+          />
+        ))}
+      </View>
+    );
+  };
+
   return (
     <View style={styles.container}>
-      {/* PIN Dots Display */}
-      {showDots && (
-        <View style={styles.dotsContainer}>
-          {Array.from({ length: maxLength }).map((_, index) => (
-            <View
-              key={index}
-              style={[
-                styles.dot,
-                {
-                  backgroundColor:
-                    index < pin.length
-                      ? error
-                        ? errorColor
-                        : buttonPrimaryColor
-                      : inputBorderColor,
-                  borderColor: index < pin.length ? buttonPrimaryColor : inputBorderColor,
-                },
-              ]}
-            />
-          ))}
-        </View>
-      )}
+      <View style={styles.dotsRow}>
+        <View style={styles.dotsSpacer} />
+        {renderDots()}
+        <TouchableOpacity
+          style={[
+            styles.deleteButton,
+            {
+              backgroundColor: cardBackgroundColor,
+              opacity: pin.length === 0 ? 0.5 : 1,
+            },
+          ]}
+          onPress={handleDelete}
+          disabled={pin.length === 0}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Delete size={22} color={pin.length > 0 ? primaryTextColor : secondaryTextColor} />
+        </TouchableOpacity>
+      </View>
 
       {/* Keypad */}
       <View style={styles.keypad}>
@@ -136,7 +175,7 @@ export function PINKeypad({
           ))}
         </View>
 
-        {/* Row 4: Empty, 0, Delete */}
+        {/* Row 4: spacer, 0, OK */}
         <View style={styles.keypadRow}>
           <View style={styles.keypadButton} />
           <TouchableOpacity
@@ -146,17 +185,31 @@ export function PINKeypad({
           >
             <ThemedText style={[styles.keypadButtonText, { color: primaryTextColor }]}>0</ThemedText>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.keypadButton, { backgroundColor: cardBackgroundColor }]}
-            onPress={handleDelete}
-            activeOpacity={0.7}
-            disabled={pin.length === 0}
-          >
-            <Delete
-              size={24}
-              color={pin.length > 0 ? primaryTextColor : secondaryTextColor}
-            />
-          </TouchableOpacity>
+          {showSubmitButton ? (
+            <TouchableOpacity
+              style={[
+                styles.keypadButton,
+                {
+                  backgroundColor: canSubmit ? buttonPrimaryColor : inputBorderColor,
+                  opacity: canSubmit ? 1 : 0.6,
+                },
+              ]}
+              onPress={handleSubmit}
+              activeOpacity={0.7}
+              disabled={!canSubmit}
+            >
+              <ThemedText
+                style={[
+                  styles.submitButtonText,
+                  { color: canSubmit ? buttonPrimaryTextColor : secondaryTextColor },
+                ]}
+              >
+                {autoSubmit ? 'OK' : submitLabel}
+              </ThemedText>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.keypadButton} />
+          )}
         </View>
       </View>
     </View>
@@ -168,18 +221,44 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
   },
-  dotsContainer: {
+  dotsRow: {
+    width: '100%',
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 32,
+    gap: 12,
+  },
+  dotsSpacer: {
+    width: 48,
+  },
+  dotsContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
     gap: 12,
   },
   dot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     borderWidth: 2,
+  },
+  dotPlaceholder: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    backgroundColor: 'transparent',
+  },
+  deleteButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   keypad: {
     width: '100%',
@@ -204,5 +283,10 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '600',
   },
+  submitButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });
+
 

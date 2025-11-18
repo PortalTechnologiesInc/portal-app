@@ -1,11 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
-import {
-  AppLockService,
-  AuthMethod,
-  LockTimerDuration,
-  TIMER_OPTIONS,
-} from '@/services/AppLockService';
+import { AppLockService, AuthMethod, LockTimerDuration, TIMER_OPTIONS } from '@/services/AppLockService';
 import { authenticateAsync } from '@/services/BiometricAuthService';
 
 interface AppLockContextType {

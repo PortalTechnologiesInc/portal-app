@@ -7,6 +7,7 @@ import { PINKeypad } from './PINKeypad';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useAppLock } from '@/context/AppLockContext';
 import { authenticateAsync } from '@/services/BiometricAuthService';
+import { PIN_MIN_LENGTH, PIN_MAX_LENGTH } from '@/services/AppLockService';
 import { Fingerprint, Shield } from 'lucide-react-native';
 
 export function AppLockScreen() {
@@ -172,7 +173,8 @@ export function AppLockScreen() {
                 )}
                 <PINKeypad
                   onPINComplete={handlePINComplete}
-                  maxLength={5}
+                  minLength={PIN_MIN_LENGTH}
+                  maxLength={PIN_MAX_LENGTH}
                   showDots={true}
                   error={pinError}
                   onError={() => setPinError(false)}

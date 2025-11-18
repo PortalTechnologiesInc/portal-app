@@ -42,7 +42,7 @@ import { useDatabaseContext } from '@/context/DatabaseContext';
 import { useKey } from '@/context/KeyContext';
 import { getNsecStringFromKey } from '@/utils/keyHelpers';
 import { useAppLock } from '@/context/AppLockContext';
-import { LockTimerDuration } from '@/services/AppLockService';
+import { LockTimerDuration, PIN_MIN_LENGTH, PIN_MAX_LENGTH } from '@/services/AppLockService';
 import { PINSetupScreen } from '@/components/PINSetupScreen';
 import { PINKeypad } from '@/components/PINKeypad';
 
@@ -69,6 +69,7 @@ export default function SettingsScreen() {
     authMethod,
     verifyPIN,
     hasPIN,
+    pinLength,
   } = useAppLock();
   const [refreshing, setRefreshing] = useState(false);
   const [isCurrencyModalVisible, setIsCurrencyModalVisible] = useState(false);
@@ -297,10 +298,10 @@ export default function SettingsScreen() {
   const pinSetupTitle = pinSetupPurpose === 'change' ? 'Update PIN' : 'Set PIN';
   const pinSetupEnterMessage =
     pinSetupPurpose === 'change'
-      ? 'Enter a new 5-digit PIN for App Lock'
+      ? 'Enter a new PIN for App Lock'
       : pinSetupPurpose === 'ensure'
-        ? 'Create a 5-digit PIN to use whenever biometrics are unavailable'
-        : 'Enter a 5-digit PIN to secure your app';
+        ? 'Create a PIN to use whenever biometrics are unavailable'
+        : 'Enter a PIN to secure your app';
   const pinSetupConfirmMessage =
     pinSetupPurpose === 'change' ? 'Confirm your new PIN' : 'Confirm your PIN';
 
@@ -913,11 +914,12 @@ export default function SettingsScreen() {
             </View>
             <View style={styles.pinContainer}>
               <ThemedText style={[styles.pinInstruction, { color: secondaryTextColor }]}>
-                Enter your 5-digit PIN to disable app lock
+                Enter your PIN to disable app lock
               </ThemedText>
               <PINKeypad
                 onPINComplete={handlePINVerifyComplete}
-                maxLength={5}
+                minLength={PIN_MIN_LENGTH}
+                maxLength={PIN_MAX_LENGTH}
                 showDots={true}
                 error={pinError}
                 onError={() => setPinError(false)}

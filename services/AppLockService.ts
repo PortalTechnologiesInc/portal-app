@@ -4,6 +4,8 @@ import { SECURE_STORE_KEYS } from './StorageRegistry';
 import { isBiometricAuthAvailable } from './BiometricAuthService';
 
 const FINGERPRINT_SUPPORTED_KEY = 'isFingerprintSupported';
+export const PIN_MIN_LENGTH = 4;
+export const PIN_MAX_LENGTH = 8;
 
 export type AuthMethod = 'biometric' | 'pin' | null;
 export type LockTimerDuration = 0 | 30000 | 60000 | 300000 | 900000 | 1800000 | 3600000 | null;
@@ -148,6 +150,11 @@ export class AppLockService {
    */
   static async setupPIN(pin: string): Promise<void> {
     try {
+      if (pin.length < PIN_MIN_LENGTH || pin.length > PIN_MAX_LENGTH) {
+        throw new Error(
+          `PIN must be between ${PIN_MIN_LENGTH} and ${PIN_MAX_LENGTH} digits`,
+        );
+      }
       const hashedPIN = hashPIN(pin);
       await SecureStore.setItemAsync(SECURE_STORE_KEYS.APP_LOCK_PIN_HASH, hashedPIN);
     } catch (error) {
@@ -162,20 +169,12 @@ export class AppLockService {
   static async verifyPIN(pin: string): Promise<boolean> {
     try {
       const storedHash = await SecureStore.getItemAsync(SECURE_STORE_KEYS.APP_LOCK_PIN_HASH);
-      
-      // In dev mode, if no PIN is set, default to hash of "00000"
-      let hashToCompare = storedHash;
-      if (!hashToCompare && __DEV__) {
-        hashToCompare = hashPIN('00000');
-        console.log('🔧 Dev mode: Using default PIN hash for "00000"');
-      }
-      
-      if (!hashToCompare) {
+      if (!storedHash) {
         return false;
       }
-      
+
       const enteredHash = hashPIN(pin);
-      return hashToCompare === enteredHash;
+      return storedHash === enteredHash;
     } catch (error) {
       console.error('Error verifying PIN:', error);
       return false;
