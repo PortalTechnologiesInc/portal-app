@@ -15,6 +15,9 @@ interface PINKeypadProps {
   autoSubmit?: boolean;
   submitLabel?: string;
   showSubmitButton?: boolean;
+  showSkipButton?: boolean;
+  onSkipPress?: () => void;
+  skipLabel?: string;
 }
 
 export function PINKeypad({
@@ -27,6 +30,9 @@ export function PINKeypad({
   autoSubmit = true,
   submitLabel = 'Enter',
   showSubmitButton = true,
+  showSkipButton = false,
+  onSkipPress,
+  skipLabel = 'Skip',
 }: PINKeypadProps) {
   const [pin, setPin] = useState('');
 
@@ -38,6 +44,7 @@ export function PINKeypad({
   const buttonPrimaryTextColor = useThemeColor({}, 'buttonPrimaryText');
   const inputBorderColor = useThemeColor({}, 'inputBorder');
   const errorColor = useThemeColor({}, 'buttonDanger');
+  const surfaceSecondary = useThemeColor({}, 'surfaceSecondary');
   const normalizedMinLength = Math.min(Math.max(providedMinLength, 1), maxLength);
   const canSubmit = pin.length >= Math.max(normalizedMinLength, 4);
 
@@ -177,7 +184,20 @@ export function PINKeypad({
 
         {/* Row 4: spacer, 0, OK */}
         <View style={styles.keypadRow}>
-          <View style={styles.keypadButton} />
+          {showSkipButton ? (
+            <TouchableOpacity
+              style={[styles.keypadButton, { backgroundColor: surfaceSecondary }]}
+              onPress={onSkipPress}
+              activeOpacity={0.7}
+              disabled={!onSkipPress}
+            >
+              <ThemedText style={[styles.skipButtonText, { color: primaryTextColor }]}>
+                {skipLabel}
+              </ThemedText>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.keypadButton} />
+          )}
           <TouchableOpacity
             style={[styles.keypadButton, { backgroundColor: cardBackgroundColor }]}
             onPress={() => handleNumberPress('0')}
@@ -285,6 +305,10 @@ const styles = StyleSheet.create({
   },
   submitButtonText: {
     fontSize: 16,
+    fontWeight: '600',
+  },
+  skipButtonText: {
+    fontSize: 14,
     fontWeight: '600',
   },
 });

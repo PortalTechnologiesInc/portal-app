@@ -96,7 +96,15 @@ export class AppLockService {
     try {
       if (enabled) {
         await SecureStore.setItemAsync(SECURE_STORE_KEYS.APP_LOCK_ENABLED, 'true');
-        this.markSessionAuthenticated();
+        // Ensure a default lock timer is set (Immediate) so the app actually locks
+        const existingTimer = await SecureStore.getItemAsync(
+          SECURE_STORE_KEYS.APP_LOCK_TIMER_DURATION,
+        );
+        if (existingTimer === null) {
+          await this.setLockTimerDuration(0);
+        }
+        // Don't mark as authenticated when enabling - let the app lock on next check
+        // This ensures the lock actually works when first enabled
       } else {
         await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.APP_LOCK_ENABLED);
         // Also clear auth method and PIN when disabling
@@ -231,6 +239,8 @@ export class AppLockService {
    */
   static recordBackgroundTime(): void {
     backgroundTimestamp = Date.now();
+    // Reset unlock timestamp when going to background so timer check applies on return
+    lastUnlockTimestamp = null;
   }
 
   /**

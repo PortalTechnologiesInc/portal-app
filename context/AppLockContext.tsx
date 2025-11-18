@@ -41,7 +41,11 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
         setIsFingerprintSupported(fingerprintSupported);
 
         const enabled = await AppLockService.isAppLockEnabled();
-        const duration = await AppLockService.getLockTimerDuration();
+        let duration = await AppLockService.getLockTimerDuration();
+        if (enabled && duration === null) {
+          await AppLockService.setLockTimerDuration(0);
+          duration = 0;
+        }
         let method = await AppLockService.getAuthMethod();
 
         // If enabled but no method set, determine based on fingerprint support
@@ -56,11 +60,16 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
         const pinExists = await AppLockService.hasPIN();
         setHasPIN(pinExists);
 
-        // If enabled, check if we should lock immediately
+        // If enabled, lock immediately if PIN exists (user should authenticate on app load)
+        // Otherwise, check timer-based locking
         if (enabled) {
-          const shouldLock = await AppLockService.shouldLockApp();
-          if (shouldLock) {
+          if (pinExists) {
             setIsLocked(true);
+          } else {
+            const shouldLock = await AppLockService.shouldLockApp();
+            if (shouldLock) {
+              setIsLocked(true);
+            }
           }
         }
       } catch (error) {
@@ -115,10 +124,17 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
         const method = fingerprintSupported ? 'biometric' : 'pin';
         await AppLockService.setAuthMethod(method);
         setAuthMethodState(method);
+        const duration = await AppLockService.getLockTimerDuration();
+        setLockTimerDurationState(duration);
+        // Keep current session unlocked until the app backgrounds or restarts
+        AppLockService.unlockApp();
+        setIsLocked(false);
       } else {
         setIsLocked(false);
         setAuthMethodState(null);
         setHasPIN(false);
+        const duration = await AppLockService.getLockTimerDuration();
+        setLockTimerDurationState(duration);
       }
     } catch (error) {
       console.error('Error setting app lock enabled:', error);
