@@ -16,6 +16,7 @@ export function AppLockScreen() {
     unlockApp,
     verifyPIN,
     isFingerprintSupported,
+    hasPIN,
     isInitialized,
   } = useAppLock();
   const [pinError, setPinError] = useState(false);
@@ -111,7 +112,7 @@ export function AppLockScreen() {
   } else if (isLocked) {
     // Determine UI based on fingerprint support
     const showBiometric = isFingerprintSupported && authMethod === 'biometric';
-    const showPIN = !isFingerprintSupported || authMethod === 'pin';
+    const showPIN = hasPIN || !isFingerprintSupported || authMethod === 'pin';
 
     modalContent = (
       <Modal visible animationType="fade" transparent={false}>
@@ -128,11 +129,13 @@ export function AppLockScreen() {
               </View>
               <ThemedText style={[styles.title, { color: primaryTextColor }]}>App Locked</ThemedText>
               <ThemedText style={[styles.subtitle, { color: secondaryTextColor }]}>
-                {showBiometric
-                  ? 'Use your fingerprint or face to unlock'
-                  : showPIN
-                    ? 'Enter your PIN to unlock'
-                    : 'Authentication required'}
+                {showBiometric && showPIN
+                  ? 'Use biometric or enter your PIN to unlock'
+                  : showBiometric
+                    ? 'Use your fingerprint or face to unlock'
+                    : showPIN
+                      ? 'Enter your PIN to unlock'
+                      : 'Authentication required'}
               </ThemedText>
             </View>
 

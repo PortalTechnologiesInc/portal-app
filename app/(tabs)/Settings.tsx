@@ -25,6 +25,7 @@ import {
   Wifi,
   RotateCcw,
   Clock,
+  KeyRound,
 } from 'lucide-react-native';
 import { Moon, Sun, Smartphone } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -67,6 +68,7 @@ export default function SettingsScreen() {
     isFingerprintSupported,
     authMethod,
     verifyPIN,
+    hasPIN,
   } = useAppLock();
   const [refreshing, setRefreshing] = useState(false);
   const [isCurrencyModalVisible, setIsCurrencyModalVisible] = useState(false);
@@ -75,6 +77,7 @@ export default function SettingsScreen() {
   const [isPINVerifyVisible, setIsPINVerifyVisible] = useState(false);
   const [pinError, setPinError] = useState(false);
   const [walletUrl, setWalletUrl] = useState('');
+  const [pinSetupPurpose, setPinSetupPurpose] = useState<'enable' | 'ensure' | 'change'>('enable');
 
   // Unified wallet status
   const { hasLightningWallet, isLightningConnected } = useWalletStatus();
@@ -202,9 +205,14 @@ export default function SettingsScreen() {
           authenticateForSensitiveAction(async () => {
             await setLockEnabled(true);
             showToast('App lock enabled', 'success');
+            if (!hasPIN) {
+              setPinSetupPurpose('ensure');
+              setIsPINSetupVisible(true);
+            }
           }, 'Authenticate to enable app lock');
         } else {
           // No fingerprint support - show PIN setup
+          setPinSetupPurpose('enable');
           setIsPINSetupVisible(true);
         }
       } else {
@@ -238,10 +246,19 @@ export default function SettingsScreen() {
 
   const handlePINSetupComplete = async (pin: string) => {
     try {
-      await setupPIN(pin);
-      await setLockEnabled(true);
-      setIsPINSetupVisible(false);
-      showToast('App lock enabled with PIN', 'success');
+      if (pinSetupPurpose === 'enable') {
+        await setupPIN(pin);
+        await setLockEnabled(true);
+        setIsPINSetupVisible(false);
+        showToast('App lock enabled with PIN', 'success');
+      } else {
+        await setupPIN(pin);
+        setIsPINSetupVisible(false);
+        showToast(
+          pinSetupPurpose === 'change' ? 'PIN updated successfully' : 'PIN saved successfully',
+          'success',
+        );
+      }
     } catch (error) {
       console.error('Error setting up PIN:', error);
       showToast('Failed to set up PIN', 'error');
@@ -266,6 +283,26 @@ export default function SettingsScreen() {
       setTimeout(() => setPinError(false), 2000);
     }
   };
+
+  const handlePinManagementPress = () => {
+    authenticateForSensitiveAction(
+      () => {
+        setPinSetupPurpose('change');
+        setIsPINSetupVisible(true);
+      },
+      hasPIN ? 'Authenticate to update your PIN' : 'Authenticate to set your PIN',
+    );
+  };
+
+  const pinSetupTitle = pinSetupPurpose === 'change' ? 'Update PIN' : 'Set PIN';
+  const pinSetupEnterMessage =
+    pinSetupPurpose === 'change'
+      ? 'Enter a new 5-digit PIN for App Lock'
+      : pinSetupPurpose === 'ensure'
+        ? 'Create a 5-digit PIN to use whenever biometrics are unavailable'
+        : 'Enter a 5-digit PIN to secure your app';
+  const pinSetupConfirmMessage =
+    pinSetupPurpose === 'change' ? 'Confirm your new PIN' : 'Confirm your PIN';
 
   const handleTimerSelect = (duration: LockTimerDuration) => {
     setLockTimerDuration(duration);
@@ -577,30 +614,57 @@ export default function SettingsScreen() {
             />
           </View>
           {isLockEnabled && (
-            <TouchableOpacity
-              style={[styles.card, { backgroundColor: cardBackgroundColor }]}
-              onPress={() => setIsTimerModalVisible(true)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.cardContent}>
-                <View style={styles.cardLeft}>
-                  <View style={styles.cardHeader}>
-                    <View style={[styles.iconContainer]}>
-                      <Clock size={20} color={buttonPrimaryColor} />
-                    </View>
-                    <View style={styles.cardText}>
-                      <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
-                        Lock Timer
-                      </ThemedText>
-                      <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
-                        {getTimerLabel()}
-                      </ThemedText>
+            <>
+              <TouchableOpacity
+                style={[styles.card, { backgroundColor: cardBackgroundColor }]}
+                onPress={handlePinManagementPress}
+                activeOpacity={0.7}
+              >
+                <View style={styles.cardContent}>
+                  <View style={styles.cardLeft}>
+                    <View style={styles.cardHeader}>
+                      <View style={[styles.iconContainer]}>
+                        <KeyRound size={20} color={buttonPrimaryColor} />
+                      </View>
+                      <View style={styles.cardText}>
+                        <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
+                          App Lock PIN
+                        </ThemedText>
+                        <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
+                          {hasPIN ? 'Configured' : 'Not set'}
+                        </ThemedText>
+                      </View>
                     </View>
                   </View>
+                  <ChevronRight size={24} color={secondaryTextColor} />
                 </View>
-                <ChevronRight size={24} color={secondaryTextColor} />
-              </View>
-            </TouchableOpacity>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.card, { backgroundColor: cardBackgroundColor }]}
+                onPress={() => setIsTimerModalVisible(true)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.cardContent}>
+                  <View style={styles.cardLeft}>
+                    <View style={styles.cardHeader}>
+                      <View style={[styles.iconContainer]}>
+                        <Clock size={20} color={buttonPrimaryColor} />
+                      </View>
+                      <View style={styles.cardText}>
+                        <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
+                          Lock Timer
+                        </ThemedText>
+                        <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
+                          {getTimerLabel()}
+                        </ThemedText>
+                      </View>
+                    </View>
+                  </View>
+                  <ChevronRight size={24} color={secondaryTextColor} />
+                </View>
+              </TouchableOpacity>
+            </>
           )}
 
           {/* Recover Tickets Section */}
@@ -806,6 +870,9 @@ export default function SettingsScreen() {
         visible={isPINSetupVisible}
         onComplete={handlePINSetupComplete}
         onCancel={() => setIsPINSetupVisible(false)}
+        title={pinSetupTitle}
+        enterMessage={pinSetupEnterMessage}
+        confirmMessage={pinSetupConfirmMessage}
       />
 
       {/* PIN Verification Modal */}

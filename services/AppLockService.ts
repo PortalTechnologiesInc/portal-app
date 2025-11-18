@@ -150,7 +150,6 @@ export class AppLockService {
     try {
       const hashedPIN = hashPIN(pin);
       await SecureStore.setItemAsync(SECURE_STORE_KEYS.APP_LOCK_PIN_HASH, hashedPIN);
-      await this.setAuthMethod('pin');
     } catch (error) {
       console.error('Error setting up PIN:', error);
       throw error;
@@ -179,6 +178,16 @@ export class AppLockService {
       return hashToCompare === enteredHash;
     } catch (error) {
       console.error('Error verifying PIN:', error);
+      return false;
+    }
+  }
+
+  static async hasPIN(): Promise<boolean> {
+    try {
+      const storedHash = await SecureStore.getItemAsync(SECURE_STORE_KEYS.APP_LOCK_PIN_HASH);
+      return !!storedHash;
+    } catch (error) {
+      console.error('Error checking PIN presence:', error);
       return false;
     }
   }

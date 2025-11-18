@@ -13,6 +13,7 @@ interface AppLockContextType {
   isLockEnabled: boolean;
   lockTimerDuration: LockTimerDuration;
   authMethod: AuthMethod;
+  hasPIN: boolean;
   isFingerprintSupported: boolean;
   isInitialized: boolean;
   timerOptions: typeof TIMER_OPTIONS;
@@ -33,6 +34,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
   const [lockTimerDuration, setLockTimerDurationState] = useState<LockTimerDuration>(null);
   const [authMethod, setAuthMethodState] = useState<AuthMethod>(null);
   const [isFingerprintSupported, setIsFingerprintSupported] = useState(false);
+  const [hasPIN, setHasPIN] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
 
   // Load app lock settings on mount
@@ -56,6 +58,8 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
         setIsLockEnabled(enabled);
         setLockTimerDurationState(duration);
         setAuthMethodState(method);
+        const pinExists = await AppLockService.hasPIN();
+        setHasPIN(pinExists);
 
         // If enabled, check if we should lock immediately
         if (enabled) {
@@ -79,6 +83,10 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
         // App going to background or device locked - record timestamp
         AppLockService.recordBackgroundTime();
       } else if (nextAppState === 'active') {
+        // Refresh biometric capability when returning to foreground
+        const fingerprintSupported = await AppLockService.refreshFingerprintSupport();
+        setIsFingerprintSupported(fingerprintSupported);
+
         // App becoming active - check if we should lock
         if (isLockEnabled) {
           const shouldLock = await AppLockService.shouldLockApp();
@@ -115,6 +123,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
       } else {
         setIsLocked(false);
         setAuthMethodState(null);
+        setHasPIN(false);
       }
     } catch (error) {
       console.error('Error setting app lock enabled:', error);
@@ -135,12 +144,15 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
   const setupPIN = useCallback(async (pin: string) => {
     try {
       await AppLockService.setupPIN(pin);
-      setAuthMethodState('pin');
+      setHasPIN(true);
+      if (!isFingerprintSupported) {
+        setAuthMethodState('pin');
+      }
     } catch (error) {
       console.error('Error setting up PIN:', error);
       throw error;
     }
-  }, []);
+  }, [isFingerprintSupported]);
 
   const verifyPIN = useCallback(async (pin: string): Promise<boolean> => {
     try {
@@ -171,6 +183,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
         isLockEnabled,
         lockTimerDuration,
         authMethod,
+        hasPIN,
         isFingerprintSupported,
         isInitialized,
         timerOptions: TIMER_OPTIONS,

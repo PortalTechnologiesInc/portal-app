@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { StyleSheet, View, Modal, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from './ThemedText';
-import { ThemedView } from './ThemedView';
 import { PINKeypad } from './PINKeypad';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { Shield, X } from 'lucide-react-native';
@@ -11,16 +10,25 @@ interface PINSetupScreenProps {
   visible: boolean;
   onComplete: (pin: string) => void;
   onCancel: () => void;
+  title?: string;
+  enterMessage?: string;
+  confirmMessage?: string;
 }
 
-export function PINSetupScreen({ visible, onComplete, onCancel }: PINSetupScreenProps) {
+export function PINSetupScreen({
+  visible,
+  onComplete,
+  onCancel,
+  title,
+  enterMessage,
+  confirmMessage,
+}: PINSetupScreenProps) {
   const [step, setStep] = useState<'enter' | 'confirm'>('enter');
   const [enteredPIN, setEnteredPIN] = useState('');
   const [confirmPIN, setConfirmPIN] = useState('');
   const [error, setError] = useState(false);
 
   const backgroundColor = useThemeColor({}, 'background');
-  const cardBackgroundColor = useThemeColor({}, 'cardBackground');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
   const buttonPrimaryColor = useThemeColor({}, 'buttonPrimary');
@@ -61,6 +69,10 @@ export function PINSetupScreen({ visible, onComplete, onCancel }: PINSetupScreen
     onCancel();
   };
 
+  const headerTitle = title ?? 'Set PIN';
+  const enterText = enterMessage ?? 'Enter a 5-digit PIN to secure your app';
+  const confirmText = confirmMessage ?? 'Confirm your PIN';
+
   return (
     <Modal visible={visible} animationType="slide" transparent={true}>
       <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top', 'bottom']}>
@@ -68,7 +80,7 @@ export function PINSetupScreen({ visible, onComplete, onCancel }: PINSetupScreen
           <TouchableOpacity onPress={handleCancel} style={styles.closeButton}>
             <X size={24} color={secondaryTextColor} />
           </TouchableOpacity>
-          <ThemedText style={[styles.title, { color: primaryTextColor }]}>Set PIN</ThemedText>
+          <ThemedText style={[styles.title, { color: primaryTextColor }]}>{headerTitle}</ThemedText>
           <View style={styles.placeholder} />
         </View>
 
@@ -78,9 +90,7 @@ export function PINSetupScreen({ visible, onComplete, onCancel }: PINSetupScreen
           </View>
 
           <ThemedText style={[styles.instruction, { color: primaryTextColor }]}>
-            {step === 'enter'
-              ? 'Enter a 5-digit PIN to secure your app'
-              : 'Confirm your PIN'}
+            {step === 'enter' ? enterText : confirmText}
           </ThemedText>
 
           {error && (
