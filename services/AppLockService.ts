@@ -260,6 +260,20 @@ export class AppLockService {
   }
 
   /**
+   * Force-refresh fingerprint support status by re-checking the device
+   */
+  static async refreshFingerprintSupport(): Promise<boolean> {
+    try {
+      const isSupported = await isBiometricAuthAvailable();
+      await AsyncStorage.setItem(FINGERPRINT_SUPPORTED_KEY, isSupported ? 'true' : 'false');
+      return isSupported;
+    } catch (error) {
+      console.error('Error refreshing fingerprint support status:', error);
+      return await isBiometricAuthAvailable();
+    }
+  }
+
+  /**
    * Set fingerprint support status (for testing/manual override)
    */
   static async setFingerprintSupported(supported: boolean): Promise<void> {

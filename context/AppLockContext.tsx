@@ -104,8 +104,8 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
       await AppLockService.setAppLockEnabled(enabled);
       setIsLockEnabled(enabled);
       if (enabled) {
-        // Determine auth method based on fingerprint support
-        const fingerprintSupported = await AppLockService.getFingerprintSupported();
+        // Determine auth method based on fresh fingerprint support check
+        const fingerprintSupported = await AppLockService.refreshFingerprintSupport();
         setIsFingerprintSupported(fingerprintSupported);
         const method = fingerprintSupported ? 'biometric' : 'pin';
         await AppLockService.setAuthMethod(method);
