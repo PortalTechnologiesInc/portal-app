@@ -19,6 +19,7 @@ export function AppLockScreen() {
   const primaryTextColor = useThemeColor({}, 'textPrimary');
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
   const buttonPrimaryColor = useThemeColor({}, 'buttonPrimary');
+  const errorColor = useThemeColor({}, 'buttonDanger');
 
   const handleBiometricAuth = React.useCallback(async () => {
     if (isAuthenticating) return;
@@ -148,7 +149,7 @@ export function AppLockScreen() {
           {showPIN && (
             <View style={styles.pinContainer}>
               {pinError && (
-                <ThemedText style={[styles.errorText, { color: useThemeColor({}, 'buttonDanger') }]}>
+                <ThemedText style={[styles.errorText, { color: errorColor }]}>
                   Incorrect PIN. Please try again.
                 </ThemedText>
               )}
