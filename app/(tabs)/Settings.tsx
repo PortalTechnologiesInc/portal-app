@@ -14,17 +14,7 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useRouter } from 'expo-router';
-import {
-  ArrowLeft,
-  ChevronRight,
-  Fingerprint,
-  Shield,
-  X,
-  Check,
-  Wallet,
-  Wifi,
-  RotateCcw,
-} from 'lucide-react-native';
+import { ArrowLeft, ChevronRight, Fingerprint, Shield, X, Check, Wallet, Wifi, RotateCcw } from 'lucide-react-native';
 import { Moon, Sun, Smartphone } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { walletUrlEvents, getMnemonic, getWalletUrl } from '@/services/SecureStorageService';
@@ -105,6 +95,10 @@ export default function SettingsScreen() {
 
   const handleNostrCardPress = () => {
     router.push('/relays');
+  };
+
+  const handleRemoteSigningPress = () => {
+    router.push('/remoteSigning');
   };
 
   const handleRecoverTicketsPress = () => {
@@ -369,6 +363,35 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             </ThemedView>
           </ThemedView>
+
+          {/* Remote Signing */}
+          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
+            Remote Signing
+          </ThemedText>
+          <TouchableOpacity
+            style={[styles.card, { backgroundColor: cardBackgroundColor }]}
+            onPress={handleRemoteSigningPress}
+            activeOpacity={0.7}
+          >
+            <View style={styles.cardContent}>
+              <View style={styles.cardLeft}>
+                <View style={styles.cardHeader}>
+                  <View style={[styles.iconContainer]}>
+                    <Fingerprint size={20} color={buttonPrimaryColor} />
+                  </View>
+                  <View style={styles.cardText}>
+                    <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
+                      Remote signer setup
+                    </ThemedText>
+                    <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
+                      Configure bunker URLs or respond to nostrconnect requests
+                    </ThemedText>
+                  </View>
+                </View>
+              </View>
+              <ChevronRight size={24} color={secondaryTextColor} />
+            </View>
+          </TouchableOpacity>
 
           {/* Nostr Section */}
           <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>Relays</ThemedText>
