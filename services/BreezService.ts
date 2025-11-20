@@ -11,6 +11,8 @@ import {
   SendPaymentMethod,
   OnchainConfirmationSpeed,
   PrepareSendPaymentResponse,
+  initLogging,
+  LogEntry,
 } from '@breeztech/breez-sdk-spark-react-native';
 import { Wallet } from '@/models/WalletType';
 import { WalletInfo } from '@/utils';
@@ -20,7 +22,23 @@ export class BreezService implements Wallet {
 
   static async create(mnemonic: string): Promise<BreezService> {
     const instance = new BreezService();
+    initLogging(
+      undefined,
+      {
+        log: (logEntry: LogEntry) => {
+          console.log(`[BREEZ] ${logEntry.level}: ${logEntry.line}`);
+        },
+      },
+      undefined
+    );
     await instance.init(mnemonic);
+    await instance.addEventListener({
+      onEvent: async event => {
+        console.log(`[BREEZ EVENT] ${JSON.stringify(event)}`);
+        return;
+      },
+    });
+
     return instance;
   }
 
@@ -28,6 +46,7 @@ export class BreezService implements Wallet {
     const seed = new Seed.Mnemonic({ mnemonic, passphrase: undefined });
     const config = defaultConfig(Network.Mainnet);
     config.apiKey = process.env.EXPO_PUBLIC_BREEZ_API_KEY;
+    config.preferSparkOverLightning = true;
 
     const dirUri = FileSystem.documentDirectory + 'breez-wallet';
     const storageDir = dirUri.replace('file://', '');
@@ -74,8 +93,9 @@ export class BreezService implements Wallet {
       let sendOptions: SendPaymentOptions | undefined;
 
       if (prepareResponse.paymentMethod instanceof SendPaymentMethod.Bolt11Invoice) {
+        console.log(JSON.stringify(prepareResponse.paymentMethod.inner));
         sendOptions = new SendPaymentOptions.Bolt11Invoice({
-          preferSpark: false,
+          preferSpark: true,
           completionTimeoutSecs: 60,
         });
       } else if (prepareResponse.paymentMethod instanceof SendPaymentMethod.BitcoinAddress) {
