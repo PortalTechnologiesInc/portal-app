@@ -157,10 +157,10 @@ export default function QRScannerScreen() {
         break;
 
       case 'lightning':
-        if (!data.startsWith('lnbc')) {
+        if (!data.toLowerCase().startsWith('lnbc')) {
           return {
             isValid: false,
-            error: 'Invalid ticket QR code. Please scan a valid lightning invoice.',
+            error: 'Invalid lightning invoice. Please scan a valid lightning invoice.',
           };
         }
         break;

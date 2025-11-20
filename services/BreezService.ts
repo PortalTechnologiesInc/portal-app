@@ -11,6 +11,10 @@ import {
   SendPaymentMethod,
   OnchainConfirmationSpeed,
   PrepareSendPaymentResponse,
+  LogEntry,
+  initLogging,
+  WaitForPaymentRequest,
+  WaitForPaymentIdentifier,
 } from '@breeztech/breez-sdk-spark-react-native';
 import { Wallet } from '@/models/WalletType';
 import { WalletInfo } from '@/utils';
@@ -20,6 +24,15 @@ export class BreezService implements Wallet {
 
   static async create(mnemonic: string): Promise<BreezService> {
     const instance = new BreezService();
+    class JsLogger {
+      log = (l: LogEntry) => {
+        console.log(`BREEZ: [${l.level}]: ${l.line}`);
+      };
+    }
+
+    const logger = new JsLogger();
+    initLogging(undefined, logger, undefined);
+
     await instance.init(mnemonic);
     return instance;
   }
@@ -28,6 +41,7 @@ export class BreezService implements Wallet {
     const seed = new Seed.Mnemonic({ mnemonic, passphrase: undefined });
     const config = defaultConfig(Network.Mainnet);
     config.apiKey = process.env.EXPO_PUBLIC_BREEZ_API_KEY;
+    config.preferSparkOverLightning = true;
 
     const dirUri = FileSystem.documentDirectory + 'breez-wallet';
     const storageDir = dirUri.replace('file://', '');
@@ -46,6 +60,12 @@ export class BreezService implements Wallet {
       alias: undefined,
       balanceInSats: res.balanceSats,
     };
+  }
+
+  async waitForPayment(invoice: string) {
+    return await this.client.waitForPayment({
+      identifier: new WaitForPaymentIdentifier.PaymentRequest(invoice),
+    });
   }
 
   // for now only bolt11 invoices are supported
@@ -75,7 +95,7 @@ export class BreezService implements Wallet {
 
       if (prepareResponse.paymentMethod instanceof SendPaymentMethod.Bolt11Invoice) {
         sendOptions = new SendPaymentOptions.Bolt11Invoice({
-          preferSpark: false,
+          preferSpark: true,
           completionTimeoutSecs: 60,
         });
       } else if (prepareResponse.paymentMethod instanceof SendPaymentMethod.BitcoinAddress) {
@@ -128,7 +148,7 @@ export class BreezService implements Wallet {
 
     if (prepareResponse.paymentMethod instanceof SendPaymentMethod.Bolt11Invoice) {
       sendOptions = new SendPaymentOptions.Bolt11Invoice({
-        preferSpark: false,
+        preferSpark: true,
         completionTimeoutSecs: 60,
       });
     } else if (prepareResponse.paymentMethod instanceof SendPaymentMethod.BitcoinAddress) {

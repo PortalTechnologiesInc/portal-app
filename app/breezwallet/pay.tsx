@@ -17,9 +17,15 @@ import {
 import { useWalletManager } from '@/context/WalletManagerContext';
 import { BreezService } from '@/services/BreezService';
 import WALLET_TYPE from '@/models/WalletType';
+import LottieView from 'lottie-react-native';
+
+enum PageState {
+  PaymentRecap,
+  PaymentSent,
+}
 
 export default function MyWalletManagementSecret() {
-  const params = useLocalSearchParams();
+  const { invoice } = useLocalSearchParams<{ invoice: string }>();
   const router = useRouter();
 
   const { preferredCurrency } = useCurrency();
@@ -34,6 +40,7 @@ export default function MyWalletManagementSecret() {
   const [prepareSendPaymentResponse, setPrepareSendPaymentResponse] =
     useState<PrepareSendPaymentResponse | null>(null);
   const [isSendPaymentLoading, setIsSendPaymentLoading] = useState(false);
+  const [pageState, setPageState] = useState(PageState.PaymentRecap);
 
   const backgroundColor = useThemeColor({}, 'background');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
@@ -48,6 +55,12 @@ export default function MyWalletManagementSecret() {
     setIsSendPaymentLoading(true);
     await breezWallet.sendPaymentWithPrepareResponse(prepareSendPaymentResponse);
     setIsSendPaymentLoading(false);
+
+    setPageState(PageState.PaymentSent);
+
+    setTimeout(() => {
+      router.replace('/breezwallet');
+    }, 2000);
   }, [prepareSendPaymentResponse, breezWallet]);
 
   useEffect(() => {
@@ -64,7 +77,6 @@ export default function MyWalletManagementSecret() {
 
   useEffect(() => {
     if (breezWallet == null) return;
-    const invoice = params.invoice as string;
 
     const parseInvoiceData = async () => {
       bolt11.decode(invoice).sections.map(async section => {
@@ -101,7 +113,7 @@ export default function MyWalletManagementSecret() {
     };
 
     parseInvoiceData();
-  }, [params, breezWallet, preferredCurrency]);
+  }, [invoice, breezWallet, preferredCurrency]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
@@ -113,91 +125,109 @@ export default function MyWalletManagementSecret() {
           <ThemedText style={[styles.headerText, { color: primaryTextColor }]}>Pay</ThemedText>
         </ThemedView>
 
-        <ThemedView
-          style={{
-            ...styles.content,
-            flex: 1,
-            justifyContent: 'center',
-            alignItems: 'center',
-            gap: 20,
-          }}
-        >
-          <ThemedView style={{ gap: 5, alignItems: 'center', justifyContent: 'center', flex: 1 }}>
-            <ThemedView style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-end' }}>
-              <Text style={{ color: primaryTextColor, fontSize: 50, fontWeight: 'bold' }}>
-                {amountMillisats ? amountMillisats / 1000 : 0}
-              </Text>
-              <Text style={{ color: secondaryTextColor, fontSize: 30 }}>sats</Text>
-            </ThemedView>
-
-            <ThemedView style={{ flexDirection: 'row', alignItems: 'flex-end' }}>
-              <Text style={{ color: secondaryTextColor, fontSize: 30 }}>
-                {CurrencyConversionService.formatConvertedAmountWithFallback(
-                  convertedAmount,
-                  preferredCurrency
-                )}
-              </Text>
-            </ThemedView>
-
-            <ThemedView>
-              <ThemedView style={{ flexDirection: 'row', gap: 10, width: '70%' }}>
-                <ThemedView style={{ width: '40%', alignItems: 'flex-end' }}>
-                  <ThemedText type="defaultSemiBold">Description</ThemedText>
-                </ThemedView>
-                <ThemedView style={{ width: '60%', alignItems: 'flex-start' }}>
-                  <ThemedText>{description ?? 'No description'}</ThemedText>
-                </ThemedView>
-              </ThemedView>
-            </ThemedView>
-
-            <ThemedView style={{ flexDirection: 'row', gap: 10, width: '70%' }}>
-              <ThemedView style={{ width: '40%', alignItems: 'flex-end' }}>
-                <ThemedText type="defaultSemiBold">Fee</ThemedText>
-              </ThemedView>
-              <ThemedView style={{ width: '60%', alignItems: 'flex-start' }}>
-                <ThemedView style={{ flexDirection: 'row', gap: 5 }}>
-                  <ThemedText>{feesInSats} sats</ThemedText>
-                  <ThemedText style={{ color: secondaryTextColor }}>
-                    {CurrencyConversionService.formatConvertedAmountWithFallback(
-                      convertedFeesInSats,
-                      preferredCurrency
-                    )}
-                  </ThemedText>
-                </ThemedView>
-              </ThemedView>
-            </ThemedView>
-          </ThemedView>
-
+        {pageState === PageState.PaymentRecap ? (
           <ThemedView
             style={{
-              flexDirection: 'row',
-              gap: 40,
-              backgroundColor: buttonPrimaryColor,
-              borderRadius: 25,
-              paddingTop: 10,
-              paddingBottom: 10,
-              paddingLeft: 30,
-              paddingRight: 30,
+              ...styles.content,
+              flex: 1,
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: 20,
             }}
           >
-            <TouchableOpacity onPress={confirmPayment} disabled={isSendPaymentLoading}>
-              <ThemedView
-                style={{ flexDirection: 'row', gap: 10, backgroundColor: buttonPrimaryColor }}
-              >
-                {isSendPaymentLoading ? (
-                  <ActivityIndicator size="small" color={buttonPrimaryTextColor} />
-                ) : (
-                  <>
-                    <Send color={buttonPrimaryTextColor} />
-                    <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
-                      Pay
-                    </ThemedText>
-                  </>
-                )}
+            <ThemedView style={{ gap: 5, alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+              <ThemedView style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-end' }}>
+                <Text style={{ color: primaryTextColor, fontSize: 50, fontWeight: 'bold' }}>
+                  {amountMillisats ? amountMillisats / 1000 : 0}
+                </Text>
+                <Text style={{ color: secondaryTextColor, fontSize: 30 }}>sats</Text>
               </ThemedView>
-            </TouchableOpacity>
+
+              <ThemedView style={{ flexDirection: 'row', alignItems: 'flex-end' }}>
+                <Text style={{ color: secondaryTextColor, fontSize: 30 }}>
+                  {CurrencyConversionService.formatConvertedAmountWithFallback(
+                    convertedAmount,
+                    preferredCurrency
+                  )}
+                </Text>
+              </ThemedView>
+
+              <ThemedView>
+                <ThemedView style={{ flexDirection: 'row', gap: 10, width: '70%' }}>
+                  <ThemedView style={{ width: '40%', alignItems: 'flex-end' }}>
+                    <ThemedText type="defaultSemiBold">Description</ThemedText>
+                  </ThemedView>
+                  <ThemedView style={{ width: '60%', alignItems: 'flex-start' }}>
+                    <ThemedText>{description ?? 'No description'}</ThemedText>
+                  </ThemedView>
+                </ThemedView>
+              </ThemedView>
+
+              <ThemedView style={{ flexDirection: 'row', gap: 10, width: '70%' }}>
+                <ThemedView style={{ width: '40%', alignItems: 'flex-end' }}>
+                  <ThemedText type="defaultSemiBold">Fee</ThemedText>
+                </ThemedView>
+                <ThemedView style={{ width: '60%', alignItems: 'flex-start' }}>
+                  <ThemedView style={{ flexDirection: 'row', gap: 5 }}>
+                    <ThemedText>{feesInSats} sats</ThemedText>
+                    <ThemedText style={{ color: secondaryTextColor }}>
+                      {CurrencyConversionService.formatConvertedAmountWithFallback(
+                        convertedFeesInSats,
+                        preferredCurrency
+                      )}
+                    </ThemedText>
+                  </ThemedView>
+                </ThemedView>
+              </ThemedView>
+            </ThemedView>
+
+            <ThemedView
+              style={{
+                flexDirection: 'row',
+                gap: 40,
+                backgroundColor: buttonPrimaryColor,
+                borderRadius: 25,
+                paddingTop: 10,
+                paddingBottom: 10,
+                paddingLeft: 30,
+                paddingRight: 30,
+              }}
+            >
+              <TouchableOpacity onPress={confirmPayment} disabled={isSendPaymentLoading}>
+                <ThemedView
+                  style={{ flexDirection: 'row', gap: 10, backgroundColor: buttonPrimaryColor }}
+                >
+                  {isSendPaymentLoading ? (
+                    <ActivityIndicator size="small" color={buttonPrimaryTextColor} />
+                  ) : (
+                    <>
+                      <Send color={buttonPrimaryTextColor} />
+                      <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
+                        Pay
+                      </ThemedText>
+                    </>
+                  )}
+                </ThemedView>
+              </TouchableOpacity>
+            </ThemedView>
           </ThemedView>
-        </ThemedView>
+        ) : (
+          <ThemedView
+            style={{
+              alignItems: 'center',
+              justifyContent: 'center',
+              flex: 1,
+              gap: 30,
+            }}
+          >
+            <LottieView
+              source={require('../../assets/icons/CheckAnimation.json')}
+              autoPlay
+              loop={false}
+              style={{ width: 200, height: 200 }}
+            />
+          </ThemedView>
+        )}
       </ThemedView>
     </SafeAreaView>
   );

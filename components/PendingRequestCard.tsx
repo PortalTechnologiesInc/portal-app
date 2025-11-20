@@ -76,7 +76,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const skeletonBaseColor = useThemeColor({}, 'skeletonBase');
     const warningColor = useThemeColor({}, 'statusError');
     const tertiaryColor = useThemeColor({}, 'textTertiary');
-    const buttonSuccessColor = useThemeColor({}, 'buttonSuccessText')
+    const buttonSuccessColor = useThemeColor({}, 'buttonSuccessText');
 
     // Add debug logging when a card is rendered
     console.log(

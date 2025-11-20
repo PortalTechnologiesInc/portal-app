@@ -2,9 +2,23 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, ClipboardCopy, QrCode, X } from 'lucide-react-native';
+import {
+  ArrowDownUp,
+  ArrowLeft,
+  CircleCheckBig,
+  ClipboardCopy,
+  QrCode,
+  X,
+} from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ActivityIndicator, Image, StyleSheet, Text, TextInput, TouchableOpacity } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+} from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { Colors } from 'react-native/Libraries/NewAppScreen';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -15,6 +29,8 @@ import { showToast } from '@/utils/Toast';
 import { useWalletManager } from '@/context/WalletManagerContext';
 import { BreezService } from '@/services/BreezService';
 import WALLET_TYPE from '@/models/WalletType';
+import LottieView from 'lottie-react-native';
+import { Currency } from '@/utils/currency';
 
 const portalLogo = require('../../assets/images/iosLight.png');
 
@@ -22,12 +38,13 @@ enum PageState {
   GetInvoiceInfo,
   InvoiceCreating,
   ShowInvoiceInfo,
+  PaymentReceived,
 }
 
 export default function MyWalletManagementSecret() {
   const router = useRouter();
 
-  const { preferredCurrency } = useCurrency();
+  const { preferredCurrency, getCurrentCurrencySymbol } = useCurrency();
 
   const backgroundColor = useThemeColor({}, 'background');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
@@ -43,33 +60,115 @@ export default function MyWalletManagementSecret() {
   const [isConverting, setIsConverting] = useState(false);
   const [pageState, setPageState] = useState(PageState.GetInvoiceInfo);
   const [invoice, setInvoice] = useState('');
+  const [reverseCurrency, setReverseCurrency] = useState(true);
+  const [isSwitching, setIsSwitching] = useState(false);
 
+  const textInputRef = useRef<TextInput | null>(null);
   const timeoutRef = useRef<number | null>(null);
-  const handleChangeText = (text: string) => {
-    const numericValue = text.replace(/\D/g, '');
-    setAmount(numericValue);
+  useEffect(() => {
+    if (!amount || amount === '0') {
+      setConvertedAmount(0);
+      setIsConverting(false);
+      return;
+    }
+
     setIsConverting(true);
 
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
+
     timeoutRef.current = setTimeout(async () => {
+      const numAmount = Number(amount);
+
       const converted = await CurrencyConversionService.convertAmount(
-        Number(numericValue || 0),
+        numAmount,
+        reverseCurrency ? preferredCurrency : 'sats',
+        reverseCurrency ? 'sats' : preferredCurrency
+      );
+
+      setConvertedAmount(converted);
+      setIsConverting(false);
+    }, 800);
+  }, [amount, preferredCurrency, reverseCurrency]);
+
+  const handleChangeText = useCallback(
+  (input: string) => {
+    if (reverseCurrency) {
+      const cleaned = input.replace(/[^0-9.]/g, '');
+      const parts = cleaned.split('.');
+
+      if (parts.length > 2) return;
+      if (parts[1]?.length > 2) return;
+
+      parts[0] = parts[0].replace(/^0+(?!$)/, '');
+      if (parts[0] === '') parts[0] = '0';
+
+      const result = parts.join('.');
+      setAmount(result === '' ? '0' : result);
+    } else {
+      const cleaned = input.replace(/\D/g, '');
+      if (cleaned === '') {
+        setAmount('0');
+      } else {
+        setAmount(cleaned.replace(/^0+(?!$)/, '') || '0');
+      }
+    }
+  },
+  [reverseCurrency]
+);
+
+  const reverseCurrencyTap = useCallback(async () => {
+    setIsSwitching(true);
+    const currentAmountNum = Number(amount) || 0;
+
+    let newAmountInTargetCurrency: number;
+
+    if (reverseCurrency) {
+      newAmountInTargetCurrency = await CurrencyConversionService.convertAmount(
+        currentAmountNum,
+        preferredCurrency,
+        'sats'
+      );
+      newAmountInTargetCurrency = Math.floor(newAmountInTargetCurrency);
+    } else {
+      newAmountInTargetCurrency = await CurrencyConversionService.convertAmount(
+        currentAmountNum,
         'sats',
         preferredCurrency
       );
-      setConvertedAmount(converted);
-      setIsConverting(false);
-    }, 1000);
-  };
+      newAmountInTargetCurrency = Number(newAmountInTargetCurrency.toFixed(2));
+    }
+
+    setReverseCurrency(prev => !prev);
+    setAmount(newAmountInTargetCurrency === 0 ? '0' : newAmountInTargetCurrency.toString());
+    setIsSwitching(false);
+  }, [amount, reverseCurrency, preferredCurrency]);
+
+  const waitForPayment = useCallback(
+    async (invoice: string) => {
+      if (breezWallet == null) return;
+
+      const waitResponse = await breezWallet.waitForPayment(invoice);
+      if (waitResponse.payment.status === 1) {
+        setPageState(PageState.PaymentReceived);
+      }
+    },
+    [breezWallet]
+  );
 
   const generateInvoice = useCallback(async () => {
     if (!breezWallet) return;
     setPageState(PageState.InvoiceCreating);
-    const createdInvoice = await breezWallet?.receivePayment(BigInt(amount), description);
+    const amountSats = reverseCurrency ? BigInt(convertedAmount) : BigInt(amount);
+    const createdInvoice = await breezWallet?.receivePayment(amountSats, description);
 
-    console.log(createdInvoice);
     setInvoice(createdInvoice);
     setPageState(PageState.ShowInvoiceInfo);
+
+    await waitForPayment(createdInvoice);
+
+    setTimeout(() => {
+      router.replace('/breezwallet');
+    }, 2000);
   }, [amount, breezWallet, description]);
 
   useEffect(() => {
@@ -83,6 +182,15 @@ export default function MyWalletManagementSecret() {
       active = false;
     };
   }, [getWallet]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      textInputRef.current?.focus();
+    }, 150);
+
+    return () => clearTimeout(t);
+  }, []);
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
       <ThemedView style={[styles.container, { backgroundColor }]}>
@@ -113,29 +221,47 @@ export default function MyWalletManagementSecret() {
               }}
             >
               <ThemedView style={{ alignItems: 'center' }}>
-                <TextInput
-                  style={{
-                    color: primaryTextColor,
-                    textAlign: 'center',
-                    fontSize: 40,
-                  }}
-                  autoCorrect={false}
-                  value={`${amount} sats`}
-                  onBlur={() => {
-                    if (amount === '') setAmount('0');
-                  }}
-                  onFocus={() => {
-                    if (amount === '0') setAmount('');
-                  }}
-                  autoCapitalize="none"
-                  keyboardType="number-pad"
-                  placeholder="Amount in sats"
-                  onChangeText={handleChangeText}
-                  selection={{
-                    start: amount.length,
-                    end: amount.length,
-                  }}
-                />
+                <ThemedView style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  <TextInput
+                    ref={textInputRef}
+                    style={{
+                      color: primaryTextColor,
+                      textAlign: 'center',
+                      fontSize: 40,
+                    }}
+                    autoCorrect={false}
+                    value={amount}
+                    onBlur={() => {
+                      if (amount === '') setAmount('0');
+                    }}
+                    onFocus={() => {
+                      if (amount === '0') setAmount('');
+                    }}
+                    autoCapitalize="none"
+                    keyboardType="number-pad"
+                    placeholder={`0`}
+                    onChangeText={handleChangeText}
+                  />
+                  {
+                    <Text style={{ color: secondaryTextColor, fontSize: 25 }}>
+                      {reverseCurrency ? getCurrentCurrencySymbol() : 'Sats'}
+                    </Text>
+                  }
+                </ThemedView>
+
+                <TouchableOpacity
+                  onPress={reverseCurrencyTap}
+                  disabled={isSwitching}
+                  style={{ paddingTop: 10, paddingBottom: 10, paddingLeft: 30, paddingRight: 30 }}
+                >
+                  <ThemedView style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+                    {isSwitching ? (
+                      <ActivityIndicator size="small" color={secondaryTextColor} />
+                    ) : (
+                      <ArrowDownUp size={30} color={secondaryTextColor} />
+                    )}
+                  </ThemedView>
+                </TouchableOpacity>
 
                 {isConverting ? (
                   <ActivityIndicator color={primaryTextColor} size="small" />
@@ -143,7 +269,7 @@ export default function MyWalletManagementSecret() {
                   <ThemedText>
                     {CurrencyConversionService.formatConvertedAmountWithFallback(
                       convertedAmount,
-                      preferredCurrency
+                      reverseCurrency ? Currency.SATS : preferredCurrency
                     )}
                   </ThemedText>
                 )}
@@ -199,7 +325,7 @@ export default function MyWalletManagementSecret() {
           <ThemedView style={{ alignItems: 'center', justifyContent: 'center', flex: 1 }}>
             <ActivityIndicator color={primaryTextColor} size={60} />
           </ThemedView>
-        ) : (
+        ) : pageState === PageState.ShowInvoiceInfo ? (
           <ThemedView style={{ ...styles.content, flex: 1, gap: 20, alignItems: 'center' }}>
             <ThemedView
               style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 20 }}
@@ -233,10 +359,10 @@ export default function MyWalletManagementSecret() {
               <ThemedView style={{ flexDirection: 'row', gap: 10 }}>
                 <Text style={{ color: primaryTextColor, fontSize: 20 }}>Amount</Text>
                 <ThemedView>
-                  <Text style={{ color: secondaryTextColor, fontSize: 20 }}>{amount} sats</Text>
+                  <Text style={{ color: secondaryTextColor, fontSize: 20 }}>{reverseCurrency ? parseInt(convertedAmount.toString()) : amount} sats</Text>
                   <Text style={{ color: secondaryTextColor, fontSize: 20 }}>
                     {CurrencyConversionService.formatConvertedAmountWithFallback(
-                      convertedAmount,
+                      reverseCurrency ? Number(amount) : convertedAmount,
                       preferredCurrency
                     )}
                   </Text>
@@ -303,6 +429,22 @@ export default function MyWalletManagementSecret() {
                 </ThemedView>
               </TouchableOpacity>
             </ThemedView>
+          </ThemedView>
+        ) : (
+          <ThemedView
+            style={{
+              alignItems: 'center',
+              justifyContent: 'center',
+              flex: 1,
+              gap: 30,
+            }}
+          >
+            <LottieView
+              source={require('../../assets/icons/CheckAnimation.json')}
+              autoPlay
+              loop={false}
+              style={{ width: 200, height: 200 }}
+            />
           </ThemedView>
         )}
       </ThemedView>
