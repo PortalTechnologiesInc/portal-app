@@ -24,6 +24,8 @@ import { ECashProvider } from '@/context/ECashContext';
 import { SQLiteProvider } from 'expo-sqlite';
 import migrateDbIfNeeded from '@/migrations/DatabaseMigrations';
 import { PaymentControllerProvider } from '@/context/PaymentControllerContext';
+import { AppLockProvider } from '@/context/AppLockContext';
+import { AppLockScreen } from '@/components/AppLockScreen';
 
 // Prevent splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -143,9 +145,12 @@ const ThemedRootView = () => {
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor }}>
       <ThemedStatusBar />
-      <OnboardingProvider>
-        <AuthenticatedAppContent />
-      </OnboardingProvider>
+      <AppLockProvider>
+        <OnboardingProvider>
+          <AuthenticatedAppContent />
+        </OnboardingProvider>
+        <AppLockScreen />
+      </AppLockProvider>
     </GestureHandlerRootView>
   );
 };
