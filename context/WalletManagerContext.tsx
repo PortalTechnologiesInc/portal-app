@@ -1,6 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useMnemonic } from './MnemonicContext';
-import { Wallet, WalletType, WALLET_TYPE, WalletTypeMap } from '@/models/WalletType';
+import {
+  Wallet,
+  WalletType,
+  WALLET_TYPE,
+  WalletTypeMap,
+  WalletConnectionStatus,
+  WALLET_CONNECTION_STATUS,
+} from '@/models/WalletType';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BreezService } from '@/services/BreezService';
 import { NwcService } from '@/services/NwcService';
@@ -13,6 +20,7 @@ export interface WalletManagerContextType {
   refreshWalletInfo: () => Promise<void>;
   preferredWallet?: WalletType | null;
   getWallet: <T extends WalletType>(walletType: T) => Promise<WalletTypeMap[T]>;
+  walletStatus: Map<WalletType, WalletConnectionStatus>;
   prepareSendPayment: (paymentRequest: string, amountSats: bigint) => Promise<unknown>;
   sendPayment: (paymentRequest: string, amountSats: bigint) => Promise<string>;
   receivePayment: (amountSats: bigint) => Promise<string>;
@@ -37,13 +45,29 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
 
   // Wallet cache
   const walletCacheRef = useRef<Map<WalletType, Wallet>>(new Map());
+
+  const defaultStatuses: Map<WalletType, WalletConnectionStatus> = new Map([
+    [WALLET_TYPE.BREEZ, WALLET_CONNECTION_STATUS.DISCONNECTED],
+    [WALLET_TYPE.NWC, WALLET_CONNECTION_STATUS.NOT_CONFIGURED],
+  ]);
+
+  const [walletStatus, setWalletStatus] = useState<Map<WalletType, WalletConnectionStatus>>(
+    new Map(defaultStatuses)
+  );
+
+  const onStatusChange = useCallback(
+    (walletType: WalletType) => (status: WalletConnectionStatus) => {
+      setWalletStatus(prev => new Map(prev).set(walletType, status));
+    },
+    []
+  );
+
   /**
    * Create or return a cached wallet instance
    */
   const getWallet = useCallback(
     async <T extends WalletType>(walletType: T): Promise<WalletTypeMap[T]> => {
       if (!mnemonic) throw new Error('Missing mnemonic for wallet creation');
-
       if (walletCacheRef.current.has(walletType)) {
         return walletCacheRef.current.get(walletType)! as WalletTypeMap[T];
       }
@@ -52,14 +76,20 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
 
       switch (walletType) {
         case WALLET_TYPE.BREEZ:
-          instance = (await BreezService.create(mnemonic)) as WalletTypeMap[T];
+          instance = (await BreezService.create(
+            mnemonic,
+            onStatusChange(walletType)
+          )) as WalletTypeMap[T];
           break;
 
         case WALLET_TYPE.NWC:
           if (!walletUrl) {
             throw new Error('Missing wallet URL for NWC wallet creation');
           }
-          instance = (await NwcService.create(walletUrl)) as WalletTypeMap[T];
+          instance = (await NwcService.create(
+            walletUrl,
+            onStatusChange(walletType)
+          )) as WalletTypeMap[T];
           break;
 
         default:
@@ -69,7 +99,7 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
       walletCacheRef.current.set(walletType, instance);
       return instance;
     },
-    [mnemonic, walletUrl]
+    [mnemonic, walletUrl, onStatusChange]
   );
 
   /**
@@ -118,6 +148,22 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
   }, [mnemonic, switchActiveWallet]);
 
   /**
+   * If wallet url is removed, update global status and switch to breez as preferred
+   */
+  useEffect(() => {
+    if (!walletUrl) {
+      setWalletStatus(prev =>
+        new Map(prev).set(WALLET_TYPE.NWC, WALLET_CONNECTION_STATUS.NOT_CONFIGURED)
+      );
+      walletCacheRef.current.delete(WALLET_TYPE.NWC);
+      switchActiveWallet(WALLET_TYPE.BREEZ);
+    } else {
+      walletCacheRef.current.delete(WALLET_TYPE.NWC);
+      getWallet(WALLET_TYPE.NWC);
+    }
+  }, [walletUrl, switchActiveWallet, getWallet]);
+
+  /**
    * Auto-refresh when wallet changes
    */
   useEffect(() => {
@@ -161,6 +207,7 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
     sendPayment,
     receivePayment,
     prepareSendPayment,
+    walletStatus,
   };
 
   return (

@@ -7,8 +7,6 @@ export const WALLET_TYPE = {
   NWC: 'NWC',
 } as const;
 
-export default WALLET_TYPE;
-
 export type WalletType = (typeof WALLET_TYPE)[keyof typeof WALLET_TYPE];
 
 export type WalletTypeMap = {
@@ -22,3 +20,13 @@ export type Wallet = {
   prepareSendPayment: (paymentRequest: string, amountSats: bigint) => Promise<unknown>;
   sendPayment: (paymentRequest: string, amountSats: bigint) => Promise<string>;
 };
+
+export const WALLET_CONNECTION_STATUS = {
+  NOT_CONFIGURED: 'NOT_CONFIGURED',
+  DISCONNECTED: 'DISCONNECTED',
+  CONNECTING: 'CONNECTING',
+  CONNECTED: 'CONNECTED',
+} as const;
+
+export type WalletConnectionStatus =
+  (typeof WALLET_CONNECTION_STATUS)[keyof typeof WALLET_CONNECTION_STATUS];

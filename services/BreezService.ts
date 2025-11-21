@@ -11,38 +11,29 @@ import {
   SendPaymentMethod,
   OnchainConfirmationSpeed,
   PrepareSendPaymentResponse,
-  initLogging,
-  LogEntry,
 } from '@breeztech/breez-sdk-spark-react-native';
-import { Wallet } from '@/models/WalletType';
+import { Wallet, WALLET_CONNECTION_STATUS, WalletConnectionStatus } from '@/models/WalletType';
 import { WalletInfo } from '@/utils';
 
 export class BreezService implements Wallet {
   private client!: BreezSdkInterface;
 
-  static async create(mnemonic: string): Promise<BreezService> {
-    const instance = new BreezService();
-    initLogging(
-      undefined,
-      {
-        log: (logEntry: LogEntry) => {
-          console.log(`[BREEZ] ${logEntry.level}: ${logEntry.line}`);
-        },
-      },
-      undefined
-    );
-    await instance.init(mnemonic);
-    await instance.addEventListener({
-      onEvent: async event => {
-        console.log(`[BREEZ EVENT] ${JSON.stringify(event)}`);
-        return;
-      },
-    });
+  private onStatusChange: ((status: WalletConnectionStatus) => void) | null = null;
 
+  static async create(
+    mnemonic: string,
+    onStatusChange?: (status: WalletConnectionStatus) => void
+  ): Promise<BreezService> {
+    const instance = new BreezService();
+    instance.onStatusChange = onStatusChange || null;
+    await instance.init(mnemonic);
     return instance;
   }
 
   private async init(mnemonic: string) {
+    if (this.onStatusChange) {
+      this.onStatusChange(WALLET_CONNECTION_STATUS.CONNECTING);
+    }
     const seed = new Seed.Mnemonic({ mnemonic, passphrase: undefined });
     const config = defaultConfig(Network.Mainnet);
     config.apiKey = process.env.EXPO_PUBLIC_BREEZ_API_KEY;
@@ -57,6 +48,10 @@ export class BreezService implements Wallet {
       seed,
       storageDir,
     });
+
+    if (this.onStatusChange) {
+      this.onStatusChange(WALLET_CONNECTION_STATUS.CONNECTED);
+    }
   }
 
   async getWalletInfo(): Promise<WalletInfo> {
@@ -93,7 +88,6 @@ export class BreezService implements Wallet {
       let sendOptions: SendPaymentOptions | undefined;
 
       if (prepareResponse.paymentMethod instanceof SendPaymentMethod.Bolt11Invoice) {
-        console.log(JSON.stringify(prepareResponse.paymentMethod.inner));
         sendOptions = new SendPaymentOptions.Bolt11Invoice({
           preferSpark: true,
           completionTimeoutSecs: 60,
@@ -148,7 +142,7 @@ export class BreezService implements Wallet {
 
     if (prepareResponse.paymentMethod instanceof SendPaymentMethod.Bolt11Invoice) {
       sendOptions = new SendPaymentOptions.Bolt11Invoice({
-        preferSpark: false,
+        preferSpark: true,
         completionTimeoutSecs: 60,
       });
     } else if (prepareResponse.paymentMethod instanceof SendPaymentMethod.BitcoinAddress) {

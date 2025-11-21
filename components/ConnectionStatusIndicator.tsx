@@ -47,7 +47,7 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
   const prevStatus = useRef<ConnectionStatus | null>(null);
 
   const { relayStatuses, allRelaysConnected, removedRelays } = useNostrService();
-  const { refreshWalletInfo } = useWalletManager();
+  const { refreshWalletInfo, preferredWallet } = useWalletManager();
 
   // Filter out removed relays from relay statuses (defensive programming)
   const filteredRelayStatuses = useMemo(() => {
@@ -585,7 +585,7 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
                       </View>
                       <View style={styles.detailContent}>
                         <ThemedText style={[styles.detailLabel, { color: textSecondaryColor }]}>
-                          Wallet Connection
+                          Preferred Wallet
                         </ThemedText>
                         <ThemedText style={[styles.detailValue, { color: textPrimaryColor }]}>
                           Connected
@@ -593,7 +593,7 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
                         <ThemedText
                           style={[styles.detailDescription, { color: textSecondaryColor }]}
                         >
-                          Breez wallet connected
+                          {preferredWallet}
                         </ThemedText>
                       </View>
                       <View style={styles.detailRight}>

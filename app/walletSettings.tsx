@@ -6,9 +6,11 @@ import { ThemedText } from '@/components/ThemedText';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Star, StarOff, Wallet, Zap } from 'lucide-react-native';
-import { useWalletStatus } from '@/hooks/useWalletStatus';
-import WalletType from '@/models/WalletType';
+// import { useWalletStatus } from '@/hooks/useWalletStatus';
+import { WALLET_CONNECTION_STATUS, WALLET_TYPE, WalletType } from '@/models/WalletType';
 import { useWalletManager } from '@/context/WalletManagerContext';
+// import { useMnemonic } from '@/context/MnemonicContext';
+import { useECash } from '@/context/ECashContext';
 import { useMnemonic } from '@/context/MnemonicContext';
 
 export default function WalletSettings() {
@@ -20,22 +22,29 @@ export default function WalletSettings() {
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
   const buttonPrimaryColor = useThemeColor({}, 'buttonPrimary');
 
-  const { switchActiveWallet, preferredWallet } = useWalletManager();
+  const { switchActiveWallet, preferredWallet, walletStatus } = useWalletManager();
   const { walletUrl } = useMnemonic();
 
-  const { hasLightningWallet, isLightningConnected, isLoading } = useWalletStatus();
   const statusConnectedColor = useThemeColor({}, 'statusConnected');
+  const statusConnectingColor = useThemeColor({}, 'statusConnecting');
+  const { isLoading } = useECash();
 
-  function getWalletStatusText() {
-    if (!walletUrl || !walletUrl.trim()) return 'Not configured';
-    // if (nwcConnectionStatus === true) return 'Connected';
-    // if (nwcConnectionStatus === false) {
-    //   return nwcConnectionError ? `Error: ${nwcConnectionError}` : 'Disconnected';
-    // }
-    // if (nwcConnecting) return 'Connecting...';
-    // if (nwcConnectionStatus === null && hasLightningWallet) return 'Connecting...';
-    // return 'Not configured';
-  }
+  const getWalletStatusText = (type: WalletType) => {
+    const status = walletStatus.get(type);
+    if (!status) return WALLET_CONNECTION_STATUS.NOT_CONFIGURED;
+    return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase().replaceAll('_', ' ');
+  };
+
+  const getStatusColor = (type: WalletType) => {
+    const status = walletStatus.get(type);
+    if (status === WALLET_CONNECTION_STATUS.CONNECTED) {
+      return statusConnectedColor;
+    }
+    if (status === WALLET_CONNECTION_STATUS.CONNECTING) {
+      return statusConnectingColor;
+    }
+    return secondaryTextColor;
+  };
 
   if (isLoading) {
     return (
@@ -98,15 +107,25 @@ export default function WalletSettings() {
                     <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
                       Breez Wallet
                     </ThemedText>
-                    <ThemedText style={[styles.cardSubtitle, { color: secondaryTextColor }]}>
-                      Manage your Breez Lightning wallet
-                    </ThemedText>
+                    <View style={styles.cardStatusRow}>
+                      <ThemedText style={[styles.cardSubtitle, { color: secondaryTextColor }]}>
+                        {getWalletStatusText(WALLET_TYPE.BREEZ)}
+                      </ThemedText>
+                      <View
+                        style={[
+                          styles.statusIndicator,
+                          {
+                            backgroundColor: getStatusColor(WALLET_TYPE.BREEZ),
+                          },
+                        ]}
+                      />
+                    </View>
                   </View>
                 </View>
               </View>
               {/* <ChevronRight size={24} color={secondaryTextColor} /> */}
-              <TouchableOpacity onPress={() => switchActiveWallet(WalletType.BREEZ)}>
-                {preferredWallet === WalletType.BREEZ ? (
+              <TouchableOpacity onPress={() => switchActiveWallet(WALLET_TYPE.BREEZ)}>
+                {preferredWallet === WALLET_TYPE.BREEZ ? (
                   <Star size={22} color={buttonPrimaryColor} fill={buttonPrimaryColor} />
                 ) : (
                   <StarOff size={22} color={secondaryTextColor} />
@@ -133,15 +152,13 @@ export default function WalletSettings() {
                     </ThemedText>
                     <View style={styles.cardStatusRow}>
                       <ThemedText style={[styles.cardSubtitle, { color: secondaryTextColor }]}>
-                        {getWalletStatusText()}
+                        {getWalletStatusText(WALLET_TYPE.NWC)}
                       </ThemedText>
                       <View
                         style={[
                           styles.statusIndicator,
                           {
-                            backgroundColor: isLightningConnected
-                              ? statusConnectedColor
-                              : secondaryTextColor,
+                            backgroundColor: getStatusColor(WALLET_TYPE.NWC),
                           },
                         ]}
                       />
@@ -150,8 +167,8 @@ export default function WalletSettings() {
                 </View>
               </View>
               {/* <ChevronRight size={24} color={secondaryTextColor} /> */}
-              <TouchableOpacity onPress={() => switchActiveWallet(WalletType.NWC)}>
-                {preferredWallet === WalletType.NWC ? (
+              <TouchableOpacity onPress={() => walletUrl && switchActiveWallet(WALLET_TYPE.NWC)}>
+                {preferredWallet === WALLET_TYPE.NWC ? (
                   <Star size={22} color={buttonPrimaryColor} fill={buttonPrimaryColor} />
                 ) : (
                   <StarOff size={22} color={secondaryTextColor} />

@@ -1,4 +1,4 @@
-import { Wallet } from '@/models/WalletType';
+import { Wallet, WALLET_CONNECTION_STATUS, WalletConnectionStatus } from '@/models/WalletType';
 import { RelayConnectionStatus, WalletInfo } from '@/utils';
 import { GetInfoResponse, Nwc, RelayStatusListener } from 'portal-app-lib';
 
@@ -27,11 +27,17 @@ function mapNumericStatusToString(numericStatus: number): RelayConnectionStatus 
 export class NwcService implements Wallet {
   private client!: Nwc;
   private lastReconnectAttempt: number = 0;
+  private relayStatuses: Map<string, RelayConnectionStatus> = new Map();
+  private onStatusChange: ((status: WalletConnectionStatus) => void) | null = null;
 
   private constructor() {}
 
-  static async create(walletUrl: string): Promise<NwcService> {
+  static async create(
+    walletUrl: string,
+    onStatusChange?: (status: WalletConnectionStatus) => void
+  ): Promise<NwcService> {
     const instance = new NwcService();
+    instance.onStatusChange = onStatusChange || null;
     await instance.init(walletUrl);
     return instance;
   }
@@ -48,7 +54,7 @@ export class NwcService implements Wallet {
 
       console.log('NWC service initialized successfully');
     } catch (error) {
-      console.error('Failed to initialize NWC service:', error);
+      console.error('Failed to initialize NWC service:', JSON.stringify(error));
       throw new Error(
         `Failed to initialize wallet: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
@@ -59,8 +65,8 @@ export class NwcService implements Wallet {
     return {
       onRelayStatusChange: async (relay_url: string, status: number): Promise<void> => {
         const statusString = mapNumericStatusToString(status);
-        console.log(`[NWC STATUS] Relay: ${relay_url} → ${statusString} (${status})`);
-
+        console.log(`[NWC STATUS] Relay: ${relay_url} - ${statusString} (${status})`);
+        this.relayStatuses.set(relay_url, statusString);
         // Reset reconnection attempts on successful connection
         if (status === 3) {
           this.lastReconnectAttempt = 0;
@@ -87,6 +93,16 @@ export class NwcService implements Wallet {
               }
             }, 2000);
           }
+        }
+        if (this.onStatusChange) {
+          const statuses = Array.from(this.relayStatuses.values());
+          let overallStatus: WalletConnectionStatus = WALLET_CONNECTION_STATUS.DISCONNECTED;
+          if (statuses.includes('Connected')) {
+            overallStatus = WALLET_CONNECTION_STATUS.CONNECTED;
+          } else if (statuses.includes('Connecting')) {
+            overallStatus = WALLET_CONNECTION_STATUS.CONNECTING;
+          }
+          this.onStatusChange(overallStatus);
         }
       },
     };
@@ -147,6 +163,8 @@ export class NwcService implements Wallet {
     if (!this.client) {
       throw new Error('NWC client not initialized');
     }
+
+    console.log('Preparing to send payment for invoice:', amountSats);
 
     const response = await this.client.lookupInvoice(paymentRequest);
 

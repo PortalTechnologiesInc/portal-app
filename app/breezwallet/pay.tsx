@@ -16,7 +16,7 @@ import {
 } from '@breeztech/breez-sdk-spark-react-native';
 import { useWalletManager } from '@/context/WalletManagerContext';
 import { BreezService } from '@/services/BreezService';
-import WALLET_TYPE from '@/models/WalletType';
+import { WALLET_TYPE } from '@/models/WalletType';
 
 export default function MyWalletManagementSecret() {
   const params = useLocalSearchParams();

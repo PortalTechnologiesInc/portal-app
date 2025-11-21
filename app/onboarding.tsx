@@ -32,7 +32,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { generateMnemonic, Mnemonic } from 'portal-app-lib';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import WalletType from '@/models/WalletType';
+import { WALLET_TYPE } from '@/models/WalletType';
 
 // Preload all required assets
 const onboardingLogo = require('../assets/images/appLogo.png');
@@ -107,7 +107,7 @@ export default function Onboarding() {
   // set the preferred wallet as Breez by default on first load
   useEffect(() => {
     const setPreferredWalletDefault = async () => {
-      await AsyncStorage.setItem('preferred_wallet', JSON.stringify(WalletType.BREEZ));
+      await AsyncStorage.setItem('preferred_wallet', JSON.stringify(WALLET_TYPE.BREEZ));
     };
     setPreferredWalletDefault();
   }, []);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { FC } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -179,10 +179,10 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
             let canPay = false;
 
             console.log('Checking balances for requested sats:', requiredSats);
-            console.log('Wallet info balance in sats:', walletInfo?.balanceInSats);
-
+            const walletInfo = await activeWallet?.getWalletInfo();
+            const walletBalance = Number(walletInfo?.balanceInSats) || 0;
             // 1) Consider NWC LN wallet balance (msats)
-            const walletBalance = Number(walletInfo?.balanceInSats);
+            // const walletBalance = Number(walletInfo?.balanceInSats);
             if (!isNaN(walletBalance) && walletBalance >= requiredSats) {
               canPay = true;
             }
@@ -217,6 +217,8 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
       metadata,
       amount,
       wallets,
+      walletInfo,
+      activeWallet,
     ]);
 
     // Currency conversion effect
@@ -278,7 +280,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     };
 
     // Determine what warning to show (if any)
-    const getWarningInfo = () => {
+    const warningInfo = useMemo(() => {
       // Only show warnings for payment and subscription requests
       if (!isPaymentRequest && !isSubscriptionRequest) {
         return null;
@@ -310,9 +312,14 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
       }
 
       return null;
-    };
-
-    const warningInfo = getWarningInfo();
+    }, [
+      isPaymentRequest,
+      isSubscriptionRequest,
+      walletStatusLoading,
+      hasECashWallets,
+      activeWallet,
+      hasInsufficientBalance,
+    ]);
 
     // Determine if approve button should be disabled
     const isApproveDisabled = () => {

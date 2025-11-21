@@ -8,7 +8,7 @@ import { StyleSheet, ScrollView, TouchableOpacity, View } from 'react-native';
 import { Colors } from 'react-native/Libraries/NewAppScreen';
 import { useEffect, useState } from 'react';
 import { useWalletManager } from '@/context/WalletManagerContext';
-import WALLET_TYPE from '@/models/WalletType';
+import { WALLET_TYPE } from '@/models/WalletType';
 import { BreezService } from '@/services/BreezService';
 import { WalletInfo } from '@/utils';
 

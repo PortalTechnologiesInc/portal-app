@@ -320,7 +320,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 })
               );
             } catch (err) {
-              console.log('Error paying invoice:', err);
+              console.log('Error paying invoice:', JSON.stringify(err));
 
               await executeOperation(
                 db => db.addPaymentStatusEntry(metadata.content.invoice, 'payment_failed'),
