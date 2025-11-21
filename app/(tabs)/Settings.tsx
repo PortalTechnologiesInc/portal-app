@@ -390,8 +390,10 @@ export default function SettingsScreen() {
       return;
     }
 
-    await executeProtectedAction(
-      async () => {
+    showPinVerification({
+      title: 'Verify PIN to Disable',
+      instructions: 'Enter your PIN to disable it',
+      onSuccess: async () => {
         await clearPIN();
         if (isLockEnabled) {
           await setLockEnabled(false);
@@ -399,12 +401,7 @@ export default function SettingsScreen() {
         await setAuthMethodPreference(null);
         showToast('PIN disabled', 'success');
       },
-      {
-        reason: 'Authenticate to disable PIN',
-        pinTitle: 'Verify PIN to Disable',
-        pinMessage: 'Enter your PIN to disable it',
-      }
-    );
+    });
   };
 
   const handleChangePinPress = () => {

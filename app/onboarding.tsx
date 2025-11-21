@@ -1074,9 +1074,7 @@ export default function Onboarding() {
                 Secure Portal with a PIN
               </ThemedText>
               <ThemedText style={styles.subtitle}>
-                {isBiometricSupported
-                  ? 'Create a PIN as a fallback to biometrics for sensitive actions.'
-                  : 'Protect your app by requiring a PIN for sensitive actions.'}
+                Protect your app by requiring a PIN for sensitive actions.
               </ThemedText>
               {pinError ? (
                 <ThemedText style={[styles.errorText, styles.pinErrorText, { color: buttonDanger }]}>
