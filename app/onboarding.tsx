@@ -1065,57 +1065,46 @@ export default function Onboarding() {
 
         {/* PIN Setup Step */}
         {currentStep === 'pin-setup' && (
-          <View style={styles.stepWrapper}>
-            <ScrollView
-              contentContainerStyle={styles.scrollContent}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-              <View style={[styles.pageContainer, styles.scrollPageContainer]}>
-                <View style={[styles.pinIconContainer, { backgroundColor: buttonPrimary + '20' }]}>
-                  <Shield size={32} color={buttonPrimary} />
-                </View>
-                <ThemedText type="title" style={styles.title}>
-                  Secure Portal with a PIN
-                </ThemedText>
-                <ThemedText style={styles.subtitle}>
-                  {isBiometricSupported
-                    ? 'Create a PIN as a fallback to biometrics for sensitive actions.'
-                    : 'Protect your app by requiring a PIN for sensitive actions.'}
-                </ThemedText>
-                <ThemedText style={styles.pinInstructionText}>
-                  {pinStep === 'enter'
-                    ? `Enter a PIN`
-                    : 'Confirm your PIN'}
-                </ThemedText>
-                {pinError ? (
-                  <ThemedText style={[styles.errorText, styles.pinErrorText, { color: buttonDanger }]}>
-                    {pinError}
-                  </ThemedText>
-                ) : null}
-                {isSavingPin && (
-                  <ThemedText style={[styles.pinSavingText, { color: textPrimary }]}>
-                    Saving PIN...
-                  </ThemedText>
-                )}
-                <View style={styles.pinKeypadContainer}>
-                  <PINKeypad
-                    key={pinStep}
-                    onPINComplete={handlePinEntryComplete}
-                    minLength={PIN_MIN_LENGTH}
-                    maxLength={PIN_MAX_LENGTH}
-                    autoSubmit={false}
-                    submitLabel={pinStep === 'enter' ? 'Next' : 'Confirm'}
-                    showDots
-                    error={!!pinError}
-                    onError={() => setPinError('')}
-                    showSkipButton
-                    onSkipPress={handleSkipPinSetup}
-                    skipLabel="Skip"
-                  />
-                </View>
+          <View style={[styles.stepWrapper, styles.pinSetupFull]}>
+            <View style={styles.pinSetupContent}>
+              <View style={[styles.pinIconContainer, { backgroundColor: buttonPrimary + '20' }]}>
+                <Shield size={32} color={buttonPrimary} />
               </View>
-            </ScrollView>
+              <ThemedText type="title" style={styles.title}>
+                Secure Portal with a PIN
+              </ThemedText>
+              <ThemedText style={styles.subtitle}>
+                {isBiometricSupported
+                  ? 'Create a PIN as a fallback to biometrics for sensitive actions.'
+                  : 'Protect your app by requiring a PIN for sensitive actions.'}
+              </ThemedText>
+              {pinError ? (
+                <ThemedText style={[styles.errorText, styles.pinErrorText, { color: buttonDanger }]}>
+                  {pinError}
+                </ThemedText>
+              ) : null}
+              {isSavingPin && (
+                <ThemedText style={[styles.pinSavingText, { color: textPrimary }]}>
+                  Saving PIN...
+                </ThemedText>
+              )}
+              <View style={styles.pinKeypadContainer}>
+                <PINKeypad
+                  key={pinStep}
+                  onPINComplete={handlePinEntryComplete}
+                  minLength={PIN_MIN_LENGTH}
+                  maxLength={PIN_MAX_LENGTH}
+                  autoSubmit={false}
+                  submitLabel={pinStep === 'enter' ? 'Next' : 'Confirm'}
+                  showDots
+                  error={!!pinError}
+                  onError={() => setPinError('')}
+                  showSkipButton
+                  onSkipPress={handleSkipPinSetup}
+                  skipLabel="Skip"
+                />
+              </View>
+            </View>
           </View>
         )}
 
@@ -1306,7 +1295,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 16,
-    marginBottom: 30,
+    marginBottom: 10,
     textAlign: 'center',
     opacity: 0.7,
   },
@@ -1556,11 +1545,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20,
   },
-  pinInstructionText: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 20,
-    opacity: 0.8,
+  pinSetupFull: {
+    justifyContent: 'center',
+  },
+  pinSetupContent: {
+    flex: 1,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    paddingBottom: 24,
   },
   pinKeypadContainer: {
     width: '100%',
@@ -1581,7 +1575,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 0,
     position: 'relative',
   },
   backButton: {
