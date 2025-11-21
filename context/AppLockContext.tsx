@@ -15,7 +15,9 @@ interface AppLockContextType {
   unlockApp: () => void;
   setLockEnabled: (enabled: boolean) => Promise<void>;
   setLockTimerDuration: (duration: LockTimerDuration) => Promise<void>;
+  setAuthMethodPreference: (method: AuthMethod) => Promise<void>;
   setupPIN: (pin: string) => Promise<void>;
+  clearPIN: () => Promise<void>;
   verifyPIN: (pin: string) => Promise<boolean>;
   checkLockStatus: () => Promise<void>;
   isBiometricAvailable: () => Promise<boolean>;
@@ -125,9 +127,12 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
         // Determine auth method based on fresh fingerprint support check
         const fingerprintSupported = await AppLockService.refreshFingerprintSupport();
         setIsFingerprintSupported(fingerprintSupported);
-        const method = fingerprintSupported ? 'biometric' : 'pin';
-        await AppLockService.setAuthMethod(method);
-        setAuthMethodState(method);
+        const existingMethod = await AppLockService.getAuthMethod();
+        const fallbackMethod = 'pin';
+        if (!existingMethod) {
+          await AppLockService.setAuthMethod(fallbackMethod);
+        }
+        setAuthMethodState(existingMethod ?? fallbackMethod);
         const duration = await AppLockService.getLockTimerDuration();
         setLockTimerDurationState(duration);
         // Keep current session unlocked until the app backgrounds or restarts
@@ -135,8 +140,10 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
         setIsLocked(false);
       } else {
         setIsLocked(false);
-        setAuthMethodState(null);
-        setHasPIN(false);
+        const method = await AppLockService.getAuthMethod();
+        setAuthMethodState(method);
+        const pinExists = await AppLockService.hasPIN();
+        setHasPIN(pinExists);
         const duration = await AppLockService.getLockTimerDuration();
         setLockTimerDurationState(duration);
       }
@@ -160,14 +167,28 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
     try {
       await AppLockService.setupPIN(pin);
       setHasPIN(true);
-      if (!isFingerprintSupported) {
+      if (!isFingerprintSupported || authMethod === null) {
         setAuthMethodState('pin');
       }
     } catch (error) {
       console.error('Error setting up PIN:', error);
       throw error;
     }
-  }, [isFingerprintSupported]);
+  }, [isFingerprintSupported, authMethod]);
+
+  const clearPIN = useCallback(async () => {
+    try {
+      await AppLockService.clearPIN();
+      setHasPIN(false);
+      if (authMethod === 'pin') {
+        await AppLockService.setAuthMethod(null);
+        setAuthMethodState(null);
+      }
+    } catch (error) {
+      console.error('Error clearing PIN:', error);
+      throw error;
+    }
+  }, [authMethod]);
 
   const verifyPIN = useCallback(async (pin: string): Promise<boolean> => {
     try {
@@ -191,6 +212,16 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
     return await AppLockService.isBiometricAvailable();
   }, []);
 
+  const setAuthMethodPreference = useCallback(async (method: AuthMethod) => {
+    try {
+      await AppLockService.setAuthMethod(method);
+      setAuthMethodState(method);
+    } catch (error) {
+      console.error('Error setting auth method preference:', error);
+      throw error;
+    }
+  }, []);
+
   return (
     <AppLockContext.Provider
       value={{
@@ -205,7 +236,9 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
         unlockApp,
         setLockEnabled,
         setLockTimerDuration,
+        setAuthMethodPreference,
         setupPIN,
+        clearPIN,
         verifyPIN,
         checkLockStatus,
         isBiometricAvailable,

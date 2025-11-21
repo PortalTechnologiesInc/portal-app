@@ -181,13 +181,6 @@ export function AppLockScreen() {
                 />
               </View>
             )}
-
-            {/* Loading indicator */}
-            {isAuthenticating && (
-              <ThemedText style={[styles.loadingText, { color: secondaryTextColor }]}>
-                Authenticating...
-              </ThemedText>
-            )}
           </View>
         </SafeAreaView>
       </Modal>

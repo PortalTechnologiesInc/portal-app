@@ -107,9 +107,7 @@ export class AppLockService {
         // This ensures the lock actually works when first enabled
       } else {
         await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.APP_LOCK_ENABLED);
-        // Also clear auth method and PIN when disabling
-        await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.APP_LOCK_AUTH_METHOD);
-        await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.APP_LOCK_PIN_HASH);
+        // Retain auth method and PIN so global security preferences remain available
         this.resetSessionState();
       }
     } catch (error) {
@@ -196,6 +194,15 @@ export class AppLockService {
     } catch (error) {
       console.error('Error checking PIN presence:', error);
       return false;
+    }
+  }
+
+  static async clearPIN(): Promise<void> {
+    try {
+      await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.APP_LOCK_PIN_HASH);
+    } catch (error) {
+      console.error('Error clearing PIN:', error);
+      throw error;
     }
   }
 

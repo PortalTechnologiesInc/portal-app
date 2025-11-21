@@ -9,6 +9,7 @@ import {
   Switch,
   Modal,
   FlatList,
+  Platform,
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { ThemedText } from '@/components/ThemedText';
@@ -46,6 +47,12 @@ import { LockTimerDuration, PIN_MIN_LENGTH, PIN_MAX_LENGTH } from '@/services/Ap
 import { PINSetupScreen } from '@/components/PINSetupScreen';
 import { PINKeypad } from '@/components/PINKeypad';
 
+type PinVerificationConfig = {
+  title: string;
+  instructions: string;
+  onSuccess?: (() => Promise<void> | void) | null;
+};
+
 export default function SettingsScreen() {
   const router = useRouter();
   const { resetApp } = useDatabaseContext();
@@ -64,12 +71,14 @@ export default function SettingsScreen() {
     timerOptions,
     setLockEnabled,
     setLockTimerDuration,
+    setAuthMethodPreference,
     setupPIN,
+    clearPIN,
     isFingerprintSupported,
     authMethod,
     verifyPIN,
     hasPIN,
-    pinLength,
+    isBiometricAvailable,
   } = useAppLock();
   const [refreshing, setRefreshing] = useState(false);
   const [isCurrencyModalVisible, setIsCurrencyModalVisible] = useState(false);
@@ -78,7 +87,15 @@ export default function SettingsScreen() {
   const [isPINVerifyVisible, setIsPINVerifyVisible] = useState(false);
   const [pinError, setPinError] = useState(false);
   const [walletUrl, setWalletUrl] = useState('');
-  const [pinSetupPurpose, setPinSetupPurpose] = useState<'enable' | 'ensure' | 'change'>('enable');
+  const [pinSetupPurpose, setPinSetupPurpose] = useState<'change' | 'global'>('global');
+  const [pinVerificationConfig, setPinVerificationConfig] = useState<PinVerificationConfig>({
+    title: 'Verify PIN',
+    instructions: 'Enter your PIN',
+    onSuccess: null,
+  });
+  const [pendingLockEnable, setPendingLockEnable] = useState(false);
+  const [pendingPinEnable, setPendingPinEnable] = useState(false);
+  const [pendingBiometricEnable, setPendingBiometricEnable] = useState(false);
 
   // Unified wallet status
   const { hasLightningWallet, isLightningConnected } = useWalletStatus();
@@ -94,6 +111,8 @@ export default function SettingsScreen() {
   const buttonPrimaryTextColor = useThemeColor({}, 'buttonPrimaryText');
   const buttonDangerTextColor = useThemeColor({}, 'buttonDangerText');
   const statusConnectedColor = useThemeColor({}, 'statusConnected');
+  const biometricLabel = Platform.OS === 'ios' ? 'Face ID' : 'Fingerprint';
+  const isBiometricPreferred = authMethod === 'biometric' && isFingerprintSupported;
 
   // Get event-driven NWC connection status
   const { nwcConnectionStatus, nwcConnectionError, nwcConnecting } = nostrService;
@@ -135,43 +154,117 @@ export default function SettingsScreen() {
     router.push('/recoverTickets');
   };
 
-  const handleExportMnemonic = () => {
-    authenticateForSensitiveAction(async () => {
-      console.log('Exporting mnemonic...');
-      try {
-        const mnemonic = await getMnemonic();
-        console.log('Mnemonic:', mnemonic);
-        if (mnemonic) {
-          Clipboard.setString(mnemonic);
-          showToast('Mnemonic copied to clipboard', 'success');
-        } else {
-          showToast('No mnemonic found', 'error');
+  const resetPinVerificationConfig = () => {
+    setPinVerificationConfig({
+      title: 'Verify PIN',
+      instructions: 'Enter your PIN',
+      onSuccess: null,
+    });
+  };
+
+  const closePinVerification = () => {
+    setIsPINVerifyVisible(false);
+    setPinError(false);
+    resetPinVerificationConfig();
+  };
+
+  const showPinVerification = (config: PinVerificationConfig) => {
+    setPinError(false);
+    setPinVerificationConfig(config);
+    setIsPINVerifyVisible(true);
+  };
+
+  const executeProtectedAction = async (
+    action: () => Promise<void> | void,
+    {
+      reason,
+      pinTitle,
+      pinMessage,
+    }: { reason: string; pinTitle: string; pinMessage: string }
+  ) => {
+    try {
+      if (authMethod === 'biometric' && isFingerprintSupported) {
+        const biometricAvailable = await isBiometricAvailable();
+        if (biometricAvailable) {
+          await authenticateForSensitiveAction(action, reason);
+          return;
         }
-      } catch (error) {
-        console.error('Error exporting mnemonic:', error);
-        showToast('Failed to export mnemonic', 'error');
       }
-    }, 'Authenticate to export your seed phrase');
+
+      if (hasPIN) {
+        showPinVerification({
+          title: pinTitle,
+          instructions: pinMessage,
+          onSuccess: action,
+        });
+        return;
+      }
+
+      await action();
+    } catch (error) {
+      console.error('Error executing protected action:', error);
+      showToast('Failed to complete action', 'error');
+    }
+  };
+
+  const handleExportMnemonic = () => {
+    executeProtectedAction(
+      async () => {
+        console.log('Exporting mnemonic...');
+        try {
+          const mnemonicValue = await getMnemonic();
+          console.log('Mnemonic:', mnemonicValue);
+          if (mnemonicValue) {
+            Clipboard.setString(mnemonicValue);
+            showToast('Mnemonic copied to clipboard', 'success');
+          } else {
+            showToast('No mnemonic found', 'error');
+          }
+        } catch (error) {
+          console.error('Error exporting mnemonic:', error);
+          showToast('Failed to export mnemonic', 'error');
+        }
+      },
+      {
+        reason: 'Authenticate to export your seed phrase',
+        pinTitle: 'Enter PIN to Export Mnemonic',
+        pinMessage: 'Enter your PIN to export your seed phrase',
+      }
+    );
   };
 
   const handleExportNsec = () => {
-    authenticateForSensitiveAction(async () => {
-      let nsecStr = getNsecStringFromKey({ mnemonic, nsec });
-      if (nsecStr) {
-        Clipboard.setString(nsecStr);
-        showToast('Nsec copied to clipboard', 'success');
-      } else {
-        showToast('No nsec found', 'error');
+    executeProtectedAction(
+      async () => {
+        const nsecStr = getNsecStringFromKey({ mnemonic, nsec });
+        if (nsecStr) {
+          Clipboard.setString(nsecStr);
+          showToast('Nsec copied to clipboard', 'success');
+        } else {
+          showToast('No nsec found', 'error');
+        }
+      },
+      {
+        reason: 'Authenticate to export your nsec',
+        pinTitle: 'Enter PIN to Export Nsec',
+        pinMessage: 'Enter your PIN to export your nsec',
       }
-    }, 'Authenticate to export your nsec');
+    );
   };
 
   const handleExportAppData = () => {
-    authenticateForSensitiveAction(async () => {
-      console.log('Exporting app data...');
-      // TODO: Implement app data export logic
-      showToast('App data export not yet implemented', 'success');
-    }, 'Authenticate to export app data');
+    executeProtectedAction(
+      async () => {
+        console.log('Exporting app data...');
+        // TODO: Implement app data export logic
+        showToast('App data export not yet implemented', 'success');
+      },
+      {
+        reason: 'Authenticate to export app data',
+        pinTitle: 'Enter PIN to Export App Data',
+        pinMessage: 'Enter your PIN to export your app data',
+      }
+    );
   };
 
   const handleThemeChange = () => {
@@ -200,45 +293,29 @@ export default function SettingsScreen() {
   const handleAppLockToggle = async (enabled: boolean) => {
     try {
       if (enabled) {
-        // Use fingerprint support to determine path
-        if (isFingerprintSupported) {
-          // Fingerprint supported - use biometric path
-          authenticateForSensitiveAction(async () => {
-            await setLockEnabled(true);
-            showToast('App lock enabled', 'success');
-            if (!hasPIN) {
-              setPinSetupPurpose('ensure');
-              setIsPINSetupVisible(true);
-            }
-          }, 'Authenticate to enable app lock');
-        } else {
-          // No fingerprint support - show PIN setup
-          setPinSetupPurpose('enable');
+        if (!hasPIN) {
+          setPendingLockEnable(true);
+          setPinSetupPurpose('global');
           setIsPINSetupVisible(true);
+          return;
         }
-      } else {
-        // Disable app lock - require authentication
-        if (authMethod === 'biometric' && isFingerprintSupported) {
-          // Use biometric authentication
-          authenticateForSensitiveAction(async () => {
-            await setLockEnabled(false);
-            showToast('App lock disabled', 'success');
-          }, 'Authenticate to disable app lock');
-        } else if (authMethod === 'pin') {
-          // Show PIN verification
-          setIsPINVerifyVisible(true);
-        } else {
-          // Fallback: try biometric first, then PIN
-          if (isFingerprintSupported) {
-            authenticateForSensitiveAction(async () => {
-              await setLockEnabled(false);
-              showToast('App lock disabled', 'success');
-            }, 'Authenticate to disable app lock');
-          } else {
-            setIsPINVerifyVisible(true);
-          }
-        }
+
+        await setLockEnabled(true);
+        showToast('App lock enabled', 'success');
+        return;
       }
+
+      await executeProtectedAction(
+        async () => {
+          await setLockEnabled(false);
+          showToast('App lock disabled', 'success');
+        },
+        {
+          reason: 'Authenticate to disable app lock',
+          pinTitle: 'Verify PIN to Disable App Lock',
+          pinMessage: 'Enter your PIN to disable app lock',
+        }
+      );
     } catch (error) {
       console.error('Error toggling app lock:', error);
       showToast('Failed to update app lock setting', 'error');
@@ -247,22 +324,34 @@ export default function SettingsScreen() {
 
   const handlePINSetupComplete = async (pin: string) => {
     try {
-      if (pinSetupPurpose === 'enable') {
-        await setupPIN(pin);
+      await setupPIN(pin);
+      setIsPINSetupVisible(false);
+
+      if (pendingLockEnable) {
         await setLockEnabled(true);
-        setIsPINSetupVisible(false);
-        showToast('App lock enabled with PIN', 'success');
+        showToast('App lock enabled', 'success');
+      } else if (pinSetupPurpose === 'change') {
+        showToast('PIN updated successfully', 'success');
       } else {
-        await setupPIN(pin);
-        setIsPINSetupVisible(false);
-        showToast(
-          pinSetupPurpose === 'change' ? 'PIN updated successfully' : 'PIN saved successfully',
-          'success',
-        );
+        showToast('PIN saved successfully', 'success');
+      }
+
+      if (pendingBiometricEnable) {
+        const biometricAvailable = await isBiometricAvailable();
+        if (!biometricAvailable) {
+          showToast('Biometric authentication unavailable', 'error');
+        } else {
+          await setAuthMethodPreference('biometric');
+          showToast(`${biometricLabel} enabled`, 'success');
+        }
       }
     } catch (error) {
       console.error('Error setting up PIN:', error);
       showToast('Failed to set up PIN', 'error');
+    } finally {
+      setPendingLockEnable(false);
+      setPendingPinEnable(false);
+      setPendingBiometricEnable(false);
     }
   };
 
@@ -270,10 +359,11 @@ export default function SettingsScreen() {
     try {
       const isValid = await verifyPIN(pin);
       if (isValid) {
-        await setLockEnabled(false);
-        setIsPINVerifyVisible(false);
         setPinError(false);
-        showToast('App lock disabled', 'success');
+        if (pinVerificationConfig.onSuccess) {
+          await pinVerificationConfig.onSuccess();
+        }
+        closePinVerification();
       } else {
         setPinError(true);
         setTimeout(() => setPinError(false), 2000);
@@ -285,23 +375,90 @@ export default function SettingsScreen() {
     }
   };
 
-  const handlePinManagementPress = () => {
-    authenticateForSensitiveAction(
+  const handleGlobalPinToggle = async (enabled: boolean) => {
+    if (enabled) {
+      if (hasPIN) {
+        return;
+      }
+      setPendingPinEnable(true);
+      setPinSetupPurpose('global');
+      setIsPINSetupVisible(true);
+      return;
+    }
+
+    if (!hasPIN) {
+      return;
+    }
+
+    await executeProtectedAction(
+      async () => {
+        await clearPIN();
+        if (isLockEnabled) {
+          await setLockEnabled(false);
+        }
+        await setAuthMethodPreference(null);
+        showToast('PIN disabled', 'success');
+      },
+      {
+        reason: 'Authenticate to disable PIN',
+        pinTitle: 'Verify PIN to Disable',
+        pinMessage: 'Enter your PIN to disable it',
+      }
+    );
+  };
+
+  const handleChangePinPress = () => {
+    executeProtectedAction(
       () => {
         setPinSetupPurpose('change');
         setIsPINSetupVisible(true);
       },
-      hasPIN ? 'Authenticate to update your PIN' : 'Authenticate to set your PIN',
+      {
+        reason: 'Authenticate to change your PIN',
+        pinTitle: 'Verify PIN to Continue',
+        pinMessage: 'Enter your current PIN to change it',
+      }
     );
+  };
+
+  const handleBiometricToggle = async (enabled: boolean) => {
+    if (!isFingerprintSupported) {
+      showToast(`${biometricLabel} not available`, 'error');
+      return;
+    }
+
+    if (enabled && !hasPIN) {
+      setPendingBiometricEnable(true);
+      setPinSetupPurpose('global');
+      setIsPINSetupVisible(true);
+      return;
+    }
+
+    try {
+      if (enabled) {
+        const biometricAvailable = await isBiometricAvailable();
+        if (!biometricAvailable) {
+          showToast('Biometric authentication unavailable', 'error');
+          return;
+        }
+        await setAuthMethodPreference('biometric');
+        showToast(`${biometricLabel} enabled`, 'success');
+      } else {
+        await setAuthMethodPreference('pin');
+        showToast(`${biometricLabel} disabled`, 'success');
+      }
+      setPendingBiometricEnable(false);
+    } catch (error) {
+      console.error('Error toggling biometrics:', error);
+      showToast('Failed to update biometric preference', 'error');
+    }
   };
 
   const pinSetupTitle = pinSetupPurpose === 'change' ? 'Update PIN' : 'Set PIN';
   const pinSetupEnterMessage =
     pinSetupPurpose === 'change'
-      ? 'Enter a new PIN for App Lock'
-      : pinSetupPurpose === 'ensure'
-        ? 'Create a PIN to use whenever biometrics are unavailable'
-        : 'Enter a PIN to secure your app';
+      ? 'Enter a new PIN to replace your current one'
+      : 'Enter a PIN to secure sensitive actions';
   const pinSetupConfirmMessage =
     pinSetupPurpose === 'change' ? 'Confirm your new PIN' : 'Confirm your PIN';
 
@@ -344,35 +501,42 @@ export default function SettingsScreen() {
           text: 'Reset Everything',
           style: 'destructive',
           onPress: () => {
-            authenticateForSensitiveAction(async () => {
-              try {
-                // Show progress to user
-                showToast('Resetting app data...');
-
-                // Use comprehensive reset service
-                await resetApp();
-
-                // Reset completed successfully
-                showToast('App reset successful!', 'success');
-
-                // Navigation to onboarding is handled by AppResetService
-              } catch (error) {
-                console.error('Error during comprehensive app reset:', error);
-
-                // Even if there's an error, try to navigate to onboarding
-                // as the reset likely succeeded partially
+            executeProtectedAction(
+              async () => {
                 try {
-                  router.replace('/onboarding');
-                  showToast('Reset completed with errors - please check app state', 'error');
-                } catch (navError) {
-                  Alert.alert(
-                    'Reset Error',
-                    'Failed to reset app completely. Please restart the app manually.',
-                    [{ text: 'OK' }]
-                  );
+                  // Show progress to user
+                  showToast('Resetting app data...');
+
+                  // Use comprehensive reset service
+                  await resetApp();
+
+                  // Reset completed successfully
+                  showToast('App reset successful!', 'success');
+
+                  // Navigation to onboarding is handled by AppResetService
+                } catch (error) {
+                  console.error('Error during comprehensive app reset:', error);
+
+                  // Even if there's an error, try to navigate to onboarding
+                  // as the reset likely succeeded partially
+                  try {
+                    router.replace('/onboarding');
+                    showToast('Reset completed with errors - please check app state', 'error');
+                  } catch (navError) {
+                    Alert.alert(
+                      'Reset Error',
+                      'Failed to reset app completely. Please restart the app manually.',
+                      [{ text: 'OK' }]
+                    );
+                  }
                 }
+              },
+              {
+                reason: 'Authenticate to reset all app data',
+                pinTitle: 'Enter PIN to Reset App',
+                pinMessage: 'Enter your PIN to reset all app data',
               }
-            }, 'Authenticate to reset all app data');
+            );
           },
         },
       ]
@@ -589,6 +753,90 @@ export default function SettingsScreen() {
           <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
             Security
           </ThemedText>
+          <View style={[styles.card, { backgroundColor: cardBackgroundColor }]}>
+            <View style={styles.cardContent}>
+              <View style={styles.cardLeft}>
+                <View style={styles.cardHeader}>
+                  <View style={[styles.iconContainer]}>
+                    <KeyRound size={20} color={buttonPrimaryColor} />
+                  </View>
+                  <View style={styles.cardText}>
+                    <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
+                      Global PIN
+                    </ThemedText>
+                    <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
+                      {hasPIN ? 'Configured' : 'Not set'}
+                    </ThemedText>
+                  </View>
+                </View>
+              </View>
+              <Switch
+                value={hasPIN}
+                onValueChange={handleGlobalPinToggle}
+                trackColor={{
+                  false: inputBorderColor,
+                  true: buttonPrimaryColor,
+                }}
+                thumbColor={hasPIN ? buttonPrimaryTextColor : '#ffffff'}
+                ios_backgroundColor={inputBorderColor}
+              />
+            </View>
+          </View>
+
+          {hasPIN && (
+            <TouchableOpacity
+              style={[styles.subActionButton, { backgroundColor: cardBackgroundColor }]}
+              onPress={handleChangePinPress}
+              activeOpacity={0.7}
+            >
+              <ThemedText style={[styles.subActionText, { color: primaryTextColor }]}>
+                Change PIN
+              </ThemedText>
+              <ChevronRight size={20} color={secondaryTextColor} />
+            </TouchableOpacity>
+          )}
+
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: cardBackgroundColor },
+              !isFingerprintSupported && styles.cardDisabled,
+            ]}
+          >
+            <View style={styles.cardContent}>
+              <View style={styles.cardLeft}>
+                <View style={styles.cardHeader}>
+                  <View style={[styles.iconContainer]}>
+                    <Fingerprint size={20} color={buttonPrimaryColor} />
+                  </View>
+                  <View style={styles.cardText}>
+                    <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
+                      Use {biometricLabel}
+                    </ThemedText>
+                    <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
+                      {isFingerprintSupported
+                        ? isBiometricPreferred
+                          ? `${biometricLabel} enabled`
+                          : `${biometricLabel} disabled`
+                        : `${biometricLabel} not available`}
+                    </ThemedText>
+                  </View>
+                </View>
+              </View>
+              <Switch
+                value={isBiometricPreferred}
+                onValueChange={handleBiometricToggle}
+                disabled={!isFingerprintSupported}
+                trackColor={{
+                  false: inputBorderColor,
+                  true: buttonPrimaryColor,
+                }}
+                thumbColor={isBiometricPreferred ? buttonPrimaryTextColor : '#ffffff'}
+                ios_backgroundColor={inputBorderColor}
+              />
+            </View>
+          </View>
+
           <View style={[styles.appLockOption, { backgroundColor: cardBackgroundColor }]}>
             <View style={styles.appLockLeft}>
               <View style={styles.appLockIconContainer}>
@@ -614,58 +862,32 @@ export default function SettingsScreen() {
               ios_backgroundColor={inputBorderColor}
             />
           </View>
-          {isLockEnabled && (
-            <>
-              <TouchableOpacity
-                style={[styles.card, { backgroundColor: cardBackgroundColor }]}
-                onPress={handlePinManagementPress}
-                activeOpacity={0.7}
-              >
-                <View style={styles.cardContent}>
-                  <View style={styles.cardLeft}>
-                    <View style={styles.cardHeader}>
-                      <View style={[styles.iconContainer]}>
-                        <KeyRound size={20} color={buttonPrimaryColor} />
-                      </View>
-                      <View style={styles.cardText}>
-                        <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
-                          App Lock PIN
-                        </ThemedText>
-                        <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
-                          {hasPIN ? 'Configured' : 'Not set'}
-                        </ThemedText>
-                      </View>
-                    </View>
-                  </View>
-                  <ChevronRight size={24} color={secondaryTextColor} />
-                </View>
-              </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.card, { backgroundColor: cardBackgroundColor }]}
-                onPress={() => setIsTimerModalVisible(true)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.cardContent}>
-                  <View style={styles.cardLeft}>
-                    <View style={styles.cardHeader}>
-                      <View style={[styles.iconContainer]}>
-                        <Clock size={20} color={buttonPrimaryColor} />
-                      </View>
-                      <View style={styles.cardText}>
-                        <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
-                          Lock Timer
-                        </ThemedText>
-                        <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
-                          {getTimerLabel()}
-                        </ThemedText>
-                      </View>
+          {isLockEnabled && (
+            <TouchableOpacity
+              style={[styles.card, { backgroundColor: cardBackgroundColor }]}
+              onPress={() => setIsTimerModalVisible(true)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.cardContent}>
+                <View style={styles.cardLeft}>
+                  <View style={styles.cardHeader}>
+                    <View style={[styles.iconContainer]}>
+                      <Clock size={20} color={buttonPrimaryColor} />
+                    </View>
+                    <View style={styles.cardText}>
+                      <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
+                        Lock Timer
+                      </ThemedText>
+                      <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
+                        {getTimerLabel()}
+                      </ThemedText>
                     </View>
                   </View>
-                  <ChevronRight size={24} color={secondaryTextColor} />
                 </View>
-              </TouchableOpacity>
-            </>
+                <ChevronRight size={24} color={secondaryTextColor} />
+              </View>
+            </TouchableOpacity>
           )}
 
           {/* Recover Tickets Section */}
@@ -870,7 +1092,12 @@ export default function SettingsScreen() {
       <PINSetupScreen
         visible={isPINSetupVisible}
         onComplete={handlePINSetupComplete}
-        onCancel={() => setIsPINSetupVisible(false)}
+        onCancel={() => {
+          setIsPINSetupVisible(false);
+          setPendingLockEnable(false);
+          setPendingPinEnable(false);
+          setPendingBiometricEnable(false);
+        }}
         title={pinSetupTitle}
         enterMessage={pinSetupEnterMessage}
         confirmMessage={pinSetupConfirmMessage}
@@ -881,19 +1108,9 @@ export default function SettingsScreen() {
         visible={isPINVerifyVisible}
         transparent={true}
         animationType="slide"
-        onRequestClose={() => {
-          setIsPINVerifyVisible(false);
-          setPinError(false);
-        }}
+        onRequestClose={closePinVerification}
       >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => {
-            setIsPINVerifyVisible(false);
-            setPinError(false);
-          }}
-        >
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={closePinVerification}>
           <TouchableOpacity
             style={[styles.modalContent, { backgroundColor: cardBackgroundColor }]}
             activeOpacity={1}
@@ -901,20 +1118,15 @@ export default function SettingsScreen() {
           >
             <View style={styles.modalHeader}>
               <ThemedText style={[styles.modalTitle, { color: primaryTextColor }]}>
-                Verify PIN to Disable App Lock
+                {pinVerificationConfig.title}
               </ThemedText>
-              <TouchableOpacity
-                onPress={() => {
-                  setIsPINVerifyVisible(false);
-                  setPinError(false);
-                }}
-              >
+              <TouchableOpacity onPress={closePinVerification}>
                 <X size={24} color={secondaryTextColor} />
               </TouchableOpacity>
             </View>
             <View style={styles.pinContainer}>
               <ThemedText style={[styles.pinInstruction, { color: secondaryTextColor }]}>
-                Enter your PIN to disable app lock
+                {pinVerificationConfig.instructions}
               </ThemedText>
               <PINKeypad
                 onPINComplete={handlePINVerifyComplete}
@@ -969,6 +1181,21 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
+  },
+  subActionButton: {
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  subActionText: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  cardDisabled: {
+    opacity: 0.6,
   },
   cardContent: {
     flexDirection: 'row',
