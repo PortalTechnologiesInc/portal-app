@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Modal, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { StyleSheet, View, Modal, TouchableOpacity, ScrollView } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from './ThemedText';
 import { PINKeypad } from './PINKeypad';
 import { useThemeColor } from '@/hooks/useThemeColor';
@@ -29,6 +29,7 @@ export function PINSetupScreen({
   const [confirmPIN, setConfirmPIN] = useState('');
   const [error, setError] = useState(false);
 
+  const insets = useSafeAreaInsets();
   const backgroundColor = useThemeColor({}, 'background');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
@@ -80,32 +81,35 @@ export function PINSetupScreen({
   const keypadAutoSubmit = false;
 
   return (
-    <Modal visible={visible} animationType="slide" transparent={true}>
+    <Modal visible={visible} animationType="fade" transparent={false}>
       <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top', 'bottom']}>
-        <View style={styles.header}>
+        <View style={[styles.topBar, { top: Math.max(insets.top, 12) }]}>
           <TouchableOpacity onPress={handleCancel} style={styles.closeButton}>
             <X size={24} color={secondaryTextColor} />
           </TouchableOpacity>
-          <ThemedText style={[styles.title, { color: primaryTextColor }]}>{headerTitle}</ThemedText>
-          <View style={styles.placeholder} />
         </View>
 
-        <View style={styles.content}>
-          <View style={[styles.iconContainer, { backgroundColor: buttonPrimaryColor + '20' }]}>
-            <Shield size={48} color={buttonPrimaryColor} />
+        <ScrollView
+          contentContainerStyle={styles.content}
+          bounces={false}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.header}>
+            <View style={[styles.iconContainer, { backgroundColor: buttonPrimaryColor + '20' }]}>
+              <Shield size={48} color={buttonPrimaryColor} />
+            </View>
+            <ThemedText style={[styles.title, { color: primaryTextColor }]}>{headerTitle}</ThemedText>
+            <ThemedText style={[styles.subtitle, { color: secondaryTextColor }]}>
+              {step === 'enter' ? enterText : confirmText}
+            </ThemedText>
           </View>
 
-          <ThemedText style={[styles.instruction, { color: primaryTextColor }]}>
-            {step === 'enter' ? enterText : confirmText}
-          </ThemedText>
-
-          {error && (
-            <ThemedText style={[styles.errorText, { color: errorColor }]}>
-              PINs do not match. Please try again.
-            </ThemedText>
-          )}
-
           <View style={styles.pinContainer}>
+            {error && (
+              <ThemedText style={[styles.errorText, { color: errorColor }]}>
+                PINs do not match. Please try again.
+              </ThemedText>
+            )}
             <PINKeypad
               key={step}
               onPINComplete={handlePINEnter}
@@ -119,7 +123,7 @@ export function PINSetupScreen({
               onError={() => setError(false)}
             />
           </View>
-        </View>
+        </ScrollView>
       </SafeAreaView>
     </Modal>
   );
@@ -129,29 +133,39 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 16,
+  topBar: {
+    width: '100%',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    alignItems: 'flex-end',
+    position: 'absolute',
+    top: 0,
+    zIndex: 10,
   },
   closeButton: {
-    padding: 4,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  placeholder: {
-    width: 32,
+    padding: 8,
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 32,
+    paddingBottom: 32,
+    paddingTop: 0,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 16,
+    textAlign: 'center',
   },
   iconContainer: {
     width: 100,
@@ -161,11 +175,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 32,
   },
-  instruction: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 24,
-  },
   errorText: {
     fontSize: 14,
     textAlign: 'center',
@@ -174,6 +183,7 @@ const styles = StyleSheet.create({
   pinContainer: {
     width: '100%',
     alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 
