@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { AppLockService, AuthMethod, LockTimerDuration, TIMER_OPTIONS } from '@/services/AppLockService';
-import { authenticateAsync } from '@/services/BiometricAuthService';
+import { authenticateAsync, isBiometricPromptInProgress } from '@/services/BiometricAuthService';
 
 interface AppLockContextType {
   isLocked: boolean;
@@ -83,6 +83,10 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
   // AppState listener to handle background/foreground transitions and device lock
   useEffect(() => {
     const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+      if (isBiometricPromptInProgress()) {
+        return;
+      }
+
       if (nextAppState === 'background' || nextAppState === 'inactive') {
         // App going to background or device locked - record timestamp
         AppLockService.recordBackgroundTime();

@@ -4,6 +4,18 @@ import type { BiometricAuthResult } from '@/utils/types';
 
 export type { BiometricAuthResult };
 
+let biometricPromptDepth = 0;
+
+const beginBiometricPrompt = () => {
+  biometricPromptDepth += 1;
+};
+
+const endBiometricPrompt = () => {
+  biometricPromptDepth = Math.max(0, biometricPromptDepth - 1);
+};
+
+export const isBiometricPromptInProgress = (): boolean => biometricPromptDepth > 0;
+
 /**
  * Check if biometric authentication is available on the device
  */
@@ -49,6 +61,7 @@ export const authenticateAsync = async (
       };
     }
 
+    beginBiometricPrompt();
     const result = await LocalAuthentication.authenticateAsync({
       promptMessage: reason,
       fallbackLabel: 'Use Passcode',
@@ -70,6 +83,8 @@ export const authenticateAsync = async (
       success: false,
       error: 'Authentication failed due to an error',
     };
+  } finally {
+    endBiometricPrompt();
   }
 };
 
