@@ -40,60 +40,75 @@ export class CurrencyConversionService {
    * @param toC - Target currency
    * @returns Promise<number> - Converted amount
    */
-  static async convertAmount(
-    amount: number,
-    fromC: string,
-    toC: string
-  ): Promise<number> {
+  static async convertAmount(amount: number, fromC: string, toC: string): Promise<number> {
     const fromCurrency = fromC.toUpperCase();
     const toCurrency = toC.toUpperCase();
     try {
       switch (true) {
-        case !isFinite(amount) || amount <= 0: return 0;
-        case fromCurrency == toCurrency: return amount;
+        case !isFinite(amount) || amount <= 0:
+          return 0;
+        case fromCurrency == toCurrency:
+          return amount;
 
         // btc, sats, millisats cases
-        case fromCurrency == Currency.BTC && toCurrency == Currency.SATS: return amount * 100_000_000;
-        case fromCurrency == Currency.BTC && toCurrency == Currency.MSATS: return amount * 100_000_000_000;
-        case fromCurrency == Currency.SATS && toCurrency == Currency.BTC: return amount / 100_000_000;
-        case fromCurrency == Currency.SATS && toCurrency == Currency.MSATS: return amount * 1000;
-        case fromCurrency == Currency.MSATS && toCurrency == Currency.BTC: return amount / 100_000_000_000;
-        case fromCurrency == Currency.MSATS && toCurrency == Currency.SATS: return amount / 1000;
+        case fromCurrency == Currency.BTC && toCurrency == Currency.SATS:
+          return amount * 100_000_000;
+        case fromCurrency == Currency.BTC && toCurrency == Currency.MSATS:
+          return amount * 100_000_000_000;
+        case fromCurrency == Currency.SATS && toCurrency == Currency.BTC:
+          return amount / 100_000_000;
+        case fromCurrency == Currency.SATS && toCurrency == Currency.MSATS:
+          return amount * 1000;
+        case fromCurrency == Currency.MSATS && toCurrency == Currency.BTC:
+          return amount / 100_000_000_000;
+        case fromCurrency == Currency.MSATS && toCurrency == Currency.SATS:
+          return amount / 1000;
 
         // from btc, sats or millisats to fiat cases
-        case fromCurrency == Currency.BTC && toCurrency != Currency.SATS && toCurrency != Currency.MSATS: {
+        case fromCurrency == Currency.BTC &&
+          toCurrency != Currency.SATS &&
+          toCurrency != Currency.MSATS: {
           const btcPriceTo = await CurrencyConversionService.getBtcPriceForCurrency(toCurrency);
           return amount * btcPriceTo;
         }
-        case fromCurrency == Currency.SATS && toCurrency != Currency.BTC && toCurrency != Currency.MSATS: {
+        case fromCurrency == Currency.SATS &&
+          toCurrency != Currency.BTC &&
+          toCurrency != Currency.MSATS: {
           const btcPriceTo = await CurrencyConversionService.getBtcPriceForCurrency(toCurrency);
-          return amount * btcPriceTo / 100_000_000;
+          return (amount * btcPriceTo) / 100_000_000;
         }
-        case fromCurrency == Currency.MSATS && toCurrency != Currency.BTC && toCurrency != Currency.SATS: {
+        case fromCurrency == Currency.MSATS &&
+          toCurrency != Currency.BTC &&
+          toCurrency != Currency.SATS: {
           const btcPriceTo = await CurrencyConversionService.getBtcPriceForCurrency(toCurrency);
-          return amount * btcPriceTo / 100_000_000_000;
+          return (amount * btcPriceTo) / 100_000_000_000;
         }
 
         // from fiat to btc, sats or millisats cases
-        case fromCurrency != Currency.SATS && fromCurrency != Currency.MSATS && toCurrency == Currency.BTC: {
+        case fromCurrency != Currency.SATS &&
+          fromCurrency != Currency.MSATS &&
+          toCurrency == Currency.BTC: {
           const btcPriceFrom = await CurrencyConversionService.getBtcPriceForCurrency(fromCurrency);
           return amount / btcPriceFrom;
         }
-        case fromCurrency != Currency.BTC && fromCurrency != Currency.MSATS && toCurrency == Currency.SATS: {
+        case fromCurrency != Currency.BTC &&
+          fromCurrency != Currency.MSATS &&
+          toCurrency == Currency.SATS: {
           const btcPriceFrom = await CurrencyConversionService.getBtcPriceForCurrency(fromCurrency);
-          return amount / btcPriceFrom * 100_000_000;
+          return (amount / btcPriceFrom) * 100_000_000;
         }
-        case fromCurrency != Currency.BTC && fromCurrency != Currency.SATS && toCurrency == Currency.MSATS: {
+        case fromCurrency != Currency.BTC &&
+          fromCurrency != Currency.SATS &&
+          toCurrency == Currency.MSATS: {
           const btcPriceFrom = await CurrencyConversionService.getBtcPriceForCurrency(fromCurrency);
-          return amount / btcPriceFrom * 100_000_000_000;
+          return (amount / btcPriceFrom) * 100_000_000_000;
         }
 
         // from fiat to fiat case
         default: {
           const btcPriceFrom = await CurrencyConversionService.getBtcPriceForCurrency(fromCurrency);
           const btcPriceTo = await CurrencyConversionService.getBtcPriceForCurrency(toCurrency);
-          return amount * btcPriceTo / btcPriceFrom;
-
+          return (amount * btcPriceTo) / btcPriceFrom;
         }
       }
     } catch (error) {

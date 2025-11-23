@@ -1,5 +1,5 @@
 import React, { useEffect, useState, Suspense } from 'react';
-import { Text, View, SafeAreaView, Button, Platform, AppState } from 'react-native';
+import { Text, View, SafeAreaView } from 'react-native';
 import { Stack, usePathname, useGlobalSearchParams } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -24,6 +24,8 @@ import { ECashProvider } from '@/context/ECashContext';
 import { SQLiteProvider } from 'expo-sqlite';
 import migrateDbIfNeeded from '@/migrations/DatabaseMigrations';
 import { PaymentControllerProvider } from '@/context/PaymentControllerContext';
+import { PortalAppProvider } from '@/context/PortalAppContext';
+import WalletManagerContextProvider from '@/context/WalletManagerContext';
 
 // Prevent splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -119,18 +121,22 @@ const AuthenticatedAppContent = () => {
   return (
     <ECashProvider mnemonic={mnemonic || ''} nsec={nsec || ''}>
       <NostrServiceProvider mnemonic={mnemonic || ''} nsec={nsec || ''} walletUrl={walletUrl}>
-        <UserProfileProvider>
-          <ActivitiesProvider>
-            <PendingRequestsProvider>
-              <PaymentControllerProvider>
-                <DeeplinkProvider>
-                  <NotificationConfigurator />
-                  <Stack screenOptions={{ headerShown: false }} />
-                </DeeplinkProvider>
-              </PaymentControllerProvider>
-            </PendingRequestsProvider>
-          </ActivitiesProvider>
-        </UserProfileProvider>
+        <WalletManagerContextProvider>
+          <PortalAppProvider>
+            <UserProfileProvider>
+              <ActivitiesProvider>
+                <PendingRequestsProvider>
+                  <PaymentControllerProvider>
+                    <DeeplinkProvider>
+                      <NotificationConfigurator />
+                      <Stack screenOptions={{ headerShown: false }} />
+                    </DeeplinkProvider>
+                  </PaymentControllerProvider>
+                </PendingRequestsProvider>
+              </ActivitiesProvider>
+            </UserProfileProvider>
+          </PortalAppProvider>
+        </WalletManagerContextProvider>
       </NostrServiceProvider>
     </ECashProvider>
   );
@@ -156,14 +162,12 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (pathname) {
-      const entries: [string, string][] = Object.entries(globalParams).flatMap(
-        ([key, value]) => {
-          if (value === undefined) return [];
-          return Array.isArray(value)
-            ? value.map(v => [key, String(v)] as [string, string])
-            : ([[key, String(value)] as [string, string]]);
-        }
-      );
+      const entries: [string, string][] = Object.entries(globalParams).flatMap(([key, value]) => {
+        if (value === undefined) return [];
+        return Array.isArray(value)
+          ? value.map(v => [key, String(v)] as [string, string])
+          : [[key, String(value)] as [string, string]];
+      });
       const queryString = new URLSearchParams(entries).toString();
       const fullPath = queryString ? `${pathname}?${queryString}` : pathname;
       console.log('[Route]', fullPath);

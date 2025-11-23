@@ -46,7 +46,7 @@ export interface ConnectionSummary {
  */
 export interface WalletInfo {
   alias?: string;
-  get_balance?: number;
+  balanceInSats?: bigint;
 }
 
 /**

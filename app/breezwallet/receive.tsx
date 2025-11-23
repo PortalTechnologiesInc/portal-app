@@ -1,0 +1,558 @@
+import { ThemedText } from '@/components/ThemedText';
+import { ThemedView } from '@/components/ThemedView';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import { useRouter } from 'expo-router';
+import { ArrowLeft, ClipboardCopy, QrCode, X } from 'lucide-react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity } from 'react-native';
+import QRCode from 'react-native-qrcode-svg';
+import { Colors } from 'react-native/Libraries/NewAppScreen';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import { useCurrency } from '@/context/CurrencyContext';
+import Clipboard from '@react-native-clipboard/clipboard';
+import { showToast } from '@/utils/Toast';
+import { useWalletManager } from '@/context/WalletManagerContext';
+import { BreezService } from '@/services/BreezService';
+import WALLET_TYPE from '@/models/WalletType';
+
+const portalLogo = require('../../assets/images/iosLight.png');
+
+enum PageState {
+  GetInvoiceInfo,
+  InvoiceCreating,
+  ShowInvoiceInfo,
+}
+
+export default function MyWalletManagementSecret() {
+  const router = useRouter();
+
+  const { preferredCurrency } = useCurrency();
+
+  const backgroundColor = useThemeColor({}, 'background');
+  const primaryTextColor = useThemeColor({}, 'textPrimary');
+  const secondaryTextColor = useThemeColor({}, 'textSecondary');
+  const buttonPrimaryColor = useThemeColor({}, 'buttonPrimary');
+  const buttonPrimaryTextColor = useThemeColor({}, 'buttonPrimaryText');
+  const inputBackground = useThemeColor({}, 'inputBackground');
+  const { getWallet } = useWalletManager();
+  const [breezWallet, setBreezWallet] = useState<BreezService | null>(null);
+  const [amount, setAmount] = useState('0');
+  const [description, setDescription] = useState('');
+  const [convertedAmount, setConvertedAmount] = useState(0);
+  const [isConverting, setIsConverting] = useState(false);
+  const [pageState, setPageState] = useState(PageState.GetInvoiceInfo);
+  const [invoice, setInvoice] = useState('');
+
+  const timeoutRef = useRef<number | null>(null);
+  const handleChangeText = (text: string) => {
+    const numericValue = text.replace(/\D/g, '');
+    setAmount(numericValue);
+    setIsConverting(true);
+
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(async () => {
+      const converted = await CurrencyConversionService.convertAmount(
+        Number(numericValue || 0),
+        'sats',
+        preferredCurrency
+      );
+      setConvertedAmount(converted);
+      setIsConverting(false);
+    }, 1000);
+  };
+
+  const generateInvoice = useCallback(async () => {
+    if (!breezWallet) return;
+    setPageState(PageState.InvoiceCreating);
+    const createdInvoice = await breezWallet?.receivePayment(BigInt(amount), description);
+
+    console.log(createdInvoice);
+    setInvoice(createdInvoice);
+    setPageState(PageState.ShowInvoiceInfo);
+  }, [amount, breezWallet, description]);
+
+  useEffect(() => {
+    let active = true;
+
+    getWallet(WALLET_TYPE.BREEZ).then(wallet => {
+      if (active) setBreezWallet(wallet);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [getWallet]);
+  return (
+    <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
+      <ThemedView style={[styles.container, { backgroundColor }]}>
+        <ThemedView style={[styles.header, { backgroundColor }]}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <ArrowLeft size={20} color={primaryTextColor} />
+          </TouchableOpacity>
+          <ThemedText style={[styles.headerText, { color: primaryTextColor }]}>Receive</ThemedText>
+        </ThemedView>
+
+        {pageState === PageState.GetInvoiceInfo ? (
+          <ThemedView
+            style={{
+              ...styles.content,
+              flex: 1,
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: 20,
+            }}
+          >
+            <ThemedView
+              style={{
+                gap: 20,
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '80%',
+                flex: 1,
+              }}
+            >
+              <ThemedView style={{ alignItems: 'center' }}>
+                <TextInput
+                  style={{
+                    color: primaryTextColor,
+                    textAlign: 'center',
+                    fontSize: 40,
+                  }}
+                  autoCorrect={false}
+                  value={`${amount} sats`}
+                  onBlur={() => {
+                    if (amount === '') setAmount('0');
+                  }}
+                  onFocus={() => {
+                    if (amount === '0') setAmount('');
+                  }}
+                  autoCapitalize="none"
+                  keyboardType="number-pad"
+                  placeholder="Amount in sats"
+                  onChangeText={handleChangeText}
+                  selection={{
+                    start: amount.length,
+                    end: amount.length,
+                  }}
+                />
+
+                {isConverting ? (
+                  <ActivityIndicator color={primaryTextColor} size="small" />
+                ) : (
+                  <ThemedText>
+                    {CurrencyConversionService.formatConvertedAmountWithFallback(
+                      convertedAmount,
+                      preferredCurrency
+                    )}
+                  </ThemedText>
+                )}
+              </ThemedView>
+
+              <TextInput
+                style={[
+                  styles.verificationInput,
+                  {
+                    backgroundColor: inputBackground,
+                    color: primaryTextColor,
+                    textAlign: 'center',
+                  },
+                ]}
+                editable
+                multiline
+                numberOfLines={4}
+                maxLength={40}
+                autoCorrect={false}
+                autoCapitalize="none"
+                keyboardType="default"
+                placeholder="Description"
+                value={description}
+                onChangeText={text => setDescription(text)}
+              />
+            </ThemedView>
+
+            <ThemedView
+              style={{
+                flexDirection: 'row',
+                gap: 40,
+                backgroundColor: buttonPrimaryColor,
+                borderRadius: 25,
+                paddingTop: 10,
+                paddingBottom: 10,
+                paddingLeft: 30,
+                paddingRight: 30,
+              }}
+            >
+              <TouchableOpacity onPress={generateInvoice}>
+                <ThemedView
+                  style={{ flexDirection: 'row', gap: 10, backgroundColor: buttonPrimaryColor }}
+                >
+                  <QrCode color={buttonPrimaryTextColor} />
+                  <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
+                    Generate invoice
+                  </ThemedText>
+                </ThemedView>
+              </TouchableOpacity>
+            </ThemedView>
+          </ThemedView>
+        ) : pageState === PageState.InvoiceCreating ? (
+          <ThemedView style={{ alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+            <ActivityIndicator color={primaryTextColor} size={60} />
+          </ThemedView>
+        ) : (
+          <ThemedView style={{ ...styles.content, flex: 1, gap: 20, alignItems: 'center' }}>
+            <ThemedView
+              style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 20 }}
+            >
+              <ThemedView
+                style={{
+                  borderColor: primaryTextColor,
+                  borderWidth: 2,
+                  padding: 10,
+                  borderRadius: 10,
+                }}
+              >
+                <QRCode size={300} value={invoice} quietZone={5} logo={portalLogo} />
+              </ThemedView>
+
+              <ThemedView style={{ flexDirection: 'row', gap: 10 }}>
+                <Text style={{ color: primaryTextColor, fontSize: 20 }}>Amount</Text>
+                <ThemedView>
+                  <Text style={{ color: secondaryTextColor, fontSize: 20 }}>{amount} sats</Text>
+                  <Text style={{ color: secondaryTextColor, fontSize: 20 }}>
+                    {CurrencyConversionService.formatConvertedAmountWithFallback(
+                      convertedAmount,
+                      preferredCurrency
+                    )}
+                  </Text>
+                </ThemedView>
+              </ThemedView>
+
+              <ThemedView
+                style={{
+                  flexDirection: 'row',
+                  gap: 40,
+                  backgroundColor: buttonPrimaryColor,
+                  borderRadius: 25,
+                  paddingTop: 10,
+                  paddingBottom: 10,
+                  paddingLeft: 30,
+                  paddingRight: 30,
+                }}
+              >
+                <TouchableOpacity
+                  onPress={() => {
+                    Clipboard.setString(invoice);
+                    showToast('Invoice copied in the clipboard!', 'success');
+                  }}
+                >
+                  <ThemedView
+                    style={{ flexDirection: 'row', gap: 10, backgroundColor: buttonPrimaryColor }}
+                  >
+                    <ClipboardCopy color={buttonPrimaryTextColor} />
+                    <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
+                      Copy
+                    </ThemedText>
+                  </ThemedView>
+                </TouchableOpacity>
+              </ThemedView>
+            </ThemedView>
+
+            <ThemedView
+              style={{
+                flexDirection: 'row',
+                gap: 40,
+                backgroundColor: buttonPrimaryColor,
+                borderRadius: 25,
+                paddingTop: 10,
+                paddingBottom: 10,
+                paddingLeft: 30,
+                paddingRight: 30,
+              }}
+            >
+              <TouchableOpacity
+                onPress={() => {
+                  setAmount('0');
+                  setDescription('');
+                  setPageState(PageState.GetInvoiceInfo);
+                  setInvoice('');
+                }}
+              >
+                <ThemedView
+                  style={{ flexDirection: 'row', gap: 10, backgroundColor: buttonPrimaryColor }}
+                >
+                  <X color={buttonPrimaryTextColor} />
+                  <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
+                    Cancel
+                  </ThemedText>
+                </ThemedView>
+              </TouchableOpacity>
+            </ThemedView>
+          </ThemedView>
+        )}
+      </ThemedView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    // backgroundColor handled by theme
+  },
+  container: {
+    flex: 1,
+    // backgroundColor handled by theme
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 20,
+    // backgroundColor handled by theme
+  },
+  backButton: {
+    marginRight: 15,
+  },
+  headerText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+  },
+  description: {
+    // color handled by theme
+    fontSize: 16,
+    lineHeight: 24,
+    marginBottom: 24,
+  },
+  walletUrlCard: {
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 24,
+    // backgroundColor handled by theme
+  },
+  walletUrlHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  walletUrlLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    // color handled by theme
+  },
+  walletUrlInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  walletUrlInput: {
+    flex: 1,
+    // color and backgroundColor handled by theme
+    fontSize: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginRight: 8,
+    textAlignVertical: 'top',
+    minHeight: 44,
+    maxHeight: 200,
+  },
+  walletUrlAction: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    // backgroundColor handled by theme
+  },
+  walletUrlActions: {
+    flexDirection: 'column',
+    gap: 8,
+  },
+  deleteButton: {
+    marginTop: 4,
+  },
+  qrCodeButton: {
+    // backgroundColor handled by theme
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  statusContainer: {
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  statusText: {
+    fontSize: 16,
+    color: Colors.almostWhite,
+  },
+  walletStatusContainer: {
+    // backgroundColor handled by theme
+    borderRadius: 20,
+    padding: 16,
+    marginTop: 16,
+    minHeight: 80,
+  },
+  walletStatusHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  walletStatusTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  connectionStatusSection: {
+    marginBottom: 0,
+  },
+  connectionStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+  },
+  connectionStatusIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    // backgroundColor handled by theme
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  loadingSpinner: {
+    // Could add rotation animation here if needed
+  },
+  connectionStatusContent: {
+    flex: 1,
+  },
+  connectionStatusHorizontal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  connectionStatusLabel: {
+    fontSize: 14,
+    color: Colors.dirtyWhite,
+  },
+  connectionStatusValue: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  connectionStatusError: {
+    fontSize: 13,
+    color: '#FF4444',
+    fontStyle: 'italic',
+  },
+  connectionStatusDescription: {
+    fontSize: 13,
+    color: Colors.gray,
+    fontStyle: 'italic',
+  },
+  walletInfoSection: {
+    marginTop: 8,
+  },
+  sectionDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    marginTop: 16,
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 16,
+  },
+  refreshButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  refreshButtonText: {
+    fontSize: 18,
+    marginTop: -2,
+    fontWeight: 'bold',
+  },
+
+  walletInfoLoading: {
+    fontSize: 14,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingVertical: 16,
+  },
+  walletInfoError: {
+    fontSize: 14,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingVertical: 16,
+  },
+  walletInfoPlaceholder: {
+    fontSize: 14,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingVertical: 16,
+  },
+  walletInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  walletInfoItem: {
+    flex: 1,
+  },
+  walletInfoItemWithLabels: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  walletInfoField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  walletInfoFieldLabel: {
+    fontSize: 14,
+    color: Colors.dirtyWhite,
+    marginRight: 6,
+  },
+  walletInfoFieldValue: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  walletInfoLabel: {
+    fontSize: 14,
+    color: Colors.dirtyWhite,
+    marginBottom: 4,
+  },
+  walletInfoValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  walletInfoSubtext: {
+    fontSize: 13,
+    color: Colors.gray,
+    fontStyle: 'italic',
+  },
+  verificationInput: {
+    width: '100%',
+    borderRadius: 8,
+    padding: 15,
+    fontSize: 16,
+    marginBottom: 10,
+  },
+});

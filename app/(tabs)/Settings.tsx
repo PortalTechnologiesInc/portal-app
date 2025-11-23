@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   TouchableOpacity,
@@ -27,7 +27,7 @@ import {
 } from 'lucide-react-native';
 import { Moon, Sun, Smartphone } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { walletUrlEvents, getMnemonic, getWalletUrl } from '@/services/SecureStorageService';
+import { getMnemonic } from '@/services/SecureStorageService';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { showToast } from '@/utils/Toast';
 import { authenticateForSensitiveAction } from '@/services/BiometricAuthService';
@@ -35,7 +35,6 @@ import { useTheme, ThemeMode } from '@/context/ThemeContext';
 import { useCurrency } from '@/context/CurrencyContext';
 import { Currency, CurrencyHelpers } from '@/utils/currency';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { useWalletStatus } from '@/hooks/useWalletStatus';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import { useKey } from '@/context/KeyContext';
 import { getNsecStringFromKey } from '@/utils/keyHelpers';
@@ -54,10 +53,6 @@ export default function SettingsScreen() {
   const { mnemonic, nsec } = useKey();
   const [refreshing, setRefreshing] = useState(false);
   const [isCurrencyModalVisible, setIsCurrencyModalVisible] = useState(false);
-  const [walletUrl, setWalletUrl] = useState('');
-
-  // Unified wallet status
-  const { hasLightningWallet, isLightningConnected } = useWalletStatus();
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -71,32 +66,9 @@ export default function SettingsScreen() {
   const buttonDangerTextColor = useThemeColor({}, 'buttonDangerText');
   const statusConnectedColor = useThemeColor({}, 'statusConnected');
 
-  // Get event-driven NWC connection status
-  const { nwcConnectionStatus, nwcConnectionError, nwcConnecting } = nostrService;
-
-  // Subscribe to wallet URL changes for display purposes
-  useEffect(() => {
-    const loadWalletUrl = async () => {
-      try {
-        const url = await getWalletUrl();
-        setWalletUrl(url);
-      } catch (error) {
-        console.error('Error loading wallet URL:', error);
-      }
-    };
-
-    loadWalletUrl();
-
-    const subscription = walletUrlEvents.addListener('walletUrlChanged', async newUrl => {
-      setWalletUrl(newUrl || '');
-    });
-
-    return () => subscription.remove();
-  }, []);
-
   const handleWalletCardPress = () => {
     router.push({
-      pathname: '/wallet',
+      pathname: '/walletSettings',
       params: {
         source: 'settings',
       },
@@ -175,17 +147,6 @@ export default function SettingsScreen() {
 
   const currencies = Object.values(Currency).filter(currency => currency !== Currency.MSATS);
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    try {
-      // Refresh wallet info
-      await nostrService.refreshWalletInfo();
-    } catch (error) {
-      console.error('Error refreshing wallet info:', error);
-    }
-    setRefreshing(false);
-  };
-
   const handleClearAppData = () => {
     Alert.alert(
       'Reset App',
@@ -219,7 +180,7 @@ export default function SettingsScreen() {
                 try {
                   router.replace('/onboarding');
                   showToast('Reset completed with errors - please check app state', 'error');
-                } catch (navError) {
+                } catch {
                   Alert.alert(
                     'Reset Error',
                     'Failed to reset app completely. Please restart the app manually.',
@@ -233,17 +194,6 @@ export default function SettingsScreen() {
       ]
     );
   };
-
-  function getWalletStatusText() {
-    if (!walletUrl || !walletUrl.trim()) return 'Not configured';
-    if (nwcConnectionStatus === true) return 'Connected';
-    if (nwcConnectionStatus === false) {
-      return nwcConnectionError ? `Error: ${nwcConnectionError}` : 'Disconnected';
-    }
-    if (nwcConnecting) return 'Connecting...';
-    if (nwcConnectionStatus === null && hasLightningWallet) return 'Connecting...';
-    return 'Not configured';
-  }
 
   const renderCurrencyItem = ({ item }: { item: Currency }) => (
     <TouchableOpacity
@@ -291,16 +241,6 @@ export default function SettingsScreen() {
         <ScrollView
           style={styles.content}
           contentContainerStyle={styles.contentContainer}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[buttonPrimaryColor]}
-              tintColor={buttonPrimaryColor}
-              title="Pull to refresh connection"
-              titleColor={primaryTextColor}
-            />
-          }
         >
           {/* Wallet Section */}
           <ThemedView style={styles.section}>
@@ -321,22 +261,12 @@ export default function SettingsScreen() {
                       </View>
                       <View style={styles.cardText}>
                         <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
-                          Wallet Connect
+                          Wallet Configuration
                         </ThemedText>
                         <View style={styles.cardStatusRow}>
                           <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
-                            {getWalletStatusText()}
+                            Manage your wallet configurations
                           </ThemedText>
-                          <View
-                            style={[
-                              styles.statusIndicator,
-                              {
-                                backgroundColor: isLightningConnected
-                                  ? statusConnectedColor
-                                  : secondaryTextColor,
-                              },
-                            ]}
-                          />
                         </View>
                       </View>
                     </View>

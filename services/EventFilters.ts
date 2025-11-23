@@ -6,9 +6,7 @@ import {
   RecurringPaymentResponseContent,
   SinglePaymentRequest,
   PaymentStatus,
-  Nwc,
   parseCalendar,
-  PortalAppInterface,
   parseBolt11,
   Currency_Tags,
 } from 'portal-app-lib';
@@ -17,6 +15,7 @@ import { DatabaseService, fromUnixSeconds, SubscriptionWithDates } from './Datab
 import { CurrencyConversionService } from './CurrencyConversionService';
 import { globalEvents } from '@/utils/common';
 import { Currency, CurrencyHelpers } from '@/utils/currency';
+import { Wallet } from '@/models/WalletType';
 
 /**
  * Sends a local notification for payment-related events with human-readable formatting
@@ -76,7 +75,7 @@ export async function handleAuthChallenge(
 }
 
 export async function handleSinglePaymentRequest(
-  wallet: Nwc | null,
+  wallet: Wallet | null,
   request: SinglePaymentRequest,
   preferredCurrency: Currency,
   executeOperation: <T>(operation: (db: DatabaseService) => Promise<T>, fallback?: T) => Promise<T>,
@@ -299,7 +298,41 @@ export async function handleSinglePaymentRequest(
           reason: 'Payment is not due yet. Please wait till the next payment is scheduled.',
         })
       );
-      console.warn(`🚫 Payment rejected! The request arrived too soon.\nNext occurrence is: ${fromUnixSeconds(nextOccurrence!)}\nBut today is: ${new Date()}`);
+      return false;
+    }
+
+    let balance: bigint | undefined;
+
+    if (wallet) {
+      const walletInfo = await wallet.getWalletInfo();
+      balance = walletInfo.balanceInSats;
+    }
+    if (balance && amount > balance) {
+      executeOperation(
+        db =>
+          db.addActivity({
+            type: 'pay',
+            service_key: request.serviceKey,
+            service_name: subscriptionServiceName,
+            detail: 'Recurrent payment failed: insufficient wallet balance.',
+            date: new Date(),
+            amount: amount,
+            currency: currency,
+            converted_amount: convertedAmount,
+            converted_currency: convertedCurrency,
+            request_id: request.eventId,
+            status: 'negative',
+            subscription_id: request.content.subscriptionId || null,
+          }),
+        null
+      );
+
+      resolve(
+        new PaymentStatus.Rejected({
+          reason: 'Recurrent payment failed: insufficient wallet balance.',
+        })
+      );
+
       return false;
     }
 
@@ -334,9 +367,9 @@ export async function handleSinglePaymentRequest(
         null
       );
 
-      // make the payment with nwc
       try {
-        const preimage = await wallet.payInvoice(request.content.invoice);
+        // const preimage = await wallet.payInvoice(request.content.invoice);
+        const preimage = await wallet.sendPayment(request.content.invoice, BigInt(amount));
         console.log("🧾 Invoice paid!");
 
         // Send notification to user about successful payment
@@ -344,7 +377,7 @@ export async function handleSinglePaymentRequest(
           'Payment Successful',
           convertedAmount,
           convertedCurrency,
-          subscriptionServiceName,
+          subscriptionServiceName
         );
 
         // Update the subscription last payment date

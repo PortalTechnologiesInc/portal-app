@@ -25,7 +25,7 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
   const nostrService = useNostrService();
   const { addWallet } = useECash();
   const { isOnboardingComplete } = useOnboarding();
-  const { executeOperation, executeOnNostr } = useDatabaseContext()
+  const { executeOperation, executeOnNostr } = useDatabaseContext();
 
   // Handle deeplink URLs
   const handleDeepLink = useCallback(
@@ -54,7 +54,7 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
               const wallet = await addWallet(tokenInfo.mintUrl, tokenInfo.unit);
               await wallet.receiveToken(token);
 
-              await executeOnNostr(async (db) => {
+              await executeOnNostr(async db => {
                 let mintsList = await db.readMints();
 
                 // Convert to Set to prevent duplicates, then back to array
@@ -145,7 +145,7 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     (async () => {
       if (!isOnboardingComplete) return;
-      
+
       try {
         const initialUrl = await Linking.getInitialURL();
         if (initialUrl) {
@@ -155,7 +155,7 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
         console.error('Failed to get initial URL:', e);
       }
     })();
-  }, [isOnboardingComplete])
+  }, [isOnboardingComplete]);
 
   // Provide context value
   const contextValue: DeeplinkContextType = {
