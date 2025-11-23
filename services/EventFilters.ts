@@ -83,7 +83,6 @@ export async function handleSinglePaymentRequest(
       typeof request.content.amount === 'bigint'
         ? Number(request.content.amount)
         : request.content.amount;
-
     // Extract currency symbol from the Currency object
     let currency: string | null = null;
     const currencyObj = request.content.currency;
@@ -147,14 +146,13 @@ export async function handleSinglePaymentRequest(
       return false;
     }
 
-    let balance: number | undefined;
+    let balance: bigint | undefined;
 
     if (wallet) {
-      await wallet.getInfo();
-      balance = Number(await wallet.getBalance());
+      const walletInfo = await wallet.getWalletInfo();
+      balance = walletInfo.balanceInSats;
     }
-
-    if (balance && request.content.amount > balance) {
+    if (balance && amount > balance) {
       executeOperation(
         db =>
           db.addActivity({
@@ -211,10 +209,11 @@ export async function handleSinglePaymentRequest(
         null
       );
 
-      // make the payment with nwc
       try {
-        const preimage = await wallet.payInvoice(request.content.invoice);
+        console.log('Sending payment for invoice:', request.content.invoice);
+        const preimage = await wallet.sendPayment(request.content.invoice, BigInt(amount));
 
+        console.log('Payment successful, preimage:', preimage);
         await executeOperation(
           db => db.addPaymentStatusEntry(request.content.invoice, 'payment_completed'),
           null

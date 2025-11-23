@@ -506,7 +506,7 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
       .catch(e => {
         console.error('Error listening for recurring payments closing.', e);
       });
-  }, [executeOperation, executeOnNostr]);
+  }, [executeOperation, executeOnNostr, activeWallet]);
 
   const dismissPendingRequest = useCallback((id: string) => {
     setPendingRequests(prev => {
