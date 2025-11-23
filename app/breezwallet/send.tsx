@@ -13,6 +13,11 @@ import { SkeletonPulse } from '@/components/PendingRequestSkeletonCard';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { showToast } from '@/utils/Toast';
 
+interface NostrNip05Response {
+  names: Record<string, string>;
+  relays?: Record<string, string[]>;
+}
+
 export default function BreezWalletSelectSendMethod() {
   const router = useRouter();
 
@@ -31,6 +36,22 @@ export default function BreezWalletSelectSendMethod() {
   const [contacts, setContacts] = useState<Nip05Contact[] | null>(null);
   const [filteredContacts, setFilteredContacts] = useState<Nip05Contact[]>([]);
   const [activeFilter, setActiveFilter] = useState('');
+
+  const downloadContacts = useCallback(async() => {
+    try {
+      const response = await fetch('https://getportal.cc/.well-known/nostr.json');
+      const remoteContacts = await response.json() as NostrNip05Response;
+  
+      console.log(Object.keys(remoteContacts.names))
+
+    } catch(error) {
+      console.log(error);
+    }
+  }, []);
+
+  useEffect(() => {
+    downloadContacts();
+  }, [downloadContacts])
 
   const getContacts = useCallback(async () => {
     const savedContacts = await executeOperation(db => db.getNip05Contacts());
@@ -69,8 +90,10 @@ export default function BreezWalletSelectSendMethod() {
       },
     ];
 
-    setContacts(testContacts);
-    setFilteredContacts(testContacts);
+    // setContacts(testContacts);
+    setContacts(savedContacts);
+    // setFilteredContacts(testContacts);
+    setFilteredContacts(savedContacts);
   }, [executeOperation]);
 
   useEffect(() => {
