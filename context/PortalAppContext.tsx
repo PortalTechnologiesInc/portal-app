@@ -32,6 +32,8 @@ import { useDatabaseContext } from './DatabaseContext';
 import { useWalletManager } from './WalletManagerContext';
 import { useECash } from './ECashContext';
 import { useCurrency } from './CurrencyContext';
+import { globalEvents } from '@/utils/common';
+import { AppState } from 'react-native';
 
 class LocalCashuDirectListener implements CashuDirectListener {
   private callback: (event: CashuDirectContentWithKey) => Promise<void>;
@@ -128,384 +130,354 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
   const initializeApp = useCallback(() => {
     const app = PortalAppManager.tryGetInstance();
 
-    app
-      .listenCashuDirect(
-        new LocalCashuDirectListener(async (event: CashuDirectContentWithKey) => {
-          console.log('Cashu direct token received', event);
+    // listener to receive tokens
+        app
+          .listenCashuDirect(
+            new LocalCashuDirectListener(async (event: CashuDirectContentWithKey) => {
 
-          try {
-            // Auto-process the Cashu token (receiving tokens)
-            const token = event.inner.token;
+              try {
+                // Auto-process the Cashu token (receiving tokens)
+                const token = event.inner.token;
 
-            // Check if we've already processed this token
-            const tokenInfo = await parseCashuToken(token);
+                // Check if we've already processed this token
+                const tokenInfo = await parseCashuToken(token);
 
-            // Use database service to handle connection errors
-            const isProcessed = await executeOperation(
-              db =>
-                db.markCashuTokenAsProcessed(
-                  token,
+                // Use database service to handle connection errors
+                const isProcessed = await executeOperation(
+                  db =>
+                    db.markCashuTokenAsProcessed(
+                      token,
+                      tokenInfo.mintUrl,
+                      tokenInfo.unit,
+                      tokenInfo.amount ? Number(tokenInfo.amount) : 0
+                    ),
+                  false
+                );
+
+                if (isProcessed === true) {
+                  return;
+                } else if (isProcessed === null) {
+                  console.warn(
+                    'Failed to check token processing status due to database issues, proceeding cautiously'
+                  );
+                  // Continue processing but log a warning
+                }
+
+                const wallet = await eCashContext.addWallet(
                   tokenInfo.mintUrl,
-                  tokenInfo.unit,
-                  tokenInfo.amount ? Number(tokenInfo.amount) : 0
-                ),
-              false
-            );
+                  tokenInfo.unit.toLowerCase()
+                );
+                await wallet.receiveToken(token);
 
-            if (isProcessed === true) {
-              console.log('Cashu token already processed, skipping');
-              return;
-            } else if (isProcessed === null) {
-              console.warn(
-                'Failed to check token processing status due to database issues, proceeding cautiously'
-              );
-              // Continue processing but log a warning
-            }
+                await executeOnNostr(async (db) => {
+                  let mintsList = await db.readMints();
 
-            const wallet = await eCashContext.addWallet(
-              tokenInfo.mintUrl,
-              tokenInfo.unit.toLowerCase()
-            );
-            await wallet.receiveToken(token);
+                  // Convert to Set to prevent duplicates, then back to array
+                  const mintsSet = new Set([tokenInfo.mintUrl, ...mintsList]);
+                  mintsList = Array.from(mintsSet);
 
-            await executeOnNostr(async db => {
-              let mintsList = await db.readMints();
+                  db.storeMints(mintsList);
+                });
 
-              // Convert to Set to prevent duplicates, then back to array
-              const mintsSet = new Set([tokenInfo.mintUrl, ...mintsList]);
-              mintsList = Array.from(mintsSet);
+                console.log('Cashu token processed successfully');
 
-              db.storeMints(mintsList);
-            });
+                // Emit event to notify that wallet balances have changed
+                globalEvents.emit('walletBalancesChanged', {
+                  mintUrl: tokenInfo.mintUrl,
+                  unit: tokenInfo.unit.toLowerCase(),
+                });
+                console.log('walletBalancesChanged event emitted');
 
-            console.log('Cashu token processed successfully');
+                // Record activity for token receipt
+                try {
+                  // For Cashu direct, use mint URL as service identifier
+                  const serviceKey = tokenInfo.mintUrl;
+                  const unitInfo = await wallet.getUnitInfo();
+                  const ticketTitle = unitInfo?.title || wallet.unit();
 
-            // Emit event to notify that wallet balances have changed
-            const { globalEvents } = await import('@/utils/index');
-            globalEvents.emit('walletBalancesChanged', {
-              mintUrl: tokenInfo.mintUrl,
-              unit: tokenInfo.unit.toLowerCase(),
-            });
-            console.log('walletBalancesChanged event emitted');
+                  // Add activity to database using ActivitiesContext directly
+                  const activity = {
+                    type: 'ticket_received' as const,
+                    service_key: serviceKey,
+                    service_name: ticketTitle, // Always use ticket title
+                    detail: ticketTitle, // Always use ticket title
+                    date: new Date(),
+                    amount: Number(tokenInfo.amount),
+                    currency: null,
+                    request_id: `cashu-direct-${Date.now()}`,
+                    subscription_id: null,
+                    status: 'neutral' as 'neutral',
+                    converted_amount: null,
+                    converted_currency: null,
+                  };
 
-            // Record activity for token receipt
-            try {
-              // For Cashu direct, use mint URL as service identifier
-              const serviceKey = tokenInfo.mintUrl;
-              const unitInfo = await wallet.getUnitInfo();
-              const ticketTitle = unitInfo?.title || wallet.unit();
+                  // Use database service for activity recording
+                  const activityId = await executeOperation(db => db.addActivity(activity), null);
 
-              // Add activity to database using ActivitiesContext directly
-              const activity = {
-                type: 'ticket_received' as const,
-                service_key: serviceKey,
-                service_name: ticketTitle, // Always use ticket title
-                detail: ticketTitle, // Always use ticket title
-                date: new Date(),
-                amount: Number(tokenInfo.amount),
-                currency: null,
-                request_id: `cashu-direct-${Date.now()}`,
-                subscription_id: null,
-                status: 'neutral' as const,
-                converted_amount: null,
-                converted_currency: null,
-              };
-
-              // Use database service for activity recording
-              const activityId = await executeOperation(db => db.addActivity(activity), null);
-
-              if (activityId) {
-                console.log('Activity added to database with ID:', activityId);
-                // Emit event for UI updates
-                globalEvents.emit('activityAdded', activity);
-                console.log('activityAdded event emitted');
-                console.log('Cashu direct activity recorded successfully');
-                // Provide lightweight user feedback
-                const amountStr = tokenInfo.amount ? ` x${Number(tokenInfo.amount)}` : '';
-                showToast(`Ticket received: ${ticketTitle}${amountStr}`, 'success');
-              } else {
-                console.warn('Failed to record Cashu token activity due to database issues');
-              }
-            } catch (activityError) {
-              console.error('Error recording Cashu direct activity:', activityError);
-            }
-          } catch (error: any) {
-            console.error('Error processing Cashu token:', error.inner);
-          }
-
-          // Return void for direct processing
-          return;
-        })
-      )
-      .catch(e => {
-        console.error('Error listening for Cashu direct', e);
-        handleErrorWithToastAndReinit(
-          'Failed to listen for Cashu direct. Retrying...',
-          initializeApp
-        );
-      });
-
-    // listener to burn tokens
-    app.listenCashuRequests(
-      new LocalCashuRequestListener(async (event: CashuRequestContentWithKey) => {
-        // Use event-based ID for deduplication instead of random generation
-        const eventId = `${event.inner.mintUrl}-${event.inner.unit}-${event.inner.amount}-${event.mainKey}`;
-        const id = `cashu-request-${eventId}`;
-
-        console.log(`Cashu request with id ${id} received`, event);
-
-        // Early deduplication check before processing
-        const existingRequest = pendingRequests[id];
-        if (existingRequest) {
-          console.log(`Duplicate Cashu request ${id} detected, ignoring duplicate event`);
-          // Return a promise that will resolve when the original request is resolved
-          return new Promise<CashuResponseStatus>(resolve => {
-            // Store the resolve function so it gets called when the original request completes
-            const originalResolve = existingRequest.result;
-            existingRequest.result = (status: CashuResponseStatus) => {
-              resolve(status);
-              if (originalResolve) originalResolve(status);
-            };
-          });
-        }
-
-        // Declare wallet in outer scope
-        let wallet;
-        // Check if we have the required unit before creating pending request
-        try {
-          const requiredMintUrl = event.inner.mintUrl;
-          const requiredUnit = event.inner.unit.toLowerCase(); // Normalize unit name
-          const requiredAmount = event.inner.amount;
-
-          console.log(
-            `Checking if we have unit: ${requiredUnit} from mint: ${requiredMintUrl} with amount: ${requiredAmount}`
-          );
-          console.log(`Available wallets:`, Object.keys(eCashContext.wallets));
-          console.log(`Looking for wallet key: ${requiredMintUrl}-${requiredUnit}`);
-
-          // Check if we have a wallet for this mint and unit
-          wallet = await eCashContext.getWallet(requiredMintUrl, requiredUnit);
-          console.log(`Wallet found in ECashContext:`, !!wallet);
-
-          // If wallet not found in ECashContext, try to create it
-          if (!wallet) {
-            console.log(`Wallet not found in ECashContext, trying to create it...`);
-            try {
-              wallet = await eCashContext.addWallet(requiredMintUrl, requiredUnit);
-              console.log(`Successfully created wallet for ${requiredMintUrl}-${requiredUnit}`);
-            } catch (error) {
-              console.error(`Error creating wallet for ${requiredMintUrl}-${requiredUnit}:`, error);
-            }
-          }
-
-          if (!wallet) {
-            console.log(
-              `No wallet found for mint: ${requiredMintUrl}, unit: ${requiredUnit} - auto-rejecting`
-            );
-            return new CashuResponseStatus.InsufficientFunds();
-          }
-
-          // Check if we have sufficient balance
-          const balance = await wallet.getBalance();
-          if (balance < requiredAmount) {
-            console.log(`Insufficient balance: ${balance} < ${requiredAmount} - auto-rejecting`);
-            return new CashuResponseStatus.InsufficientFunds();
-          }
-
-          console.log(
-            `Wallet found with sufficient balance: ${balance} >= ${requiredAmount} - creating pending request`
-          );
-        } catch (error) {
-          console.error('Error checking wallet availability:', error);
-          return new CashuResponseStatus.InsufficientFunds();
-        }
-
-        // Get the ticket title for pending requests
-        let ticketTitle = 'Unknown Ticket';
-        if (wallet) {
-          let unitInfo;
-          try {
-            unitInfo = wallet.getUnitInfo ? await wallet.getUnitInfo() : undefined;
-          } catch {
-            unitInfo = undefined;
-          }
-          ticketTitle = unitInfo?.title || wallet.unit();
-        }
-        return new Promise<CashuResponseStatus>(resolve => {
-          const newRequest: PendingRequest = {
-            id,
-            metadata: event,
-            timestamp: new Date(),
-            type: 'ticket',
-            result: resolve,
-            ticketTitle, // Set the ticket name for UI
-          };
-          setPendingRequests(prev => {
-            // Check if request already exists to prevent duplicates
-            if (prev[id]) {
-              console.log(`Request ${id} already exists, skipping duplicate`);
-              return prev;
-            }
-            const newPendingRequests = { ...prev };
-            newPendingRequests[id] = newRequest;
-            console.log('Updated pending requests map:', newPendingRequests);
-            return newPendingRequests;
-          });
-        });
-      })
-    );
-
-    /**
-     * these logic go inside the new listeners that will be implemented
-     */
-    // end
-
-    app
-      .listenForAuthChallenge(
-        new LocalAuthChallengeListener((event: AuthChallengeEvent) => {
-          const id = event.eventId;
-
-          console.log(`Auth challenge with id ${id} received`, event);
-
-          return new Promise<AuthResponseStatus>(resolve => {
-            handleAuthChallenge(event, executeOperation, resolve).then(askUser => {
-              if (askUser) {
-                const newRequest: PendingRequest = {
-                  id,
-                  metadata: event,
-                  timestamp: new Date(),
-                  type: 'login',
-                  result: resolve,
-                };
-
-                setPendingRequests(prev => {
-                  // Check if request already exists to prevent duplicates
-                  if (prev[id]) {
-                    console.log(`Request ${id} already exists, skipping duplicate`);
-                    return prev;
+                  if (activityId) {
+                    // Emit event for UI updates
+                    globalEvents.emit('activityAdded', activity);
+                    // Provide lightweight user feedback
+                    const amountStr = tokenInfo.amount ? ` x${Number(tokenInfo.amount)}` : '';
+                    showToast(`Ticket received: ${ticketTitle}${amountStr}`, 'success');
+                  } else {
+                    console.warn('Failed to record Cashu token activity due to database issues');
                   }
-                  const newPendingRequests = { ...prev };
-                  newPendingRequests[id] = newRequest;
-                  console.log('Updated pending requests map:', newPendingRequests);
-                  return newPendingRequests;
+                } catch (activityError) {
+                  console.error('Error recording Cashu direct activity:', activityError);
+                }
+              } catch (error: any) {
+                console.error('Error processing Cashu token:', error.inner);
+              }
+
+              // Return void for direct processing
+              return;
+            })
+          )
+          .catch(e => {
+            console.error('Error listening for Cashu direct', e);
+            handleErrorWithToastAndReinit(
+              'Failed to listen for Cashu direct. Retrying...',
+              initializeApp
+            );
+          });
+
+        // listener to burn tokens
+        app.listenCashuRequests(
+          new LocalCashuRequestListener(async (event: CashuRequestContentWithKey) => {
+            // Use event-based ID for deduplication instead of random generation
+            const eventId = `${event.inner.mintUrl}-${event.inner.unit}-${event.inner.amount}-${event.mainKey}`;
+            const id = `cashu-request-${eventId}`;
+
+            // Early deduplication check before processing
+            const existingRequest = pendingRequests[id];
+            if (existingRequest) {
+              // Return a promise that will resolve when the original request is resolved
+              return new Promise<CashuResponseStatus>(resolve => {
+                // Store the resolve function so it gets called when the original request completes
+                const originalResolve = existingRequest.result;
+                existingRequest.result = (status: CashuResponseStatus) => {
+                  resolve(status);
+                  if (originalResolve) originalResolve(status);
+                };
+              });
+            }
+
+            // Declare wallet in outer scope
+            let wallet;
+            // Check if we have the required unit before creating pending request
+            try {
+              const requiredMintUrl = event.inner.mintUrl;
+              const requiredUnit = event.inner.unit.toLowerCase(); // Normalize unit name
+              const requiredAmount = event.inner.amount;
+
+              // Check if we have a wallet for this mint and unit
+              wallet = await eCashContext.getWallet(requiredMintUrl, requiredUnit);
+
+              // If wallet not found in ECashContext, try to create it
+              if (!wallet) {
+                try {
+                  wallet = await eCashContext.addWallet(requiredMintUrl, requiredUnit);
+                } catch (error) {
+                  console.error(
+                    `Error creating wallet for ${requiredMintUrl}-${requiredUnit}:`,
+                    error
+                  );
+                }
+              }
+
+              if (!wallet) {
+                return new CashuResponseStatus.InsufficientFunds();
+              }
+
+              // Check if we have sufficient balance
+              const balance = await wallet.getBalance();
+              if (balance < requiredAmount) {
+                return new CashuResponseStatus.InsufficientFunds();
+              }
+            } catch (error) {
+              console.error('Error checking wallet availability:', error);
+              return new CashuResponseStatus.InsufficientFunds();
+            }
+
+            // Get the ticket title for pending requests
+            let ticketTitle = 'Unknown Ticket';
+            if (wallet) {
+              let unitInfo;
+              try {
+                unitInfo = wallet.getUnitInfo ? await wallet.getUnitInfo() : undefined;
+              } catch (e) {
+                unitInfo = undefined;
+              }
+              ticketTitle = unitInfo?.title || wallet.unit();
+            }
+            return new Promise<CashuResponseStatus>(resolve => {
+              const newRequest: PendingRequest = {
+                id,
+                metadata: event,
+                timestamp: new Date(),
+                type: 'ticket',
+                result: resolve,
+                ticketTitle, // Set the ticket name for UI
+              };
+              setPendingRequests(prev => {
+                // Check if request already exists to prevent duplicates
+                if (prev[id]) {
+                  return prev;
+                }
+                return { ...prev, [id]: newRequest };
+              });
+            });
+          })
+        );
+
+        /**
+         * these logic go inside the new listeners that will be implemented
+         */
+        // end
+
+        app
+          .listenForAuthChallenge(
+            new LocalAuthChallengeListener((event: AuthChallengeEvent) => {
+              const id = event.eventId;
+
+              void executeOperation(db => db.markNotificationEventProcessed(id), false);
+
+              return new Promise<AuthResponseStatus>(resolve => {
+                handleAuthChallenge(event, executeOperation, resolve).then(askUser => {
+                  if (askUser) {
+                    const newRequest: PendingRequest = {
+                      id,
+                      metadata: event,
+                      timestamp: new Date(),
+                      type: 'login',
+                      result: resolve,
+                    };
+
+                    setPendingRequests(prev => {
+                      // Check if request already exists to prevent duplicates
+                      if (prev[id]) {
+                        return prev;
+                      }
+                      return { ...prev, [id]: newRequest };
+                    });
+                  }
+                });
+              });
+            })
+          )
+          .catch(e => {
+            console.error('Error listening for auth challenge', e);
+            handleErrorWithToastAndReinit(
+              'Failed to listen for authentication challenge. Retrying...',
+              initializeApp
+            );
+          });
+
+        app
+          .listenForPaymentRequest(
+            new LocalPaymentRequestListener(
+              async (event: SinglePaymentRequest, notifier: PaymentStatusNotifier) => {
+                const id = event.eventId;
+
+                const alreadyTracked = await executeOperation(db => db.markNotificationEventProcessed(id), false);
+
+                return new Promise<void>(resolve => {
+                  // Immediately resolve the promise, we use the notifier to notify the payment status
+                  resolve();
+
+                  const resolver = async (status: PaymentStatus) => {
+                    await notifier.notify({
+                      status,
+                      requestId: event.content.requestId,
+                    });
+                  };
+
+                  handleSinglePaymentRequest(
+                    activeWallet ?? null,
+                    event,
+                    preferredCurrency,
+                    executeOperation,
+                    resolver,
+                    (AppState.currentState !== 'active' && !alreadyTracked)
+                  ).then(askUser => {
+                    if (askUser) {
+                      const newRequest: PendingRequest = {
+                        id,
+                        metadata: event,
+                        timestamp: new Date(),
+                        type: 'payment',
+                        result: resolver,
+                      };
+
+                      setPendingRequests(prev => {
+                        // Check if request already exists to prevent duplicates
+                        if (prev[id]) {
+                          console.log(`Request ${id} already exists, skipping duplicate`);
+                          return prev;
+                        }
+                        const newPendingRequests = { ...prev };
+                        newPendingRequests[id] = newRequest;
+                        return newPendingRequests;
+                      });
+                    }
+                  });
+                });
+              },
+              (event: RecurringPaymentRequest) => {
+                const id = event.eventId;
+
+                void executeOperation(db => db.markNotificationEventProcessed(id), false);
+
+                return new Promise<RecurringPaymentResponseContent>(resolve => {
+                  handleRecurringPaymentRequest(event, executeOperation, resolve).then(askUser => {
+                    if (askUser) {
+                      const newRequest: PendingRequest = {
+                        id,
+                        metadata: event,
+                        timestamp: new Date(),
+                        type: 'subscription',
+                        result: resolve,
+                      };
+
+                      setPendingRequests(prev => {
+                        // Check if request already exists to prevent duplicates
+                        if (prev[id]) {
+                          console.log(`Request ${id} already exists, skipping duplicate`);
+                          return prev;
+                        }
+                        const newPendingRequests = { ...prev };
+                        newPendingRequests[id] = newRequest;
+                        return newPendingRequests;
+                      });
+                    }
+                  });
                 });
               }
-            });
+            )
+          )
+          .catch(e => {
+            console.error('Error listening for payment request', e);
+            handleErrorWithToastAndReinit(
+              'Failed to listen for payment request. Retrying...',
+              initializeApp
+            );
           });
-        })
-      )
-      .catch(e => {
-        console.error('Error listening for auth challenge', e);
-        handleErrorWithToastAndReinit(
-          'Failed to listen for authentication challenge. Retrying...',
-          initializeApp
-        );
-      });
 
-    app
-      .listenForPaymentRequest(
-        new LocalPaymentRequestListener(
-          (event: SinglePaymentRequest, notifier: PaymentStatusNotifier) => {
-            const id = event.eventId;
-
-            console.log(`Single payment request with id ${id} received`, event);
-
-            return new Promise<void>(resolve => {
-              // Immediately resolve the promise, we use the notifier to notify the payment status
-              resolve();
-
-              const resolver = async (status: PaymentStatus) => {
-                await notifier.notify({
-                  status,
-                  requestId: event.content.requestId,
-                });
-              };
-
-              handleSinglePaymentRequest(
-                activeWallet ?? null,
-                event,
-                preferredCurrency,
-                executeOperation,
-                resolver,
-                getServiceName,
-                app
-              ).then(askUser => {
-                if (askUser) {
-                  const newRequest: PendingRequest = {
-                    id,
-                    metadata: event,
-                    timestamp: new Date(),
-                    type: 'payment',
-                    result: resolver,
-                  };
-
-                  setPendingRequests(prev => {
-                    // Check if request already exists to prevent duplicates
-                    if (prev[id]) {
-                      console.log(`Request ${id} already exists, skipping duplicate`);
-                      return prev;
-                    }
-                    const newPendingRequests = { ...prev };
-                    newPendingRequests[id] = newRequest;
-                    return newPendingRequests;
-                  });
-                }
+        // Listen for closed recurring payments
+        app
+          .listenClosedRecurringPayment(
+            new LocalClosedRecurringPaymentListener((event: CloseRecurringPaymentResponse) => {
+              console.log('Closed subscription received', event);
+              return new Promise<void>(resolve => {
+                handleCloseRecurringPaymentResponse(event, executeOperation, resolve);
               });
-            });
-          },
-          (event: RecurringPaymentRequest) => {
-            const id = event.eventId;
-
-            console.log(`Recurring payment request with id ${id} received`, event);
-
-            return new Promise<RecurringPaymentResponseContent>(resolve => {
-              handleRecurringPaymentRequest(event, executeOperation, resolve).then(askUser => {
-                if (askUser) {
-                  const newRequest: PendingRequest = {
-                    id,
-                    metadata: event,
-                    timestamp: new Date(),
-                    type: 'subscription',
-                    result: resolve,
-                  };
-
-                  setPendingRequests(prev => {
-                    // Check if request already exists to prevent duplicates
-                    if (prev[id]) {
-                      console.log(`Request ${id} already exists, skipping duplicate`);
-                      return prev;
-                    }
-                    const newPendingRequests = { ...prev };
-                    newPendingRequests[id] = newRequest;
-                    return newPendingRequests;
-                  });
-                }
-              });
-            });
-          }
-        )
-      )
-      .catch(e => {
-        console.error('Error listening for payment request', e);
-        handleErrorWithToastAndReinit(
-          'Failed to listen for payment request. Retrying...',
-          initializeApp
-        );
-      });
-
-    // Listen for closed recurring payments
-    app
-      .listenClosedRecurringPayment(
-        new LocalClosedRecurringPaymentListener((event: CloseRecurringPaymentResponse) => {
-          console.log('Closed subscription received', event);
-          return new Promise<void>(resolve => {
-            handleCloseRecurringPaymentResponse(event, executeOperation, resolve);
+            })
+          )
+          .catch(e => {
+            console.error('Error listening for recurring payments closing.', e);
           });
-        })
-      )
-      .catch(e => {
-        console.error('Error listening for recurring payments closing.', e);
-      });
+    
   }, [executeOperation, executeOnNostr, activeWallet]);
 
   const dismissPendingRequest = useCallback((id: string) => {
