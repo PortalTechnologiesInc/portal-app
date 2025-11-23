@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { useMnemonic } from './MnemonicContext';
 import {
   Wallet,
   WalletType,
@@ -11,7 +10,8 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BreezService } from '@/services/BreezService';
 import { NwcService } from '@/services/NwcService';
-import { WalletInfo } from '@/utils';
+import { WalletInfo } from '@/utils/types';
+import { useKey } from './KeyContext';
 
 export interface WalletManagerContextType {
   activeWallet?: Wallet;
@@ -37,7 +37,7 @@ const PREFERRED_WALLET_KEY = 'preferred_wallet';
 export const WalletManagerContextProvider: React.FC<WalletManagerContextProviderProps> = ({
   children,
 }) => {
-  const { mnemonic, walletUrl } = useMnemonic();
+  const { mnemonic, walletUrl } = useKey();
 
   const [activeWallet, setActiveWallet] = useState<Wallet | undefined>(undefined);
   const [walletInfo, setWalletInfo] = useState<WalletInfo | undefined>(undefined);

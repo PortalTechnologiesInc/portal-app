@@ -6,12 +6,10 @@ import { ThemedText } from '@/components/ThemedText';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Star, StarOff, Wallet, Zap } from 'lucide-react-native';
-// import { useWalletStatus } from '@/hooks/useWalletStatus';
 import { WALLET_CONNECTION_STATUS, WALLET_TYPE, WalletType } from '@/models/WalletType';
 import { useWalletManager } from '@/context/WalletManagerContext';
-// import { useMnemonic } from '@/context/MnemonicContext';
 import { useECash } from '@/context/ECashContext';
-import { useMnemonic } from '@/context/MnemonicContext';
+import { useKey } from '@/context/KeyContext';
 
 export default function WalletSettings() {
   const router = useRouter();
@@ -23,7 +21,7 @@ export default function WalletSettings() {
   const buttonPrimaryColor = useThemeColor({}, 'buttonPrimary');
 
   const { switchActiveWallet, preferredWallet, walletStatus } = useWalletManager();
-  const { walletUrl } = useMnemonic();
+  const { walletUrl } = useKey();
 
   const statusConnectedColor = useThemeColor({}, 'statusConnected');
   const statusConnectingColor = useThemeColor({}, 'statusConnecting');

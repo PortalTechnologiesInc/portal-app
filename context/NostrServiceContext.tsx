@@ -2,7 +2,6 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { AppState } from 'react-native';
 import {
   KeyHandshakeUrl,
-  Mnemonic,
   Profile,
   PortalAppInterface,
   RelayStatusListener,
@@ -235,7 +234,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     if (isInitialized && PortalAppManager.tryGetInstance()) {
       return;
     }
-
 
     // Skip initialization if no key material is available (e.g., during onboarding)
     if (!hasKey({ mnemonic, nsec })) {
