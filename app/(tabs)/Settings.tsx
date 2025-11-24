@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   TouchableOpacity,
@@ -42,7 +42,7 @@ import { useWalletStatus } from '@/hooks/useWalletStatus';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import { useKey } from '@/context/KeyContext';
 import { getNsecStringFromKey } from '@/utils/keyHelpers';
-import { useAppLock } from '@/context/AppLockContext';
+import { useAppLock, useOnAppLock } from '@/context/AppLockContext';
 import { LockTimerDuration, PIN_MIN_LENGTH, PIN_MAX_LENGTH } from '@/services/AppLockService';
 import { PINSetupScreen } from '@/components/PINSetupScreen';
 import { PINKeypad } from '@/components/PINKeypad';
@@ -154,19 +154,28 @@ export default function SettingsScreen() {
     router.push('/recoverTickets');
   };
 
-  const resetPinVerificationConfig = () => {
+  const resetPinVerificationConfig = useCallback(() => {
     setPinVerificationConfig({
       title: 'Verify PIN',
       instructions: 'Enter your PIN',
       onSuccess: null,
     });
-  };
+  }, []);
 
-  const closePinVerification = () => {
+  const closePinVerification = useCallback(() => {
     setIsPINVerifyVisible(false);
     setPinError(false);
     resetPinVerificationConfig();
-  };
+  }, [resetPinVerificationConfig]);
+
+  const handleLockEngaged = useCallback(() => {
+    setIsCurrencyModalVisible(false);
+    setIsTimerModalVisible(false);
+    setIsPINSetupVisible(false);
+    closePinVerification();
+  }, [closePinVerification]);
+
+  useOnAppLock(handleLockEngaged);
 
   const showPinVerification = (config: PinVerificationConfig) => {
     setPinError(false);

@@ -1,14 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, Modal, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from './ThemedText';
-import { ThemedView } from './ThemedView';
 import { PINKeypad } from './PINKeypad';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useAppLock } from '@/context/AppLockContext';
 import { authenticateAsync } from '@/services/BiometricAuthService';
 import { PIN_MIN_LENGTH, PIN_MAX_LENGTH } from '@/services/AppLockService';
-import { Fingerprint, Shield } from 'lucide-react-native';
+import { Fingerprint } from 'lucide-react-native';
 
 export function AppLockScreen() {
   const {
@@ -23,6 +22,8 @@ export function AppLockScreen() {
   const [pinError, setPinError] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [isKeypadLocked, setIsKeypadLocked] = useState(false);
+  const [biometricError, setBiometricError] = useState<string | null>(null);
+  const [autoTriggerRequest, setAutoTriggerRequest] = useState(0);
   const hasAutoTriggeredRef = React.useRef(false);
   const errorResetTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -36,15 +37,27 @@ export function AppLockScreen() {
     if (isAuthenticating) return;
 
     setIsAuthenticating(true);
+    setBiometricError(null);
     try {
       const result = await authenticateAsync('Unlock Portal to continue');
       if (result.success) {
         unlockApp();
         setPinError(false);
+        setBiometricError(null);
+      } else {
+        const message = result.error || 'Biometric authentication failed. Enter your PIN to continue.';
+        setBiometricError(message);
+        if (!message.toLowerCase().includes('cancel')) {
+          hasAutoTriggeredRef.current = false;
+          setAutoTriggerRequest(prev => prev + 1);
+        }
       }
       // If user cancels, just reset authenticating state - don't retry
     } catch (error) {
       console.error('Biometric authentication error:', error);
+      setBiometricError('Biometric authentication error. Please use your PIN.');
+      hasAutoTriggeredRef.current = false;
+      setAutoTriggerRequest(prev => prev + 1);
     } finally {
       setIsAuthenticating(false);
     }
@@ -54,6 +67,9 @@ export function AppLockScreen() {
   useEffect(() => {
     if (!isLocked) {
       hasAutoTriggeredRef.current = false;
+      setBiometricError(null);
+      setIsKeypadLocked(false);
+      setAutoTriggerRequest(0);
     }
   }, [isLocked]);
 
@@ -77,11 +93,19 @@ export function AppLockScreen() {
     ) {
       hasAutoTriggeredRef.current = true;
       // Small delay to ensure modal is fully rendered
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         handleBiometricAuth();
       }, 100);
+      return () => clearTimeout(timeoutId);
     }
-  }, [isLocked, authMethod, isAuthenticating, isFingerprintSupported, handleBiometricAuth]);
+  }, [
+    isLocked,
+    authMethod,
+    isAuthenticating,
+    isFingerprintSupported,
+    handleBiometricAuth,
+    autoTriggerRequest,
+  ]);
 
   const handlePINComplete = async (pin: string) => {
     if (isAuthenticating || isKeypadLocked) return;
@@ -124,115 +148,112 @@ export function AppLockScreen() {
     }
   };
 
-  const shouldTint = !isInitialized || isLocked;
+  const shouldTint = isLocked;
 
-  let modalContent: React.ReactNode = null;
-
-  if (!isInitialized) {
-    modalContent = (
-      <Modal visible animationType="fade" transparent={false}>
-        <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top', 'bottom']}>
-          <View style={styles.content}>
-            <ThemedText style={{ color: primaryTextColor }}>Preparing security...</ThemedText>
-          </View>
-        </SafeAreaView>
-      </Modal>
-    );
-  } else if (isLocked) {
-    // Determine UI based on fingerprint support
-    const showBiometric = isFingerprintSupported && authMethod === 'biometric';
-    const showPIN = hasPIN || !isFingerprintSupported || authMethod === 'pin';
-
-    modalContent = (
-      <Modal visible animationType="fade" transparent={false}>
-        <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top', 'bottom']}>
-          <View style={styles.content}>
-            {/* Icon and Title */}
-            <View style={styles.header}>
-              {/* <View style={[styles.iconContainer, { backgroundColor: buttonPrimaryColor + '20' }]}>
-                {showBiometric ? (
-                  <Fingerprint size={48} color={buttonPrimaryColor} />
-                ) : (
-                  <Shield size={48} color={buttonPrimaryColor} />
-                )}
-              </View> */}
-              <ThemedText style={[styles.title, { color: primaryTextColor }]}>App Locked</ThemedText>
-              <ThemedText style={[styles.subtitle, { color: secondaryTextColor }]}>
-                {showBiometric && showPIN
-                  ? 'Use biometric or enter your PIN to unlock'
-                  : showBiometric
-                    ? 'Use your fingerprint or face to unlock'
-                    : showPIN
-                      ? 'Enter your PIN to unlock'
-                      : 'Authentication required'}
-              </ThemedText>
-            </View>
-
-            {/* Biometric Button - Always visible when biometric is available */}
-            {showBiometric && (
-              <View style={styles.biometricContainer}>
-                <TouchableOpacity
-                  style={[
-                    styles.biometricButton,
-                    {
-                      backgroundColor: isAuthenticating ? secondaryTextColor : buttonPrimaryColor,
-                      opacity: isAuthenticating ? 0.6 : 1,
-                    },
-                  ]}
-                  onPress={handleBiometricAuth}
-                  activeOpacity={0.7}
-                  disabled={isAuthenticating}
-                >
-                  <Fingerprint size={24} color={primaryTextColor} />
-                  <ThemedText style={[styles.biometricButtonText, { color: primaryTextColor }]}>
-                    {isAuthenticating ? 'Authenticating...' : 'Unlock with Biometric'}
-                  </ThemedText>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* PIN Keypad */}
-            {showPIN && (
-              <View style={styles.pinContainer}>
-                {pinError && (
-                  <View style={styles.errorWrapper} pointerEvents="none">
-                    <ThemedText style={[styles.errorText, { color: errorColor }]}>
-                      Incorrect PIN. Please try again.
-                    </ThemedText>
-                  </View>
-                )}
-                <PINKeypad
-                  onPINComplete={handlePINComplete}
-                  minLength={PIN_MIN_LENGTH}
-                  maxLength={PIN_MAX_LENGTH}
-                  showDots={true}
-                  error={pinError}
-                  onError={() => setPinError(false)}
-                  disabled={isKeypadLocked || isAuthenticating}
-                />
-              </View>
-            )}
-          </View>
-        </SafeAreaView>
-      </Modal>
-    );
-  }
-
-  if (!shouldTint && !modalContent) {
+  // Don't show overlay during initialization or when not locked - let app render normally
+  if (!isInitialized || !isLocked) {
     return null;
   }
 
+  const renderContent = () => {
+    const showBiometric = isFingerprintSupported && authMethod === 'biometric';
+    const showPIN = hasPIN || !isFingerprintSupported || authMethod === 'pin';
+
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top', 'bottom']}>
+        <View style={styles.content}>
+          <View style={styles.header}>
+            <ThemedText style={[styles.title, { color: primaryTextColor }]}>App Locked</ThemedText>
+            <ThemedText style={[styles.subtitle, { color: secondaryTextColor }]}>
+              {showBiometric && showPIN
+                ? 'Use biometric or enter your PIN to unlock'
+                : showBiometric
+                  ? 'Use your fingerprint or face to unlock'
+                  : showPIN
+                    ? 'Enter your PIN to unlock'
+                    : 'Authentication required'}
+            </ThemedText>
+          </View>
+
+          {showBiometric && (
+            <View style={styles.biometricContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.biometricButton,
+                  {
+                    backgroundColor: isAuthenticating ? secondaryTextColor : buttonPrimaryColor,
+                    opacity: isAuthenticating ? 0.6 : 1,
+                  },
+                ]}
+                onPress={handleBiometricAuth}
+                activeOpacity={0.7}
+                disabled={isAuthenticating}
+              >
+                <Fingerprint size={24} color={primaryTextColor} />
+                <ThemedText style={[styles.biometricButtonText, { color: primaryTextColor }]}>
+                  {isAuthenticating ? 'Authenticating...' : 'Unlock with Biometric'}
+                </ThemedText>
+              </TouchableOpacity>
+              {biometricError && (
+                <ThemedText style={[styles.biometricHint, { color: errorColor }]}>
+                  {biometricError}
+                </ThemedText>
+              )}
+            </View>
+          )}
+
+          {showPIN && (
+            <View style={styles.pinContainer}>
+              {pinError && (
+                <View style={styles.errorWrapper} pointerEvents="none">
+                  <ThemedText style={[styles.errorText, { color: errorColor }]}>
+                    Incorrect PIN. Please try again.
+                  </ThemedText>
+                </View>
+              )}
+              <PINKeypad
+                onPINComplete={handlePINComplete}
+                minLength={PIN_MIN_LENGTH}
+                maxLength={PIN_MAX_LENGTH}
+                showDots={true}
+                error={pinError}
+                onError={() => setPinError(false)}
+                disabled={isKeypadLocked || isAuthenticating}
+              />
+            </View>
+          )}
+        </View>
+      </SafeAreaView>
+    );
+  };
+
   return (
-    <>
+    <View
+      style={styles.overlayContainer}
+      pointerEvents="auto"
+    >
       {shouldTint && (
         <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, styles.tintOverlay]} />
       )}
-      {modalContent}
-    </>
+      <View pointerEvents="box-none" style={styles.overlayContent}>
+        {renderContent()}
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  overlayContainer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 9999,
+    elevation: 9999,
+  },
+  overlayContent: {
+    ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
+    zIndex: 1,
+  },
   container: {
     flex: 1,
   },
@@ -281,6 +302,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  biometricHint: {
+    marginTop: 12,
+    textAlign: 'center',
+  },
   pinContainer: {
     width: '100%',
     alignItems: 'center',
@@ -305,7 +330,6 @@ const styles = StyleSheet.create({
   },
   tintOverlay: {
     backgroundColor: 'rgba(0, 0, 0, 0.95)',
-    zIndex: 9999,
   },
 });
 

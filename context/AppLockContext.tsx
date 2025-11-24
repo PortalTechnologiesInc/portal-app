@@ -1,4 +1,12 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+  useCallback,
+  useRef,
+} from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { AppLockService, AuthMethod, LockTimerDuration, TIMER_OPTIONS } from '@/services/AppLockService';
 import { authenticateAsync, isBiometricPromptInProgress } from '@/services/BiometricAuthService';
@@ -255,5 +263,22 @@ export function useAppLock() {
     throw new Error('useAppLock must be used within an AppLockProvider');
   }
   return context;
+}
+
+export function useOnAppLock(callback: () => void) {
+  const { isLocked } = useAppLock();
+  const callbackRef = useRef(callback);
+  const wasLockedRef = useRef(isLocked);
+
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
+
+  useEffect(() => {
+    if (!wasLockedRef.current && isLocked) {
+      callbackRef.current();
+    }
+    wasLockedRef.current = isLocked;
+  }, [isLocked]);
 }
 
