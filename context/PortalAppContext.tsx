@@ -35,7 +35,7 @@ import { useCurrency } from './CurrencyContext';
 import { globalEvents } from '@/utils/common';
 import { AppState } from 'react-native';
 
-class LocalCashuDirectListener implements CashuDirectListener {
+export class LocalCashuDirectListener implements CashuDirectListener {
   private callback: (event: CashuDirectContentWithKey) => Promise<void>;
 
   constructor(callback: (event: CashuDirectContentWithKey) => Promise<void>) {
@@ -47,7 +47,7 @@ class LocalCashuDirectListener implements CashuDirectListener {
   }
 }
 
-class LocalCashuRequestListener implements CashuRequestListener {
+export class LocalCashuRequestListener implements CashuRequestListener {
   private callback: (event: CashuRequestContentWithKey) => Promise<CashuResponseStatus>;
 
   constructor(callback: (event: CashuRequestContentWithKey) => Promise<CashuResponseStatus>) {
@@ -59,7 +59,7 @@ class LocalCashuRequestListener implements CashuRequestListener {
   }
 }
 
-class LocalAuthChallengeListener implements AuthChallengeListener {
+export class LocalAuthChallengeListener implements AuthChallengeListener {
   private callback: (event: AuthChallengeEvent) => Promise<AuthResponseStatus>;
 
   constructor(callback: (event: AuthChallengeEvent) => Promise<AuthResponseStatus>) {
@@ -71,7 +71,7 @@ class LocalAuthChallengeListener implements AuthChallengeListener {
   }
 }
 
-class LocalPaymentRequestListener implements PaymentRequestListener {
+export class LocalPaymentRequestListener implements PaymentRequestListener {
   private singleCb: (event: SinglePaymentRequest, notifier: PaymentStatusNotifier) => Promise<void>;
   private recurringCb: (event: RecurringPaymentRequest) => Promise<RecurringPaymentResponseContent>;
 
@@ -97,7 +97,7 @@ class LocalPaymentRequestListener implements PaymentRequestListener {
   }
 }
 
-class LocalClosedRecurringPaymentListener implements ClosedRecurringPaymentListener {
+export class LocalClosedRecurringPaymentListener implements ClosedRecurringPaymentListener {
   private callback: (event: CloseRecurringPaymentResponse) => Promise<void>;
 
   constructor(callback: (event: CloseRecurringPaymentResponse) => Promise<void>) {

@@ -15,7 +15,7 @@ import {
   LogEntry,
 } from '@breeztech/breez-sdk-spark-react-native';
 import { Wallet, WALLET_CONNECTION_STATUS, WalletConnectionStatus } from '@/models/WalletType';
-import { WalletInfo } from '@/utils';
+import { WalletInfo } from '@/utils/types';
 
 export class BreezService implements Wallet {
   private client!: BreezSdkInterface;

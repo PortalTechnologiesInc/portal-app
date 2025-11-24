@@ -4,16 +4,39 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { getMnemonic, getWalletUrl } from './SecureStorageService';
-import { AuthChallengeEvent, AuthResponseStatus, CloseRecurringPaymentResponse, Currency_Tags, Mnemonic, Nwc, PaymentResponseContent, PaymentStatus, PaymentStatusNotifier, PortalApp, PortalAppInterface, RecurringPaymentRequest, RecurringPaymentResponseContent, RecurringPaymentStatus, RelayStatusListener, RelayStatusListenerImpl, SinglePaymentRequest } from 'portal-app-lib';
+import {
+  AuthChallengeEvent,
+  AuthResponseStatus,
+  CloseRecurringPaymentResponse,
+  Currency_Tags,
+  Mnemonic,
+  Nwc,
+  PaymentStatus,
+  PaymentStatusNotifier,
+  PortalApp,
+  RecurringPaymentRequest,
+  RecurringPaymentResponseContent,
+  RelayStatusListener,
+  SinglePaymentRequest,
+} from 'portal-app-lib';
 import { openDatabaseAsync } from 'expo-sqlite';
 import { DatabaseService } from './DatabaseService';
 import { PortalAppManager } from './PortalAppManager';
-import { LocalAuthChallengeListener, LocalClosedRecurringPaymentListener, LocalPaymentRequestListener } from '@/context/NostrServiceContext';
-import { handleAuthChallenge, handleCloseRecurringPaymentResponse, handleRecurringPaymentRequest, handleSinglePaymentRequest } from './EventFilters';
-import { mapNumericStatusToString, getServiceNameFromProfile } from '@/utils/nostrHelper';
+import {
+  handleAuthChallenge,
+  handleCloseRecurringPaymentResponse,
+  handleRecurringPaymentRequest,
+  handleSinglePaymentRequest,
+} from './EventFilters';
+import { mapNumericStatusToString } from '@/utils/nostrHelper';
 import { RelayInfo } from '@/utils/common';
 import { Currency, CurrencyHelpers } from '@/utils/currency';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  LocalAuthChallengeListener,
+  LocalClosedRecurringPaymentListener,
+  LocalPaymentRequestListener,
+} from '@/context/PortalAppContext';
 
 const EXPO_PUSH_TOKEN_KEY = 'expo_push_token_key';
 
@@ -108,7 +131,7 @@ export default async function registerPubkeysForPushNotificationsAsync(pubkeys: 
   }
 }
 
-export async function handleHeadlessNotification(event: String, databaseName: string) {
+export async function handleHeadlessNotification(event: string, databaseName: string) {
   try {
     const abortController = new AbortController();
     let mnemonic = await getMnemonic();
@@ -145,7 +168,7 @@ export async function handleHeadlessNotification(event: String, databaseName: st
       }
     };
 
-    let executeOperationForNotification = async <T,>(
+    let executeOperationForNotification = async <T>(
       operation: (db: DatabaseService) => Promise<T>,
       fallback?: T
     ): Promise<T> => {
@@ -163,9 +186,11 @@ export async function handleHeadlessNotification(event: String, databaseName: st
     };
 
     // Get relays using the executeOperationForNotification helper
-    const notificationRelays = ["wss://relay.getportal.cc"];
+    const notificationRelays = ['wss://relay.getportal.cc'];
 
-    let relayListener = await executeOperationForNotification(async (db) => new NotificationRelayStatusListener(db));
+    let relayListener = await executeOperationForNotification(
+      async db => new NotificationRelayStatusListener(db)
+    );
 
     let nwcWallet: Nwc | null = null;
     try {
@@ -174,7 +199,13 @@ export async function handleHeadlessNotification(event: String, databaseName: st
         const nwcRelayListener: RelayStatusListener = {
           onRelayStatusChange: async (relay_url: string, status: number): Promise<void> => {
             const statusString = mapNumericStatusToString(status);
-            console.log('💰 [NWC STATUS UPDATE] Relay:', relay_url, '→', statusString, `(${status})`);
+            console.log(
+              '💰 [NWC STATUS UPDATE] Relay:',
+              relay_url,
+              '→',
+              statusString,
+              `(${status})`
+            );
           },
         };
 
@@ -193,100 +224,110 @@ export async function handleHeadlessNotification(event: String, databaseName: st
     app.listen({ signal: abortController.signal });
 
     // Listen for closed recurring payments
-    app.listenClosedRecurringPayment(new LocalClosedRecurringPaymentListener(
-      async (response: CloseRecurringPaymentResponse) => {
-        console.log('Closed subscription received', response);
-        const resolver = async () => { /* NOOP */ };
-        await handleCloseRecurringPaymentResponse(response, executeOperationForNotification, resolver);
-        abortController.abort();
-      }
-    )).catch(async e => {
-      await notifyBackgroundError('Recurring payment listener error', e);
-    });
-
-    app.listenForPaymentRequest(
-      new LocalPaymentRequestListener(
-        async (request: SinglePaymentRequest, notifier: PaymentStatusNotifier) => {
-          const id = request.eventId;
-
-          const alreadyTracked = await executeOperationForNotification(
-            db => db.markNotificationEventProcessed(id),
-            false
-          );
-          if (alreadyTracked) {
-            return;
-          }
-
-          console.log(`Single payment request with id ${id} received`, request);
-
-          const resolver = async (status: PaymentStatus) => {
-            await notifier.notify({
-              status,
-              requestId: request.content.requestId,
-            });
+    app
+      .listenClosedRecurringPayment(
+        new LocalClosedRecurringPaymentListener(async (response: CloseRecurringPaymentResponse) => {
+          console.log('Closed subscription received', response);
+          const resolver = async () => {
+            /* NOOP */
           };
-
-          let preferredCurrency: Currency = Currency.SATS;
-          const savedCurrency = await AsyncStorage.getItem('preferred_currency');
-          if (savedCurrency && CurrencyHelpers.isValidCurrency(savedCurrency)) {
-            preferredCurrency = savedCurrency;
-          }
-
-          await handleSinglePaymentRequest(
-            nwcWallet,
-            request,
-            preferredCurrency,
+          await handleCloseRecurringPaymentResponse(
+            response,
             executeOperationForNotification,
-            resolver,
-            true
+            resolver
           );
-
           abortController.abort();
-        },
-        async (request: RecurringPaymentRequest): Promise<RecurringPaymentResponseContent> => {
-          const id = request.eventId;
+        })
+      )
+      .catch(async e => {
+        await notifyBackgroundError('Recurring payment listener error', e);
+      });
 
-          const alreadyTracked = await executeOperationForNotification(
-            db => db.markNotificationEventProcessed(id),
-            false
-          );
-          if (alreadyTracked) {
+    app
+      .listenForPaymentRequest(
+        new LocalPaymentRequestListener(
+          async (request: SinglePaymentRequest, notifier: PaymentStatusNotifier) => {
+            const id = request.eventId;
+
+            const alreadyTracked = await executeOperationForNotification(
+              db => db.markNotificationEventProcessed(id),
+              false
+            );
+            if (alreadyTracked) {
+              return;
+            }
+
+            console.log(`Single payment request with id ${id} received`, request);
+
+            const resolver = async (status: PaymentStatus) => {
+              await notifier.notify({
+                status,
+                requestId: request.content.requestId,
+              });
+            };
+
+            let preferredCurrency: Currency = Currency.SATS;
+            const savedCurrency = await AsyncStorage.getItem('preferred_currency');
+            if (savedCurrency && CurrencyHelpers.isValidCurrency(savedCurrency)) {
+              preferredCurrency = savedCurrency;
+            }
+
+            await handleSinglePaymentRequest(
+              nwcWallet,
+              request,
+              preferredCurrency,
+              executeOperationForNotification,
+              resolver,
+              true
+            );
+
+            abortController.abort();
+          },
+          async (request: RecurringPaymentRequest): Promise<RecurringPaymentResponseContent> => {
+            const id = request.eventId;
+
+            const alreadyTracked = await executeOperationForNotification(
+              db => db.markNotificationEventProcessed(id),
+              false
+            );
+            if (alreadyTracked) {
+              return new Promise<RecurringPaymentResponseContent>(resolve => {
+                // Ignore
+              });
+            }
+
+            console.log(`Recurring payment request with id ${id} received`, request);
+
             return new Promise<RecurringPaymentResponseContent>(resolve => {
-              // Ignore
+              handleRecurringPaymentRequest(request, executeOperationForNotification, resolve)
+                .then(askUser => {
+                  if (askUser) {
+                    // Show notification to user for manual approval
+                    Notifications.scheduleNotificationAsync({
+                      content: {
+                        title: 'Subscription Request',
+                        body: `Subscription request for ${request.content.amount} ${request.content.currency.tag === Currency_Tags.Fiat && request.content.currency.inner} to ${request.recipient} requires approval`,
+                        data: {
+                          type: 'payment_request',
+                          requestId: id,
+                          amount: request.content.amount,
+                        },
+                      },
+                      trigger: null, // Show immediately
+                    });
+                  }
+                })
+                .finally(() => {
+                  abortController.abort();
+                });
             });
           }
-
-          console.log(`Recurring payment request with id ${id} received`, request);
-
-          return new Promise<RecurringPaymentResponseContent>(resolve => {
-            handleRecurringPaymentRequest(request, executeOperationForNotification, resolve)
-              .then(askUser => {
-                if (askUser) {
-                  // Show notification to user for manual approval
-                  Notifications.scheduleNotificationAsync({
-                    content: {
-                      title: 'Subscription Request',
-                      body: `Subscription request for ${request.content.amount} ${request.content.currency.tag === Currency_Tags.Fiat && request.content.currency.inner} to ${request.recipient} requires approval`,
-                      data: {
-                        type: 'payment_request',
-                        requestId: id,
-                        amount: request.content.amount,
-                      },
-                    },
-                    trigger: null, // Show immediately
-                  });
-                }
-              })
-              .finally(() => {
-                abortController.abort();
-              });
-          });
-        }
+        )
       )
-    ).catch(async (e: any) => {
-      await notifyBackgroundError('Payment request listener error', e);
-      // TODO: re-initialize the app
-    });
+      .catch(async (e: any) => {
+        await notifyBackgroundError('Payment request listener error', e);
+        // TODO: re-initialize the app
+      });
 
     app
       .listenForAuthChallenge(
@@ -368,7 +409,6 @@ class NotificationRelayStatusListener implements RelayStatusListener {
     this.removedRelays.delete(relayUrl);
   }
   onRelayStatusChange(relay_url: string, status: number): Promise<void> {
-
     return this.db.getRelays().then(relays => {
       const statusString = mapNumericStatusToString(status);
 

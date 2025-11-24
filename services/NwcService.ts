@@ -1,28 +1,7 @@
 import { Wallet, WALLET_CONNECTION_STATUS, WalletConnectionStatus } from '@/models/WalletType';
-import { RelayConnectionStatus, WalletInfo } from '@/utils';
+import { mapNumericStatusToString } from '@/utils/nostrHelper';
+import { RelayConnectionStatus, WalletInfo } from '@/utils/types';
 import { GetInfoResponse, Nwc, RelayStatusListener } from 'portal-app-lib';
-
-function mapNumericStatusToString(numericStatus: number): RelayConnectionStatus {
-  switch (numericStatus) {
-    case 0:
-      return 'Initialized';
-    case 1:
-      return 'Pending';
-    case 2:
-      return 'Connecting';
-    case 3:
-      return 'Connected';
-    case 4:
-      return 'Disconnected';
-    case 5:
-      return 'Terminated';
-    case 6:
-      return 'Banned';
-    default:
-      console.warn(`🔍 NostrService: Unknown numeric RelayStatus: ${numericStatus}`);
-      return 'Unknown';
-  }
-}
 
 export class NwcService implements Wallet {
   private client!: Nwc;

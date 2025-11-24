@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react';
 import { useWalletManager } from '@/context/WalletManagerContext';
 import { WALLET_TYPE } from '@/models/WalletType';
 import { BreezService } from '@/services/BreezService';
-import { WalletInfo } from '@/utils';
+import { WalletInfo } from '@/utils/types';
 
 export default function MyWalletManagementSecret() {
   const router = useRouter();

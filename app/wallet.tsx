@@ -496,7 +496,6 @@ export default function WalletManagementScreen() {
                     </View>
                   </>
                 )}
-
               </View>
             )}
           </View>
