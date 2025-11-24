@@ -1,5 +1,12 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Modal, TouchableOpacity, ScrollView } from 'react-native';
+import {
+  StyleSheet,
+  View,
+  Modal,
+  TouchableOpacity,
+  ScrollView,
+  useWindowDimensions,
+} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from './ThemedText';
 import { PINKeypad } from './PINKeypad';
@@ -24,6 +31,7 @@ export function PINSetupScreen({
   enterMessage,
   confirmMessage,
 }: PINSetupScreenProps) {
+  const { height } = useWindowDimensions();
   const [step, setStep] = useState<'enter' | 'confirm'>('enter');
   const [enteredPIN, setEnteredPIN] = useState('');
   const [confirmPIN, setConfirmPIN] = useState('');
@@ -79,6 +87,7 @@ export function PINSetupScreen({
   const keypadMinLength = isConfirmStep ? confirmLength : PIN_MIN_LENGTH;
   const keypadMaxLength = PIN_MAX_LENGTH;
   const keypadAutoSubmit = false;
+  const isSmallScreen = height < 700;
 
   return (
     <Modal visible={visible} animationType="fade" transparent={false}>
@@ -90,7 +99,7 @@ export function PINSetupScreen({
         </View>
 
         <ScrollView
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, isSmallScreen && styles.contentCompact]}
           bounces={false}
           showsVerticalScrollIndicator={false}
         >
@@ -153,12 +162,16 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
     paddingTop: 0,
   },
+  contentCompact: {
+    justifyContent: 'flex-start',
+    paddingTop: 24,
+  },
   header: {
     alignItems: 'center',
     marginBottom: 15,
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 12,
     textAlign: 'center',

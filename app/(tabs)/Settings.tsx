@@ -274,8 +274,7 @@ export default function SettingsScreen() {
 
     setThemeMode(nextTheme);
     showToast(
-      `Theme changed to ${
-        nextTheme === 'auto' ? 'Auto (System)' : nextTheme === 'light' ? 'Light' : 'Dark'
+      `Theme changed to ${nextTheme === 'auto' ? 'Auto (System)' : nextTheme === 'light' ? 'Light' : 'Dark'
       }`,
       'success'
     );
@@ -391,7 +390,7 @@ export default function SettingsScreen() {
     }
 
     showPinVerification({
-      title: 'Verify PIN to Disable',
+      title: ' Disable',
       instructions: 'Enter your PIN to disable it',
       onSuccess: async () => {
         await clearPIN();
@@ -793,46 +792,52 @@ export default function SettingsScreen() {
             </TouchableOpacity>
           )}
 
-          <View
-            style={[
-              styles.card,
-              { backgroundColor: cardBackgroundColor },
-              !isFingerprintSupported && styles.cardDisabled,
-            ]}
-          >
-            <View style={styles.cardContent}>
-              <View style={styles.cardLeft}>
-                <View style={styles.cardHeader}>
-                  <View style={[styles.iconContainer]}>
-                    <Fingerprint size={20} color={buttonPrimaryColor} />
+          {isFingerprintSupported && (
+            <>
+              <View
+                style={[
+                  styles.card,
+                  { backgroundColor: cardBackgroundColor },
+                  !isFingerprintSupported && styles.cardDisabled,
+                ]}
+              >
+                <View style={styles.cardContent}>
+                  <View style={styles.cardLeft}>
+                    <View style={styles.cardHeader}>
+                      <View style={[styles.iconContainer]}>
+                        <Fingerprint size={20} color={buttonPrimaryColor} />
+                      </View>
+                      <View style={styles.cardText}>
+                        <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
+                          Use {biometricLabel}
+                        </ThemedText>
+                        {isFingerprintSupported &&
+                          <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
+                            {isFingerprintSupported
+                              ? isBiometricPreferred
+                                ? `${biometricLabel} enabled`
+                                : `${biometricLabel} disabled`
+                              : `${biometricLabel} not available`}
+                          </ThemedText>
+                        }
+                      </View>
+                    </View>
                   </View>
-                  <View style={styles.cardText}>
-                    <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
-                      Use {biometricLabel}
-                    </ThemedText>
-                    <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
-                      {isFingerprintSupported
-                        ? isBiometricPreferred
-                          ? `${biometricLabel} enabled`
-                          : `${biometricLabel} disabled`
-                        : `${biometricLabel} not available`}
-                    </ThemedText>
-                  </View>
+                  <Switch
+                    value={isBiometricPreferred}
+                    onValueChange={handleBiometricToggle}
+                    trackColor={{
+                      false: inputBorderColor,
+                      true: buttonPrimaryColor,
+                    }}
+                    thumbColor={isBiometricPreferred ? buttonPrimaryTextColor : '#ffffff'}
+                    ios_backgroundColor={inputBorderColor}
+                  />
                 </View>
+
               </View>
-              <Switch
-                value={isBiometricPreferred}
-                onValueChange={handleBiometricToggle}
-                disabled={!isFingerprintSupported}
-                trackColor={{
-                  false: inputBorderColor,
-                  true: buttonPrimaryColor,
-                }}
-                thumbColor={isBiometricPreferred ? buttonPrimaryTextColor : '#ffffff'}
-                ios_backgroundColor={inputBorderColor}
-              />
-            </View>
-          </View>
+            </>
+          )}
 
           <View style={[styles.appLockOption, { backgroundColor: cardBackgroundColor }]}>
             <View style={styles.appLockLeft}>

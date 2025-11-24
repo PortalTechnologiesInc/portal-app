@@ -18,6 +18,7 @@ interface PINKeypadProps {
   showSkipButton?: boolean;
   onSkipPress?: () => void;
   skipLabel?: string;
+  disabled?: boolean;
 }
 
 export function PINKeypad({
@@ -33,6 +34,7 @@ export function PINKeypad({
   showSkipButton = false,
   onSkipPress,
   skipLabel = 'Skip',
+  disabled = false,
 }: PINKeypadProps) {
   const [pin, setPin] = useState('');
 
@@ -49,6 +51,7 @@ export function PINKeypad({
   const canSubmit = pin.length >= Math.max(normalizedMinLength, 4);
 
   const handleNumberPress = (number: string) => {
+    if (disabled) return;
     if (pin.length < maxLength) {
       const newPin = pin + number;
       setPin(newPin);
@@ -59,12 +62,14 @@ export function PINKeypad({
   };
 
   const handleDelete = () => {
+    if (disabled) return;
     if (pin.length > 0) {
       setPin(pin.slice(0, -1));
     }
   };
 
   const handleSubmit = () => {
+    if (disabled) return;
     if (canSubmit) {
       onPINComplete(pin);
     }
@@ -112,7 +117,7 @@ export function PINKeypad({
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, disabled && styles.disabled]}>
       <View style={styles.dotsRow}>
         <View style={styles.dotsSpacer} />
         {renderDots()}
@@ -121,11 +126,11 @@ export function PINKeypad({
             styles.deleteButton,
             {
               backgroundColor: cardBackgroundColor,
-              opacity: pin.length === 0 ? 0.5 : 1,
+              opacity: disabled ? 0.4 : pin.length === 0 ? 0.5 : 1,
             },
           ]}
           onPress={handleDelete}
-          disabled={pin.length === 0}
+          disabled={pin.length === 0 || disabled}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <Delete size={22} color={pin.length > 0 ? primaryTextColor : secondaryTextColor} />
@@ -133,15 +138,19 @@ export function PINKeypad({
       </View>
 
       {/* Keypad */}
-      <View style={styles.keypad}>
+      <View style={[styles.keypad, disabled && styles.disabled]}>
         {/* Row 1: 1, 2, 3 */}
         <View style={styles.keypadRow}>
           {['1', '2', '3'].map(num => (
             <TouchableOpacity
               key={num}
-              style={[styles.keypadButton, { backgroundColor: cardBackgroundColor }]}
+              style={[
+                styles.keypadButton,
+                { backgroundColor: cardBackgroundColor, opacity: disabled ? 0.4 : 1 },
+              ]}
               onPress={() => handleNumberPress(num)}
               activeOpacity={0.7}
+              disabled={disabled}
             >
               <ThemedText style={[styles.keypadButtonText, { color: primaryTextColor }]}>
                 {num}
@@ -155,9 +164,13 @@ export function PINKeypad({
           {['4', '5', '6'].map(num => (
             <TouchableOpacity
               key={num}
-              style={[styles.keypadButton, { backgroundColor: cardBackgroundColor }]}
+              style={[
+                styles.keypadButton,
+                { backgroundColor: cardBackgroundColor, opacity: disabled ? 0.4 : 1 },
+              ]}
               onPress={() => handleNumberPress(num)}
               activeOpacity={0.7}
+              disabled={disabled}
             >
               <ThemedText style={[styles.keypadButtonText, { color: primaryTextColor }]}>
                 {num}
@@ -171,9 +184,13 @@ export function PINKeypad({
           {['7', '8', '9'].map(num => (
             <TouchableOpacity
               key={num}
-              style={[styles.keypadButton, { backgroundColor: cardBackgroundColor }]}
+              style={[
+                styles.keypadButton,
+                { backgroundColor: cardBackgroundColor, opacity: disabled ? 0.4 : 1 },
+              ]}
               onPress={() => handleNumberPress(num)}
               activeOpacity={0.7}
+              disabled={disabled}
             >
               <ThemedText style={[styles.keypadButtonText, { color: primaryTextColor }]}>
                 {num}
@@ -186,10 +203,13 @@ export function PINKeypad({
         <View style={styles.keypadRow}>
           {showSkipButton ? (
             <TouchableOpacity
-              style={[styles.keypadButton, { backgroundColor: surfaceSecondary }]}
-              onPress={onSkipPress}
+              style={[
+                styles.keypadButton,
+                { backgroundColor: surfaceSecondary, opacity: disabled ? 0.4 : 1 },
+              ]}
+              onPress={disabled ? undefined : onSkipPress}
               activeOpacity={0.7}
-              disabled={!onSkipPress}
+              disabled={!onSkipPress || disabled}
             >
               <ThemedText style={[styles.skipButtonText, { color: primaryTextColor }]}>
                 {skipLabel}
@@ -199,9 +219,13 @@ export function PINKeypad({
             <View style={styles.keypadButton} />
           )}
           <TouchableOpacity
-            style={[styles.keypadButton, { backgroundColor: cardBackgroundColor }]}
+            style={[
+              styles.keypadButton,
+              { backgroundColor: cardBackgroundColor, opacity: disabled ? 0.4 : 1 },
+            ]}
             onPress={() => handleNumberPress('0')}
             activeOpacity={0.7}
+            disabled={disabled}
           >
             <ThemedText style={[styles.keypadButtonText, { color: primaryTextColor }]}>0</ThemedText>
           </TouchableOpacity>
@@ -211,12 +235,12 @@ export function PINKeypad({
                 styles.keypadButton,
                 {
                   backgroundColor: canSubmit ? buttonPrimaryColor : inputBorderColor,
-                  opacity: canSubmit ? 1 : 0.6,
+                  opacity: disabled ? 0.4 : canSubmit ? 1 : 0.6,
                 },
               ]}
               onPress={handleSubmit}
               activeOpacity={0.7}
-              disabled={!canSubmit}
+              disabled={!canSubmit || disabled}
             >
               <ThemedText
                 style={[
@@ -240,6 +264,9 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
     alignItems: 'center',
+  },
+  disabled: {
+    opacity: 0.5,
   },
   dotsRow: {
     width: '100%',

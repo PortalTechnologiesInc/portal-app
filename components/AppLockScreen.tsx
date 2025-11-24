@@ -22,7 +22,9 @@ export function AppLockScreen() {
   } = useAppLock();
   const [pinError, setPinError] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [isKeypadLocked, setIsKeypadLocked] = useState(false);
   const hasAutoTriggeredRef = React.useRef(false);
+  const errorResetTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const backgroundColor = useThemeColor({}, 'background');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
@@ -55,6 +57,15 @@ export function AppLockScreen() {
     }
   }, [isLocked]);
 
+  React.useEffect(() => {
+    return () => {
+      if (errorResetTimeoutRef.current) {
+        clearTimeout(errorResetTimeoutRef.current);
+        errorResetTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
   // Auto-trigger biometric authentication on first lock (only if fingerprint supported)
   useEffect(() => {
     if (
@@ -73,9 +84,10 @@ export function AppLockScreen() {
   }, [isLocked, authMethod, isAuthenticating, isFingerprintSupported, handleBiometricAuth]);
 
   const handlePINComplete = async (pin: string) => {
-    if (isAuthenticating) return;
+    if (isAuthenticating || isKeypadLocked) return;
 
     setIsAuthenticating(true);
+    setIsKeypadLocked(true);
     setPinError(false);
 
     try {
@@ -83,14 +95,30 @@ export function AppLockScreen() {
       if (isValid) {
         unlockApp();
         setPinError(false);
+        setIsKeypadLocked(false);
       } else {
         setPinError(true);
         // Clear error after a delay
-        setTimeout(() => setPinError(false), 2000);
+        if (errorResetTimeoutRef.current) {
+          clearTimeout(errorResetTimeoutRef.current);
+        }
+        errorResetTimeoutRef.current = setTimeout(() => {
+          setPinError(false);
+          setIsKeypadLocked(false);
+          errorResetTimeoutRef.current = null;
+        }, 2000);
       }
     } catch (error) {
       console.error('PIN verification error:', error);
       setPinError(true);
+      if (errorResetTimeoutRef.current) {
+        clearTimeout(errorResetTimeoutRef.current);
+      }
+      errorResetTimeoutRef.current = setTimeout(() => {
+        setPinError(false);
+        setIsKeypadLocked(false);
+        errorResetTimeoutRef.current = null;
+      }, 2000);
     } finally {
       setIsAuthenticating(false);
     }
@@ -121,13 +149,13 @@ export function AppLockScreen() {
           <View style={styles.content}>
             {/* Icon and Title */}
             <View style={styles.header}>
-              <View style={[styles.iconContainer, { backgroundColor: buttonPrimaryColor + '20' }]}>
+              {/* <View style={[styles.iconContainer, { backgroundColor: buttonPrimaryColor + '20' }]}>
                 {showBiometric ? (
                   <Fingerprint size={48} color={buttonPrimaryColor} />
                 ) : (
                   <Shield size={48} color={buttonPrimaryColor} />
                 )}
-              </View>
+              </View> */}
               <ThemedText style={[styles.title, { color: primaryTextColor }]}>App Locked</ThemedText>
               <ThemedText style={[styles.subtitle, { color: secondaryTextColor }]}>
                 {showBiometric && showPIN
@@ -167,9 +195,11 @@ export function AppLockScreen() {
             {showPIN && (
               <View style={styles.pinContainer}>
                 {pinError && (
-                  <ThemedText style={[styles.errorText, { color: errorColor }]}>
-                    Incorrect PIN. Please try again.
-                  </ThemedText>
+                  <View style={styles.errorWrapper} pointerEvents="none">
+                    <ThemedText style={[styles.errorText, { color: errorColor }]}>
+                      Incorrect PIN. Please try again.
+                    </ThemedText>
+                  </View>
                 )}
                 <PINKeypad
                   onPINComplete={handlePINComplete}
@@ -178,6 +208,7 @@ export function AppLockScreen() {
                   showDots={true}
                   error={pinError}
                   onError={() => setPinError(false)}
+                  disabled={isKeypadLocked || isAuthenticating}
                 />
               </View>
             )}
@@ -224,7 +255,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 8,
   },
@@ -254,10 +285,17 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     marginTop: 24,
+    paddingTop: 32,
+  },
+  errorWrapper: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
   },
   errorText: {
     fontSize: 14,
-    marginBottom: 16,
     textAlign: 'center',
   },
   loadingText: {
