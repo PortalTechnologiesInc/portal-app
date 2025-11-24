@@ -22,7 +22,7 @@ export default function DeeplinkHandler() {
       router.replace('/(tabs)/Settings');
       return;
     }
-    router.replace('/(tabs)')
+    router.replace('/(tabs)');
   }, [params, isOnboardingComplete, mnemonic, isInitialized]);
 
   return (

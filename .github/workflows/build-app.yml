@@ -2,97 +2,97 @@ name: Build Android App
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
+    branches: [master]
   workflow_dispatch:
 
 jobs:
   build-bundle:
-    runs-on: [ self-hosted, nixos ]
-    
+    runs-on: [self-hosted, nixos]
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Install dependencies
-      run: |
-        nix develop --command npm install
-        
-    - name: Prebuild Android project
-      run: |
-        nix develop --command npx expo prebuild --platform android --clean
-        
-    - name: Build Android bundle
-      working-directory: android
-      env:
-        GRADLE_USER_HOME: ${{ github.workspace }}/.gradle
-        ANDROID_USER_HOME: ${{ github.workspace }}/.android
-        HOME: ${{ github.workspace }}
-      run: |
-        nix develop --command ./gradlew bundleRelease
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Decode keystore
-      run: |
-        echo "${{ secrets.PORTAL_DEBUG_KEYSTORE }}" | base64 -d > portal.keystore
-        
-    - name: Sign AAB
-      run: |
-        nix develop --command apksigner sign \
-          --ks portal.keystore \
-          --ks-pass pass:${{ secrets.PORTAL_DEBUG_KEYSTORE_PASSWORD }} \
-          --min-sdk-version 23 \
-          --max-sdk-version 35 \
-          --v1-signing-enabled=true \
-          --v2-signing-enabled=true \
-          --v3-signing-enabled=true \
-          --v4-signing-enabled=true \
-          --out portal-release-signed.aab \
-          --in android/app/build/outputs/bundle/release/app-release.aab
+      - name: Install dependencies
+        run: |
+          nix develop --command npm install
 
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: android-bundle
-        path: ./portal-release-signed.aab
-        retention-days: 30
+      - name: Prebuild Android project
+        run: |
+          nix develop --command npx expo prebuild --platform android --clean
+
+      - name: Build Android bundle
+        working-directory: android
+        env:
+          GRADLE_USER_HOME: ${{ github.workspace }}/.gradle
+          ANDROID_USER_HOME: ${{ github.workspace }}/.android
+          HOME: ${{ github.workspace }}
+        run: |
+          nix develop --command ./gradlew bundleRelease
+
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.PORTAL_DEBUG_KEYSTORE }}" | base64 -d > portal.keystore
+
+      - name: Sign AAB
+        run: |
+          nix develop --command apksigner sign \
+            --ks portal.keystore \
+            --ks-pass pass:${{ secrets.PORTAL_DEBUG_KEYSTORE_PASSWORD }} \
+            --min-sdk-version 23 \
+            --max-sdk-version 35 \
+            --v1-signing-enabled=true \
+            --v2-signing-enabled=true \
+            --v3-signing-enabled=true \
+            --v4-signing-enabled=true \
+            --out portal-release-signed.aab \
+            --in android/app/build/outputs/bundle/release/app-release.aab
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-bundle
+          path: ./portal-release-signed.aab
+          retention-days: 30
 
   extract-apk:
-    runs-on: [ self-hosted, nixos ]
+    runs-on: [self-hosted, nixos]
     needs: build-bundle
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Download build artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: android-bundle
-        path: ./portal-release
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Decode keystore
-      run: |
-        echo "${{ secrets.PORTAL_DEBUG_KEYSTORE }}" | base64 -d > portal.keystore
-        
-    - name: Extract APK from bundle
-      run: |
-        nix develop --command extract-apk \
-          --ks=./portal.keystore \
-          --ks-key-alias=portal-debug \
-          --ks-pass=pass:${{ secrets.PORTAL_DEBUG_KEYSTORE_PASSWORD }} \
-          --bundle=./portal-release/portal-release-signed.aab \
-          --mode=universal \
-          --output=universal.apks
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: android-bundle
+          path: ./portal-release
 
-    - name: Unzip universal.apks
-      run: |
-        nix develop --command unzip universal.apks
-        
-    - name: Upload signed artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: signed-android-artifacts
-        path: |
-          universal.apk
-        retention-days: 30
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.PORTAL_DEBUG_KEYSTORE }}" | base64 -d > portal.keystore
+
+      - name: Extract APK from bundle
+        run: |
+          nix develop --command extract-apk \
+            --ks=./portal.keystore \
+            --ks-key-alias=portal-debug \
+            --ks-pass=pass:${{ secrets.PORTAL_DEBUG_KEYSTORE_PASSWORD }} \
+            --bundle=./portal-release/portal-release-signed.aab \
+            --mode=universal \
+            --output=universal.apks
+
+      - name: Unzip universal.apks
+        run: |
+          nix develop --command unzip universal.apks
+
+      - name: Upload signed artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-android-artifacts
+          path: |
+            universal.apk
+          retention-days: 30

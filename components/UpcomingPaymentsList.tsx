@@ -41,10 +41,10 @@ export const UpcomingPaymentsList: React.FC = () => {
             sub.recurrence_first_payment_due > new Date() || !sub.last_payment_date
               ? sub.recurrence_first_payment_due
               : fromUnixSeconds(
-                parsedCalendar.nextOccurrence(
-                  BigInt((sub.last_payment_date?.getTime() ?? 0) / 1000)
-                ) ?? 0
-              );
+                  parsedCalendar.nextOccurrence(
+                    BigInt((sub.last_payment_date?.getTime() ?? 0) / 1000)
+                  ) ?? 0
+                );
 
           return {
             id: sub.id,

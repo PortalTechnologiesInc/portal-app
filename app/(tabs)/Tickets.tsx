@@ -385,12 +385,17 @@ export default function TicketsScreen() {
               ) : null;
             })()}
             {/* Stacked list of all other cards */}
-            <View style={[
-              styles.cardsContainer,
-              {
-                height: Math.max(800, tickets.filter(ticket => ticket.id !== focusedCardId).length * 130 + 100),
-              }
-            ]}>
+            <View
+              style={[
+                styles.cardsContainer,
+                {
+                  height: Math.max(
+                    800,
+                    tickets.filter(ticket => ticket.id !== focusedCardId).length * 130 + 100
+                  ),
+                },
+              ]}
+            >
               {tickets
                 .filter(ticket => ticket.id !== focusedCardId)
                 .map((ticket, visibleIndex) => (
