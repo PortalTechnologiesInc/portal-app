@@ -237,7 +237,9 @@ export function AppLockScreen() {
                 </ThemedText>
               </TouchableOpacity>
               {biometricError && (
-                <ThemedText style={[styles.biometricHint, { color: errorColor }]}>
+                <ThemedText
+                  style={[styles.biometricHint, styles.biometricHintOverlay, { color: errorColor }]}
+                >
                   {biometricError}
                 </ThemedText>
               )}
@@ -330,6 +332,8 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 300,
     marginTop: 24,
+    paddingBottom: 32,
+    position: 'relative',
   },
   biometricButton: {
     flexDirection: 'row',
@@ -347,6 +351,12 @@ const styles = StyleSheet.create({
   biometricHint: {
     marginTop: 12,
     textAlign: 'center',
+  },
+  biometricHintOverlay: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
   },
   pinContainer: {
     width: '100%',

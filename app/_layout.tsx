@@ -26,6 +26,7 @@ import migrateDbIfNeeded from '@/migrations/DatabaseMigrations';
 import { PaymentControllerProvider } from '@/context/PaymentControllerContext';
 import { AppLockProvider } from '@/context/AppLockContext';
 import { AppLockScreen } from '@/components/AppLockScreen';
+import { AppLifecycleHandler } from '@/components/AppLifecycleHandler';
 
 // Prevent splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -147,6 +148,7 @@ const ThemedRootView = () => {
       <ThemedStatusBar />
       <AppLockProvider>
         <OnboardingProvider>
+          <AppLifecycleHandler />
           <AuthenticatedAppContent />
         </OnboardingProvider>
         <AppLockScreen />
