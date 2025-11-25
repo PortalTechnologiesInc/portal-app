@@ -33,7 +33,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { walletUrlEvents, getMnemonic, getWalletUrl } from '@/services/SecureStorageService';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { showToast } from '@/utils/Toast';
-import { authenticateForSensitiveAction } from '@/services/BiometricAuthService';
+import { authenticateAsync } from '@/services/BiometricAuthService';
 import { useTheme, ThemeMode } from '@/context/ThemeContext';
 import { useCurrency } from '@/context/CurrencyContext';
 import { Currency, CurrencyHelpers } from '@/utils/currency';
@@ -183,6 +183,8 @@ export default function SettingsScreen() {
     setIsPINVerifyVisible(true);
   };
 
+  const CANCELABLE_BIOMETRIC_ERRORS = new Set(['user_cancel', 'system_cancel', 'app_cancel']);
+
   const executeProtectedAction = async (
     action: () => Promise<void> | void,
     {
@@ -195,8 +197,16 @@ export default function SettingsScreen() {
       if (authMethod === 'biometric' && isFingerprintSupported) {
         const biometricAvailable = await isBiometricAvailable();
         if (biometricAvailable) {
-          await authenticateForSensitiveAction(action, reason);
-          return;
+          const result = await authenticateAsync(reason);
+          if (result.success) {
+            await action();
+            return;
+          }
+
+          if (!result.code || !CANCELABLE_BIOMETRIC_ERRORS.has(result.code)) {
+            showToast(result.error || 'Biometric authentication failed', 'error');
+          }
+          // fall through to PIN verification when available
         }
       }
 
