@@ -9,6 +9,8 @@ import { authenticateAsync } from '@/services/BiometricAuthService';
 import { PIN_MIN_LENGTH, PIN_MAX_LENGTH } from '@/services/AppLockService';
 import { Fingerprint } from 'lucide-react-native';
 
+const CANCELABLE_BIOMETRIC_ERRORS = new Set(['user_cancel', 'system_cancel', 'app_cancel']);
+
 export function AppLockScreen() {
   const {
     isLocked,
@@ -23,7 +25,9 @@ export function AppLockScreen() {
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [isKeypadLocked, setIsKeypadLocked] = useState(false);
   const [biometricError, setBiometricError] = useState<string | null>(null);
-  const [autoTriggerRequest, setAutoTriggerRequest] = useState(0);
+  const [biometricFailureCount, setBiometricFailureCount] = useState(0);
+  const MAX_BIOMETRIC_ATTEMPTS = 1;
+  const isBiometricLockedOut = biometricFailureCount >= MAX_BIOMETRIC_ATTEMPTS;
   const hasAutoTriggeredRef = React.useRef(false);
   const errorResetTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -34,7 +38,7 @@ export function AppLockScreen() {
   const errorColor = useThemeColor({}, 'buttonDanger');
 
   const handleBiometricAuth = React.useCallback(async () => {
-    if (isAuthenticating) return;
+    if (isAuthenticating || isBiometricLockedOut) return;
 
     setIsAuthenticating(true);
     setBiometricError(null);
@@ -42,26 +46,26 @@ export function AppLockScreen() {
       const result = await authenticateAsync('Unlock Portal to continue');
       if (result.success) {
         unlockApp();
+        setBiometricFailureCount(0);
         setPinError(false);
         setBiometricError(null);
       } else {
-        const message = result.error || 'Biometric authentication failed. Enter your PIN to continue.';
-        setBiometricError(message);
-        if (!message.toLowerCase().includes('cancel')) {
-          hasAutoTriggeredRef.current = false;
-          setAutoTriggerRequest(prev => prev + 1);
+        if (result.code && CANCELABLE_BIOMETRIC_ERRORS.has(result.code)) {
+          setBiometricError(result.error || 'Biometric authentication cancelled.');
+        } else {
+          setBiometricFailureCount(MAX_BIOMETRIC_ATTEMPTS);
+          setBiometricError('Biometric attempts exceeded. Enter your PIN to continue.');
         }
       }
       // If user cancels, just reset authenticating state - don't retry
     } catch (error) {
       console.error('Biometric authentication error:', error);
-      setBiometricError('Biometric authentication error. Please use your PIN.');
-      hasAutoTriggeredRef.current = false;
-      setAutoTriggerRequest(prev => prev + 1);
+      setBiometricFailureCount(MAX_BIOMETRIC_ATTEMPTS);
+      setBiometricError('Biometric attempts exceeded. Enter your PIN to continue.');
     } finally {
       setIsAuthenticating(false);
     }
-  }, [isAuthenticating, unlockApp]);
+  }, [isAuthenticating, isBiometricLockedOut, unlockApp]);
 
   // Reset auto-trigger flag when unlocked
   useEffect(() => {
@@ -69,7 +73,7 @@ export function AppLockScreen() {
       hasAutoTriggeredRef.current = false;
       setBiometricError(null);
       setIsKeypadLocked(false);
-      setAutoTriggerRequest(0);
+      setBiometricFailureCount(0);
     }
   }, [isLocked]);
 
@@ -89,7 +93,8 @@ export function AppLockScreen() {
       isFingerprintSupported &&
       authMethod === 'biometric' &&
       !hasAutoTriggeredRef.current &&
-      !isAuthenticating
+      !isAuthenticating &&
+      !isBiometricLockedOut
     ) {
       hasAutoTriggeredRef.current = true;
       // Small delay to ensure modal is fully rendered
@@ -104,7 +109,7 @@ export function AppLockScreen() {
     isAuthenticating,
     isFingerprintSupported,
     handleBiometricAuth,
-    autoTriggerRequest,
+    isBiometricLockedOut,
   ]);
 
   const handlePINComplete = async (pin: string) => {
@@ -156,7 +161,8 @@ export function AppLockScreen() {
   }
 
   const renderContent = () => {
-    const showBiometric = isFingerprintSupported && authMethod === 'biometric';
+    const showBiometric =
+      isFingerprintSupported && authMethod === 'biometric' && !isBiometricLockedOut;
     const showPIN = hasPIN || !isFingerprintSupported || authMethod === 'pin';
 
     return (

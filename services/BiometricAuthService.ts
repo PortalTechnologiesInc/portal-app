@@ -64,24 +64,33 @@ export const authenticateAsync = async (
     beginBiometricPrompt();
     const result = await LocalAuthentication.authenticateAsync({
       promptMessage: reason,
-      fallbackLabel: 'Use Passcode',
-      disableDeviceFallback: false,
+      disableDeviceFallback: true,
     });
 
     if (result.success) {
       return { success: true };
     } else {
+      const errorCode = result.error ?? 'unknown';
+      let errorMessage = 'Authentication failed';
+      if (errorCode === 'user_cancel' || errorCode === 'system_cancel' || errorCode === 'app_cancel') {
+        errorMessage = 'Authentication was cancelled';
+      }
       return {
         success: false,
-        error:
-          result.error === 'user_cancel' ? 'Authentication was cancelled' : 'Authentication failed',
+        error: errorMessage,
+        code: errorCode,
       };
     }
   } catch (error) {
     console.error('Biometric authentication error:', error);
+    const errorCode =
+      typeof error === 'object' && error !== null && 'code' in error
+        ? String((error as { code?: unknown }).code ?? 'unknown')
+        : 'unknown';
     return {
       success: false,
       error: 'Authentication failed due to an error',
+      code: errorCode,
     };
   } finally {
     endBiometricPrompt();
