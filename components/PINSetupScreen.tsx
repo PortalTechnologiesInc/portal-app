@@ -1,12 +1,5 @@
 import React, { useState } from 'react';
-import {
-  StyleSheet,
-  View,
-  Modal,
-  TouchableOpacity,
-  ScrollView,
-  useWindowDimensions,
-} from 'react-native';
+import { StyleSheet, View, Modal, TouchableOpacity, ScrollView, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from './ThemedText';
 import { PINKeypad } from './PINKeypad';
@@ -31,7 +24,7 @@ export function PINSetupScreen({
   enterMessage,
   confirmMessage,
 }: PINSetupScreenProps) {
-  const { height } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const [step, setStep] = useState<'enter' | 'confirm'>('enter');
   const [enteredPIN, setEnteredPIN] = useState('');
   const [confirmPIN, setConfirmPIN] = useState('');
@@ -88,6 +81,11 @@ export function PINSetupScreen({
   const keypadMaxLength = PIN_MAX_LENGTH;
   const keypadAutoSubmit = false;
   const isSmallScreen = height < 700;
+  const rem = Math.min(Math.max(width / 390, 0.9), 1);
+  const verticalRem = Math.min(Math.max(height / 844, 0.85), 1);
+  const iconSize = 100 * rem;
+  const headerSpacing = (isSmallScreen ? 20 : 32) * verticalRem;
+  const contentPadding = 32 * rem;
 
   return (
     <Modal visible={visible} animationType="fade" transparent={false}>
@@ -99,23 +97,45 @@ export function PINSetupScreen({
         </View>
 
         <ScrollView
-          contentContainerStyle={[styles.content, isSmallScreen && styles.contentCompact]}
+          contentContainerStyle={[
+            styles.content,
+            {
+              paddingHorizontal: contentPadding,
+              paddingBottom: 32 * verticalRem,
+              paddingTop: isSmallScreen ? 24 * verticalRem : 0,
+            },
+          ]}
           bounces={false}
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
-            <View style={[styles.iconContainer, { backgroundColor: buttonPrimaryColor + '20' }]}>
-              <Shield size={48} color={buttonPrimaryColor} />
+            <View
+              style={[
+                styles.iconContainer,
+                {
+                  backgroundColor: buttonPrimaryColor + '20',
+                  width: iconSize,
+                  height: iconSize,
+                  borderRadius: iconSize / 2,
+                  marginBottom: headerSpacing,
+                },
+              ]}
+            >
+              <Shield size={48 * rem} color={buttonPrimaryColor} />
             </View>
-            <ThemedText style={[styles.title, { color: primaryTextColor }]}>{headerTitle}</ThemedText>
-            <ThemedText style={[styles.subtitle, { color: secondaryTextColor }]}>
+            <ThemedText style={[styles.title, { color: primaryTextColor, fontSize: 24 * rem }]}>
+              {headerTitle}
+            </ThemedText>
+            <ThemedText
+              style={[styles.subtitle, { color: secondaryTextColor, fontSize: 16 * rem }]}
+            >
               {step === 'enter' ? enterText : confirmText}
             </ThemedText>
           </View>
 
           <View style={styles.pinContainer}>
             {error && (
-              <ThemedText style={[styles.errorText, { color: errorColor }]}>
+              <ThemedText style={[styles.errorText, { color: errorColor, fontSize: 14 * rem }]}>
                 PINs do not match. Please try again.
               </ThemedText>
             )}

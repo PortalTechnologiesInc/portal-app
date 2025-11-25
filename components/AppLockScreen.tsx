@@ -1,5 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { AppState, type AppStateStatus, Keyboard, StyleSheet, View, TouchableOpacity } from 'react-native';
+import {
+  AppState,
+  type AppStateStatus,
+  Keyboard,
+  StyleSheet,
+  View,
+  TouchableOpacity,
+  useWindowDimensions,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from './ThemedText';
 import { PINKeypad } from './PINKeypad';
@@ -30,6 +38,14 @@ export function AppLockScreen() {
   const isBiometricLockedOut = biometricFailureCount >= MAX_BIOMETRIC_ATTEMPTS;
   const hasAutoTriggeredRef = React.useRef(false);
   const errorResetTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { width, height } = useWindowDimensions();
+  const rem = Math.min(Math.max(width / 390, 0.9), 1);
+  const verticalRem = Math.min(Math.max(height / 844, 0.85), 1);
+  const contentPadding = 32 * rem;
+  const headerMargin = 28 * verticalRem;
+  const buttonPaddingVertical = 32 * verticalRem;
+  const buttonPaddingHorizontal = 24 * rem;
+  const pinPaddingTop = 16 * verticalRem;
   useEffect(() => {
     const handleAppStateChange = (nextState: AppStateStatus) => {
       if (nextState === 'background' || nextState === 'inactive') {
@@ -178,10 +194,12 @@ export function AppLockScreen() {
 
     return (
       <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top', 'bottom']}>
-        <View style={styles.content}>
-          <View style={styles.header}>
-            <ThemedText style={[styles.title, { color: primaryTextColor }]}>App Locked</ThemedText>
-            <ThemedText style={[styles.subtitle, { color: secondaryTextColor }]}>
+        <View style={[styles.content, { paddingHorizontal: contentPadding }]}>
+          <View style={[styles.header, { marginBottom: headerMargin }]}>
+            <ThemedText style={[styles.title, { color: primaryTextColor, fontSize: 24 * rem }]}>
+              App Locked
+            </ThemedText>
+            <ThemedText style={[styles.subtitle, { color: secondaryTextColor, fontSize: 16 * rem }]}>
               {showBiometric && showPIN
                 ? 'Use biometric or enter your PIN to unlock'
                 : showBiometric
@@ -200,6 +218,8 @@ export function AppLockScreen() {
                   {
                     backgroundColor: isAuthenticating ? secondaryTextColor : buttonPrimaryColor,
                     opacity: isAuthenticating ? 0.6 : 1,
+                    paddingVertical: buttonPaddingVertical,
+                    paddingHorizontal: buttonPaddingHorizontal,
                   },
                 ]}
                 onPress={handleBiometricAuth}
@@ -207,7 +227,12 @@ export function AppLockScreen() {
                 disabled={isAuthenticating}
               >
                 <Fingerprint size={24} color={primaryTextColor} />
-                <ThemedText style={[styles.biometricButtonText, { color: primaryTextColor }]}>
+                <ThemedText
+                  style={[
+                    styles.biometricButtonText,
+                    { color: primaryTextColor, fontSize: 16 * rem },
+                  ]}
+                >
                   {isAuthenticating ? 'Authenticating...' : 'Unlock with Biometric'}
                 </ThemedText>
               </TouchableOpacity>
@@ -220,10 +245,10 @@ export function AppLockScreen() {
           )}
 
           {showPIN && (
-            <View style={styles.pinContainer}>
+            <View style={[styles.pinContainer, { paddingTop: pinPaddingTop }]}>
               {pinError && (
                 <View style={styles.errorWrapper} pointerEvents="none">
-                  <ThemedText style={[styles.errorText, { color: errorColor }]}>
+                  <ThemedText style={[styles.errorText, { color: errorColor, fontSize: 14 * rem }]}>
                     Incorrect PIN. Please try again.
                   </ThemedText>
                 </View>

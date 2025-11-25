@@ -10,6 +10,7 @@ import {
   Modal,
   FlatList,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { ThemedText } from '@/components/ThemedText';
@@ -29,7 +30,7 @@ import {
   KeyRound,
 } from 'lucide-react-native';
 import { Moon, Sun, Smartphone } from 'lucide-react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { walletUrlEvents, getMnemonic, getWalletUrl } from '@/services/SecureStorageService';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { showToast } from '@/utils/Toast';
@@ -96,6 +97,16 @@ export default function SettingsScreen() {
   const [pendingLockEnable, setPendingLockEnable] = useState(false);
   const [pendingPinEnable, setPendingPinEnable] = useState(false);
   const [pendingBiometricEnable, setPendingBiometricEnable] = useState(false);
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const rem = Math.min(Math.max(width / 390, 0.9), 1);
+  const modalMaxHeight = Math.min(height * 0.85, 560);
+  const modalPadding = 20 * rem;
+  const modalRadius = 20 * rem;
+  const isStandardScreen = height >= 760;
+  const modalBottomPadding = isStandardScreen
+    ? Math.max(24, insets.bottom + 12)
+    : Math.max(16, insets.bottom + 8);
 
   // Unified wallet status
   const { hasLightningWallet, isLightningConnected } = useWalletStatus();
@@ -1133,20 +1144,43 @@ export default function SettingsScreen() {
       >
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={closePinVerification}>
           <TouchableOpacity
-            style={[styles.modalContent, { backgroundColor: cardBackgroundColor }]}
+            style={[
+              styles.modalContent,
+              {
+                backgroundColor: cardBackgroundColor,
+                maxHeight: modalMaxHeight,
+                paddingHorizontal: modalPadding,
+                paddingTop: modalPadding,
+                borderTopLeftRadius: modalRadius,
+                borderTopRightRadius: modalRadius,
+                paddingBottom: modalBottomPadding,
+              },
+            ]}
             activeOpacity={1}
             onPress={e => e.stopPropagation()}
           >
             <View style={styles.modalHeader}>
-              <ThemedText style={[styles.modalTitle, { color: primaryTextColor }]}>
+              <ThemedText
+                style={[styles.modalTitle, { color: primaryTextColor, fontSize: 20 * rem }]}
+              >
                 {pinVerificationConfig.title}
               </ThemedText>
               <TouchableOpacity onPress={closePinVerification}>
                 <X size={24} color={secondaryTextColor} />
               </TouchableOpacity>
             </View>
-            <View style={styles.pinContainer}>
-              <ThemedText style={[styles.pinInstruction, { color: secondaryTextColor }]}>
+            <View
+              style={[
+                styles.pinContainer,
+                { paddingTop: 16 * rem, paddingBottom: Math.max(32, 40 * rem) },
+              ]}
+            >
+              <ThemedText
+                style={[
+                  styles.pinInstruction,
+                  { color: secondaryTextColor, fontSize: 16 * rem, marginBottom: 24 * rem },
+                ]}
+              >
                 {pinVerificationConfig.instructions}
               </ThemedText>
               <PINKeypad
@@ -1396,8 +1430,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     paddingTop: 20,
     paddingHorizontal: 20,
-    height: '80%',
-    minHeight: 400,
+    width: '100%',
   },
   modalHeader: {
     flexDirection: 'row',

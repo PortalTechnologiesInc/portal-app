@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { StyleSheet, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { ThemedText } from './ThemedText';
 import { ThemedView } from './ThemedView';
 import { useThemeColor } from '@/hooks/useThemeColor';
@@ -37,6 +37,73 @@ export function PINKeypad({
   disabled = false,
 }: PINKeypadProps) {
   const [pin, setPin] = useState('');
+  const { width, height } = useWindowDimensions();
+  const rem = Math.min(Math.max(width / 390, 0.85), 1);
+  const verticalRem = Math.min(Math.max(height / 844, 0.85), 1);
+  const keypadMaxWidth = Math.min(width * 0.9, 300 * rem);
+  const buttonSize = Math.min(Math.max(54, 68 * rem), 72);
+  const deleteSize = Math.max(44, 48 * rem);
+  const dotSize = Math.max(14, 18 * rem);
+  const rowGap = 12 * rem;
+  const dotsMarginBottom = 28 * verticalRem;
+
+  const dynamicStyles = useMemo(
+    () =>
+      StyleSheet.create({
+        container: {
+          paddingHorizontal: 12 * rem,
+        },
+        dotsRow: {
+          marginBottom: dotsMarginBottom,
+          gap: rowGap,
+        },
+        dotsSpacer: {
+          width: deleteSize,
+        },
+        dotsContainer: {
+          gap: rowGap,
+        },
+        dot: {
+          width: dotSize,
+          height: dotSize,
+          borderRadius: dotSize / 2,
+          borderWidth: 2,
+        },
+        dotPlaceholder: {
+          width: dotSize,
+          height: dotSize,
+          borderRadius: dotSize / 2,
+          borderWidth: 2,
+        },
+        deleteButton: {
+          width: deleteSize,
+          height: deleteSize,
+          borderRadius: deleteSize / 2,
+        },
+        keypad: {
+          maxWidth: keypadMaxWidth,
+        },
+        keypadRow: {
+          gap: rowGap,
+          marginBottom: 16 * verticalRem,
+        },
+        keypadButton: {
+          borderRadius: buttonSize / 2,
+          minHeight: buttonSize,
+          maxHeight: buttonSize,
+        },
+        keypadButtonText: {
+          fontSize: 24 * rem,
+        },
+        submitButtonText: {
+          fontSize: 16 * rem,
+        },
+        skipButtonText: {
+          fontSize: 14 * rem,
+        },
+      }),
+    [buttonSize, deleteSize, dotSize, dotsMarginBottom, keypadMaxWidth, rem, rowGap, verticalRem]
+  );
 
   const backgroundColor = useThemeColor({}, 'background');
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');
@@ -89,19 +156,20 @@ export function PINKeypad({
 
     if (pin.length === 0) {
       return (
-        <View style={styles.dotsContainer}>
-          <View style={styles.dotPlaceholder} />
+        <View style={[styles.dotsContainer, dynamicStyles.dotsContainer]}>
+          <View style={[styles.dotPlaceholder, dynamicStyles.dotPlaceholder]} />
         </View>
       );
     }
 
     return (
-      <View style={styles.dotsContainer}>
+      <View style={[styles.dotsContainer, dynamicStyles.dotsContainer]}>
         {Array.from({ length: pin.length }).map((_, index) => (
           <View
             key={`dot-${index}-${pin.length}`}
             style={[
               styles.dot,
+              dynamicStyles.dot,
               {
                 backgroundColor:
                   error
@@ -117,13 +185,14 @@ export function PINKeypad({
   };
 
   return (
-    <View style={[styles.container, disabled && styles.disabled]}>
-      <View style={styles.dotsRow}>
-        <View style={styles.dotsSpacer} />
+    <View style={[styles.container, dynamicStyles.container, disabled && styles.disabled]}>
+      <View style={[styles.dotsRow, dynamicStyles.dotsRow]}>
+        <View style={dynamicStyles.dotsSpacer} />
         {renderDots()}
         <TouchableOpacity
           style={[
             styles.deleteButton,
+            dynamicStyles.deleteButton,
             {
               backgroundColor: cardBackgroundColor,
               opacity: disabled ? 0.4 : pin.length === 0 ? 0.5 : 1,
@@ -138,21 +207,28 @@ export function PINKeypad({
       </View>
 
       {/* Keypad */}
-      <View style={[styles.keypad, disabled && styles.disabled]}>
+      <View style={[styles.keypad, dynamicStyles.keypad, disabled && styles.disabled]}>
         {/* Row 1: 1, 2, 3 */}
-        <View style={styles.keypadRow}>
+        <View style={[styles.keypadRow, dynamicStyles.keypadRow]}>
           {['1', '2', '3'].map(num => (
             <TouchableOpacity
               key={num}
               style={[
                 styles.keypadButton,
+                dynamicStyles.keypadButton,
                 { backgroundColor: cardBackgroundColor, opacity: disabled ? 0.4 : 1 },
               ]}
               onPress={() => handleNumberPress(num)}
               activeOpacity={0.7}
               disabled={disabled}
             >
-              <ThemedText style={[styles.keypadButtonText, { color: primaryTextColor }]}>
+              <ThemedText
+                style={[
+                  styles.keypadButtonText,
+                  dynamicStyles.keypadButtonText,
+                  { color: primaryTextColor },
+                ]}
+              >
                 {num}
               </ThemedText>
             </TouchableOpacity>
@@ -160,19 +236,26 @@ export function PINKeypad({
         </View>
 
         {/* Row 2: 4, 5, 6 */}
-        <View style={styles.keypadRow}>
+        <View style={[styles.keypadRow, dynamicStyles.keypadRow]}>
           {['4', '5', '6'].map(num => (
             <TouchableOpacity
               key={num}
               style={[
                 styles.keypadButton,
+                dynamicStyles.keypadButton,
                 { backgroundColor: cardBackgroundColor, opacity: disabled ? 0.4 : 1 },
               ]}
               onPress={() => handleNumberPress(num)}
               activeOpacity={0.7}
               disabled={disabled}
             >
-              <ThemedText style={[styles.keypadButtonText, { color: primaryTextColor }]}>
+              <ThemedText
+                style={[
+                  styles.keypadButtonText,
+                  dynamicStyles.keypadButtonText,
+                  { color: primaryTextColor },
+                ]}
+              >
                 {num}
               </ThemedText>
             </TouchableOpacity>
@@ -180,19 +263,26 @@ export function PINKeypad({
         </View>
 
         {/* Row 3: 7, 8, 9 */}
-        <View style={styles.keypadRow}>
+        <View style={[styles.keypadRow, dynamicStyles.keypadRow]}>
           {['7', '8', '9'].map(num => (
             <TouchableOpacity
               key={num}
               style={[
                 styles.keypadButton,
+                dynamicStyles.keypadButton,
                 { backgroundColor: cardBackgroundColor, opacity: disabled ? 0.4 : 1 },
               ]}
               onPress={() => handleNumberPress(num)}
               activeOpacity={0.7}
               disabled={disabled}
             >
-              <ThemedText style={[styles.keypadButtonText, { color: primaryTextColor }]}>
+              <ThemedText
+                style={[
+                  styles.keypadButtonText,
+                  dynamicStyles.keypadButtonText,
+                  { color: primaryTextColor },
+                ]}
+              >
                 {num}
               </ThemedText>
             </TouchableOpacity>
@@ -200,39 +290,56 @@ export function PINKeypad({
         </View>
 
         {/* Row 4: spacer, 0, OK */}
-        <View style={styles.keypadRow}>
+        <View style={[styles.keypadRow, dynamicStyles.keypadRow]}>
           {showSkipButton ? (
             <TouchableOpacity
               style={[
                 styles.keypadButton,
+                dynamicStyles.keypadButton,
                 { backgroundColor: surfaceSecondary, opacity: disabled ? 0.4 : 1 },
               ]}
               onPress={disabled ? undefined : onSkipPress}
               activeOpacity={0.7}
               disabled={!onSkipPress || disabled}
             >
-              <ThemedText style={[styles.skipButtonText, { color: primaryTextColor }]}>
+              <ThemedText
+                style={[
+                  styles.skipButtonText,
+                  dynamicStyles.skipButtonText,
+                  { color: primaryTextColor },
+                ]}
+              >
                 {skipLabel}
               </ThemedText>
             </TouchableOpacity>
           ) : (
-            <View style={styles.keypadButton} />
+            <View style={[styles.keypadButton, dynamicStyles.keypadButton]} />
           )}
           <TouchableOpacity
             style={[
               styles.keypadButton,
+              dynamicStyles.keypadButton,
               { backgroundColor: cardBackgroundColor, opacity: disabled ? 0.4 : 1 },
             ]}
             onPress={() => handleNumberPress('0')}
             activeOpacity={0.7}
             disabled={disabled}
           >
-            <ThemedText style={[styles.keypadButtonText, { color: primaryTextColor }]}>0</ThemedText>
+            <ThemedText
+              style={[
+                styles.keypadButtonText,
+                dynamicStyles.keypadButtonText,
+                { color: primaryTextColor },
+              ]}
+            >
+              0
+            </ThemedText>
           </TouchableOpacity>
           {showSubmitButton ? (
             <TouchableOpacity
               style={[
                 styles.keypadButton,
+                dynamicStyles.keypadButton,
                 {
                   backgroundColor: canSubmit ? buttonPrimaryColor : inputBorderColor,
                   opacity: disabled ? 0.4 : canSubmit ? 1 : 0.6,
@@ -245,6 +352,7 @@ export function PINKeypad({
               <ThemedText
                 style={[
                   styles.submitButtonText,
+                  dynamicStyles.submitButtonText,
                   { color: canSubmit ? buttonPrimaryTextColor : secondaryTextColor },
                 ]}
               >
@@ -252,7 +360,7 @@ export function PINKeypad({
               </ThemedText>
             </TouchableOpacity>
           ) : (
-            <View style={styles.keypadButton} />
+            <View style={[styles.keypadButton, dynamicStyles.keypadButton]} />
           )}
         </View>
       </View>
