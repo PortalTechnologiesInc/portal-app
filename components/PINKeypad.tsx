@@ -135,6 +135,11 @@ export function PINKeypad({
     }
   };
 
+  const handleClear = () => {
+    if (disabled || pin.length === 0) return;
+    setPin('');
+  };
+
   const handleSubmit = () => {
     if (disabled) return;
     if (canSubmit) {
@@ -199,6 +204,8 @@ export function PINKeypad({
             },
           ]}
           onPress={handleDelete}
+          onLongPress={handleClear}
+          delayLongPress={250}
           disabled={pin.length === 0 || disabled}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >

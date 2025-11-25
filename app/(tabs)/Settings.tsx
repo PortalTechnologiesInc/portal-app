@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   StyleSheet,
   TouchableOpacity,
@@ -107,6 +107,7 @@ export default function SettingsScreen() {
   const modalBottomPadding = isStandardScreen
     ? Math.max(24, insets.bottom + 12)
     : Math.max(16, insets.bottom + 8);
+  const sheetMinHeight = Math.min(height * 0.7, modalMaxHeight);
 
   // Unified wallet status
   const { hasLightningWallet, isLightningConnected } = useWalletStatus();
@@ -124,6 +125,39 @@ export default function SettingsScreen() {
   const statusConnectedColor = useThemeColor({}, 'statusConnected');
   const biometricLabel = Platform.OS === 'ios' ? 'Face ID' : 'Fingerprint';
   const isBiometricPreferred = authMethod === 'biometric' && isFingerprintSupported;
+  const modalSheetStyle = useMemo(
+    () => [
+      styles.modalContent,
+      {
+        backgroundColor: cardBackgroundColor,
+        maxHeight: modalMaxHeight,
+        minHeight: sheetMinHeight,
+        paddingHorizontal: modalPadding,
+        paddingTop: modalPadding,
+        paddingBottom: modalBottomPadding,
+        borderTopLeftRadius: modalRadius,
+        borderTopRightRadius: modalRadius,
+      },
+    ],
+    [
+      cardBackgroundColor,
+      modalMaxHeight,
+      modalPadding,
+      modalBottomPadding,
+      modalRadius,
+      sheetMinHeight,
+    ]
+  );
+
+  const modalListStyle = useMemo(
+    () => [
+      styles.currencyList,
+      {
+        maxHeight: Math.max(160, modalMaxHeight - sheetMinHeight * 0.1 - modalPadding * 2),
+      },
+    ],
+    [modalMaxHeight, modalPadding, sheetMinHeight]
+  );
 
   // Get event-driven NWC connection status
   const { nwcConnectionStatus, nwcConnectionError, nwcConnecting } = nostrService;
@@ -460,24 +494,63 @@ export default function SettingsScreen() {
       return;
     }
 
+    const performToggle = async () => {
+      try {
+        if (enabled) {
+          const biometricAvailable = await isBiometricAvailable();
+          if (!biometricAvailable) {
+            showToast('Biometric authentication unavailable', 'error');
+            return;
+          }
+          await setAuthMethodPreference('biometric');
+          showToast(`${biometricLabel} enabled`, 'success');
+        } else {
+          await setAuthMethodPreference('pin');
+          showToast(`${biometricLabel} disabled`, 'success');
+        }
+        setPendingBiometricEnable(false);
+      } catch (error) {
+        console.error('Error toggling biometrics:', error);
+        showToast('Failed to update biometric preference', 'error');
+      }
+    };
+
+    const promptForPIN = () => {
+      if (!hasPIN) return;
+      showPinVerification({
+        title: enabled ? `Enable ${biometricLabel}` : `Disable ${biometricLabel}`,
+        instructions: `Enter your PIN to ${enabled ? 'enable' : 'disable'} ${biometricLabel}`,
+        onSuccess: performToggle,
+      });
+    };
+
     try {
-      if (enabled) {
-        const biometricAvailable = await isBiometricAvailable();
-        if (!biometricAvailable) {
-          showToast('Biometric authentication unavailable', 'error');
+      const biometricAvailable = await isBiometricAvailable();
+      if (biometricAvailable) {
+        const authResult = await authenticateAsync(
+          `Authenticate to ${enabled ? 'enable' : 'disable'} ${biometricLabel}`
+        );
+        if (authResult.success) {
+          await performToggle();
           return;
         }
-        await setAuthMethodPreference('biometric');
-        showToast(`${biometricLabel} enabled`, 'success');
-      } else {
-        await setAuthMethodPreference('pin');
-        showToast(`${biometricLabel} disabled`, 'success');
+        if (!authResult.code || !CANCELABLE_BIOMETRIC_ERRORS.has(authResult.code)) {
+          showToast(authResult.error || 'Biometric authentication failed', 'error');
+        }
+        if (authResult.code && CANCELABLE_BIOMETRIC_ERRORS.has(authResult.code)) {
+          return;
+        }
       }
-      setPendingBiometricEnable(false);
     } catch (error) {
-      console.error('Error toggling biometrics:', error);
-      showToast('Failed to update biometric preference', 'error');
+      console.error('Error authenticating biometrics for toggle:', error);
     }
+
+    if (hasPIN) {
+      promptForPIN();
+      return;
+    }
+
+    await performToggle();
   };
 
   const pinSetupTitle = pinSetupPurpose === 'change' ? 'Update PIN' : 'Set PIN';
@@ -1016,17 +1089,17 @@ export default function SettingsScreen() {
       {/* Currency Selector Modal */}
       <Modal
         visible={isCurrencyModalVisible}
-        transparent={true}
+        transparent
         animationType="slide"
         onRequestClose={() => setIsCurrencyModalVisible(false)}
       >
         <TouchableOpacity
-          style={styles.modalOverlay}
+          style={[styles.modalOverlay, { paddingTop: Math.max(insets.top, 12) }]}
           activeOpacity={1}
           onPress={() => setIsCurrencyModalVisible(false)}
         >
           <TouchableOpacity
-            style={[styles.modalContent, { backgroundColor: backgroundColor }]}
+            style={modalSheetStyle}
             activeOpacity={1}
             onPress={e => e.stopPropagation()}
           >
@@ -1046,11 +1119,12 @@ export default function SettingsScreen() {
                 data={currencies}
                 renderItem={renderCurrencyItem}
                 keyExtractor={item => item}
-                style={styles.currencyList}
+                style={modalListStyle}
+                contentContainerStyle={styles.currencyListContent}
                 showsVerticalScrollIndicator={false}
               />
             ) : (
-              <ThemedText style={[{ color: primaryTextColor, textAlign: 'center', padding: 20 }]}>
+              <ThemedText style={[styles.modalEmptyState, { color: primaryTextColor }]}>
                 No currencies available
               </ThemedText>
             )}
@@ -1061,17 +1135,17 @@ export default function SettingsScreen() {
       {/* Timer Selector Modal */}
       <Modal
         visible={isTimerModalVisible}
-        transparent={true}
+        transparent
         animationType="slide"
         onRequestClose={() => setIsTimerModalVisible(false)}
       >
         <TouchableOpacity
-          style={styles.modalOverlay}
+          style={[styles.modalOverlay, { paddingTop: Math.max(insets.top, 12) }]}
           activeOpacity={1}
           onPress={() => setIsTimerModalVisible(false)}
         >
           <TouchableOpacity
-            style={[styles.modalContent, { backgroundColor: backgroundColor }]}
+            style={modalSheetStyle}
             activeOpacity={1}
             onPress={e => e.stopPropagation()}
           >
@@ -1108,11 +1182,12 @@ export default function SettingsScreen() {
                   </TouchableOpacity>
                 )}
                 keyExtractor={item => item.value?.toString() || 'never'}
-                style={styles.currencyList}
+                style={modalListStyle}
+                contentContainerStyle={styles.currencyListContent}
                 showsVerticalScrollIndicator={false}
               />
             ) : (
-              <ThemedText style={[{ color: primaryTextColor, textAlign: 'center', padding: 20 }]}>
+              <ThemedText style={[styles.modalEmptyState, { color: primaryTextColor }]}>
                 No timer options available
               </ThemedText>
             )}
@@ -1144,18 +1219,7 @@ export default function SettingsScreen() {
       >
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={closePinVerification}>
           <TouchableOpacity
-            style={[
-              styles.modalContent,
-              {
-                backgroundColor: cardBackgroundColor,
-                maxHeight: modalMaxHeight,
-                paddingHorizontal: modalPadding,
-                paddingTop: modalPadding,
-                borderTopLeftRadius: modalRadius,
-                borderTopRightRadius: modalRadius,
-                paddingBottom: modalBottomPadding,
-              },
-            ]}
+            style={modalSheetStyle}
             activeOpacity={1}
             onPress={e => e.stopPropagation()}
           >
@@ -1452,6 +1516,13 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingBottom: 20,
     minHeight: 200,
+  },
+  currencyListContent: {
+    paddingBottom: 8,
+  },
+  modalEmptyState: {
+    textAlign: 'center',
+    padding: 20,
   },
   // Currency item styles
   currencyItem: {
