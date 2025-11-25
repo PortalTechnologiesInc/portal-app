@@ -18,8 +18,7 @@
     "preset": "jest-expo"
   },
   "dependencies": {
-    "@breeztech/breez-sdk-spark": "^0.4.2",
-    "@breeztech/breez-sdk-spark-react-native": "^0.3.2",
+    "@breeztech/breez-sdk-spark-react-native": "^0.4.2",
     "@expo/vector-icons": "~14react-native-fs.1.0",
     "@react-native-async-storage/async-storage": "2.1.2",
     "@react-native-clipboard/clipboard": "^1.16.2",
@@ -67,7 +66,8 @@
     "react-native-svg": "15.11.2",
     "react-native-uuid": "^2.0.3",
     "react-native-web": "^0.20.0",
-    "react-native-webview": "13.13.5"
+    "react-native-webview": "13.13.5",
+    "use-debounce": "^10.0.6"
   },
   "devDependencies": {
     "@babel/core": "^7.26.0",
