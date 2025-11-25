@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, TouchableOpacity } from 'react-native';
+import { AppState, type AppStateStatus, Keyboard, StyleSheet, View, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from './ThemedText';
 import { PINKeypad } from './PINKeypad';
@@ -30,6 +30,17 @@ export function AppLockScreen() {
   const isBiometricLockedOut = biometricFailureCount >= MAX_BIOMETRIC_ATTEMPTS;
   const hasAutoTriggeredRef = React.useRef(false);
   const errorResetTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    const handleAppStateChange = (nextState: AppStateStatus) => {
+      if (nextState === 'background' || nextState === 'inactive') {
+        Keyboard.dismiss();
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, []);
+
 
   const backgroundColor = useThemeColor({}, 'background');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
