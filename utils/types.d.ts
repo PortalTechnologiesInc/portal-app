@@ -207,6 +207,7 @@ export type ProfileSyncStatus = 'idle' | 'syncing' | 'completed' | 'failed';
 export interface BiometricAuthResult {
   success: boolean;
   error?: string;
+  code?: string;
 }
 
 // =============================================================================

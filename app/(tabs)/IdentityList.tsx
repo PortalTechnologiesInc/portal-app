@@ -18,9 +18,10 @@ import { Edit, User, Pencil, ArrowLeft } from 'lucide-react-native';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useUserProfile } from '@/context/UserProfileContext';
 import { useNostrService } from '@/context/NostrServiceContext';
-import { requestMediaLibraryPermissionsAsync, launchImageLibraryAsync } from 'expo-image-picker';
+import { requestMediaLibraryPermissionsAsync } from 'expo-image-picker';
 import { showToast } from '@/utils/Toast';
 import { formatAvatarUri } from '@/utils/common';
+import { launchImagePickerWithAutoCancel } from '@/services/FilePickerService';
 
 export type IdentityListProps = {
   onManageIdentity: (identity: Identity) => void;
@@ -92,7 +93,7 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
         return;
       }
 
-      const result = await launchImageLibraryAsync({
+      const result = await launchImagePickerWithAutoCancel({
         mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
