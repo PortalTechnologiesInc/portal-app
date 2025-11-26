@@ -13,6 +13,8 @@ import { useDatabaseContext } from '@/context/DatabaseContext';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 import { ActivityType, globalEvents } from '@/utils/common';
 
+export type ActivityFilterType = 'logins' | 'payments' | 'subscriptions' | 'tickets';
+
 interface ActivitiesContextType {
   // Activity management
   activities: ActivityWithDates[];
@@ -24,8 +26,9 @@ interface ActivitiesContextType {
   totalActivities: number;
 
   // Filter management
-  currentFilter: ActivityType | null;
-  setFilter: (filter: ActivityType | null) => void;
+  activeFilters: Set<ActivityFilterType>;
+  toggleFilter: (filter: ActivityFilterType) => void;
+  resetFilters: () => void;
 
   // Subscription management
   subscriptions: SubscriptionWithDates[];
@@ -50,7 +53,7 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [currentOffset, setCurrentOffset] = useState(0);
   const [totalActivities, setTotalActivities] = useState(0);
-  const [currentFilter, setCurrentFilter] = useState<ActivityType | null>(null);
+  const [activeFilters, setActiveFilters] = useState<Set<ActivityFilterType>>(new Set());
 
   const ACTIVITIES_PER_PAGE = 20;
 
@@ -68,7 +71,7 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
     setIsLoadingMore(false);
     setCurrentOffset(0);
     setTotalActivities(0);
-    setCurrentFilter(null);
+    setActiveFilters(new Set());
     // Reset the current offset ref as well
     currentOffsetRef.current = 0;
   };
@@ -86,13 +89,55 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
     async (reset = false) => {
       const offset = reset ? 0 : currentOffsetRef.current;
 
+      // Use ref to get current filters to avoid dependency on activeFilters
+      const filters = activeFiltersRef.current;
+
+      // Build filter options based on active filters
+      const types: ActivityType[] = [];
+      let includeSubscriptions = false;
+      let excludeSubscriptions = false;
+      const hasPayments = filters.has('payments');
+      const hasSubscriptions = filters.has('subscriptions');
+
+      if (filters.has('logins')) {
+        types.push(ActivityType.Auth);
+      }
+      if (hasPayments) {
+        types.push(ActivityType.Pay);
+        // Exclude subscriptions only if subscriptions filter is NOT active
+        if (!hasSubscriptions) {
+          excludeSubscriptions = true;
+        }
+      }
+      if (hasSubscriptions) {
+        includeSubscriptions = true;
+        // When both payments and subscriptions are selected, we need special handling
+        // Set excludeSubscriptions to true to trigger the OR logic in database service
+        if (hasPayments) {
+          excludeSubscriptions = true;
+        }
+      }
+      if (filters.has('tickets')) {
+        types.push(ActivityType.Ticket);
+        types.push(ActivityType.TicketApproved);
+        types.push(ActivityType.TicketDenied);
+        types.push(ActivityType.TicketReceived);
+      }
+
+      // If no filters are active, show all activities
+      const filterOptions =
+        filters.size === 0
+          ? { limit: ACTIVITIES_PER_PAGE, offset: offset }
+          : {
+              limit: ACTIVITIES_PER_PAGE,
+              offset: offset,
+              types: types.length > 0 ? types : undefined,
+              includeSubscriptions: includeSubscriptions || undefined,
+              excludeSubscriptions: excludeSubscriptions || undefined,
+            };
+
       const fetchedActivities = await executeOperation(
-        db =>
-          db.getActivities({
-            limit: ACTIVITIES_PER_PAGE,
-            offset: offset,
-            type: currentFilter || undefined,
-          }),
+        db => db.getActivities(filterOptions),
         []
       );
 
@@ -115,17 +160,19 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
       // Update hasMore flag based on whether we got a full page
       setHasMoreActivities(fetchedActivities.length === ACTIVITIES_PER_PAGE);
 
-      // Get total count for filtered activities
-      const allActivities = await executeOperation(
-        db =>
-          db.getActivities({
-            type: currentFilter || undefined,
-          }),
-        []
-      );
+      // Get total count for filtered activities (use same logic as fetch)
+      const countOptions =
+        filters.size === 0
+          ? {}
+          : {
+              types: types.length > 0 ? types : undefined,
+              includeSubscriptions: includeSubscriptions || undefined,
+              excludeSubscriptions: excludeSubscriptions || undefined,
+            };
+      const allActivities = await executeOperation(db => db.getActivities(countOptions), []);
       setTotalActivities(allActivities.length);
     },
-    [executeOperation, ACTIVITIES_PER_PAGE, currentFilter]
+    [executeOperation, ACTIVITIES_PER_PAGE]
   );
 
   const fetchSubscriptions = useCallback(async () => {
@@ -136,29 +183,150 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
 
   // Use ref to track current offset to avoid dependency issues
   const currentOffsetRef = useRef(0);
+  const isInitialMountRef = useRef(true);
+  const activeFiltersRef = useRef(activeFilters);
+  const previousFiltersRef = useRef<string>('');
 
-  // Update ref when offset state changes
+  // Helper to serialize Set for comparison
+  const serializeFilters = (filters: Set<ActivityFilterType>): string => {
+    return Array.from(filters).sort().join(',');
+  };
+
+  // Update refs when state changes
   useEffect(() => {
     currentOffsetRef.current = currentOffset;
   }, [currentOffset]);
 
-  // Initial data fetch - simplified
   useEffect(() => {
-    Promise.all([fetchActivities(true), fetchSubscriptions()]).catch(error => {
-      console.error('Initial data fetch failed:', error);
-    });
-  }, [fetchActivities, fetchSubscriptions]);
+    activeFiltersRef.current = activeFilters;
+  }, [activeFilters]);
+
+  // Initial data fetch - only on mount
+  useEffect(() => {
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      previousFiltersRef.current = serializeFilters(activeFilters);
+      // Use refs to avoid dependency on functions
+      const fetchInitial = async () => {
+        const offset = 0;
+        const filters = activeFiltersRef.current;
+
+        // Build filter options (no filters on initial load)
+        const filterOptions = { limit: ACTIVITIES_PER_PAGE, offset: offset };
+
+        const [fetchedActivities, fetchedSubscriptions] = await Promise.all([
+          executeOperation(db => db.getActivities(filterOptions), []),
+          executeOperation(db => db.getSubscriptions(), []),
+        ]);
+
+        setActivities(fetchedActivities);
+        setSubscriptions(fetchedSubscriptions);
+        setActiveSubscriptions(fetchedSubscriptions.filter((s: any) => s.status === 'active'));
+        setCurrentOffset(ACTIVITIES_PER_PAGE);
+        currentOffsetRef.current = ACTIVITIES_PER_PAGE;
+        setHasMoreActivities(fetchedActivities.length === ACTIVITIES_PER_PAGE);
+
+        const allActivities = await executeOperation(db => db.getActivities({}), []);
+        setTotalActivities(allActivities.length);
+      };
+
+      fetchInitial().catch(error => {
+        console.error('Initial data fetch failed:', error);
+      });
+    }
+  }, []); // Only run on mount
 
   // Reset and reload when filter changes
   useEffect(() => {
+    // Skip on initial mount (handled by initial data fetch)
+    if (isInitialMountRef.current) {
+      return;
+    }
+
+    // Compare serialized filters to detect actual changes
+    const currentFiltersSerialized = serializeFilters(activeFilters);
+    if (currentFiltersSerialized === previousFiltersRef.current) {
+      return; // No actual change, skip
+    }
+    previousFiltersRef.current = currentFiltersSerialized;
+
     setCurrentOffset(0);
     currentOffsetRef.current = 0;
     setHasMoreActivities(true);
-    setActivities([]);
-    fetchActivities(true).catch(error => {
-      console.error('Failed to fetch activities with filter:', error);
-    });
-  }, [currentFilter, fetchActivities]);
+    // Don't clear activities immediately - let loading state handle it
+    setIsLoadingMore(true);
+    
+    // Use the ref to get current filters to avoid dependency on fetchActivities
+    const filters = activeFiltersRef.current;
+    const offset = 0;
+
+    // Build filter options based on active filters
+    const types: ActivityType[] = [];
+    let includeSubscriptions = false;
+    let excludeSubscriptions = false;
+    const hasPayments = filters.has('payments');
+    const hasSubscriptions = filters.has('subscriptions');
+
+    if (filters.has('logins')) {
+      types.push(ActivityType.Auth);
+    }
+    if (hasPayments) {
+      types.push(ActivityType.Pay);
+      if (!hasSubscriptions) {
+        excludeSubscriptions = true;
+      }
+    }
+    if (hasSubscriptions) {
+      includeSubscriptions = true;
+      if (hasPayments) {
+        excludeSubscriptions = true;
+      }
+    }
+    if (filters.has('tickets')) {
+      types.push(ActivityType.Ticket);
+      types.push(ActivityType.TicketApproved);
+      types.push(ActivityType.TicketDenied);
+      types.push(ActivityType.TicketReceived);
+    }
+
+    const filterOptions =
+      filters.size === 0
+        ? { limit: ACTIVITIES_PER_PAGE, offset: offset }
+        : {
+            limit: ACTIVITIES_PER_PAGE,
+            offset: offset,
+            types: types.length > 0 ? types : undefined,
+            includeSubscriptions: includeSubscriptions || undefined,
+            excludeSubscriptions: excludeSubscriptions || undefined,
+          };
+
+    executeOperation(db => db.getActivities(filterOptions), [])
+      .then(fetchedActivities => {
+        setActivities(fetchedActivities);
+        setCurrentOffset(ACTIVITIES_PER_PAGE);
+        currentOffsetRef.current = ACTIVITIES_PER_PAGE;
+        setHasMoreActivities(fetchedActivities.length === ACTIVITIES_PER_PAGE);
+
+        const countOptions =
+          filters.size === 0
+            ? {}
+            : {
+                types: types.length > 0 ? types : undefined,
+                includeSubscriptions: includeSubscriptions || undefined,
+                excludeSubscriptions: excludeSubscriptions || undefined,
+              };
+        return executeOperation(db => db.getActivities(countOptions), []);
+      })
+      .then(allActivities => {
+        setTotalActivities(allActivities.length);
+      })
+      .catch(error => {
+        console.error('Failed to fetch activities with filter:', error);
+      })
+      .finally(() => {
+        setIsLoadingMore(false);
+      });
+  }, [activeFilters, executeOperation, ACTIVITIES_PER_PAGE]);
 
   const loadMoreActivities = useCallback(async () => {
     if (!hasMoreActivities || isLoadingMore) {
@@ -242,6 +410,24 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
     // This prevents flickering while new data loads
   }, []);
 
+  // Toggle a filter on/off
+  const toggleFilter = useCallback((filter: ActivityFilterType) => {
+    setActiveFilters(prev => {
+      const newFilters = new Set(prev);
+      if (newFilters.has(filter)) {
+        newFilters.delete(filter);
+      } else {
+        newFilters.add(filter);
+      }
+      return newFilters;
+    });
+  }, []);
+
+  // Reset all filters
+  const resetFilters = useCallback(() => {
+    setActiveFilters(new Set());
+  }, []);
+
   const contextValue: ActivitiesContextType = useMemo(
     () => ({
       activities,
@@ -253,8 +439,9 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
       hasMoreActivities,
       isLoadingMore,
       totalActivities,
-      currentFilter,
-      setFilter: setCurrentFilter,
+      activeFilters,
+      toggleFilter,
+      resetFilters,
       addActivityIfNotExists,
       getRecentActivities,
     }),
@@ -268,7 +455,9 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
       hasMoreActivities,
       isLoadingMore,
       totalActivities,
-      currentFilter,
+      activeFilters,
+      toggleFilter,
+      resetFilters,
       addActivityIfNotExists,
       getRecentActivities,
     ]

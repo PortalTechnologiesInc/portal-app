@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { View, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, FlatList, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { ThemedText } from '../../components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,6 +10,7 @@ import { router } from 'expo-router';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useFocusEffect } from '@react-navigation/native';
 import { ActivityType } from '@/utils/common';
+import type { ActivityFilterType } from '@/context/ActivitiesContext';
 
 const ItemList: React.FC = () => {
   const {
@@ -19,8 +20,9 @@ const ItemList: React.FC = () => {
     hasMoreActivities,
     isLoadingMore,
     resetToFirstPage,
-    currentFilter,
-    setFilter,
+    activeFilters,
+    toggleFilter,
+    resetFilters,
   } = useActivities();
 
   // Theme colors
@@ -44,11 +46,12 @@ const ItemList: React.FC = () => {
 
       // Return cleanup function that runs when page loses focus
       return () => {
-        // Scroll to top and reset activities/infinite scroll when leaving the page
+        // Scroll to top, reset filters, and reset activities/infinite scroll when leaving the page
         flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+        resetFilters();
         refreshData();
       };
-    }, [resetToFirstPage, refreshData])
+    }, [resetToFirstPage, refreshData, resetFilters])
   );
 
   // Memoize grouped items to prevent recalculation on every render
@@ -83,9 +86,12 @@ const ItemList: React.FC = () => {
   );
 
   // Memoize filter handlers
-  const handleFilterAll = useCallback(() => setFilter(null), [setFilter]);
-  const handleFilterPay = useCallback(() => setFilter(ActivityType.Pay), [setFilter]);
-  const handleFilterAuth = useCallback(() => setFilter(ActivityType.Auth), [setFilter]);
+  const handleToggleFilter = useCallback(
+    (filter: ActivityFilterType) => {
+      toggleFilter(filter);
+    },
+    [toggleFilter]
+  );
 
   // Memoized list header and footer components
   const ListHeaderComponent = useMemo(() => <View style={{ height: 16 }} />, []);
@@ -149,72 +155,119 @@ const ItemList: React.FC = () => {
         <ThemedText type="title" style={{ color: primaryTextColor }}>
           Your activities
         </ThemedText>
-        <View style={styles.filterContainer}>
-          <TouchableOpacity
-            style={[
-              styles.filterChip,
-              { backgroundColor: currentFilter === null ? buttonPrimaryColor : buttonSecondaryColor },
-            ]}
-            onPress={handleFilterAll}
+        <View style={[styles.filtersCard, { backgroundColor: cardBackgroungColor }]}>
+          <ThemedText type="subtitle" style={[styles.filtersLabel, { color: secondaryTextColor }]}>
+            Filters
+          </ThemedText>
+          <ScrollView
+            style={styles.filterScroll}
+            contentContainerStyle={styles.filterContainer}
+            horizontal
+            showsHorizontalScrollIndicator={false}
           >
-            <ThemedText
-              type="subtitle"
+            <TouchableOpacity
               style={[
-                styles.filterChipText,
-                { color: currentFilter === null ? buttonPrimaryTextColor : buttonSecondaryTextColor },
-              ]}
-            >
-              All
-            </ThemedText>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.filterChip,
-              {
-                backgroundColor:
-                  currentFilter === ActivityType.Pay ? buttonPrimaryColor : buttonSecondaryColor,
-              },
-            ]}
-            onPress={handleFilterPay}
-          >
-            <ThemedText
-              type="subtitle"
-              style={[
-                styles.filterChipText,
+                styles.filterChip,
+                styles.filterChipFirst,
                 {
-                  color:
-                    currentFilter === ActivityType.Pay ? buttonPrimaryTextColor : buttonSecondaryTextColor,
+                  backgroundColor: activeFilters.has('logins')
+                    ? buttonPrimaryColor
+                    : buttonSecondaryColor,
                 },
               ]}
+              onPress={() => handleToggleFilter('logins')}
             >
-              Pay
-            </ThemedText>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.filterChip,
-              {
-                backgroundColor:
-                  currentFilter === ActivityType.Auth ? buttonPrimaryColor : buttonSecondaryColor,
-              },
-            ]}
-            onPress={handleFilterAuth}
-          >
-            <ThemedText
-              type="subtitle"
-              style={[
-                styles.filterChipText,
-                {
-                  color:
-                    currentFilter === ActivityType.Auth
+              <ThemedText
+                type="subtitle"
+                style={[
+                  styles.filterChipText,
+                  {
+                    color: activeFilters.has('logins')
                       ? buttonPrimaryTextColor
                       : buttonSecondaryTextColor,
+                  },
+                ]}
+              >
+                Logins
+              </ThemedText>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.filterChip,
+                {
+                  backgroundColor: activeFilters.has('payments')
+                    ? buttonPrimaryColor
+                    : buttonSecondaryColor,
                 },
               ]}
+              onPress={() => handleToggleFilter('payments')}
             >
-              Login
-            </ThemedText>
-          </TouchableOpacity>
+              <ThemedText
+                type="subtitle"
+                style={[
+                  styles.filterChipText,
+                  {
+                    color: activeFilters.has('payments')
+                      ? buttonPrimaryTextColor
+                      : buttonSecondaryTextColor,
+                  },
+                ]}
+              >
+                Payments
+              </ThemedText>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.filterChip,
+                {
+                  backgroundColor: activeFilters.has('subscriptions')
+                    ? buttonPrimaryColor
+                    : buttonSecondaryColor,
+                },
+              ]}
+              onPress={() => handleToggleFilter('subscriptions')}
+            >
+              <ThemedText
+                type="subtitle"
+                style={[
+                  styles.filterChipText,
+                  {
+                    color: activeFilters.has('subscriptions')
+                      ? buttonPrimaryTextColor
+                      : buttonSecondaryTextColor,
+                  },
+                ]}
+              >
+                Subscriptions
+              </ThemedText>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.filterChip,
+                styles.filterChipLast,
+                {
+                  backgroundColor: activeFilters.has('tickets')
+                    ? buttonPrimaryColor
+                    : buttonSecondaryColor,
+                },
+              ]}
+              onPress={() => handleToggleFilter('tickets')}
+            >
+              <ThemedText
+                type="subtitle"
+                style={[
+                  styles.filterChipText,
+                  {
+                    color: activeFilters.has('tickets')
+                      ? buttonPrimaryTextColor
+                      : buttonSecondaryTextColor,
+                  },
+                ]}
+              >
+                Tickets
+              </ThemedText>
+            </TouchableOpacity>
+          </ScrollView>
         </View>
 
         {listData.length === 0 ? (
@@ -257,18 +310,39 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     // backgroundColor handled by theme
   },
-  filterContainer: {
-    paddingVertical: 16,
+  filtersCard: {
+    borderRadius: 20,
+    paddingHorizontal: 2,
+    paddingVertical: 12,
+    marginTop: 16,
     marginBottom: 12,
+  },
+  filtersLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  filterScroll: {
+    marginTop: 12,
+    alignSelf: 'stretch',
+  },
+  filterContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
+    columnGap: 8,
   },
   filterChip: {
     // backgroundColor handled by theme
-    paddingVertical: 8,
     paddingHorizontal: 16,
-    marginEnd: 8,
+    paddingVertical: 8,
     borderRadius: 20,
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  filterChipFirst: {
+    marginLeft: 5,
+  },
+  filterChipLast: {
+    marginRight: 5,
   },
   filterChipText: {
     // color handled by theme
