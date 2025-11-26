@@ -19,8 +19,9 @@ const ItemList: React.FC = () => {
     hasMoreActivities,
     isLoadingMore,
     resetToFirstPage,
+    currentFilter,
+    setFilter,
   } = useActivities();
-  const [filter, setFilter] = useState<ActivityType | null>(null);
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -43,22 +44,16 @@ const ItemList: React.FC = () => {
 
       // Return cleanup function that runs when page loses focus
       return () => {
-        // Scroll to top and reset to first 20 activities when leaving the page
+        // Scroll to top and reset activities/infinite scroll when leaving the page
         flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
-        resetToFirstPage();
+        refreshData();
       };
-    }, [resetToFirstPage])
-  );
-
-  // Memoize filtered items to prevent recalculation on every render
-  const filteredItems = useMemo(
-    () => (filter === null ? activities : activities.filter(item => item.type === filter)),
-    [filter, activities]
+    }, [resetToFirstPage, refreshData])
   );
 
   // Memoize grouped items to prevent recalculation on every render
   const groupedItems = useMemo(() => {
-    return filteredItems.reduce(
+    return activities.reduce(
       (acc, item) => {
         const dateString = item.date.toDateString();
         if (!acc[dateString]) {
@@ -69,7 +64,7 @@ const ItemList: React.FC = () => {
       },
       {} as Record<string, ActivityWithDates[]>
     );
-  }, [filteredItems]);
+  }, [activities]);
 
   // Memoize data for FlatList to prevent new array creation on every render
   const listData = useMemo(
@@ -88,9 +83,9 @@ const ItemList: React.FC = () => {
   );
 
   // Memoize filter handlers
-  const handleFilterAll = useCallback(() => setFilter(null), []);
-  const handleFilterPay = useCallback(() => setFilter(ActivityType.Pay), []);
-  const handleFilterAuth = useCallback(() => setFilter(ActivityType.Auth), []);
+  const handleFilterAll = useCallback(() => setFilter(null), [setFilter]);
+  const handleFilterPay = useCallback(() => setFilter(ActivityType.Pay), [setFilter]);
+  const handleFilterAuth = useCallback(() => setFilter(ActivityType.Auth), [setFilter]);
 
   // Memoized list header and footer components
   const ListHeaderComponent = useMemo(() => <View style={{ height: 16 }} />, []);
@@ -121,15 +116,8 @@ const ItemList: React.FC = () => {
 
   // Infinite scroll handler
   const handleEndReached = useCallback(() => {
-    if (hasMoreActivities && !isLoadingMore && filter === null) {
+    if (hasMoreActivities && !isLoadingMore) {
       loadMoreActivities();
-    }
-  }, [hasMoreActivities, isLoadingMore, loadMoreActivities, filter]);
-
-  // Load all activities handler for when filters are applied
-  const handleLoadAllActivities = useCallback(async () => {
-    while (hasMoreActivities && !isLoadingMore) {
-      await loadMoreActivities();
     }
   }, [hasMoreActivities, isLoadingMore, loadMoreActivities]);
 
@@ -165,7 +153,7 @@ const ItemList: React.FC = () => {
           <TouchableOpacity
             style={[
               styles.filterChip,
-              { backgroundColor: filter === null ? buttonPrimaryColor : buttonSecondaryColor },
+              { backgroundColor: currentFilter === null ? buttonPrimaryColor : buttonSecondaryColor },
             ]}
             onPress={handleFilterAll}
           >
@@ -173,7 +161,7 @@ const ItemList: React.FC = () => {
               type="subtitle"
               style={[
                 styles.filterChipText,
-                { color: filter === null ? buttonPrimaryTextColor : buttonSecondaryTextColor },
+                { color: currentFilter === null ? buttonPrimaryTextColor : buttonSecondaryTextColor },
               ]}
             >
               All
@@ -184,7 +172,7 @@ const ItemList: React.FC = () => {
               styles.filterChip,
               {
                 backgroundColor:
-                  filter === ActivityType.Pay ? buttonPrimaryColor : buttonSecondaryColor,
+                  currentFilter === ActivityType.Pay ? buttonPrimaryColor : buttonSecondaryColor,
               },
             ]}
             onPress={handleFilterPay}
@@ -195,7 +183,7 @@ const ItemList: React.FC = () => {
                 styles.filterChipText,
                 {
                   color:
-                    filter === ActivityType.Pay ? buttonPrimaryTextColor : buttonSecondaryTextColor,
+                    currentFilter === ActivityType.Pay ? buttonPrimaryTextColor : buttonSecondaryTextColor,
                 },
               ]}
             >
@@ -207,7 +195,7 @@ const ItemList: React.FC = () => {
               styles.filterChip,
               {
                 backgroundColor:
-                  filter === ActivityType.Auth ? buttonPrimaryColor : buttonSecondaryColor,
+                  currentFilter === ActivityType.Auth ? buttonPrimaryColor : buttonSecondaryColor,
               },
             ]}
             onPress={handleFilterAuth}
@@ -218,7 +206,7 @@ const ItemList: React.FC = () => {
                 styles.filterChipText,
                 {
                   color:
-                    filter === ActivityType.Auth
+                    currentFilter === ActivityType.Auth
                       ? buttonPrimaryTextColor
                       : buttonSecondaryTextColor,
                 },
@@ -236,24 +224,7 @@ const ItemList: React.FC = () => {
             </ThemedText>
           </View>
         ) : (
-          <>
-            {filter !== null && hasMoreActivities && (
-              <View style={[styles.filterNote, { backgroundColor: cardBackgroungColor }]}>
-                <ThemedText style={[styles.filterNoteText, { color: secondaryTextColor }]}>
-                  Filtering is applied to currently loaded activities only.
-                </ThemedText>
-                <TouchableOpacity
-                  style={[styles.loadAllButton, { backgroundColor: buttonPrimaryColor }]}
-                  onPress={handleLoadAllActivities}
-                  disabled={isLoadingMore}
-                >
-                  <ThemedText style={[styles.loadAllButtonText, { color: buttonPrimaryTextColor }]}>
-                    {isLoadingMore ? 'Loading...' : 'Load All Activities'}
-                  </ThemedText>
-                </TouchableOpacity>
-              </View>
-            )}
-            <FlatList
+          <FlatList
               showsVerticalScrollIndicator={false}
               data={listData}
               renderItem={listItemRenderer}
@@ -268,7 +239,6 @@ const ItemList: React.FC = () => {
               onEndReachedThreshold={0.1}
               ref={flatListRef}
             />
-          </>
         )}
       </ThemedView>
     </SafeAreaView>
@@ -324,24 +294,6 @@ const styles = StyleSheet.create({
     // color handled by theme
   },
   loadingText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  filterNote: {
-    padding: 16,
-    marginBottom: 12,
-    borderRadius: 20,
-  },
-  filterNoteText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  loadAllButton: {
-    padding: 12,
-    borderRadius: 20,
-    marginTop: 12,
-  },
-  loadAllButtonText: {
     fontSize: 14,
     fontWeight: '500',
   },
