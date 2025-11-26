@@ -4,11 +4,10 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { getMnemonic, getWalletUrl } from './SecureStorageService';
-import { AuthChallengeEvent, AuthResponseStatus, CloseRecurringPaymentResponse, Currency_Tags, Mnemonic, Nwc, PaymentResponseContent, PaymentStatus, PaymentStatusNotifier, PortalApp, PortalAppInterface, RecurringPaymentRequest, RecurringPaymentResponseContent, RecurringPaymentStatus, RelayStatusListener, RelayStatusListenerImpl, SinglePaymentRequest } from 'portal-app-lib';
+import { AuthResponseStatus, Currency_Tags, Mnemonic, Nwc, PaymentStatus, PortalApp, RecurringPaymentRequest, RecurringPaymentResponseContent, RelayStatusListener, SinglePaymentRequest } from 'portal-app-lib';
 import { openDatabaseAsync } from 'expo-sqlite';
 import { DatabaseService } from './DatabaseService';
 import { PortalAppManager } from './PortalAppManager';
-import { LocalAuthChallengeListener, LocalClosedRecurringPaymentListener, LocalPaymentRequestListener } from '@/context/NostrServiceContext';
 import { handleAuthChallenge, handleCloseRecurringPaymentResponse, handleRecurringPaymentRequest, handleSinglePaymentRequest } from './EventFilters';
 import { mapNumericStatusToString, getServiceNameFromProfile } from '@/utils/nostrHelper';
 import { RelayInfo } from '@/utils/common';
@@ -192,37 +191,57 @@ export async function handleHeadlessNotification(event: String, databaseName: st
     let app = await PortalApp.create(keypair, notificationRelays, relayListener);
     app.listen({ signal: abortController.signal });
 
-    // Listen for closed recurring payments
-    app.listenClosedRecurringPayment(new LocalClosedRecurringPaymentListener(
-      async (response: CloseRecurringPaymentResponse) => {
-        console.log('Closed subscription received', response);
+    // Listen for closed recurring payments using new API pattern
+    (async () => {
+      while (true) {
+        let event;
+        try {
+          event = await app.nextClosedRecurringPayment({ signal: abortController.signal });
+        } catch (error) {
+          // Abort signal or other error - break the loop
+          break;
+        }
+
+        console.log('Closed subscription received', event);
         const resolver = async () => { /* NOOP */ };
-        await handleCloseRecurringPaymentResponse(response, executeOperationForNotification, resolver);
+        await handleCloseRecurringPaymentResponse(event, executeOperationForNotification, resolver);
         abortController.abort();
       }
-    )).catch(async e => {
+    })().catch(async (e: any) => {
       await notifyBackgroundError('Recurring payment listener error', e);
     });
 
-    app.listenForPaymentRequest(
-      new LocalPaymentRequestListener(
-        async (request: SinglePaymentRequest, notifier: PaymentStatusNotifier) => {
-          const id = request.eventId;
+    // Listen for payment requests using new API pattern
+    (async () => {
+      while (true) {
+        let result: any;
+        try {
+          result = await app.nextPaymentRequest({ signal: abortController.signal });
+        } catch (error) {
+          // Abort signal or other error - break the loop
+          break;
+        }
 
+        // Handle single payment request (has notifier)
+        if (result.notifier) {
+          const event = result.event as SinglePaymentRequest;
+          const notifier = result.notifier as any; // PaymentStatusNotifier type from library
+
+          const id = event.eventId;
           const alreadyTracked = await executeOperationForNotification(
             db => db.markNotificationEventProcessed(id),
             false
           );
           if (alreadyTracked) {
-            return;
+            continue;
           }
 
-          console.log(`Single payment request with id ${id} received`, request);
+          console.log(`Single payment request with id ${id} received`, event);
 
           const resolver = async (status: PaymentStatus) => {
             await notifier.notify({
               status,
-              requestId: request.content.requestId,
+              requestId: event.content.requestId,
             });
           };
 
@@ -234,7 +253,7 @@ export async function handleHeadlessNotification(event: String, databaseName: st
 
           await handleSinglePaymentRequest(
             nwcWallet,
-            request,
+            event,
             preferredCurrency,
             executeOperationForNotification,
             resolver,
@@ -242,94 +261,99 @@ export async function handleHeadlessNotification(event: String, databaseName: st
           );
 
           abortController.abort();
-        },
-        async (request: RecurringPaymentRequest): Promise<RecurringPaymentResponseContent> => {
-          const id = request.eventId;
-
-          const alreadyTracked = await executeOperationForNotification(
-            db => db.markNotificationEventProcessed(id),
-            false
-          );
-          if (alreadyTracked) {
-            return new Promise<RecurringPaymentResponseContent>(resolve => {
-              // Ignore
-            });
-          }
-
-          console.log(`Recurring payment request with id ${id} received`, request);
-
-          return new Promise<RecurringPaymentResponseContent>(resolve => {
-            handleRecurringPaymentRequest(request, executeOperationForNotification, resolve)
-              .then(askUser => {
-                if (askUser) {
-                  // Show notification to user for manual approval
-                  Notifications.scheduleNotificationAsync({
-                    content: {
-                      title: 'Subscription Request',
-                      body: `Subscription request for ${request.content.amount} ${request.content.currency.tag === Currency_Tags.Fiat && request.content.currency.inner} to ${request.recipient} requires approval`,
-                      data: {
-                        type: 'payment_request',
-                        requestId: id,
-                        amount: request.content.amount,
-                      },
-                    },
-                    trigger: null, // Show immediately
-                  });
-                }
-              })
-              .finally(() => {
-                abortController.abort();
-              });
-          });
         }
-      )
-    ).catch(async (e: any) => {
-      await notifyBackgroundError('Payment request listener error', e);
-      // TODO: re-initialize the app
-    });
+        // Handle recurring payment request (no notifier)
+        else {
+          const event = result.event as RecurringPaymentRequest;
 
-    app
-      .listenForAuthChallenge(
-        new LocalAuthChallengeListener(async (event: AuthChallengeEvent) => {
           const id = event.eventId;
-
           const alreadyTracked = await executeOperationForNotification(
             db => db.markNotificationEventProcessed(id),
             false
           );
           if (alreadyTracked) {
-            return new Promise<AuthResponseStatus>(resolve => {
-              // Ignore
-            });
+            continue;
           }
 
-          console.log(`Auth challenge with id ${id} received`, event);
+          console.log(`Recurring payment request with id ${id} received`, event);
 
-          return new Promise<AuthResponseStatus>(resolve => {
-            handleAuthChallenge(event, executeOperationForNotification, resolve)
-              .then(askUser => {
+          const resolve = (response: RecurringPaymentResponseContent) => {
+            app.replyRecurringPaymentRequest(event, response);
+          };
+
+          await handleRecurringPaymentRequest(event, executeOperationForNotification, resolve).then(
+            askUser => {
+              if (askUser) {
+                // Show notification to user for manual approval
                 Notifications.scheduleNotificationAsync({
                   content: {
-                    title: 'Authentication Request',
-                    body: `Authentication request requires approval`,
+                    title: 'Subscription Request',
+                    body: `Subscription request for ${event.content.amount} ${event.content.currency.tag === Currency_Tags.Fiat && event.content.currency.inner} to ${event.recipient} requires approval`,
                     data: {
-                      type: 'authentication_request',
+                      type: 'payment_request',
                       requestId: id,
+                      amount: event.content.amount,
                     },
                   },
                   trigger: null, // Show immediately
                 });
-              })
-              .finally(() => {
-                abortController.abort();
-              });
-          });
-        })
-      )
-      .catch(async (e: any) => {
-        await notifyBackgroundError('Auth challenge listener error', e);
-        // TODO: re-initialize the app
-      });
+              }
+              abortController.abort();
+            }
+          );
+        }
+      }
+    })().catch(async (e: any) => {
+      await notifyBackgroundError('Payment request listener error', e);
+    });
+
+    // Listen for auth challenges using new API pattern
+    (async () => {
+      while (true) {
+        let event;
+        try {
+          event = await app.nextAuthChallenge({ signal: abortController.signal });
+        } catch (error) {
+          // Abort signal or other error - break the loop
+          break;
+        }
+
+        const id = event.eventId;
+        const alreadyTracked = await executeOperationForNotification(
+          db => db.markNotificationEventProcessed(id),
+          false
+        );
+        if (alreadyTracked) {
+          continue;
+        }
+
+        console.log(`Auth challenge with id ${id} received`, event);
+
+        const resolve = (status: AuthResponseStatus) => {
+          app.replyAuthChallenge(event, status);
+        };
+
+        await handleAuthChallenge(event, executeOperationForNotification, resolve).then(askUser => {
+          if (askUser) {
+            Notifications.scheduleNotificationAsync({
+              content: {
+                title: 'Authentication Request',
+                body: `Authentication request requires approval`,
+                data: {
+                  type: 'authentication_request',
+                  requestId: id,
+                },
+              },
+              trigger: null, // Show immediately
+            });
+          }
+          abortController.abort();
+        });
+      }
+    })().catch(async (e: any) => {
+      await notifyBackgroundError('Auth challenge listener error', e);
+      // TODO: re-initialize the app
+    });
   } catch (e) {
     console.error(e);
   }
