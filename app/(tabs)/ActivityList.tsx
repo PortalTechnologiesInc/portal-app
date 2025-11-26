@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
   filtersLabel: {
     fontSize: 14,
     fontWeight: '600',
-    marginLeft: 8,
+    marginLeft: 12,
   },
   filterScroll: {
     marginTop: 12,
@@ -339,10 +339,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   filterChipFirst: {
-    marginLeft: 5,
+    marginLeft: 8,
   },
   filterChipLast: {
-    marginRight: 5,
+    marginRight: 8,
   },
   filterChipText: {
     // color handled by theme
