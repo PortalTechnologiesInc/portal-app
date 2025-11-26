@@ -463,8 +463,8 @@ export default function Onboarding() {
     setCurrentStep('pin-setup');
   };
 
-  const handleSkipPinSetup = () => {
-    // Skip PIN setup and complete onboarding
+  const handleCompletionWithoutPIN = () => {
+    // Complete onboarding without setting up a PIN
     resetPinState();
     setCurrentStep('splash');
     setTimeout(() => {
