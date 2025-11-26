@@ -1,7 +1,7 @@
 {
   "name": "cc.getportal.portal",
   "main": "index.ts",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "type": "module",
   "scripts": {
     "start": "expo start",
