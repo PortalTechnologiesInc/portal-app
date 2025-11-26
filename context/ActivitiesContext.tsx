@@ -11,7 +11,7 @@ import {
 import { type ActivityWithDates, type SubscriptionWithDates } from '@/services/DatabaseService';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
-import { globalEvents } from '@/utils/common';
+import { ActivityType, globalEvents } from '@/utils/common';
 
 interface ActivitiesContextType {
   // Activity management
@@ -22,6 +22,10 @@ interface ActivitiesContextType {
   hasMoreActivities: boolean;
   isLoadingMore: boolean;
   totalActivities: number;
+
+  // Filter management
+  currentFilter: ActivityType | null;
+  setFilter: (filter: ActivityType | null) => void;
 
   // Subscription management
   subscriptions: SubscriptionWithDates[];
@@ -46,6 +50,7 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [currentOffset, setCurrentOffset] = useState(0);
   const [totalActivities, setTotalActivities] = useState(0);
+  const [currentFilter, setCurrentFilter] = useState<ActivityType | null>(null);
 
   const ACTIVITIES_PER_PAGE = 20;
 
@@ -63,7 +68,7 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
     setIsLoadingMore(false);
     setCurrentOffset(0);
     setTotalActivities(0);
-
+    setCurrentFilter(null);
     // Reset the current offset ref as well
     currentOffsetRef.current = 0;
   };
@@ -86,6 +91,7 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
           db.getActivities({
             limit: ACTIVITIES_PER_PAGE,
             offset: offset,
+            type: currentFilter || undefined,
           }),
         []
       );
@@ -109,11 +115,17 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
       // Update hasMore flag based on whether we got a full page
       setHasMoreActivities(fetchedActivities.length === ACTIVITIES_PER_PAGE);
 
-      // Get total count for reference (optional)
-      const allActivities = await executeOperation(db => db.getActivities(), []);
+      // Get total count for filtered activities
+      const allActivities = await executeOperation(
+        db =>
+          db.getActivities({
+            type: currentFilter || undefined,
+          }),
+        []
+      );
       setTotalActivities(allActivities.length);
     },
-    [executeOperation, ACTIVITIES_PER_PAGE]
+    [executeOperation, ACTIVITIES_PER_PAGE, currentFilter]
   );
 
   const fetchSubscriptions = useCallback(async () => {
@@ -136,6 +148,17 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
       console.error('Initial data fetch failed:', error);
     });
   }, [fetchActivities, fetchSubscriptions]);
+
+  // Reset and reload when filter changes
+  useEffect(() => {
+    setCurrentOffset(0);
+    currentOffsetRef.current = 0;
+    setHasMoreActivities(true);
+    setActivities([]);
+    fetchActivities(true).catch(error => {
+      console.error('Failed to fetch activities with filter:', error);
+    });
+  }, [currentFilter, fetchActivities]);
 
   const loadMoreActivities = useCallback(async () => {
     if (!hasMoreActivities || isLoadingMore) {
@@ -230,6 +253,8 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
       hasMoreActivities,
       isLoadingMore,
       totalActivities,
+      currentFilter,
+      setFilter: setCurrentFilter,
       addActivityIfNotExists,
       getRecentActivities,
     }),
@@ -243,6 +268,7 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
       hasMoreActivities,
       isLoadingMore,
       totalActivities,
+      currentFilter,
       addActivityIfNotExists,
       getRecentActivities,
     ]
