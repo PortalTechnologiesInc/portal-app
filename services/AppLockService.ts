@@ -24,6 +24,12 @@ export const TIMER_OPTIONS: Array<{ label: string; value: LockTimerDuration }> =
 // In-memory storage for background timestamp (not persisted)
 let backgroundTimestamp: number | null = null;
 let lastUnlockTimestamp: number | null = null;
+let lockSuppressionCount = 0;
+let lockSuppressionReason: string | null = null;
+
+// Minimum background duration to trigger lock (ignores brief system transitions)
+// Require at least 1 second in background before locking
+const MIN_BACKGROUND_DURATION_MS = 100;
 
 /**
  * Simple hash function for PIN
@@ -211,6 +217,15 @@ export class AppLockService {
    */
   static async shouldLockApp(): Promise<boolean> {
     try {
+      if (this.isLockSuppressed()) {
+        console.log(
+          `[AppLock] Suppressed - skipping lock${
+            lockSuppressionReason ? ` (${lockSuppressionReason})` : ''
+          }`
+        );
+        return false;
+      }
+
       const isEnabled = await this.isAppLockEnabled();
       if (!isEnabled) {
         return false;
@@ -233,6 +248,25 @@ export class AppLockService {
       }
 
       const timeSinceBackground = Date.now() - backgroundTimestamp;
+      
+      // Only apply minimum duration check for very brief backgrounds (< 5 seconds)
+      // This prevents false locks from brief system transitions (e.g., NFC)
+      // Normal backgrounding will be longer and will lock per timer setting
+      if (timeSinceBackground < MIN_BACKGROUND_DURATION_MS) {
+        // Very brief background - likely system transition (NFC), don't lock
+        console.log(`[AppLock] Background too brief (likely system transition): ${timeSinceBackground}ms < ${MIN_BACKGROUND_DURATION_MS}ms - not locking`);
+        return false;
+      }
+      
+      // Background is long enough - check if timer duration has passed
+      // For immediate lock (timerDuration === 0), lock immediately since background is >= 5 seconds
+      // For other timers, check if timer duration has passed
+      if (timerDuration === 0) {
+        console.log(`[AppLock] Immediate lock: background duration ${timeSinceBackground}ms >= ${MIN_BACKGROUND_DURATION_MS}ms - locking`);
+        return true;
+      }
+      
+      console.log(`[AppLock] Background duration: ${timeSinceBackground}ms, timerDuration: ${timerDuration}ms`);
       return timeSinceBackground >= timerDuration;
     } catch (error) {
       console.error('Error checking if app should lock:', error);
@@ -245,6 +279,9 @@ export class AppLockService {
    * Record timestamp when app goes to background
    */
   static recordBackgroundTime(): void {
+    if (this.isLockSuppressed()) {
+      return;
+    }
     backgroundTimestamp = Date.now();
     // Reset unlock timestamp when going to background so timer check applies on return
     lastUnlockTimestamp = null;
@@ -255,6 +292,44 @@ export class AppLockService {
    */
   static clearBackgroundTime(): void {
     backgroundTimestamp = null;
+  }
+
+  /**
+   * Get the background timestamp (for checking recency)
+   */
+  static getBackgroundTimestamp(): number | null {
+    return backgroundTimestamp;
+  }
+
+  /**
+   * Temporarily suppress app lock (e.g., during NFC scanning)
+   */
+  static enableLockSuppression(reason?: string): void {
+    lockSuppressionCount += 1;
+    if (reason) {
+      lockSuppressionReason = reason;
+    }
+    console.log(
+      `[AppLock] Lock suppression enabled (count=${lockSuppressionCount}${
+        reason ? `, reason=${reason}` : ''
+      })`
+    );
+  }
+
+  static disableLockSuppression(reason?: string): void {
+    lockSuppressionCount = Math.max(0, lockSuppressionCount - 1);
+    if (lockSuppressionCount === 0) {
+      lockSuppressionReason = null;
+    }
+    console.log(
+      `[AppLock] Lock suppression disabled (count=${lockSuppressionCount}${
+        reason ? `, reason=${reason}` : ''
+      })`
+    );
+  }
+
+  static isLockSuppressed(): boolean {
+    return lockSuppressionCount > 0;
   }
 
   /**
@@ -272,6 +347,8 @@ export class AppLockService {
   private static resetSessionState(): void {
     backgroundTimestamp = null;
     lastUnlockTimestamp = null;
+    lockSuppressionCount = 0;
+    lockSuppressionReason = null;
   }
 
   /**

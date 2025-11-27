@@ -7,7 +7,7 @@ import React, {
   useCallback,
   useRef,
 } from 'react';
-import { AppState, AppStateStatus } from 'react-native';
+import { AppState, AppStateStatus, Platform } from 'react-native';
 import { AppLockService, AuthMethod, LockTimerDuration, TIMER_OPTIONS } from '@/services/AppLockService';
 import { authenticateAsync, isBiometricPromptInProgress } from '@/services/BiometricAuthService';
 
@@ -97,8 +97,13 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      if (nextAppState === 'background' || nextAppState === 'inactive') {
-        // App going to background or device locked - record timestamp
+      if (nextAppState === 'background') {
+        AppLockService.recordBackgroundTime();
+      } else if (nextAppState === 'inactive') {
+        if (Platform.OS === 'android') {
+          // Ignore Android inactive state (only background matters)
+          return;
+        }
         AppLockService.recordBackgroundTime();
       } else if (nextAppState === 'active') {
         // Refresh biometric capability when returning to foreground
@@ -106,6 +111,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
         setIsFingerprintSupported(fingerprintSupported);
 
         // App becoming active - check if we should lock
+        // The shouldLockApp() method requires at least MIN_BACKGROUND_DURATION_MS in background
         if (isLockEnabled) {
           const shouldLock = await AppLockService.shouldLockApp();
           if (shouldLock) {

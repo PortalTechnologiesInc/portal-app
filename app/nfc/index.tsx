@@ -21,6 +21,7 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 import { showToast } from '@/utils/Toast';
 import * as Linking from 'expo-linking';
 import { useDeeplink } from '@/context/DeeplinkContext';
+import { AppLockService } from '@/services/AppLockService';
 
 export default function NFCScanScreen() {
   const router = useRouter();
@@ -251,6 +252,8 @@ export default function NFCScanScreen() {
   // NFC page focus management - only active when page is visible
   useFocusEffect(
     useCallback(() => {
+      AppLockService.enableLockSuppression('nfc-scan');
+
       let isListenerActive = false;
       let appStateListener: any = null;
       let scanningActive = false;
@@ -312,6 +315,8 @@ export default function NFCScanScreen() {
 
       // Cleanup when page loses focus
       return () => {
+        AppLockService.disableLockSuppression('nfc-scan');
+
         // Mark that we're intentionally leaving the page
         isLeavingPageRef.current = true;
 
