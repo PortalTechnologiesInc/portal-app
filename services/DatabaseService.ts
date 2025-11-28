@@ -103,7 +103,7 @@ export interface NostrRelayWithDates extends Omit<NostrRelay, 'created_at'> {
 }
 
 export class DatabaseService {
-  constructor(private db: SQLiteDatabase) {}
+  constructor(private db: SQLiteDatabase) { }
 
   /**
    * Force database reinitialization after reset
@@ -562,7 +562,7 @@ export class DatabaseService {
       ) VALUES (?, ?, ?, ?)`,
         [id, eventId, approved ? '1' : '0', now]
       );
-    } catch (e) {}
+    } catch (e) { }
 
     return id;
   }
@@ -726,10 +726,10 @@ export class DatabaseService {
 
       return tx
         ? JSON.stringify({
-            ...tx,
-            ys: JSON.parse(tx.ys),
-            metadata: tx.metadata ? JSON.parse(tx.metadata) : null,
-          })
+          ...tx,
+          ys: JSON.parse(tx.ys),
+          metadata: tx.metadata ? JSON.parse(tx.metadata) : null,
+        })
         : undefined;
     } catch (error) {
       console.error('[DatabaseService] Error getting transaction:', error);
@@ -1145,6 +1145,51 @@ export class DatabaseService {
     } catch (error) {
       console.error('Error getting pending payments:', error);
       return [];
+    }
+  }
+
+  // get last unused created secret
+  async getUnusedSecretOrNull(): Promise<string | null> {
+    try {
+      const secret_obj = await this.db.getFirstAsync<{ secret: string }>(
+        'SELECT secret FROM bunker_secrets WHERE used = 0'
+      );
+      return secret_obj?.secret ?? null;
+    } catch (error) {
+      console.error('Database error while getting an unused secret:', error);
+      throw error;
+    }
+  }
+  // Add newly created bunker secret
+  async addBunkerSecret(
+    secret: string,
+  ): Promise<number> {
+    try {
+      const result = await this.db.runAsync(
+        `INSERT INTO bunker_secret (
+          secret
+        ) VALUES (?)`,
+        [secret]
+      );
+      return result.lastInsertRowId;
+    } catch (error) {
+      console.error('Error adding bunker secret entry:', error);
+      throw error;
+    }
+  }
+
+  async markBunkerSecretAsUsed(secret: string): Promise<void> {
+    try {
+      await this.db.runAsync(
+        `UPDATE bunker_secrets
+       SET used = ?
+       WHERE secret = ?`,
+        [secret, true]
+      );
+    } catch (error) {
+      console.error('Database error while getting an unused secret:', error);
+      throw error;
+      ;
     }
   }
 }
