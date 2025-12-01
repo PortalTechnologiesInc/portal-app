@@ -232,13 +232,23 @@ export async function handleSinglePaymentRequest(
     if (!subId) {
       console.log(`👤 Not a subscription, required user interaction!`);
 
-      if (sendNotification && convertedAmount !== null && convertedCurrency) {
-        await sendPaymentNotification(
-          'Payment Request',
-          convertedAmount,
-          convertedCurrency,
-          'Payment request',
-        );
+      if (sendNotification) {
+        // Use converted amount/currency if available, otherwise use original
+        const notificationAmount = convertedAmount !== null && convertedCurrency 
+          ? convertedAmount 
+          : amount;
+        const notificationCurrency = convertedAmount !== null && convertedCurrency 
+          ? convertedCurrency 
+          : currency;
+        
+        if (notificationAmount !== null && notificationCurrency) {
+          await sendPaymentNotification(
+            'Payment Request',
+            notificationAmount,
+            notificationCurrency,
+            'Payment request',
+          );
+        }
       }
 
       return true;
@@ -352,11 +362,19 @@ export async function handleSinglePaymentRequest(
         console.log("🧾 Invoice paid!");
 
         // Send notification to user about successful payment
-        if (convertedAmount !== null && convertedCurrency) {
+        // Use converted amount/currency if available, otherwise use original
+        const notificationAmount = convertedAmount !== null && convertedCurrency 
+          ? convertedAmount 
+          : amount;
+        const notificationCurrency = convertedAmount !== null && convertedCurrency 
+          ? convertedCurrency 
+          : currency;
+        
+        if (notificationAmount !== null && notificationCurrency) {
           await sendPaymentNotification(
             'Payment Successful',
-            convertedAmount,
-            convertedCurrency,
+            notificationAmount,
+            notificationCurrency,
             subscriptionServiceName,
           );
         }
