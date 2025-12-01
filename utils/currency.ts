@@ -221,12 +221,6 @@ export const formatActivityAmount = (amount: number | null, currency: string | n
   let currencyEnum: Currency | null = null;
   if (CurrencyHelpers.isValidCurrency(normalizedCurrency)) {
     currencyEnum = normalizedCurrency as Currency;
-  } else {
-    // If not a valid currency, try to find a match
-    const upperCurrency = normalizedCurrency.toUpperCase();
-    if (Object.values(Currency).includes(upperCurrency as Currency)) {
-      currencyEnum = upperCurrency as Currency;
-    }
   }
 
   // If we couldn't determine the currency, return amount with original currency string
