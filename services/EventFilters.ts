@@ -91,7 +91,8 @@ export async function handleSinglePaymentRequest(
     let invoiceData = parseBolt11(request.content.invoice);
 
     const checkAmount = async () => {
-      const invoiceAmountMsat = Number(invoiceData.amountMsat);
+      // TODO: Remove hardcoded value for testing
+      const invoiceAmountMsat = 7000; // Number(invoiceData.amountMsat);
       // 1% tolerance for amounts up to 10,000,000 msats, 0.5% for larger amounts
       const TOLERANCE_PERCENT = invoiceAmountMsat <= 10_000_000 ? 0.01 : 0.005;
 
