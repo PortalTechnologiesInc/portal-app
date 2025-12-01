@@ -6,6 +6,8 @@ import {
   View,
   ToastAndroid,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -219,12 +221,21 @@ export default function NostrRelayManagementScreen() {
           </ThemedText>
         </ThemedView>
 
-        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-          <ThemedText style={[styles.description, { color: secondaryTextColor }]}>
-            Choose the Nostr relays you want to use for Nostr Wallet Connect. Relays help broadcast
-            and receive transactions—pick reliable ones for better speed and connectivity. You can
-            add custom relays or use trusted defaults.
-          </ThemedText>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
+        >
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            <ThemedText style={[styles.description, { color: secondaryTextColor }]}>
+              Choose the Nostr relays you want to use for Nostr Wallet Connect. Relays help broadcast
+              and receive transactions—pick reliable ones for better speed and connectivity. You can
+              add custom relays or use trusted defaults.
+            </ThemedText>
 
           {/* Add Relays Input */}
           <ThemedText style={styles.titleText}>Popular relays:</ThemedText>
@@ -338,10 +349,11 @@ export default function NostrRelayManagementScreen() {
             onPress={updateRelays}
           >
             <ThemedText style={[styles.saveButtonText, { color: buttonPrimaryTextColor }]}>
-              Save relays
-            </ThemedText>
+            Save relays
+          </ThemedText>
           </TouchableOpacity>
         </ScrollView>
+        </KeyboardAvoidingView>
       </ThemedView>
     </SafeAreaView>
   );
