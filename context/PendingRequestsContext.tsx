@@ -28,6 +28,7 @@ import { useDatabaseContext } from '@/context/DatabaseContext';
 import { useActivities } from '@/context/ActivitiesContext';
 import { useCurrency } from '@/context/CurrencyContext';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import { normalizeCurrencyForComparison } from '@/utils/currency';
 import { NostrServiceContextType, useNostrService } from '@/context/NostrServiceContext';
 import { useECash } from '@/context/ECashContext';
 import type {
@@ -249,7 +250,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 break;
               case Currency_Tags.Millisats:
                 amount = amount / 1000; // Convert to sats for database storage
-                currency = 'sats';
+                currency = 'SATS';
                 conversionSourceAmount = rawAmount;
                 conversionSourceCurrency = 'MSATS';
                 break;
@@ -259,16 +260,27 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             let convertedAmount: number | null = null;
             let convertedCurrency: string | null = null;
 
-            try {
-              convertedAmount = await CurrencyConversionService.convertAmount(
-                conversionSourceAmount,
-                conversionSourceCurrency,
-                preferredCurrency // Currency enum values are already strings
-              );
-              convertedCurrency = preferredCurrency;
-            } catch (error) {
-              console.error('Currency conversion error during payment:', error);
-              // Continue without conversion - convertedAmount will remain null
+            // Normalize stored currency for comparison (handle "sats" -> "SATS")
+            const normalizedStoredCurrency = normalizeCurrencyForComparison(currency);
+            const normalizedPreferredCurrency = normalizeCurrencyForComparison(preferredCurrency);
+
+            // Skip conversion if currencies are the same (case-insensitive, with sats normalization)
+            if (normalizedStoredCurrency && normalizedPreferredCurrency && normalizedStoredCurrency === normalizedPreferredCurrency) {
+              // No conversion needed - currencies match
+              convertedAmount = null;
+              convertedCurrency = null;
+            } else {
+              try {
+                convertedAmount = await CurrencyConversionService.convertAmount(
+                  conversionSourceAmount,
+                  conversionSourceCurrency,
+                  preferredCurrency // Currency enum values are already strings
+                );
+                convertedCurrency = preferredCurrency;
+              } catch (error) {
+                console.error('Currency conversion error during payment:', error);
+                // Continue without conversion - convertedAmount will remain null
+              }
             }
 
             const activityId = await addActivityWithFallback({
@@ -386,7 +398,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                   break;
                 case Currency_Tags.Millisats:
                   amount = amount / 1000; // Convert to sats for database storage
-                  currency = 'sats';
+                  currency = 'SATS';
                   conversionSourceAmount = rawAmount;
                   conversionSourceCurrency = 'MSATS';
                   break;
@@ -632,7 +644,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 break;
               case Currency_Tags.Millisats:
                 amount = amount / 1000; // Convert to sats for database storage
-                currency = 'sats';
+                currency = 'SATS';
                 conversionSourceAmount = rawAmount;
                 conversionSourceCurrency = 'MSATS';
                 break;
