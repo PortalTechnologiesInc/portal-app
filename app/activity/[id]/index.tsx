@@ -24,6 +24,7 @@ import { CurrencyConversionService } from '@/services/CurrencyConversionService'
 import {
   Currency,
   shouldShowConvertedAmount as shouldShowConvertedAmountUtil,
+  formatActivityAmount,
 } from '@/utils/currency';
 
 import { useThemeColor } from '@/hooks/useThemeColor';
@@ -253,7 +254,7 @@ export default function ActivityDetailScreen() {
                   <ActivityDetailRow
                     icon={<DollarSign size={16} color={secondaryTextColor} />}
                     label="Amount"
-                    value={activity.amount ? `${activity.amount} ${activity.currency}` : 'N/A'}
+                    value={formatActivityAmount(activity.amount, activity.currency)}
                   />
 
                   {shouldShowConvertedAmount(activity) && (

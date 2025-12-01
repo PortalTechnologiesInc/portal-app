@@ -8,7 +8,7 @@ import { router } from 'expo-router';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { getActivityStatus, getStatusColor } from '@/utils/activityHelpers';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
-import { Currency, CurrencyHelpers, shouldShowConvertedAmount } from '@/utils/currency';
+import { Currency, CurrencyHelpers, shouldShowConvertedAmount, formatActivityAmount } from '@/utils/currency';
 import { useCurrency } from '@/context/CurrencyContext';
 
 interface ActivityRowProps {
@@ -119,20 +119,8 @@ export const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
               originalCurrency: activity.currency,
               convertedCurrency: activity.converted_currency,
             })
-              ? (() => {
-                  const cur = activity.converted_currency as Currency;
-                  const val = Number(activity.converted_amount || 0);
-                  if (cur === Currency.SATS) {
-                    return `${Math.round(val)} ${CurrencyHelpers.getSymbol(cur)}`;
-                  }
-                  if (cur === Currency.BTC) {
-                    const fixed = val.toFixed(8);
-                    const trimmed = fixed.replace(/\.0+$/, '').replace(/(\.\d*?[1-9])0+$/, '$1');
-                    return `${CurrencyHelpers.getSymbol(cur)}${trimmed}`;
-                  }
-                  return `${CurrencyHelpers.getSymbol(cur)}${val.toFixed(2)}`;
-                })()
-              : `${activity.amount} ${activity.currency}`}
+              ? formatActivityAmount(activity.converted_amount, activity.converted_currency)
+              : formatActivityAmount(activity.amount, activity.currency)}
           </ThemedText>
         )}
         {(activity.type === 'ticket' ||

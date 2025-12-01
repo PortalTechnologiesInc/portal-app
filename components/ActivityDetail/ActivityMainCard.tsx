@@ -12,7 +12,7 @@ import {
   type ActivityStatus,
 } from '@/utils/activityHelpers';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
-import { Currency, shouldShowConvertedAmount } from '@/utils/currency';
+import { Currency, shouldShowConvertedAmount, formatActivityAmount } from '@/utils/currency';
 
 interface ActivityMainCardProps {
   serviceName: string;
@@ -105,7 +105,7 @@ export const ActivityMainCard: React.FC<ActivityMainCardProps> = ({
       {isPayment && amount && (
         <View style={styles.amountContainer}>
           <ThemedText style={[styles.amount, { color: primaryTextColor }]}>
-            {amount.toLocaleString()} {currency}
+            {formatActivityAmount(amount, currency)}
           </ThemedText>
           {shouldShowConvertedAmount({
             amount: converted_amount,
