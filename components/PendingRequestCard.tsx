@@ -19,6 +19,7 @@ import { Layout } from '@/constants/Layout';
 import { SkeletonPulse } from './PendingRequestSkeletonCard';
 import { PortalAppManager } from '@/services/PortalAppManager';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import { formatActivityAmount, normalizeCurrencyForComparison } from '@/utils/currency';
 
 interface PendingRequestCardProps {
   request: PendingRequest;
@@ -266,15 +267,32 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
           return;
         }
 
+        // Determine source currency and normalized display currency
+        const isFiat = content.currency.tag === Currency_Tags.Fiat;
+        const fiatCurrency = isFiat ? (content.currency as any).inner : null;
+        const sourceCurrency = isFiat
+          ? (Array.isArray(fiatCurrency) ? fiatCurrency[0] : fiatCurrency)
+          : 'MSATS';
+        
+        // Normalize display currency for comparison (MSATS -> SATS, handle case)
+        const normalizedDisplayCurrency = isFiat
+          ? normalizeCurrencyForComparison(sourceCurrency)
+          : 'SATS'; // MSATS normalizes to SATS for display
+        const normalizedPreferredCurrency = normalizeCurrencyForComparison(preferredCurrency);
+
+        // Skip conversion if currencies are the same (case-insensitive, with sats normalization)
+        if (normalizedDisplayCurrency && normalizedPreferredCurrency && normalizedDisplayCurrency === normalizedPreferredCurrency) {
+          // No conversion needed - currencies match
+          if (isMounted.current) {
+            setConvertedAmount(null);
+            setIsConvertingCurrency(false);
+          }
+          return;
+        }
+
         try {
           setIsConvertingCurrency(true);
 
-          // Determine source currency
-          const isFiat = content.currency.tag === Currency_Tags.Fiat;
-          const fiatCurrency = isFiat ? (content.currency as any).inner : null;
-          const sourceCurrency = isFiat
-            ? (Array.isArray(fiatCurrency) ? fiatCurrency[0] : fiatCurrency)
-            : 'MSATS';
           const sourceAmount = isFiat ? Number(amount) / 100 : Number(amount);
 
           // Convert to user's preferred currency
@@ -307,6 +325,23 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
         return `${serviceName || 'Unknown Service'} x ${ticketAmount}`;
       }
       return serviceName || 'Unknown Service';
+    };
+
+    // Normalize amount and currency from request format to formatActivityAmount format
+    const getNormalizedAmountAndCurrency = (): { normalizedAmount: number; normalizedCurrency: string } | null => {
+      if (!content || amount == null) return null;
+
+      if (content.currency.tag === Currency_Tags.Fiat) {
+        const fiatCodeRaw = (content.currency as any).inner;
+        const fiatCode = Array.isArray(fiatCodeRaw) ? fiatCodeRaw[0] : fiatCodeRaw;
+        // Convert from minor units (cents) to major units (dollars)
+        const normalizedAmount = Number(amount) / 100;
+        return { normalizedAmount, normalizedCurrency: String(fiatCode).toUpperCase() };
+      } else {
+        // Millisats: convert to sats
+        const normalizedAmount = Number(amount) / 1000;
+        return { normalizedAmount, normalizedCurrency: 'SATS' };
+      }
     };
 
     // Determine what warning to show (if any)
@@ -399,15 +434,10 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
               <View style={styles.amountRow}>
                 <Text style={[styles.amountText, { color: primaryTextColor }]}>
                   {(() => {
-                    if (!content) return '';
-                    if (content.currency.tag === Currency_Tags.Fiat) {
-                      const fiatCodeRaw = (content.currency as any).inner;
-                      const fiatCode = Array.isArray(fiatCodeRaw)
-                        ? fiatCodeRaw[0]
-                        : fiatCodeRaw;
-                      return `${(Number(amount) / 100).toFixed(2)} ${fiatCode}`;
-                    }
-                    return `${Number(amount) / 1000} sats`;
+                    const normalized = getNormalizedAmountAndCurrency();
+                    return normalized
+                      ? formatActivityAmount(normalized.normalizedAmount, normalized.normalizedCurrency)
+                      : '';
                   })()}
                 </Text>
                 <Text style={[styles.recurranceText, { color: primaryTextColor }]}>
@@ -417,12 +447,10 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
             ) : (
               <Text style={[styles.amountText, { color: primaryTextColor }]}>
                 {(() => {
-                  if (!content) return '';
-                  if (content.currency.tag === Currency_Tags.Fiat) {
-                    const fiatCode = (content.currency as any).inner;
-                    return `${(Number(amount) / 100).toFixed(2)} ${fiatCode}`;
-                  }
-                  return `${Number(amount) / 1000} sats`;
+                  const normalized = getNormalizedAmountAndCurrency();
+                  return normalized
+                    ? formatActivityAmount(normalized.normalizedAmount, normalized.normalizedCurrency)
+                    : '';
                 })()}
               </Text>
             )}
@@ -432,14 +460,20 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
               (() => {
                 if (!content || amount == null) return false;
                 const isFiat = content.currency.tag === Currency_Tags.Fiat;
+                
+                // Normalize currencies for comparison
                 if (isFiat) {
                   const fiatCodeRaw = (content.currency as any).inner;
                   const fiatCode = Array.isArray(fiatCodeRaw)
                     ? fiatCodeRaw[0]
                     : fiatCodeRaw;
-                  return fiatCode !== preferredCurrency;
+                  const normalizedFiat = normalizeCurrencyForComparison(fiatCode);
+                  const normalizedPreferred = normalizeCurrencyForComparison(preferredCurrency);
+                  return normalizedFiat !== normalizedPreferred;
                 }
-                return 'MSATS' !== preferredCurrency;
+                // For MSATS, normalized display currency is SATS
+                const normalizedPreferred = normalizeCurrencyForComparison(preferredCurrency);
+                return 'SATS' !== normalizedPreferred;
               })() && (
                 <View style={styles.convertedAmountContainer}>
                   {isConvertingCurrency ? (
