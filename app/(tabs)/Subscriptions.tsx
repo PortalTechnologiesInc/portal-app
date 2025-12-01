@@ -9,7 +9,7 @@ import { useActivities } from '@/context/ActivitiesContext';
 import { fromUnixSeconds, type SubscriptionWithDates } from '@/services/DatabaseService';
 import { parseCalendar } from 'portal-app-lib';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { Currency, shouldShowConvertedAmount } from '@/utils/currency';
+import { Currency, shouldShowConvertedAmount, formatActivityAmount } from '@/utils/currency';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 
 export default function SubscriptionsScreen() {
@@ -70,7 +70,7 @@ export default function SubscriptionsScreen() {
               </ThemedText>
               <View style={styles.amountContainer}>
                 <ThemedText style={[styles.amount, { color: primaryTextColor }]}>
-                  {item.amount} {item.currency}
+                  {formatActivityAmount(item.amount, item.currency)}
                 </ThemedText>
                 {shouldShowConvertedAmount({
                   amount: item.converted_amount,

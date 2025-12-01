@@ -22,7 +22,7 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 import { PortalAppManager } from '@/services/PortalAppManager';
 import { CircleX, Hourglass } from 'lucide-react-native';
 import { useDatabaseContext } from '@/context/DatabaseContext';
-import { Currency, shouldShowConvertedAmount } from '@/utils/currency';
+import { Currency, shouldShowConvertedAmount, formatActivityAmount } from '@/utils/currency';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 
 // Mock payment history for a subscription
@@ -214,7 +214,7 @@ export default function SubscriptionDetailScreen() {
               </ThemedText>
               <View style={styles.amountContainer}>
                 <ThemedText style={[styles.amount, { color: primaryTextColor }]}>
-                  {subscription.amount} {subscription.currency}
+                  {formatActivityAmount(subscription.amount, subscription.currency)}
                 </ThemedText>
                 {shouldShowConvertedAmount({
                   amount: subscription.converted_amount,
@@ -321,7 +321,7 @@ export default function SubscriptionDetailScreen() {
                     </ThemedText>
                   </View>
                   <ThemedText style={[styles.paymentAmount, { color: primaryTextColor }]}>
-                    {payment.amount} {payment.currency}
+                    {formatActivityAmount(payment.amount, payment.currency)}
                   </ThemedText>
                 </View>
               ))
