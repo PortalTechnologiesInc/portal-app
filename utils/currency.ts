@@ -225,7 +225,7 @@ export const formatActivityAmount = (amount: number | null, currency: string | n
 
   // If we couldn't determine the currency, return amount with original currency string
   if (!currencyEnum) {
-    return `${amount.toFixed(2)} ${currency}`;
+    return `${amount.toFixed(2)} ${normalizedCurrency}`;
   }
 
   // Get currency symbol
