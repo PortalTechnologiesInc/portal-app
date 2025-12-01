@@ -1,10 +1,10 @@
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
-import { Platform } from 'react-native';
+import { Platform, AppState } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { getMnemonic, getWalletUrl } from './SecureStorageService';
-import { AuthChallengeEvent, AuthResponseStatus, CloseRecurringPaymentResponse, Currency_Tags, Mnemonic, Nwc, PaymentResponseContent, PaymentStatus, PaymentStatusNotifier, PortalApp, PortalAppInterface, RecurringPaymentRequest, RecurringPaymentResponseContent, RecurringPaymentStatus, RelayStatusListener, RelayStatusListenerImpl, SinglePaymentRequest } from 'portal-app-lib';
+import { AuthChallengeEvent, AuthResponseStatus, CloseRecurringPaymentResponse, Currency_Tags, Mnemonic, Nwc, PaymentResponseContent, PaymentStatus, PaymentStatusNotifier, PortalApp, PortalAppInterface, RecurringPaymentRequest, RecurringPaymentResponseContent, RecurringPaymentStatus, RelayStatusListener, RelayStatusListenerImpl, SinglePaymentRequest, parseBolt11 } from 'portal-app-lib';
 import { openDatabaseAsync } from 'expo-sqlite';
 import { DatabaseService } from './DatabaseService';
 import { PortalAppManager } from './PortalAppManager';
@@ -53,17 +53,108 @@ async function subscribeToNotificationService(expoPushToken: string, pubkeys: st
 }
 
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-    shouldShowBanner: false,
-    shouldShowList: false,
-  }),
+  handleNotification: async notification => {
+    // Allow showing only specific local notifications; keep others silent
+    const data = (notification.request?.content?.data || {}) as any;
+    const type = data?.type;
+
+    const isAmountExceededNotification = type === 'payment_request_exceeded_tolerance';
+
+    if (isAmountExceededNotification) {
+      return {
+        shouldShowAlert: true,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      };
+    }
+
+    return {
+      shouldShowAlert: false,
+      shouldPlaySound: false,
+      shouldSetBadge: false,
+      shouldShowBanner: false,
+      shouldShowList: false,
+    };
+  },
 });
 
 function handleRegistrationError(errorMessage: string) {
   console.error(errorMessage);
 }
+
+/**
+ * Formats the expected amount from a payment request for display in notifications
+ */
+function formatExpectedAmount(
+  amount: number | bigint,
+  currency: any
+): { amount: string; currency: string } | null {
+  if (currency.tag === Currency_Tags.Millisats) {
+    const expectedMsat = typeof amount === 'bigint' ? Number(amount) : amount;
+    const expectedSats = expectedMsat / 1000;
+    return { amount: expectedSats.toString(), currency: 'sats' };
+  } else if (currency.tag === Currency_Tags.Fiat) {
+    const fiatCurrencyRaw = currency.inner;
+    const fiatCurrencyValue = Array.isArray(fiatCurrencyRaw)
+      ? fiatCurrencyRaw[0]
+      : fiatCurrencyRaw;
+    const fiatCurrency =
+      typeof fiatCurrencyValue === 'string'
+        ? String(fiatCurrencyValue).toUpperCase()
+        : 'UNKNOWN';
+    const normalizedAmount = (typeof amount === 'bigint' ? Number(amount) : amount) / 100;
+    return { amount: normalizedAmount.toString(), currency: fiatCurrency };
+  }
+  return null;
+}
+
+/**
+ * Gets the service name from cache, falling back to network fetch, then default value
+ */
+async function getServiceNameForNotification(
+  serviceKey: string,
+  app: PortalAppInterface,
+  executeOperation: <T>(operation: (db: DatabaseService) => Promise<T>, fallback?: T) => Promise<T>
+): Promise<string> {
+  try {
+    // Step 1: Check cache first
+    const cachedName = await executeOperation(
+      db => db.getCachedServiceName(serviceKey),
+      null
+    );
+    if (cachedName) {
+      return cachedName;
+    }
+
+    // Step 2: Fetch from network if not in cache
+    try {
+      const profile = await app.fetchProfile(serviceKey);
+      const serviceName = getServiceNameFromProfile(profile);
+      
+      if (serviceName) {
+        // Cache the result for future use
+        await executeOperation(
+          db => db.setCachedServiceName(serviceKey, serviceName),
+          null
+        );
+        return serviceName;
+      }
+    } catch (fetchError) {
+      // Network fetch failed, continue to fallback
+      console.error('Failed to fetch service name from network for auto-reject notification:', fetchError);
+    }
+
+    // Step 3: Fallback to default
+    return 'Unknown Service';
+  } catch (error) {
+    console.error('Failed to resolve service name for auto-reject notification:', error);
+    return 'Unknown Service';
+  }
+}
+
+const AMOUNT_MISMATCH_REJECTION_REASON = 'Invoice amount does not match the requested amount.';
 
 export default async function registerPubkeysForPushNotificationsAsync(pubkeys: string[]) {
   if (Platform.OS === 'android') {
@@ -219,10 +310,98 @@ export async function handleHeadlessNotification(event: String, databaseName: st
 
           console.log(`Single payment request with id ${id} received`, request);
 
-          const resolver = async (status: PaymentStatus) => {
-            await notifier.notify({
+          const resolver = function(status: PaymentStatus) {
+            // Check if this is a rejection due to amount mismatch
+            const statusTag = (status as any).tag;
+            const statusInner = (status as any).inner;
+            const isRejected = statusTag === 'Rejected' || status instanceof PaymentStatus.Rejected;
+            const reason = statusInner?.reason;
+            
+            if (isRejected && reason === AMOUNT_MISMATCH_REJECTION_REASON) {
+              // Send notification asynchronously (fire and forget)
+              (async () => {
+                try {
+                  const invoiceData = parseBolt11(request.content.invoice);
+                  // TODO: Remove hardcoded value for testing
+                  const invoiceAmountMsat = 7000; // Number(invoiceData.amountMsat);
+                  
+                  // Format expected amount for display
+                  const formattedAmount = formatExpectedAmount(
+                    request.content.amount,
+                    request.content.currency
+                  );
+                  
+                  // Get service name from cache first (non-blocking)
+                  let serviceName = 'Unknown Service';
+                  try {
+                    const cachedName = await executeOperationForNotification(
+                      db => db.getCachedServiceName(request.serviceKey),
+                      null
+                    );
+                    if (cachedName) {
+                      serviceName = cachedName;
+                    }
+                  } catch (error) {
+                    console.error('Failed to get cached service name:', error);
+                  }
+                  
+                  // Build notification body
+                  const body = formattedAmount
+                    ? `${serviceName} requested more than the expected amount (${formattedAmount.amount} ${formattedAmount.currency}). The request was automatically rejected.`
+                    : `${serviceName} requested more than the expected amount. The request was automatically rejected.`;
+                  
+                  // Prepare notification data (convert BigInt to string)
+                  const expectedAmountValue = typeof request.content.amount === 'bigint'
+                    ? request.content.amount.toString()
+                    : String(request.content.amount);
+                  const currencyTagValue = String((request.content.currency as any).tag);
+                  
+                  // Send notification immediately (don't wait for network fetch)
+                  await Notifications.scheduleNotificationAsync({
+                    content: {
+                      title: 'Payment request auto-rejected',
+                      body,
+                      data: {
+                        type: 'payment_request_exceeded_tolerance',
+                        invoiceAmountMsat: String(invoiceAmountMsat),
+                        expectedAmount: expectedAmountValue,
+                        currencyTag: currencyTagValue,
+                      },
+                    },
+                    trigger: null, // Show immediately
+                  });
+                  
+                  // Fetch service name from network in background (non-blocking) for future use
+                  if (!serviceName || serviceName === 'Unknown Service') {
+                    (async () => {
+                      try {
+                        const profile = await app.fetchProfile(request.serviceKey);
+                        const fetchedName = getServiceNameFromProfile(profile);
+                        if (fetchedName) {
+                          await executeOperationForNotification(
+                            db => db.setCachedServiceName(request.serviceKey, fetchedName),
+                            null
+                          );
+                        }
+                      } catch (fetchError) {
+                        // Silently fail - this is just for caching future notifications
+                        console.error('Background fetch of service name failed:', fetchError);
+                      }
+                    })();
+                  }
+                } catch (error) {
+                  // Notification failures must not affect payment flow
+                  console.error('Failed to send auto-reject notification for payment amount mismatch:', error);
+                }
+              })();
+            }
+
+            // Always notify the notifier (this is the original resolver behavior)
+            notifier.notify({
               status,
               requestId: request.content.requestId,
+            }).catch(error => {
+              console.error('Error notifying payment status:', error);
             });
           };
 
