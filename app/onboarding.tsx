@@ -601,7 +601,12 @@ export default function Onboarding() {
         {/* Header with Back Button */}
         {shouldShowBackButton() && (
           <ThemedView style={styles.header}>
-            <TouchableOpacity onPress={getBackButtonHandler()} style={styles.backButton}>
+            <TouchableOpacity
+              onPress={getBackButtonHandler()}
+              style={styles.backButton}
+              activeOpacity={0.7}
+              hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+            >
               <ArrowLeft size={24} color={textPrimary} />
             </TouchableOpacity>
             <ThemedText style={[styles.headerText, { color: textPrimary }]}>Portal Setup</ThemedText>
@@ -1098,7 +1103,7 @@ export default function Onboarding() {
                   error={!!pinError}
                   onError={() => setPinError('')}
                   showSkipButton
-                  onSkipPress={handleSkipPinSetup}
+                  onSkipPress={handleCompletionWithoutPIN}
                   skipLabel="Skip"
                 />
               </View>
@@ -1572,13 +1577,18 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 0,
+    paddingVertical: 12,
     position: 'relative',
+    minHeight: 56,
   },
   backButton: {
-    padding: 8,
-    marginLeft: -30,
+    width: 48,
+    height: 48,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    zIndex: 1,
   },
   headerText: {
     fontSize: 20,
