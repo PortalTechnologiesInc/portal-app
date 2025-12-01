@@ -16,7 +16,7 @@ import * as Notifications from 'expo-notifications';
 import { DatabaseService, fromUnixSeconds, SubscriptionWithDates } from './DatabaseService';
 import { CurrencyConversionService } from './CurrencyConversionService';
 import { globalEvents } from '@/utils/common';
-import { Currency, CurrencyHelpers } from '@/utils/currency';
+import { Currency, CurrencyHelpers, normalizeCurrencyForComparison } from '@/utils/currency';
 
 /**
  * Sends a local notification for payment-related events with human-readable formatting
@@ -177,7 +177,7 @@ export async function handleSinglePaymentRequest(
         break;
       case Currency_Tags.Millisats:
         amount = amount / 1000; // Convert to sats for database storage
-        currency = 'sats';
+        currency = 'SATS';
         break;
     }
 
@@ -185,42 +185,54 @@ export async function handleSinglePaymentRequest(
     let convertedAmount: number | null = null;
     let convertedCurrency: string | null = null;
 
-    try {
-      let sourceCurrency: string;
-      let conversionAmount: number;
+    // Normalize stored currency for comparison (handle "sats" -> "SATS")
+    const normalizedStoredCurrency = normalizeCurrencyForComparison(currency);
+    const normalizedPreferredCurrency = normalizeCurrencyForComparison(preferredCurrency);
 
-      if (currencyObj?.tag === Currency_Tags.Fiat) {
-        const fiatCurrencyRaw = (currencyObj as any).inner;
-        const fiatCurrencyValue = Array.isArray(fiatCurrencyRaw)
-          ? fiatCurrencyRaw[0]
-          : fiatCurrencyRaw;
-        sourceCurrency =
-          typeof fiatCurrencyValue === 'string'
-            ? String(fiatCurrencyValue).toUpperCase()
-            : 'UNKNOWN';
-        // Normalize fiat amount from minor units (cents) to major units (dollars)
-        conversionAmount = originalAmount / 100;
-      } else {
-        sourceCurrency = 'MSATS';
-        conversionAmount = originalAmount; // Already in millisats
+    // Skip conversion if currencies are the same (case-insensitive, with sats normalization)
+    if (normalizedStoredCurrency && normalizedPreferredCurrency && normalizedStoredCurrency === normalizedPreferredCurrency) {
+      // No conversion needed - currencies match
+      convertedAmount = null;
+      convertedCurrency = null;
+    } else {
+      // Perform conversion
+      try {
+        let sourceCurrency: string;
+        let conversionAmount: number;
+
+        if (currencyObj?.tag === Currency_Tags.Fiat) {
+          const fiatCurrencyRaw = (currencyObj as any).inner;
+          const fiatCurrencyValue = Array.isArray(fiatCurrencyRaw)
+            ? fiatCurrencyRaw[0]
+            : fiatCurrencyRaw;
+          sourceCurrency =
+            typeof fiatCurrencyValue === 'string'
+              ? String(fiatCurrencyValue).toUpperCase()
+              : 'UNKNOWN';
+          // Normalize fiat amount from minor units (cents) to major units (dollars)
+          conversionAmount = originalAmount / 100;
+        } else {
+          sourceCurrency = 'MSATS';
+          conversionAmount = originalAmount; // Already in millisats
+        }
+
+        convertedAmount = await CurrencyConversionService.convertAmount(
+          conversionAmount,
+          sourceCurrency,
+          preferredCurrency // Currency enum values are already strings
+        );
+        convertedCurrency = preferredCurrency;
+      } catch (error) {
+        console.error('Currency conversion error during payment:', error);
+        // Continue without conversion - convertedAmount will remain null
+        return false;
       }
-
-      convertedAmount = await CurrencyConversionService.convertAmount(
-        conversionAmount,
-        sourceCurrency,
-        preferredCurrency // Currency enum values are already strings
-      );
-      convertedCurrency = preferredCurrency;
-    } catch (error) {
-      console.error('Currency conversion error during payment:', error);
-      // Continue without conversion - convertedAmount will remain null
-      return false;
     }
 
     if (!subId) {
       console.log(`👤 Not a subscription, required user interaction!`);
 
-      if (sendNotification) {
+      if (sendNotification && convertedAmount !== null && convertedCurrency) {
         await sendPaymentNotification(
           'Payment Request',
           convertedAmount,
@@ -340,12 +352,14 @@ export async function handleSinglePaymentRequest(
         console.log("🧾 Invoice paid!");
 
         // Send notification to user about successful payment
-        await sendPaymentNotification(
-          'Payment Successful',
-          convertedAmount,
-          convertedCurrency,
-          subscriptionServiceName,
-        );
+        if (convertedAmount !== null && convertedCurrency) {
+          await sendPaymentNotification(
+            'Payment Successful',
+            convertedAmount,
+            convertedCurrency,
+            subscriptionServiceName,
+          );
+        }
 
         // Update the subscription last payment date
         await executeOperation(
