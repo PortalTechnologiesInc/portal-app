@@ -411,7 +411,9 @@ export async function handleHeadlessNotification(event: String, databaseName: st
                   executeOperationForNotification,
                   app
                 );
-              })();
+              })().catch(error => {
+                console.error('Error sending payment amount mismatch notification:', error);
+              });
             }
 
             // Always notify the notifier (this is the original resolver behavior)
