@@ -52,6 +52,10 @@ import {
   handleRecurringPaymentRequest,
   handleSinglePaymentRequest,
 } from '@/services/EventFilters';
+import {
+  AMOUNT_MISMATCH_REJECTION_REASON,
+  sendPaymentAmountMismatchNotificationForForeground,
+} from '@/services/PaymentNotificationService';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import defaultRelayList from '../assets/DefaultRelays.json';
@@ -732,6 +736,20 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                   resolve();
 
                   const resolver = async (status: PaymentStatus) => {
+                    const statusTag = (status as any).tag;
+                    const statusInner = (status as any).inner;
+                    const isRejected =
+                      statusTag === 'Rejected' || status instanceof PaymentStatus.Rejected;
+                    const reason = statusInner?.reason;
+
+                    if (isRejected && reason === AMOUNT_MISMATCH_REJECTION_REASON) {
+                      await sendPaymentAmountMismatchNotificationForForeground(
+                        event,
+                        executeOperation,
+                        app
+                      );
+                    }
+
                     await notifier.notify({
                       status,
                       requestId: event.content.requestId,
