@@ -4,7 +4,26 @@ import Constants from 'expo-constants';
 import { Platform, AppState } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { getMnemonic, getWalletUrl } from './SecureStorageService';
-import { AuthChallengeEvent, AuthResponseStatus, CloseRecurringPaymentResponse, Currency_Tags, Mnemonic, Nwc, PaymentResponseContent, PaymentStatus, PaymentStatusNotifier, PortalApp, PortalAppInterface, RecurringPaymentRequest, RecurringPaymentResponseContent, RecurringPaymentStatus, RelayStatusListener, RelayStatusListenerImpl, SinglePaymentRequest, parseBolt11 } from 'portal-app-lib';
+import {
+  AuthChallengeEvent,
+  AuthResponseStatus,
+  CloseRecurringPaymentResponse,
+  Currency_Tags,
+  Mnemonic,
+  Nwc,
+  PaymentResponseContent,
+  PaymentStatus,
+  PaymentStatusNotifier,
+  PortalApp,
+  PortalAppInterface,
+  RecurringPaymentRequest,
+  RecurringPaymentResponseContent,
+  RecurringPaymentStatus,
+  RelayStatusListener,
+  RelayStatusListenerImpl,
+  SinglePaymentRequest,
+  parseBolt11,
+} from 'portal-app-lib';
 import { openDatabaseAsync } from 'expo-sqlite';
 import { DatabaseService } from './DatabaseService';
 import { PortalAppManager } from './PortalAppManager';
@@ -154,7 +173,74 @@ async function getServiceNameForNotification(
   }
 }
 
-const AMOUNT_MISMATCH_REJECTION_REASON = 'Invoice amount does not match the requested amount.';
+export const AMOUNT_MISMATCH_REJECTION_REASON =
+  'Invoice amount does not match the requested amount.';
+
+/**
+ * Sends a local notification when a payment request is auto-rejected due to amount mismatch.
+ * Shared between headless (background) and foreground flows.
+ */
+export async function sendPaymentAmountMismatchNotification(
+  request: SinglePaymentRequest,
+  executeOperation: <T>(
+    operation: (db: DatabaseService) => Promise<T>,
+    fallback?: T
+  ) => Promise<T>,
+  app: PortalAppInterface
+): Promise<void> {
+  try {
+    const invoiceData = parseBolt11(request.content.invoice);
+    const invoiceAmountMsat = Number(invoiceData.amountMsat);
+
+    const formattedAmount = formatExpectedAmount(
+      request.content.amount,
+      request.content.currency
+    );
+
+    let serviceName = 'Unknown Service';
+    try {
+      serviceName = await getServiceNameForNotification(
+        request.serviceKey,
+        app,
+        executeOperation
+      );
+    } catch (error) {
+      console.error(
+        'Failed to resolve service name for payment amount mismatch notification:',
+        error
+      );
+    }
+
+    const body = formattedAmount
+      ? `${serviceName} requested more than the expected amount (${formattedAmount.amount} ${formattedAmount.currency}). The request was automatically rejected.`
+      : `${serviceName} requested more than the expected amount. The request was automatically rejected.`;
+
+    const expectedAmountValue =
+      typeof request.content.amount === 'bigint'
+        ? request.content.amount.toString()
+        : String(request.content.amount);
+    const currencyTagValue = String((request.content.currency as any).tag);
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'Payment request auto-rejected',
+        body,
+        data: {
+          type: 'payment_request_exceeded_tolerance',
+          invoiceAmountMsat: String(invoiceAmountMsat),
+          expectedAmount: expectedAmountValue,
+          currencyTag: currencyTagValue,
+        },
+      },
+      trigger: null,
+    });
+  } catch (error) {
+    console.error(
+      'Failed to send auto-reject notification for payment amount mismatch:',
+      error
+    );
+  }
+}
 
 export default async function registerPubkeysForPushNotificationsAsync(pubkeys: string[]) {
   if (Platform.OS === 'android') {
@@ -314,85 +400,17 @@ export async function handleHeadlessNotification(event: String, databaseName: st
             // Check if this is a rejection due to amount mismatch
             const statusTag = (status as any).tag;
             const statusInner = (status as any).inner;
-            const isRejected = statusTag === 'Rejected' || status instanceof PaymentStatus.Rejected;
+            const isRejected =
+              statusTag === 'Rejected' || status instanceof PaymentStatus.Rejected;
             const reason = statusInner?.reason;
-            
+
             if (isRejected && reason === AMOUNT_MISMATCH_REJECTION_REASON) {
-              // Send notification asynchronously (fire and forget)
               (async () => {
-                try {
-                  const invoiceData = parseBolt11(request.content.invoice);
-                  // TODO: Remove hardcoded value for testing
-                  const invoiceAmountMsat = 7000; // Number(invoiceData.amountMsat);
-                  
-                  // Format expected amount for display
-                  const formattedAmount = formatExpectedAmount(
-                    request.content.amount,
-                    request.content.currency
-                  );
-                  
-                  // Get service name from cache first (non-blocking)
-                  let serviceName = 'Unknown Service';
-                  try {
-                    const cachedName = await executeOperationForNotification(
-                      db => db.getCachedServiceName(request.serviceKey),
-                      null
-                    );
-                    if (cachedName) {
-                      serviceName = cachedName;
-                    }
-                  } catch (error) {
-                    console.error('Failed to get cached service name:', error);
-                  }
-                  
-                  // Build notification body
-                  const body = formattedAmount
-                    ? `${serviceName} requested more than the expected amount (${formattedAmount.amount} ${formattedAmount.currency}). The request was automatically rejected.`
-                    : `${serviceName} requested more than the expected amount. The request was automatically rejected.`;
-                  
-                  // Prepare notification data (convert BigInt to string)
-                  const expectedAmountValue = typeof request.content.amount === 'bigint'
-                    ? request.content.amount.toString()
-                    : String(request.content.amount);
-                  const currencyTagValue = String((request.content.currency as any).tag);
-                  
-                  // Send notification immediately (don't wait for network fetch)
-                  await Notifications.scheduleNotificationAsync({
-                    content: {
-                      title: 'Payment request auto-rejected',
-                      body,
-                      data: {
-                        type: 'payment_request_exceeded_tolerance',
-                        invoiceAmountMsat: String(invoiceAmountMsat),
-                        expectedAmount: expectedAmountValue,
-                        currencyTag: currencyTagValue,
-                      },
-                    },
-                    trigger: null, // Show immediately
-                  });
-                  
-                  // Fetch service name from network in background (non-blocking) for future use
-                  if (!serviceName || serviceName === 'Unknown Service') {
-                    (async () => {
-                      try {
-                        const profile = await app.fetchProfile(request.serviceKey);
-                        const fetchedName = getServiceNameFromProfile(profile);
-                        if (fetchedName) {
-                          await executeOperationForNotification(
-                            db => db.setCachedServiceName(request.serviceKey, fetchedName),
-                            null
-                          );
-                        }
-                      } catch (fetchError) {
-                        // Silently fail - this is just for caching future notifications
-                        console.error('Background fetch of service name failed:', fetchError);
-                      }
-                    })();
-                  }
-                } catch (error) {
-                  // Notification failures must not affect payment flow
-                  console.error('Failed to send auto-reject notification for payment amount mismatch:', error);
-                }
+                await sendPaymentAmountMismatchNotification(
+                  request,
+                  executeOperationForNotification,
+                  app
+                );
               })();
             }
 
