@@ -61,6 +61,8 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const { eCashLoading, hasECashWallets, nwcStatus } = useWalletStatus();
     const [serviceName, setServiceName] = useState<string | null>(null);
     const [isServiceNameLoading, setIsServiceNameLoading] = useState(true);
+    const [requestorName, setRequestorName] = useState<string | null>(null);
+    const [isRequestorNameLoading, setIsRequestorNameLoading] = useState(false);
     const [hasInsufficientBalance, setHasInsufficientBalance] = useState(false);
     const [convertedAmount, setConvertedAmount] = useState<number | null>(null);
     const [isConvertingCurrency, setIsConvertingCurrency] = useState(false);
@@ -88,40 +90,77 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const recurrence = calendarObj?.inner.toHumanReadable(false);
 
     useEffect(() => {
+      // Reset mounted flag at the start of each effect
+      isMounted.current = true;
+
       if (type === 'ticket' && request.ticketTitle) {
         setServiceName(request.ticketTitle);
         setIsServiceNameLoading(false);
-        return;
+        // For ticket requests, also fetch the requestor's name
+        const fetchRequestorName = async () => {
+          if (!isMounted.current) return;
+
+          // CashuRequestContentWithKey structure: has mainKey (the requestor's pubkey)
+          // Check both mainKey and serviceKey as the structure might vary
+          const requestorServiceKey = (metadata as any)?.mainKey || (metadata as any)?.serviceKey;
+          if (!requestorServiceKey) {
+            console.warn(
+              '[PendingRequestCard] No requestor pubkey found in ticket request. Metadata keys:',
+              metadata ? Object.keys(metadata) : 'metadata is null/undefined'
+            );
+            return;
+          }
+
+          console.log('[PendingRequestCard] Fetching requestor name for ticket with pubkey:', requestorServiceKey);
+
+          try {
+            setIsRequestorNameLoading(true);
+            const name = await nostrService.getServiceName(
+              PortalAppManager.tryGetInstance(),
+              requestorServiceKey
+            );
+            if (isMounted.current) {
+              console.log('[PendingRequestCard] Successfully fetched requestor name:', name);
+              setRequestorName(name);
+              setIsRequestorNameLoading(false);
+            }
+          } catch (error) {
+            console.error('[PendingRequestCard] Failed to fetch requestor name:', error);
+            if (isMounted.current) {
+              setRequestorName(null);
+              setIsRequestorNameLoading(false);
+            }
+          }
+        };
+
+        fetchRequestorName();
+      } else {
+        const fetchServiceName = async () => {
+          if (!isMounted.current) return;
+
+          const serviceKey = (metadata as any).serviceKey;
+
+          try {
+            setIsServiceNameLoading(true);
+            const name = await nostrService.getServiceName(
+              PortalAppManager.tryGetInstance(),
+              serviceKey
+            );
+            if (isMounted.current) {
+              setServiceName(name);
+              setIsServiceNameLoading(false);
+            }
+          } catch (error) {
+            console.error('Failed to fetch service name:', error);
+            if (isMounted.current) {
+              setServiceName(null);
+              setIsServiceNameLoading(false);
+            }
+          }
+        };
+
+        fetchServiceName();
       }
-
-      const fetchServiceName = async () => {
-        if (!isMounted.current) return;
-
-        const serviceKey =
-          type === 'ticket'
-            ? (metadata as any)?.title || 'Unknown Ticket'
-            : (metadata as any).serviceKey;
-
-        try {
-          setIsServiceNameLoading(true);
-          const name = await nostrService.getServiceName(
-            PortalAppManager.tryGetInstance(),
-            serviceKey
-          );
-          if (isMounted.current) {
-            setServiceName(name);
-            setIsServiceNameLoading(false);
-          }
-        } catch (error) {
-          console.error('Failed to fetch service name:', error);
-          if (isMounted.current) {
-            setServiceName(null);
-            setIsServiceNameLoading(false);
-          }
-        }
-      };
-
-      fetchServiceName();
 
       return () => {
         isMounted.current = false;
@@ -137,6 +176,11 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const amount =
       content?.amount ??
       (isTicketRequest ? (metadata as any)?.inner?.amount : null);
+    
+    // For ticket requests, get the requestor's pubkey from mainKey (CashuRequestContentWithKey structure)
+    const ticketRequestorPubkey = isTicketRequest
+      ? (metadata as any)?.mainKey || (metadata as any)?.serviceKey
+      : null;
 
     // Check for insufficient balance on payment requests
     useEffect(() => {
@@ -318,13 +362,27 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
       convertCurrency();
     }, [isPaymentRequest, isSubscriptionRequest, amount, metadata, preferredCurrency]);
 
-    // Format service name with quantity for ticket requests
+    // Format service name - for tickets, use requestor name; for others, use service name
     const formatServiceName = () => {
-      if (isTicketRequest && amount && Number(amount) > 1) {
-        const ticketAmount = Number(amount);
-        return `${serviceName || 'Unknown Service'} x ${ticketAmount}`;
+      if (isTicketRequest) {
+        // For ticket requests, show requestor name as main service name (matching payment request style)
+        return requestorName || 'Unknown Requestor';
       }
       return serviceName || 'Unknown Service';
+    };
+
+    // Format secondary info - for tickets, show ticket title; for others, show recipient pubkey
+    const formatSecondaryInfo = () => {
+      if (isTicketRequest) {
+        // For ticket requests, show ticket title as secondary info
+        if (amount && Number(amount) > 1) {
+          const ticketAmount = Number(amount);
+          return `${serviceName || request.ticketTitle || 'Unknown Ticket'} x ${ticketAmount}`;
+        }
+        return serviceName || request.ticketTitle || 'Unknown Ticket';
+      }
+      // For payment/subscription requests, show truncated recipient pubkey
+      return truncatePubkey(recipientPubkey);
     };
 
     // Normalize amount and currency from request format to formatActivityAmount format
@@ -412,20 +470,38 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
           style={[
             styles.serviceName,
             { color: primaryTextColor },
-            !serviceName && styles.unknownService,
+            (isTicketRequest ? !requestorName : !serviceName) && styles.unknownService,
           ]}
         >
-          {isServiceNameLoading ? (
-            <SkeletonPulse
-              style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
-            />
+          {isTicketRequest ? (
+            // For ticket requests, show requestor name (loading state)
+            isRequestorNameLoading ? (
+              <SkeletonPulse
+                style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
+              />
+            ) : (
+              formatServiceName()
+            )
           ) : (
-            formatServiceName()
+            // For payment/subscription requests, show service name (loading state)
+            isServiceNameLoading ? (
+              <SkeletonPulse
+                style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
+              />
+            ) : (
+              formatServiceName()
+            )
           )}
         </Text>
 
         <Text style={[styles.serviceInfo, { color: secondaryTextColor }]}>
-          {truncatePubkey(recipientPubkey)}
+          {isTicketRequest ? (
+            // For ticket requests, show ticket title as secondary info
+            formatSecondaryInfo()
+          ) : (
+            // For payment/subscription requests, show truncated recipient pubkey
+            formatSecondaryInfo()
+          )}
         </Text>
 
         {(isPaymentRequest || isSubscriptionRequest) && amount !== null && (
@@ -611,6 +687,11 @@ const styles = StyleSheet.create({
   serviceInfo: {
     fontSize: 14,
     marginBottom: 12,
+  },
+  serviceInfoSkeleton: {
+    borderRadius: 4,
+    width: 120,
+    height: 14,
   },
   amountContainer: {
     borderWidth: 1,
