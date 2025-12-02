@@ -63,7 +63,7 @@ import { useCurrency } from './CurrencyContext';
 import { useOnboarding } from './OnboardingContext';
 import { getKeypairFromKey, hasKey } from '@/utils/keyHelpers';
 import { getServiceNameFromProfile, mapNumericStatusToString } from '@/utils/nostrHelper';
-import { globalEvents } from '@/utils/common';
+import { globalEvents, getServiceNameFromMintUrl } from '@/utils/common';
 
 export class LocalCashuDirectListener implements CashuDirectListener {
   private callback: (event: CashuDirectContentWithKey) => Promise<void>;
@@ -133,6 +133,7 @@ export class LocalClosedRecurringPaymentListener implements ClosedRecurringPayme
   constructor(callback: (event: CloseRecurringPaymentResponse) => Promise<void>) {
     this.callback = callback;
   }
+
   async onClosedRecurringPayment(event: CloseRecurringPaymentResponse): Promise<void> {
     return this.callback(event);
   }
@@ -543,13 +544,14 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                   const serviceKey = tokenInfo.mintUrl;
                   const unitInfo = await wallet.getUnitInfo();
                   const ticketTitle = unitInfo?.title || wallet.unit();
+                  const serviceName = getServiceNameFromMintUrl(serviceKey);
 
                   // Add activity to database using ActivitiesContext directly
                   const activity = {
                     type: 'ticket_received' as const,
                     service_key: serviceKey,
-                    service_name: ticketTitle, // Always use ticket title
-                    detail: ticketTitle, // Always use ticket title
+                    service_name: serviceName, // Use readable service name from mint URL
+                    detail: ticketTitle, // Use ticket title as detail
                     date: new Date(),
                     amount: Number(tokenInfo.amount),
                     currency: null,

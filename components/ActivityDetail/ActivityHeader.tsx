@@ -52,19 +52,24 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
+    position: 'relative',
   },
   backButton: {
     padding: 8,
+    zIndex: 1,
   },
   title: {
     fontSize: 20,
     fontWeight: '600',
-    flex: 1,
+    position: 'absolute',
+    left: 0,
+    right: 0,
     textAlign: 'center',
-    marginHorizontal: 16,
+    zIndex: 0,
   },
   headerActions: {
     flexDirection: 'row',
+    zIndex: 1,
   },
   headerButton: {
     padding: 8,
