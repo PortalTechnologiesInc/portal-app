@@ -40,6 +40,69 @@ import {
 import * as Clipboard from 'expo-clipboard';
 import { useActivities } from '@/context/ActivitiesContext';
 
+// Helper functions to generate activity description text
+function getRequestDescriptionText(
+  isAuth: boolean,
+  isTicket: boolean,
+  serviceName: string,
+  detail: string | null
+): string {
+  if (isAuth) {
+    return `This was a login request to authenticate your identity with ${serviceName}.`;
+  }
+  if (isTicket) {
+    const detailText = detail ? ` for ${detail}` : '';
+    return `This was a ticket request${detailText} from ${serviceName}.`;
+  }
+  return `This was a payment request from ${serviceName}.`;
+}
+
+function getSuccessStatusText(
+  isAuth: boolean,
+  isTicket: boolean,
+  activityType: string
+): string {
+  if (isAuth) {
+    return ' You successfully granted access.';
+  }
+  if (isTicket) {
+    switch (activityType) {
+      case 'ticket_received':
+        return ' You successfully received the ticket.';
+      case 'ticket_approved':
+        return ' You successfully approved and sent the ticket.';
+      default:
+        return ' The ticket was processed successfully.';
+    }
+  }
+  return ' The payment was processed successfully.';
+}
+
+function getFailedStatusText(
+  isAuth: boolean,
+  isTicket: boolean,
+  detail: string,
+  isDenied: boolean
+): string {
+  if (isDenied) {
+    if (isAuth) {
+      return ' You denied this authentication request.';
+    }
+    if (isTicket) {
+      return ' You denied this ticket request.';
+    }
+    return ' You denied this payment request.';
+  }
+  // Not denied, but failed
+  if (isAuth) {
+    return ' The authentication was not completed.';
+  }
+  if (isTicket) {
+    return ' The ticket request could not be completed.';
+  }
+  return ' The payment could not be completed.';
+}
+
 export default function ActivityDetailScreen() {
   const { id } = useLocalSearchParams();
   const [activity, setActivity] = useState<ActivityWithDates | null>(null);
@@ -351,35 +414,16 @@ export default function ActivityDetailScreen() {
                         : 'Payment Transaction'}
                   </ThemedText>
                   <ThemedText style={[styles.infoText, { color: secondaryTextColor }]}>
-                    {isAuth
-                      ? `This was a login request to authenticate your identity with ${activity.service_name}.`
-                      : isTicket
-                        ? `This was a ticket request${activity.detail ? ` for ${activity.detail}` : ''} from ${activity.service_name}.`
-                        : `This was a payment request from ${activity.service_name}.`}
+                    {getRequestDescriptionText(isAuth, isTicket, activity.service_name, activity.detail)}
                     {activityStatus === 'success' &&
-                      (isAuth
-                        ? ' You successfully granted access.'
-                        : isTicket
-                          ? activity.type === 'ticket_received'
-                            ? ' You successfully received the ticket.'
-                            : activity.type === 'ticket_approved'
-                              ? ' You successfully approved and sent the ticket.'
-                              : ' The ticket was processed successfully.'
-                          : ' The payment was processed successfully.')}
+                      getSuccessStatusText(isAuth, isTicket, activity.type)}
                     {activityStatus === 'failed' &&
-                      activity.detail.toLowerCase().includes('denied') &&
-                      (isAuth
-                        ? ' You denied this authentication request.'
-                        : isTicket
-                          ? ' You denied this ticket request.'
-                          : ' You denied this payment request.')}
-                    {activityStatus === 'failed' &&
-                      !activity.detail.toLowerCase().includes('denied') &&
-                      (isAuth
-                        ? ' The authentication was not completed.'
-                        : isTicket
-                          ? ' The ticket request could not be completed.'
-                          : ' The payment could not be completed.')}
+                      getFailedStatusText(
+                        isAuth,
+                        isTicket,
+                        activity.detail,
+                        activity.detail.toLowerCase().includes('denied')
+                      )}
                     {activityStatus === 'pending' &&
                       !isAuth &&
                       !isTicket &&
