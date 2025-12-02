@@ -93,19 +93,27 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
   // AppState listener to handle background/foreground transitions and device lock
   useEffect(() => {
     const handleAppStateChange = async (nextAppState: AppStateStatus) => {
-      if (isBiometricPromptInProgress()) {
-        return;
-      }
-
       if (nextAppState === 'background') {
+        // Always record background time for actual background state, even if biometric prompt is in progress
+        // This ensures the app locks correctly if FaceID fails while backgrounded
         AppLockService.recordBackgroundTime();
       } else if (nextAppState === 'inactive') {
         if (Platform.OS === 'android') {
           // Ignore Android inactive state (only background matters)
           return;
         }
-        AppLockService.recordBackgroundTime();
+        // For iOS inactive state: only record background time if biometric prompt is NOT in progress
+        // When FaceID modal appears, app goes to "inactive" but this is not real backgrounding
+        // We should only record background time for actual backgrounding, not system modals
+        if (!isBiometricPromptInProgress()) {
+          AppLockService.recordBackgroundTime();
+        }
       } else if (nextAppState === 'active') {
+        // Skip lock check if biometric prompt is in progress to avoid race conditions
+        if (isBiometricPromptInProgress()) {
+          return;
+        }
+
         // Refresh biometric capability when returning to foreground
         const fingerprintSupported = await AppLockService.refreshFingerprintSupport();
         setIsFingerprintSupported(fingerprintSupported);
