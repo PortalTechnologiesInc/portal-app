@@ -666,6 +666,16 @@ export class DatabaseService {
     return records ? true : false;
   }
 
+  // Check if a pending request was approved (completed)
+  async isPendingRequestApproved(eventId: string): Promise<boolean> {
+    const record = await this.db.getFirstAsync<{ approved: number }>(
+      `SELECT approved FROM stored_pending_requests
+        WHERE event_id = ?`,
+      [eventId]
+    );
+    return record ? record.approved === 1 : false;
+  }
+
   // Proof methods
   async getCashuProofs(
     mintUrl: string | undefined,
