@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Switch, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Copy } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -14,6 +14,7 @@ import { useDatabaseContext } from '@/context/DatabaseContext';
 import defaultRelayList from '@/assets/DefaultRelays.json';
 import { keyToHex } from 'portal-app-lib';
 import { showToast } from '@/utils/Toast';
+import { AllowedBunkerClientWithDates } from '@/services/DatabaseService';
 
 const BunkerConnectionDetailsScreen = () => {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -27,9 +28,9 @@ const BunkerConnectionDetailsScreen = () => {
   const surfaceSecondary = useThemeColor({}, 'surfaceSecondary');
   const inputBorder = useThemeColor({}, 'inputBorder');
   const buttonPrimary = useThemeColor({}, 'buttonPrimary');
-
-  const [bunkerSecret, setBunkerSecret] = useState<string>('');
-  const [remoteRelays, setRemoteRelays] = useState<string[]>(defaultRelayList);
+  const [client, setClient] = useState<AllowedBunkerClientWithDates>();
+  const [editableName, setEditableName] = useState('');
+  const [grantedPermissions, setGrantedPermissions] = useState('');
 
   const remoteSignerPubkey = useMemo(() => {
     if (!nostrService.publicKey) {
@@ -48,73 +49,83 @@ const BunkerConnectionDetailsScreen = () => {
     }
   }, [nostrService.publicKey]);
 
-  const bunkerUri = useMemo(() => {
-    if (!remoteSignerPubkey || remoteRelays.length === 0 || !bunkerSecret) {
-      return '';
-    }
-
-    const params = new URLSearchParams();
-
-    remoteRelays.forEach(relay => {
-      if (relay?.trim()) {
-        params.append('relay', relay.trim());
-      }
-    });
-
-    if (!params.toString()) {
-      return '';
-    }
-
-    params.append('secret', bunkerSecret);
-
-    return `bunker://${remoteSignerPubkey}?${params.toString()}`;
-  }, [remoteSignerPubkey, remoteRelays, bunkerSecret]);
-
   useEffect(() => {
-    let isMounted = true;
-
-    const loadRelaysAndGenerateSecret = async () => {
+    const loadClient = async () => {
       try {
-        // Generate UUID secret
-        const secret = uuid.v4() as string;
-        if (isMounted) {
-          setBunkerSecret(secret);
-        }
-
-        // Load relays
-        const storedRelays = await executeOperation(db => db.getRelays(), []);
-        if (!isMounted) {
-          return;
-        }
-        if (storedRelays.length > 0) {
-          setRemoteRelays(storedRelays.map(relay => relay.ws_uri));
-        } else {
-          setRemoteRelays(defaultRelayList);
-        }
+        if (!id) throw Error("id param is null");
+        const allowedClient = await executeOperation(db => db.getBunkerClientOrNull(id));
+        if (!allowedClient) throw Error(`No allowed nostr client with this pubkey: ${id}`);
+        setClient(allowedClient);
       } catch (error) {
         console.error('Failed to load relays for bunker connection:', error);
-        if (isMounted) {
-          setRemoteRelays(defaultRelayList);
-          const secret = uuid.v4() as string;
-          setBunkerSecret(secret);
-        }
       }
     };
 
-    loadRelaysAndGenerateSecret();
+    loadClient();
+  }, [executeOperation, id]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, [executeOperation]);
+  useEffect(() => {
+    if (!client) return;
+    setEditableName(client.client_name ?? '');
+    setGrantedPermissions(client.granted_permissions);
+  }, [client]);
 
-  const handleCopyBunkerUri = () => {
-    if (!bunkerUri) {
-      showToast('No bunker URI available', 'error');
-      return;
+  const requestedPermissions = useMemo(
+    () => (client ? client.requested_permissions.split(',').filter(Boolean) : []),
+    [client]
+  );
+
+  const isPermissionGranted = (permission: string) => {
+    if (!grantedPermissions) return false;
+    return grantedPermissions.split(',').includes(permission);
+  };
+
+  const handleTogglePermission = async (permission: string, enabled: boolean) => {
+    if (!client) return;
+
+    const current = grantedPermissions ? grantedPermissions.split(',').filter(Boolean) : [];
+    let next: string[];
+
+    if (enabled) {
+      if (current.includes(permission)) {
+        return;
+      }
+      next = [...current, permission];
+    } else {
+      next = current.filter(p => p !== permission);
     }
-    Clipboard.setString(bunkerUri);
-    showToast('Bunker URI copied', 'success');
+
+    const nextString = next.join(',');
+    setGrantedPermissions(nextString);
+
+    try {
+      await executeOperation(db =>
+        db.updateBunkerClientGrantedPermissions(client.public_key, nextString)
+      );
+    } catch (error) {
+      console.error('Failed to update granted permissions for bunker client:', error);
+      // revert optimistic update on error
+      setGrantedPermissions(grantedPermissions);
+    }
+  };
+
+  const handleSaveName = async () => {
+    if (!client) return;
+    const trimmed = editableName.trim();
+
+    try {
+      await executeOperation(db =>
+        db.updateBunkerClientName(client.public_key, trimmed.length ? trimmed : null)
+      );
+      setClient({
+        ...client,
+        client_name: trimmed.length ? trimmed : null,
+      });
+      showToast('Connection name updated', 'success');
+    } catch (error) {
+      console.error('Failed to update bunker client name:', error);
+      showToast('Unable to update connection name. Please try again.', 'error');
+    }
   };
 
   return (
@@ -129,44 +140,61 @@ const BunkerConnectionDetailsScreen = () => {
           </ThemedText>
         </View>
 
-        <ThemedView style={[styles.card, { backgroundColor: cardBackground }]}>
-          <ThemedText style={[styles.label, { color: textSecondary }]}>Connection ID</ThemedText>
-          <ThemedText style={[styles.value, { color: textPrimary }]}>
-            {id || 'Unknown connection'}
-          </ThemedText>
-        </ThemedView>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <ThemedView style={[styles.card, { backgroundColor: cardBackground }]}>
+            <ThemedText style={[styles.label, { color: textSecondary }]}>Connection ID</ThemedText>
+            <ThemedText style={[styles.value, { color: textPrimary }]}>
+              {id || 'Unknown connection'}
+            </ThemedText>
+          </ThemedView>
 
-        <ThemedView style={[styles.card, { backgroundColor: cardBackground }]}>
-          <ThemedText style={[styles.label, { color: textSecondary }]}>Bunker URL</ThemedText>
-          <ThemedText style={[styles.description, { color: textSecondary, marginBottom: 12 }]}>
-            Share this bunker URI with your client to establish a secure remote signing connection.
-          </ThemedText>
-          <View
-            style={[
-              styles.bunkerUriBox,
-              {
-                borderColor: inputBorder,
-                backgroundColor: surfaceSecondary,
-              },
-            ]}
-          >
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
-              <ThemedText
-                style={[styles.bunkerUriText, { color: textPrimary }]}
-                selectable
+          <ThemedView style={[styles.card, { backgroundColor: cardBackground }]}>
+            <ThemedText style={[styles.label, { color: textSecondary }]}>Connection name</ThemedText>
+            <View style={styles.nameRow}>
+              <TextInput
+                value={editableName}
+                onChangeText={setEditableName}
+                placeholder={client?.public_key ?? 'Enter a name'}
+                placeholderTextColor={textSecondary}
+                style={[
+                  styles.nameInput,
+                  {
+                    borderColor: inputBorder,
+                    color: textPrimary,
+                  },
+                ]}
+              />
+              <TouchableOpacity
+                style={[styles.saveButton, { backgroundColor: buttonPrimary }]}
+                onPress={handleSaveName}
+                disabled={!client}
               >
-                {bunkerUri || 'Generating bunker URI...'}
+                <ThemedText style={styles.saveButtonText}>Save</ThemedText>
+              </TouchableOpacity>
+            </View>
+          </ThemedView>
+
+          {client && (
+            <ThemedView style={[styles.card, { backgroundColor: cardBackground }]}>
+              <ThemedText style={[styles.label, { color: textSecondary }]}>
+                Requested permissions
               </ThemedText>
-            </ScrollView>
-            <TouchableOpacity
-              onPress={handleCopyBunkerUri}
-              style={styles.copyButton}
-              activeOpacity={0.7}
-            >
-              <Copy size={16} color={buttonPrimary} />
-            </TouchableOpacity>
-          </View>
-        </ThemedView>
+              {requestedPermissions.map((permission, index) => (
+                <View key={`${permission}-${index}`} style={styles.permissionRow}>
+                  <ThemedText style={[styles.permissionLabel, { color: textPrimary }]}>
+                    {permission}
+                  </ThemedText>
+                  <Switch
+                    value={isPermissionGranted(permission)}
+                    onValueChange={enabled => handleTogglePermission(permission, enabled)}
+                    trackColor={{ false: surfaceSecondary, true: buttonPrimary }}
+                    thumbColor="#ffffff"
+                  />
+                </View>
+              ))}
+            </ThemedView>
+          )}
+        </ScrollView>
       </ThemedView>
     </SafeAreaView>
   );
@@ -180,6 +208,10 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
     paddingTop: 24,
+  },
+  scrollContent: {
+    paddingBottom: 32,
+    gap: 16,
   },
   header: {
     flexDirection: 'row',
@@ -233,6 +265,38 @@ const styles = StyleSheet.create({
   },
   copyButton: {
     padding: 4,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  nameInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+  },
+  saveButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  saveButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#000000',
+  },
+  permissionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+  },
+  permissionLabel: {
+    fontSize: 14,
   },
 });
 
