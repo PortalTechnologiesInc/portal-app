@@ -102,8 +102,23 @@ export interface NostrRelayWithDates extends Omit<NostrRelay, 'created_at'> {
   created_at: Date;
 }
 
+export interface AllowedBunkerClient {
+  client_pubkey: string;
+  client_name: string | null;
+  requested_permissions: string;
+  granted_permissions: string;
+  last_seen: number; // Unix timestamp in seconds
+  created_at: number; // Unix timestamp in seconds
+  revoked: boolean;
+}
+
+export interface AllowedBunkerClientWithDates extends Omit<AllowedBunkerClient, 'last_seen' | 'created_at'> {
+  last_seen: Date;
+  created_at: Date;
+}
+
 export class DatabaseService {
-  constructor(private db: SQLiteDatabase) {}
+  constructor(private db: SQLiteDatabase) { }
 
   /**
    * Force database reinitialization after reset
@@ -651,7 +666,7 @@ export class DatabaseService {
       ) VALUES (?, ?, ?, ?)`,
         [id, eventId, approved ? '1' : '0', now]
       );
-    } catch (e) {}
+    } catch (e) { }
 
     return id;
   }
@@ -825,10 +840,10 @@ export class DatabaseService {
 
       return tx
         ? JSON.stringify({
-            ...tx,
-            ys: JSON.parse(tx.ys),
-            metadata: tx.metadata ? JSON.parse(tx.metadata) : null,
-          })
+          ...tx,
+          ys: JSON.parse(tx.ys),
+          metadata: tx.metadata ? JSON.parse(tx.metadata) : null,
+        })
         : undefined;
     } catch (error) {
       console.error('[DatabaseService] Error getting transaction:', error);
@@ -1244,6 +1259,195 @@ export class DatabaseService {
     } catch (error) {
       console.error('Error getting pending payments:', error);
       return [];
+    }
+  }
+
+  // get last unused created secret
+  async getUnusedSecretOrNull(): Promise<string | null> {
+    try {
+      const secret_obj = await this.db.getFirstAsync<{ secret: string }>(
+        'SELECT secret FROM bunker_secrets WHERE used = 0'
+      );
+      return secret_obj?.secret ?? null;
+    } catch (error) {
+      console.error('Database error while getting an unused secret:', error);
+      throw error;
+    }
+  }
+  // Add newly created bunker secret
+  async addBunkerSecret(
+    secret: string,
+  ): Promise<number> {
+    try {
+      const result = await this.db.runAsync(
+        `INSERT INTO bunker_secrets (
+          secret
+        ) VALUES (?)`,
+        [secret]
+      );
+      return result.lastInsertRowId;
+    } catch (error) {
+      console.error('Error adding bunker secret entry:', error);
+      throw error;
+    }
+  }
+
+  async getBunkerSecretOrNull(secret: string): Promise<{ secret: string; used: boolean } | null> {
+    try {
+      const record = await this.db.getFirstAsync<{ secret: string; used: number }>(
+        'SELECT secret, used FROM bunker_secrets WHERE secret = ?',
+        [secret]
+      );
+      if (!record) return null;
+      // Convert INTEGER (0 or 1) to boolean
+      return {
+        secret: record.secret,
+        used: record.used === 1,
+      };
+    } catch (error) {
+      console.error('Database error while getting secret record:', error);
+      throw error;
+    }
+  }
+
+  async markBunkerSecretAsUsed(secret: string): Promise<void> {
+    try {
+      await this.db.runAsync(
+        `UPDATE bunker_secrets
+        SET used = ?
+        WHERE secret = ?`,
+        [secret, true]
+      );
+    } catch (error) {
+      console.error('Database error while getting an unused secret:', error);
+      throw error;
+      ;
+    }
+  }
+
+  // Add newly allowed nostr clients
+  async addAllowedBunkerClient(
+    pubkey: string,
+    nip_05: string | null = null,
+    requested_permissions: string | null,
+  ): Promise<number> {
+    try {
+      const now = toUnixSeconds(Date.now());
+      const result = await this.db.runAsync(
+        `INSERT OR REPLACE INTO bunker_allowed_clients (
+          client_pubkey,
+          client_name,
+          requested_permissions,
+          granted_permissions,
+          created_at,
+          last_seen,
+          revoked
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          pubkey,
+          nip_05,
+          requested_permissions,
+          requested_permissions,
+          now,
+          now,
+          false,
+        ]
+      );
+      return result.lastInsertRowId;
+    } catch (error) {
+      console.error('Error adding bunker_allowed_client:', error);
+      throw error;
+    }
+  }
+
+  async getAllowedBunkerClients(): Promise<AllowedBunkerClientWithDates[]> {
+    const records = await this.db.getAllAsync<AllowedBunkerClient>(
+      `SELECT * FROM bunker_allowed_clients
+      WHERE revoked = 0
+      ORDER BY last_seen DESC`,
+    );
+
+    return records.map(record => ({
+      ...record,
+      last_seen: fromUnixSeconds(record.last_seen),
+      created_at: fromUnixSeconds(record.created_at),
+    }));
+  }
+
+  async getBunkerClientOrNull(pubkey: string): Promise<AllowedBunkerClientWithDates | null> {
+    const record = await this.db.getFirstAsync<AllowedBunkerClient>(
+      `SELECT * FROM bunker_allowed_clients
+      WHERE client_pubkey = ?`,
+      [pubkey]
+    );
+
+    if (!record) return null;
+
+    return {
+      ...record,
+      last_seen: fromUnixSeconds(record.last_seen),
+      created_at: fromUnixSeconds(record.created_at),
+    };
+  }
+
+  async updateBunkerClientLastSeen(pubkey: string): Promise<void> {
+    try {
+      const now = toUnixSeconds(Date.now());
+      await this.db.runAsync(
+        `UPDATE bunker_allowed_clients
+        SET last_seen = ?
+        WHERE client_pubkey = ?`,
+        [now, pubkey]
+      );
+    } catch (error) {
+      console.error('Database error while updating client last_seen:', error);
+      throw error;
+      ;
+    }
+  }
+
+  async updateBunkerClientGrantedPermissions(pubkey: string, grantedPermissions: string): Promise<void> {
+    try {
+      await this.db.runAsync(
+        `UPDATE bunker_allowed_clients
+        SET granted_permissions = ?
+        WHERE client_pubkey = ?`,
+        [grantedPermissions, pubkey]
+      );
+    } catch (error) {
+      console.error('Database error while updating client last_seen:', error);
+      throw error;
+      ;
+    }
+  }
+
+  async revokeBunkerClient(pubkey: string): Promise<void> {
+    try {
+      await this.db.runAsync(
+        `UPDATE bunker_allowed_clients
+        SET revoked = ?
+        WHERE client_pubkey = ?`,
+        [true, pubkey]
+      );
+    } catch (error) {
+      console.error('Database error while revoking bunker client:', error);
+      throw error;
+      ;
+    }
+  }
+
+  async updateBunkerClientName(pubkey: string, name: string | null): Promise<void> {
+    try {
+      await this.db.runAsync(
+        `UPDATE bunker_allowed_clients
+        SET client_name = ?
+        WHERE client_pubkey = ?`,
+        [name, pubkey]
+      );
+    } catch (error) {
+      console.error('Database error while updating client name:', error);
+      throw error;
+      ;
     }
   }
 }
