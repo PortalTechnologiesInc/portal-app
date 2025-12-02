@@ -8,9 +8,11 @@ import {
   PaymentStatus,
   Nwc,
   parseCalendar,
-  PortalAppInterface,
   parseBolt11,
   Currency_Tags,
+  NostrConnectResponseStatus,
+  NostrConnectMethod,
+  NostrConnectRequestEvent,
 } from 'portal-app-lib';
 import * as Notifications from 'expo-notifications';
 import { DatabaseService, fromUnixSeconds, SubscriptionWithDates } from './DatabaseService';
@@ -508,4 +510,76 @@ export async function handleCloseRecurringPaymentResponse(
 
   resolve();
   return false;
+}
+
+export async function handleNostrConnectRequest(
+  event: NostrConnectRequestEvent,
+  signerPubkey: String,
+  executeOperation: <T>(operation: (db: DatabaseService) => Promise<T>, fallback?: T) => Promise<T>,
+  resolve: (status: NostrConnectResponseStatus) => void
+): Promise<boolean> {
+  switch (event.method) {
+    case NostrConnectMethod.Connect:
+      const eventSignerPubkey = event.params.at(0);
+      if (!eventSignerPubkey) {
+        console.log("Automatically declining request. No params");
+        resolve(new NostrConnectResponseStatus.Declined({
+          reason: "No params"
+        }));
+        return false;
+      }
+
+      if (eventSignerPubkey != signerPubkey) {
+        console.log("Automatically declining request. Connect request contains a pubkey different from this signer");
+        resolve(new NostrConnectResponseStatus.Declined({
+          reason: "Connect request contains a pubkey different from this signer"
+        }));
+        return false;
+      }
+
+      const secret = event.params.at(1);
+      if (!secret) {
+        console.log("Automatically declining request. Secret param is undefined");
+        resolve(new NostrConnectResponseStatus.Declined({
+          reason: "Secret param is undefined"
+        }));
+        return false;
+      }
+      const secretRecord = await executeOperation(db => db.getBunkerSecretOrNull(secret));
+      let isSecretInvalid: boolean = (secretRecord?.used ?? true);
+
+      if (isSecretInvalid) {
+        console.log("Automatically declining request. Secret param is invalid");
+        resolve(new NostrConnectResponseStatus.Declined({
+          reason: "Secret param is invalid"
+        }));
+        return false;
+      }
+
+      return true;
+
+    default:
+      try {
+        const nostrClient = await executeOperation((db) => db.getBunkerClientOrNull(event.nostrClientPubkey))
+        // check that the key is abilitated and not revoked
+        if (!nostrClient || nostrClient.revoked) {
+          console.log("Automatically declining request. Nostr client is not whitelisted or is revoked.");
+          resolve(new NostrConnectResponseStatus.Declined({
+            reason: "Nostr client is not whitelisted or is revoked."
+          }));
+          return false;
+        }
+
+        await executeOperation((db) => db.updateBunkerClientLastSeen(event.nostrClientPubkey), null);
+        // Nostr client is whitelisted, automatically approving the request.
+        console.log(`Approving the request for method: ${event.method}`);
+        resolve(new NostrConnectResponseStatus.Approved());
+      } catch (e) {
+        console.error(`Error while getting the nostr client from whitelist: ${e}`);
+        resolve(new NostrConnectResponseStatus.Declined({
+          reason: "Secret param is invalid"
+        }));
+      }
+      return false;
+  }
 }
