@@ -89,7 +89,8 @@ export type PendingRequestType =
   | 'certificate'
   | 'identity'
   | 'subscription'
-  | 'ticket';
+  | 'ticket'
+  | 'nostrConnect';
 
 // =============================================================================
 // CORE ENTITY INTERFACES

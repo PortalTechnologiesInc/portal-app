@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { FC } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { AlertTriangle } from 'lucide-react-native';
+import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react-native';
 import { usePendingRequests } from '../context/PendingRequestsContext';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { useECash } from '@/context/ECashContext';
@@ -11,6 +11,8 @@ import {
   type SinglePaymentRequest,
   type RecurringPaymentRequest,
   Currency_Tags,
+  NostrConnectRequestEvent,
+  NostrConnectMethod,
 } from 'portal-app-lib';
 import type { PendingRequest } from '@/utils/types';
 import { useThemeColor } from '@/hooks/useThemeColor';
@@ -40,6 +42,8 @@ const getRequestTypeText = (type: string) => {
       return 'Identity Request';
     case 'ticket':
       return 'Ticket Request';
+    case 'nostrConnect':
+      return 'Nostr Connect';
     default:
       return 'Unknown Request';
   }
@@ -66,6 +70,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const [hasInsufficientBalance, setHasInsufficientBalance] = useState(false);
     const [convertedAmount, setConvertedAmount] = useState<number | null>(null);
     const [isConvertingCurrency, setIsConvertingCurrency] = useState(false);
+    const [isPermissionsExpanded, setIsPermissionsExpanded] = useState(false);
     const isMounted = useRef(true);
 
     // Theme colors
@@ -79,7 +84,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
 
     // Add debug logging when a card is rendered
     console.log(
-      `Rendering card ${id} of type ${type} with service key ${(metadata as SinglePaymentRequest).serviceKey}`
+      `Rendering card ${id} of type ${type}`
     );
 
     const calendarObj =
@@ -172,6 +177,9 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const isPaymentRequest = type === 'payment';
     const isSubscriptionRequest = type === 'subscription';
     const isTicketRequest = type === 'ticket';
+    const isNostrConnect = type === 'nostrConnect';
+    const nostrConnectMethod = (metadata as NostrConnectRequestEvent).method
+    const nostrConnectParams = (metadata as NostrConnectRequestEvent).params
     const content = (metadata as SinglePaymentRequest)?.content;
     const amount =
       content?.amount ??
@@ -572,6 +580,78 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
           </View>
         )}
 
+        {isNostrConnect && (
+          <View style={[styles.nostrConnectContainer, { borderColor }]}>
+            {(() => {
+              // For Connect method (nip46), show requested permissions
+              if (nostrConnectMethod == NostrConnectMethod.Connect) {
+                const requestedPermissions =
+                  nostrConnectParams.at(2);
+
+                if (!requestedPermissions) return null;
+
+                // Parse permissions (can be string or array)
+                const permissions =
+                  typeof requestedPermissions === 'string'
+                    ? requestedPermissions.split(',').map(p => p.trim())
+                    : [];
+
+                if (permissions.length === 0) return null;
+
+                const maxCollapsedItems = 3;
+                const shouldShowExpand = permissions.length > maxCollapsedItems;
+                const displayedPermissions = isPermissionsExpanded
+                  ? permissions
+                  : permissions.slice(0, maxCollapsedItems);
+
+                return (
+                  <View style={styles.permissionsContainer}>
+                    <TouchableOpacity
+                      style={styles.permissionsHeader}
+                      onPress={() => shouldShowExpand && setIsPermissionsExpanded(!isPermissionsExpanded)}
+                      disabled={!shouldShowExpand}
+                      activeOpacity={shouldShowExpand ? 0.7 : 1}
+                    >
+                      <Text style={[styles.permissionsLabel, { color: secondaryTextColor }]}>
+                        Requested Permissions {shouldShowExpand && `(${permissions.length})`}
+                      </Text>
+                      {shouldShowExpand && (
+                        isPermissionsExpanded ? (
+                          <ChevronUp size={16} color={secondaryTextColor} />
+                        ) : (
+                          <ChevronDown size={16} color={secondaryTextColor} />
+                        )
+                      )}
+                    </TouchableOpacity>
+                    <View style={styles.permissionsList}>
+                      {displayedPermissions.map((permission: string, index: number) => (
+                        <View key={index} style={styles.permissionItem}>
+                          <Text style={[styles.permissionText, { color: primaryTextColor }]}>
+                            {permission}
+                          </Text>
+                        </View>
+                      ))}
+                      {!isPermissionsExpanded && shouldShowExpand && (
+                        <Text style={[styles.showMoreText, { color: secondaryTextColor }]}>
+                          +{permissions.length - maxCollapsedItems} more
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                );
+              } else {
+                return (
+                  <View style={styles.methodInfoContainer}>
+                    <Text style={[styles.methodDescription, { color: secondaryTextColor }]}>
+                      Nostr Connect request
+                    </Text>
+                  </View>
+                );
+              }
+            })()}
+          </View>
+        )}
+
         {warningInfo && (
           <View
             style={[
@@ -785,5 +865,52 @@ const styles = StyleSheet.create({
     width: 80,
     height: 14,
     borderRadius: 4,
+  },
+  nostrConnectContainer: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 20,
+  },
+  permissionsContainer: {
+    gap: 12,
+  },
+  permissionsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  permissionsLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    flex: 1,
+  },
+  permissionsList: {
+    gap: 8,
+  },
+  permissionItem: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  permissionText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  showMoreText: {
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  methodInfoContainer: {
+    gap: 8,
+  },
+  methodDescription: {
+    fontSize: 14,
+    lineHeight: 20,
   },
 });

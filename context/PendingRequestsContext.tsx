@@ -12,6 +12,7 @@ import {
 import { Platform } from 'react-native';
 import type {
   KeyHandshakeUrl,
+  NostrConnectRequestEvent,
   RecurringPaymentRequest,
   SinglePaymentRequest,
 } from 'portal-app-lib';
@@ -21,6 +22,8 @@ import {
   AuthResponseStatus,
   CashuResponseStatus,
   Currency_Tags,
+  NostrConnectResponseStatus,
+  keyToHex,
 } from 'portal-app-lib';
 
 import { fromUnixSeconds } from '@/services/DatabaseService';
@@ -591,7 +594,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                     .recurrence,
                 }),
                 requestId: (request.metadata as RecurringPaymentRequest).content.requestId,
-                });
+              });
             })().catch(err => {
               console.error('Error processing subscription:', err);
             });
@@ -701,6 +704,27 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               })
             );
           }
+          break;
+        case 'nostrConnect':
+          const connectEvent = request.metadata as NostrConnectRequestEvent;
+
+          const requestedPermissions = connectEvent.params.at(2) ?? null;
+          try {
+            // whitelist the nostr client
+            executeOperation((db) => db.addAllowedBunkerClient(
+              keyToHex(connectEvent.nostrClientPubkey),
+              null,
+              requestedPermissions
+            ))
+          } catch (e) {
+            console.error(e);
+            // todo add auth event failed
+          }
+
+          // todo add auth event
+
+          // Create NostrConnectResponseStatus for approved bunker connection
+          request.result(new NostrConnectResponseStatus.Approved);
           break;
       }
     },
@@ -981,6 +1005,12 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               })
             );
           }
+          break;
+        case 'nostrConnect':
+          request.result(new NostrConnectResponseStatus.Declined({
+            reason: "Declined by the user"
+          }));
+          // todo add declined auth activity
           break;
       }
     },
