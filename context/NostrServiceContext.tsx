@@ -34,6 +34,10 @@ import {
   CashuResponseStatus,
   PaymentStatusNotifier,
   PaymentStatus,
+  NostrConnectRequestListener,
+  NostrConnectResponseStatus,
+  NostrConnectRequestEvent,
+  keyToHex,
 } from 'portal-app-lib';
 import { PortalAppManager } from '@/services/PortalAppManager';
 import type {
@@ -49,6 +53,7 @@ import { useECash } from './ECashContext';
 import {
   handleAuthChallenge,
   handleCloseRecurringPaymentResponse,
+  handleNostrConnectRequest,
   handleRecurringPaymentRequest,
   handleSinglePaymentRequest,
 } from '@/services/EventFilters';
@@ -136,6 +141,17 @@ export class LocalClosedRecurringPaymentListener implements ClosedRecurringPayme
 
   async onClosedRecurringPayment(event: CloseRecurringPaymentResponse): Promise<void> {
     return this.callback(event);
+  }
+}
+
+export class LocalNip46RequestListener implements NostrConnectRequestListener {
+  private callback: (event: NostrConnectRequestEvent) => Promise<NostrConnectResponseStatus>;
+
+  constructor(callback: (event: NostrConnectRequestEvent) => Promise<NostrConnectResponseStatus>) {
+    this.callback = callback;
+  }
+  async onRequest(event: NostrConnectRequestEvent): Promise<NostrConnectResponseStatus> {
+    return this.callback(event)
   }
 }
 
@@ -901,6 +917,35 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
           .catch(e => {
             console.error('Error listening for recurring payments closing.', e);
           });
+
+        app.listenForNip46Request(
+          new LocalNip46RequestListener((event: NostrConnectRequestEvent) => {
+            const id = event.id;
+            return new Promise<NostrConnectResponseStatus>(resolve => {
+              handleNostrConnectRequest(event, keyToHex(publicKeyStr), executeOperation, resolve).then((askUser) => {
+                if (askUser) {
+                  const newRequest: PendingRequest = {
+                    id,
+                    metadata: event,
+                    timestamp: new Date(),
+                    type: 'nostrConnect',
+                    result: resolve,
+                  };
+
+                  setPendingRequests(prev => {
+                    // Check if request already exists to prevent duplicates
+                    if (prev[id]) {
+                      return prev;
+                    }
+                    return { ...prev, [id]: newRequest };
+                  });
+                }
+              })
+            });
+          })
+        ).catch(e => {
+          console.error('Error listening for nip46 requests.', e);
+        });
 
         // Mark as initialized
         setIsInitialized(true);
