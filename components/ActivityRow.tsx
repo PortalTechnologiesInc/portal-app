@@ -75,20 +75,13 @@ export const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
     }
   };
 
-  // Format ticket title with quantity if amount > 1
-  const formatTicketTitle = () => {
-    if (
+  const isTicketActivity = () => {
+    return (
       activity.type === 'ticket' ||
       activity.type === 'ticket_approved' ||
       activity.type === 'ticket_denied' ||
       activity.type === 'ticket_received'
-    ) {
-      const amount = activity.amount;
-      if (amount && amount > 1) {
-        return `${activity.detail} x ${amount}`;
-      }
-    }
-    return activity.detail;
+    );
   };
 
   return (
@@ -105,8 +98,13 @@ export const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
       </View>
       <View style={styles.activityInfo}>
         <ThemedText type="subtitle" style={{ color: primaryTextColor }}>
-          {activity.type === 'ticket' ? activity.detail : activity.service_name}
+          {activity.service_name}
         </ThemedText>
+        {isTicketActivity() && activity.detail && (
+          <ThemedText style={[styles.tokenName, { color: secondaryTextColor }]}>
+            {activity.detail}
+          </ThemedText>
+        )}
         <ThemedText style={[styles.typeText, { color: secondaryTextColor }]}>
           {getActivityTypeText()}
         </ThemedText>
@@ -163,7 +161,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
   },
-
+  tokenName: {
+    fontSize: 13,
+    marginTop: 2,
+    fontWeight: '500',
+  },
   activityDetails: {
     alignItems: 'flex-end',
     justifyContent: 'center',

@@ -39,21 +39,35 @@ import type {
 } from '@/utils/types';
 import { PortalAppManager } from '@/services/PortalAppManager';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
-import { globalEvents } from '@/utils/common';
+import { globalEvents, getServiceNameFromMintUrl } from '@/utils/common';
 
 // Helper function to get service name with fallback
 const getServiceNameWithFallback = async (
   nostrService: NostrServiceContextType,
   serviceKey: string
 ): Promise<string> => {
+  if (!serviceKey || serviceKey === 'Unknown Service') {
+    return 'Unknown Service';
+  }
+
+  // If it's a URL (mint URL), extract service name from it
+  if (serviceKey.startsWith('http://') || serviceKey.startsWith('https://')) {
+    return getServiceNameFromMintUrl(serviceKey);
+  }
+
+  // Try to resolve service name from Nostr (works with hex, npub, or any valid key format)
   try {
     const app = PortalAppManager.tryGetInstance();
     const serviceName = await nostrService.getServiceName(app, serviceKey);
-    return serviceName || 'Unknown Service';
+    if (serviceName) {
+      return serviceName;
+    }
   } catch (error) {
+    // If resolution fails, fall through to return Unknown Service
     console.error('Failed to fetch service name:', error);
-    return 'Unknown Service';
   }
+
+  return 'Unknown Service';
 };
 // Note: PendingActivity and PendingSubscription are now imported from centralized types
 
@@ -117,12 +131,28 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
   // Helper function to add an activity
   const addActivityWithFallback = async (activity: PendingActivity): Promise<string> => {
-    const id = await executeOperation(
-      db => db.addActivity(activity),
-      '' // fallback to empty string if failed
-    );
-    refreshData();
-    return id;
+    try {
+      const id = await executeOperation(db => db.addActivity(activity));
+      if (id && typeof id === 'string' && id.length > 0) {
+        // Fetch the created/updated activity to emit it
+        const createdActivity = await executeOperation(
+          db => db.getActivity(id),
+          null
+        );
+        if (createdActivity) {
+          globalEvents.emit('activityAdded', createdActivity);
+        }
+        refreshData();
+        return id;
+      } else {
+        refreshData();
+        return '';
+      }
+    } catch (error) {
+      console.error('Failed to add activity:', error);
+      refreshData();
+      return '';
+    }
   };
 
   // Helper function to add a subscription
@@ -511,9 +541,20 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 unit: cashuEvent.inner.unit.toLowerCase(),
               });
 
-              // Add activity for token send
+              // Get mint URL (this is the actual ticket mint, same as ticket_received)
+              const mintUrl = cashuEvent.inner.mintUrl;
+              
+              // Get Nostr service key for resolving service name (the requestor's public key)
+              const nostrServiceKey = cashuEvent.serviceKey || cashuEvent.mainKey || null;
+              
+              // Resolve service name from Nostr service key if available
+              const serviceName = nostrServiceKey
+                ? await getServiceNameWithFallback(nostrService, nostrServiceKey)
+                : getServiceNameFromMintUrl(mintUrl);
+
+              // Get ticket title for detail field
               // Try to find the wallet by mintUrl
-              let ticketWallet = eCashContext.wallets[cashuEvent.inner.mintUrl];
+              let ticketWallet = eCashContext.wallets[mintUrl];
               if (!ticketWallet) {
                 // Try to find by any wallet that matches the unit
                 const walletEntries = Object.entries(eCashContext.wallets);
@@ -533,20 +574,66 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 unitInfo?.title ||
                 (ticketWallet ? ticketWallet.unit() : cashuEvent.inner.unit || 'Unknown Ticket');
 
-              addActivityWithFallback({
-                type: 'ticket_approved',
-                service_key: cashuEvent.serviceKey || 'Unknown Service',
-                service_name: ticketTitle, // Use ticket title as service name
+              // Create activity for approved ticket request
+              // Use unique request_id by appending activity type to ensure each action creates its own activity
+              // Use mintUrl as service_key to match ticket_received activities
+              const activityData = {
+                type: 'ticket_approved' as const,
+                service_key: mintUrl, // Use mint URL (same as ticket_received)
+                service_name: serviceName, // Use resolved service name
                 detail: ticketTitle, // Use ticket title as detail
                 date: new Date(),
                 amount: Number(amount), // Store actual number of tickets, not divided by 1000
                 currency: 'sats',
                 converted_amount: null,
                 converted_currency: null,
-                request_id: id,
+                request_id: `${id}-approved`,
                 subscription_id: null,
-                status: 'positive',
-              });
+                status: 'positive' as const,
+              };
+              
+              // Always create activity - don't let errors prevent it
+              try {
+                const activityId = await addActivityWithFallback(activityData);
+                if (!activityId) {
+                  // Try with minimal required fields
+                  await addActivityWithFallback({
+                    type: 'ticket_approved' as const,
+                    service_key: mintUrl || 'Unknown Service',
+                    service_name: 'Unknown Service',
+                    detail: 'Ticket request approved',
+                    date: new Date(),
+                    amount: Number(amount) || null,
+                    currency: 'sats',
+                    converted_amount: null,
+                    converted_currency: null,
+                    request_id: `${id}-approved`,
+                    subscription_id: null,
+                    status: 'positive' as const,
+                  });
+                }
+              } catch (activityError) {
+                console.error('Failed to create activity for approved ticket:', activityError);
+                // Last resort - try with absolute minimal data
+                try {
+                  await addActivityWithFallback({
+                    type: 'ticket_approved' as const,
+                    service_key: mintUrl || 'Unknown Service',
+                    service_name: 'Unknown Service',
+                    detail: 'Ticket approved',
+                    date: new Date(),
+                    amount: null,
+                    currency: null,
+                    converted_amount: null,
+                    converted_currency: null,
+                    request_id: `${id}-approved`,
+                    subscription_id: null,
+                    status: 'positive' as const,
+                  });
+                } catch (finalError) {
+                  console.error('Final attempt to create activity failed:', finalError);
+                }
+              }
 
               request.result(new CashuResponseStatus.Success({ token }));
             } else {
@@ -747,12 +834,36 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           // Handle Cashu request denial (sending tokens only)
           try {
             const cashuEvent = request.metadata as any;
+            
+            // Get mint URL (this is the actual ticket mint, same as ticket_received)
+            const mintUrl = cashuEvent.inner?.mintUrl;
+            
+            // Get Nostr service key for resolving service name (the requestor's public key)
+            const nostrServiceKey = cashuEvent.serviceKey || cashuEvent.mainKey || null;
+            
+            // Resolve service name from Nostr service key if available, otherwise use mint URL
+            let serviceName = 'Unknown Service';
+            try {
+              serviceName = nostrServiceKey
+                ? await getServiceNameWithFallback(nostrService, nostrServiceKey)
+                : mintUrl
+                  ? getServiceNameFromMintUrl(mintUrl)
+                  : 'Unknown Service';
+            } catch (serviceNameError) {
+              console.error('[Deny Ticket] Error resolving service name:', serviceNameError);
+              // Fallback to mint URL-based name or Unknown Service
+              serviceName = mintUrl ? getServiceNameFromMintUrl(mintUrl) : 'Unknown Service';
+            }
 
-            // Only handle Cashu request events (sending tokens)
-            if (cashuEvent.inner?.mintUrl && cashuEvent.inner?.amount) {
-              // Add activity for denied token send
+            // Get ticket title for detail field
+            let ticketTitle = 'Unknown Ticket';
+            let ticketAmount: number | null = null;
+
+            // Try to get ticket information if available
+            if (mintUrl && cashuEvent.inner?.amount) {
+              ticketAmount = Number(cashuEvent.inner.amount);
               // Try to find the wallet by mintUrl
-              let ticketWallet = eCashContext.wallets[cashuEvent.inner.mintUrl];
+              let ticketWallet = eCashContext.wallets[mintUrl];
               if (!ticketWallet) {
                 // Try to find by any wallet that matches the unit
                 const walletEntries = Object.entries(eCashContext.wallets);
@@ -764,38 +875,112 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 }
               }
 
-              const deniedUnitInfo =
-                ticketWallet && ticketWallet.getUnitInfo
-                  ? await ticketWallet.getUnitInfo()
-                  : undefined;
-              const deniedTicketTitle =
-                deniedUnitInfo?.title ||
-                (ticketWallet ? ticketWallet.unit() : cashuEvent.inner.unit || 'Unknown Ticket');
+              if (ticketWallet) {
+                const deniedUnitInfo =
+                  ticketWallet.getUnitInfo ? await ticketWallet.getUnitInfo() : undefined;
+                ticketTitle =
+                  deniedUnitInfo?.title ||
+                  (ticketWallet ? ticketWallet.unit() : cashuEvent.inner.unit || 'Unknown Ticket');
+              } else if (cashuEvent.inner.unit) {
+                ticketTitle = cashuEvent.inner.unit;
+              }
+            }
 
-              addActivityWithFallback({
+            // Always create activity for denied ticket request
+            // Use unique request_id by appending activity type to ensure each action creates its own activity
+            // Use mintUrl as service_key to match ticket_received activities
+            const activityData = {
+              type: 'ticket_denied' as const,
+              service_key: mintUrl || 'Unknown Service', // Use mint URL (same as ticket_received)
+              service_name: serviceName, // Use resolved service name
+              detail: ticketTitle, // Use ticket title as detail
+              date: new Date(),
+              amount: ticketAmount, // Store actual number of tickets, not divided by 1000
+              currency: null,
+              converted_amount: null,
+              converted_currency: null,
+              request_id: `${id}-denied`,
+              subscription_id: null,
+              status: 'negative' as const,
+            };
+            
+            // Always create activity - don't let errors prevent it
+            try {
+              const activityId = await addActivityWithFallback(activityData);
+              if (!activityId) {
+                // Try with minimal required fields
+                await addActivityWithFallback({
+                  type: 'ticket_denied' as const,
+                  service_key: mintUrl || 'Unknown Service',
+                  service_name: 'Unknown Service',
+                  detail: 'Ticket request denied',
+                  date: new Date(),
+                  amount: ticketAmount || null,
+                  currency: null,
+                  converted_amount: null,
+                  converted_currency: null,
+                  request_id: `${id}-denied`,
+                  subscription_id: null,
+                  status: 'negative' as const,
+                });
+              }
+            } catch (activityError) {
+              console.error('Failed to create activity for denied ticket:', activityError);
+              // Last resort - try with absolute minimal data
+              try {
+                await addActivityWithFallback({
+                  type: 'ticket_denied' as const,
+                  service_key: mintUrl || 'Unknown Service',
+                  service_name: 'Unknown Service',
+                  detail: 'Ticket denied',
+                  date: new Date(),
+                  amount: null,
+                  currency: null,
+                  converted_amount: null,
+                  converted_currency: null,
+                  request_id: `${id}-denied`,
+                  subscription_id: null,
+                  status: 'negative' as const,
+                });
+              } catch (finalError) {
+                console.error('Final attempt to create activity failed:', finalError);
+              }
+            }
+
+            request.result(new CashuResponseStatus.Rejected({ reason: 'User denied request' }));
+          } catch (error: any) {
+            console.error('Error processing Cashu denial:', error);
+            // Even on error, try to create activity with minimal info
+            try {
+              const cashuEvent = request.metadata as any;
+              const mintUrl = cashuEvent?.inner?.mintUrl;
+              const nostrServiceKey = cashuEvent?.serviceKey || cashuEvent?.mainKey || null;
+              
+              const serviceName = nostrServiceKey
+                ? await getServiceNameWithFallback(nostrService, nostrServiceKey).catch(
+                    () => mintUrl ? getServiceNameFromMintUrl(mintUrl) : 'Unknown Service'
+                  )
+                : mintUrl
+                  ? getServiceNameFromMintUrl(mintUrl)
+                  : 'Unknown Service';
+              
+              await addActivityWithFallback({
                 type: 'ticket_denied',
-                service_key: cashuEvent.serviceKey || 'Unknown Service',
-                service_name: deniedTicketTitle, // Use ticket title as service name
-                detail: deniedTicketTitle, // Use ticket title as detail
+                service_key: mintUrl || 'Unknown Service', // Use mint URL (same as ticket_received)
+                service_name: serviceName,
+                detail: 'Ticket request denied',
                 date: new Date(),
-                amount: Number(cashuEvent.inner.amount), // Store actual number of tickets, not divided by 1000
+                amount: null,
                 currency: null,
                 converted_amount: null,
                 converted_currency: null,
-                request_id: id,
+                request_id: `${id}-denied`,
                 subscription_id: null,
                 status: 'negative',
               });
-
-              request.result(new CashuResponseStatus.Rejected({ reason: 'User denied request' }));
-            } else {
-              console.error('Invalid Cashu request event type for denial');
-              request.result(
-                new CashuResponseStatus.Rejected({ reason: 'Invalid Cashu request type' })
-              );
+            } catch (activityError) {
+              console.error('Failed to create activity for denied ticket in error handler:', activityError);
             }
-          } catch (error: any) {
-            console.error('Error processing Cashu denial:', error);
             request.result(
               new CashuResponseStatus.Rejected({
                 reason: error.message || 'Failed to process Cashu denial',
@@ -805,7 +990,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           break;
       }
     },
-    [getById, addActivityWithFallback, nostrService]
+    [getById, addActivityWithFallback, nostrService, eCashContext]
   );
 
   // Show skeleton loader and set timeout for request

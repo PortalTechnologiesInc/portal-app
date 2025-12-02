@@ -13,7 +13,7 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useECash } from '@/context/ECashContext';
 import { useDatabaseContext } from '@/context/DatabaseContext';
-import { globalEvents } from '@/utils/common';
+import { globalEvents, getServiceNameFromMintUrl } from '@/utils/common';
 
 // Define the type for the barcode scanner result
 type BarcodeResult = {
@@ -233,13 +233,14 @@ export default function QRScannerScreen() {
             const serviceKey = tokenInfo.mintUrl;
             const unitInfo = await wallet.getUnitInfo();
             const ticketTitle = unitInfo?.title || wallet.unit();
+            const serviceName = getServiceNameFromMintUrl(serviceKey);
 
             // Add activity to database using ActivitiesContext directly
             const activity = {
               type: 'ticket_received' as const,
               service_key: serviceKey,
-              service_name: ticketTitle,
-              detail: ticketTitle,
+              service_name: serviceName, // Use readable service name from mint URL
+              detail: ticketTitle, // Use ticket title as detail
               date: new Date(),
               amount: tokenInfo.amount ? Number(tokenInfo.amount) : null, // Store actual number of tickets, not divided by 1000
               currency: null,
