@@ -158,12 +158,37 @@ export class DatabaseService {
         if (result.changes && result.changes > 0) {
           return id;
         }
-        // If insert was ignored (likely due to unique request_id), fetch existing row id
+        // If insert was ignored (likely due to unique request_id), update existing row instead
         const existing = await this.db.getFirstAsync<{ id: string }>(
           'SELECT id FROM activities WHERE request_id = ? LIMIT 1',
           [activity.request_id]
         );
-        if (existing?.id) return existing.id;
+        if (existing?.id) {
+          // Update the existing activity with new data
+          await this.db.runAsync(
+            `UPDATE activities SET
+              type = ?, service_name = ?, service_key = ?, detail = ?, date = ?,
+              amount = ?, currency = ?, converted_amount = ?, converted_currency = ?,
+              subscription_id = ?, status = ?, invoice = ?
+            WHERE request_id = ?`,
+            [
+              activity.type,
+              activity.service_name,
+              activity.service_key,
+              activity.detail,
+              toUnixSeconds(activity.date),
+              activity.amount,
+              activity.currency,
+              activity.converted_amount,
+              activity.converted_currency,
+              activity.subscription_id,
+              activity.status || 'neutral',
+              activity.invoice || null,
+              activity.request_id,
+            ]
+          );
+          return existing.id;
+        }
         // Fallback: return generated id (shouldn't happen if IGNORE occurred and existing found)
         return id;
       } catch (dbError) {

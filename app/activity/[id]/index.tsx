@@ -278,21 +278,39 @@ export default function ActivityDetailScreen() {
                 </>
               )}
 
-              {isTicket && (
+              {isTicket && activity.detail && (
                 <ActivityDetailRow
                   icon={<Ticket size={18} color={secondaryTextColor} />}
-                  label="Ticket ID"
-                  value={activity.request_id}
-                  copyable
-                  onCopy={() => Clipboard.setStringAsync(activity.request_id)}
+                  label="Token Name"
+                  value={activity.detail}
                 />
               )}
 
-              <ActivityDetailRow
-                icon={<Info size={18} color={secondaryTextColor} />}
-                label="Status Details"
-                value={activity.detail}
-              />
+              {isTicket && activity.amount && activity.amount > 0 && (
+                <ActivityDetailRow
+                  icon={<Coins size={18} color={secondaryTextColor} />}
+                  label="Quantity"
+                  value={`${activity.amount} ${activity.amount === 1 ? 'ticket' : 'tickets'}`}
+                />
+              )}
+
+              {isTicket && (
+                <ActivityDetailRow
+                  icon={<Server size={18} color={secondaryTextColor} />}
+                  label="Mint URL"
+                  value={activity.service_key}
+                  copyable
+                  onCopy={handleCopyServiceKey}
+                />
+              )}
+
+              {!isTicket && (
+                <ActivityDetailRow
+                  icon={<Info size={18} color={secondaryTextColor} />}
+                  label="Status Details"
+                  value={activity.detail}
+                />
+              )}
 
               <ActivityDetailRow
                 icon={<Link size={18} color={secondaryTextColor} />}
@@ -333,14 +351,20 @@ export default function ActivityDetailScreen() {
                         : 'Payment Transaction'}
                   </ThemedText>
                   <ThemedText style={[styles.infoText, { color: secondaryTextColor }]}>
-                    This was a {isAuth ? 'login' : isTicket ? 'ticket' : 'payment'} request{' '}
-                    {isAuth ? 'to authenticate your identity with' : 'from'} {activity.service_name}
-                    .
+                    {isAuth
+                      ? `This was a login request to authenticate your identity with ${activity.service_name}.`
+                      : isTicket
+                        ? `This was a ticket request${activity.detail ? ` for ${activity.detail}` : ''} from ${activity.service_name}.`
+                        : `This was a payment request from ${activity.service_name}.`}
                     {activityStatus === 'success' &&
                       (isAuth
                         ? ' You successfully granted access.'
                         : isTicket
-                          ? ' You received a ticket.'
+                          ? activity.type === 'ticket_received'
+                            ? ' You successfully received the ticket.'
+                            : activity.type === 'ticket_approved'
+                              ? ' You successfully approved and sent the ticket.'
+                              : ' The ticket was processed successfully.'
                           : ' The payment was processed successfully.')}
                     {activityStatus === 'failed' &&
                       activity.detail.toLowerCase().includes('denied') &&

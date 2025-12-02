@@ -375,6 +375,36 @@ class EventEmitter {
 // Global event emitter instance for cross-context communication
 export const globalEvents = new EventEmitter();
 
+/**
+ * Extract a readable service name from a mint URL
+ * @param mintUrl The mint URL (e.g., "https://mint.example.com")
+ * @returns A readable name (e.g., "mint.example.com" or "Example Mint")
+ */
+export function getServiceNameFromMintUrl(mintUrl: string): string {
+  try {
+    const url = new URL(mintUrl);
+    // Extract domain name (e.g., "mint.example.com")
+    const hostname = url.hostname;
+    // Remove 'www.' prefix if present
+    const cleanHostname = hostname.replace(/^www\./, '');
+    // Capitalize first letter of each word for better readability
+    const parts = cleanHostname.split('.');
+    if (parts.length >= 2) {
+      // Use the main domain name (second-to-last part)
+      const mainDomain = parts[parts.length - 2];
+      return mainDomain.charAt(0).toUpperCase() + mainDomain.slice(1) + ' Mint';
+    }
+    return cleanHostname;
+  } catch (error) {
+    // If URL parsing fails, try to extract domain manually
+    const match = mintUrl.match(/https?:\/\/([^\/]+)/);
+    if (match && match[1]) {
+      return match[1].replace(/^www\./, '');
+    }
+    return 'Ticket Mint';
+  }
+}
+
 // =============================================================================
 // TYPE EXPORTS
 // =============================================================================
