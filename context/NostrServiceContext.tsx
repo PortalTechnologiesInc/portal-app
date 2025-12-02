@@ -596,16 +596,15 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         // listener to burn tokens
         app.listenCashuRequests(
           new LocalCashuRequestListener(async (event: CashuRequestContentWithKey) => {
-            // Use event-based ID for deduplication instead of random generation
+            // Use event-based ID for deduplication - same pattern as payment requests
             const eventId = `${event.inner.mintUrl}-${event.inner.unit}-${event.inner.amount}-${event.mainKey}`;
             const id = `cashu-request-${eventId}`;
 
-            // Early deduplication check before processing
+            // Early deduplication check - same as payment requests
             const existingRequest = pendingRequests[id];
             if (existingRequest) {
               // Return a promise that will resolve when the original request is resolved
               return new Promise<CashuResponseStatus>(resolve => {
-                // Store the resolve function so it gets called when the original request completes
                 const originalResolve = existingRequest.result;
                 existingRequest.result = (status: CashuResponseStatus) => {
                   resolve(status);
@@ -614,26 +613,28 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
               });
             }
 
-            // Declare wallet in outer scope
+            // Don't check database here - let the UI filter out already answered requests
+            // This matches payment requests behavior - they don't reject at listener level
+
+            // Check wallet and balance BEFORE creating pending request
+            // This ensures we only show requests we can actually fulfill
             let wallet;
-            // Check if we have the required unit before creating pending request
+            let ticketTitle = event.inner.unit || 'Unknown Ticket';
+            
             try {
               const requiredMintUrl = event.inner.mintUrl;
-              const requiredUnit = event.inner.unit.toLowerCase(); // Normalize unit name
+              const requiredUnit = event.inner.unit.toLowerCase();
               const requiredAmount = event.inner.amount;
 
               // Check if we have a wallet for this mint and unit
               wallet = await eCashContext.getWallet(requiredMintUrl, requiredUnit);
 
-              // If wallet not found in ECashContext, try to create it
+              // If wallet not found, try to create it
               if (!wallet) {
                 try {
                   wallet = await eCashContext.addWallet(requiredMintUrl, requiredUnit);
                 } catch (error) {
-                  console.error(
-                    `Error creating wallet for ${requiredMintUrl}-${requiredUnit}:`,
-                    error
-                  );
+                  // Ignore wallet creation errors
                 }
               }
 
@@ -646,14 +647,8 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
               if (balance < requiredAmount) {
                 return new CashuResponseStatus.InsufficientFunds();
               }
-            } catch (error) {
-              console.error('Error checking wallet availability:', error);
-              return new CashuResponseStatus.InsufficientFunds();
-            }
 
-            // Get the ticket title for pending requests
-            let ticketTitle = 'Unknown Ticket';
-            if (wallet) {
+              // Get ticket title
               let unitInfo;
               try {
                 unitInfo = wallet.getUnitInfo ? await wallet.getUnitInfo() : undefined;
@@ -661,6 +656,8 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                 unitInfo = undefined;
               }
               ticketTitle = unitInfo?.title || wallet.unit();
+            } catch (error) {
+              return new CashuResponseStatus.InsufficientFunds();
             }
             return new Promise<CashuResponseStatus>(resolve => {
               const newRequest: PendingRequest = {
