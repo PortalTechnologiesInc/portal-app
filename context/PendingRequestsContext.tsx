@@ -155,6 +155,99 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
     }
   };
 
+  // Helper function to safely convert amount to number or null
+  // Preserves 0 values (doesn't convert to null due to falsy check)
+  const safeAmountToNumber = (amount: number | null | undefined): number | null => {
+    if (amount == null) return null;
+    const num = Number(amount);
+    return isNaN(num) ? null : num;
+  };
+
+  // Helper function to create ticket activity with progressive fallback retry logic
+  // Tries with full data first, then minimal required fields, then absolute minimal data
+  const createTicketActivityWithRetry = useCallback(
+    async (
+      activityType: 'ticket_approved' | 'ticket_denied',
+      baseData: {
+        mintUrl: string | null;
+        serviceName: string;
+        ticketTitle: string;
+        amount: number | null;
+        requestId: string;
+      }
+    ): Promise<void> => {
+      const { mintUrl, serviceName, ticketTitle, amount, requestId } = baseData;
+      const status = activityType === 'ticket_approved' ? ('positive' as const) : ('negative' as const);
+
+      // Try with full data first
+      try {
+        const activityId = await addActivityWithFallback({
+          type: activityType,
+          service_key: mintUrl || 'Unknown Service',
+          service_name: serviceName,
+          detail: ticketTitle,
+          date: new Date(),
+          amount: safeAmountToNumber(amount),
+          currency: activityType === 'ticket_approved' ? 'sats' : null,
+          converted_amount: null,
+          converted_currency: null,
+          request_id: requestId,
+          subscription_id: null,
+          status,
+        });
+        if (activityId) {
+          return; // Success, exit early
+        }
+      } catch (error) {
+        console.error(`Failed to create ${activityType} activity with full data:`, error);
+      }
+
+      // Try with minimal required fields
+      try {
+        const activityId = await addActivityWithFallback({
+          type: activityType,
+          service_key: mintUrl || 'Unknown Service',
+          service_name: 'Unknown Service',
+          detail: `Ticket ${activityType === 'ticket_approved' ? 'request approved' : 'request denied'}`,
+          date: new Date(),
+          amount: safeAmountToNumber(amount),
+          currency: activityType === 'ticket_approved' ? 'sats' : null,
+          converted_amount: null,
+          converted_currency: null,
+          request_id: requestId,
+          subscription_id: null,
+          status,
+        });
+        if (activityId) {
+          return; // Success, exit early
+        }
+      } catch (error) {
+        console.error(`Failed to create ${activityType} activity with minimal data:`, error);
+      }
+
+      // Last resort - try with absolute minimal data
+      try {
+        await addActivityWithFallback({
+          type: activityType,
+          service_key: mintUrl || 'Unknown Service',
+          service_name: 'Unknown Service',
+          detail: `Ticket ${activityType === 'ticket_approved' ? 'approved' : 'denied'}`,
+          date: new Date(),
+          amount: null,
+          currency: null,
+          converted_amount: null,
+          converted_currency: null,
+          request_id: requestId,
+          subscription_id: null,
+          status,
+        });
+      } catch (error) {
+        console.error(`Final attempt to create ${activityType} activity failed:`, error);
+      }
+    },
+    [addActivityWithFallback]
+  );
+
   // Helper function to add a subscription
   const addSubscriptionWithFallback = useCallback(
     async (subscription: PendingSubscription): Promise<string | undefined> => {
@@ -577,63 +670,13 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               // Create activity for approved ticket request
               // Use unique request_id by appending activity type to ensure each action creates its own activity
               // Use mintUrl as service_key to match ticket_received activities
-              const activityData = {
-                type: 'ticket_approved' as const,
-                service_key: mintUrl, // Use mint URL (same as ticket_received)
-                service_name: serviceName, // Use resolved service name
-                detail: ticketTitle, // Use ticket title as detail
-                date: new Date(),
-                amount: Number(amount), // Store actual number of tickets, not divided by 1000
-                currency: 'sats',
-                converted_amount: null,
-                converted_currency: null,
-                request_id: `${id}-approved`,
-                subscription_id: null,
-                status: 'positive' as const,
-              };
-              
-              // Always create activity - don't let errors prevent it
-              try {
-                const activityId = await addActivityWithFallback(activityData);
-                if (!activityId) {
-                  // Try with minimal required fields
-                  await addActivityWithFallback({
-                    type: 'ticket_approved' as const,
-                    service_key: mintUrl || 'Unknown Service',
-                    service_name: 'Unknown Service',
-                    detail: 'Ticket request approved',
-                    date: new Date(),
-                    amount: Number(amount) || null,
-                    currency: 'sats',
-                    converted_amount: null,
-                    converted_currency: null,
-                    request_id: `${id}-approved`,
-                    subscription_id: null,
-                    status: 'positive' as const,
-                  });
-                }
-              } catch (activityError) {
-                console.error('Failed to create activity for approved ticket:', activityError);
-                // Last resort - try with absolute minimal data
-                try {
-                  await addActivityWithFallback({
-                    type: 'ticket_approved' as const,
-                    service_key: mintUrl || 'Unknown Service',
-                    service_name: 'Unknown Service',
-                    detail: 'Ticket approved',
-                    date: new Date(),
-                    amount: null,
-                    currency: null,
-                    converted_amount: null,
-                    converted_currency: null,
-                    request_id: `${id}-approved`,
-                    subscription_id: null,
-                    status: 'positive' as const,
-                  });
-                } catch (finalError) {
-                  console.error('Final attempt to create activity failed:', finalError);
-                }
-              }
+              await createTicketActivityWithRetry('ticket_approved', {
+                mintUrl,
+                serviceName,
+                ticketTitle,
+                amount: Number(amount),
+                requestId: `${id}-approved`,
+              });
 
               request.result(new CashuResponseStatus.Success({ token }));
             } else {
@@ -653,7 +696,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           break;
       }
     },
-    [getById, addActivityWithFallback, addSubscriptionWithFallback, nostrService, eCashContext]
+    [getById, addActivityWithFallback, addSubscriptionWithFallback, createTicketActivityWithRetry, nostrService, eCashContext]
   );
 
   const deny = useCallback(
@@ -889,63 +932,13 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             // Always create activity for denied ticket request
             // Use unique request_id by appending activity type to ensure each action creates its own activity
             // Use mintUrl as service_key to match ticket_received activities
-            const activityData = {
-              type: 'ticket_denied' as const,
-              service_key: mintUrl || 'Unknown Service', // Use mint URL (same as ticket_received)
-              service_name: serviceName, // Use resolved service name
-              detail: ticketTitle, // Use ticket title as detail
-              date: new Date(),
-              amount: ticketAmount, // Store actual number of tickets, not divided by 1000
-              currency: null,
-              converted_amount: null,
-              converted_currency: null,
-              request_id: `${id}-denied`,
-              subscription_id: null,
-              status: 'negative' as const,
-            };
-            
-            // Always create activity - don't let errors prevent it
-            try {
-              const activityId = await addActivityWithFallback(activityData);
-              if (!activityId) {
-                // Try with minimal required fields
-                await addActivityWithFallback({
-                  type: 'ticket_denied' as const,
-                  service_key: mintUrl || 'Unknown Service',
-                  service_name: 'Unknown Service',
-                  detail: 'Ticket request denied',
-                  date: new Date(),
-                  amount: ticketAmount || null,
-                  currency: null,
-                  converted_amount: null,
-                  converted_currency: null,
-                  request_id: `${id}-denied`,
-                  subscription_id: null,
-                  status: 'negative' as const,
-                });
-              }
-            } catch (activityError) {
-              console.error('Failed to create activity for denied ticket:', activityError);
-              // Last resort - try with absolute minimal data
-              try {
-                await addActivityWithFallback({
-                  type: 'ticket_denied' as const,
-                  service_key: mintUrl || 'Unknown Service',
-                  service_name: 'Unknown Service',
-                  detail: 'Ticket denied',
-                  date: new Date(),
-                  amount: null,
-                  currency: null,
-                  converted_amount: null,
-                  converted_currency: null,
-                  request_id: `${id}-denied`,
-                  subscription_id: null,
-                  status: 'negative' as const,
-                });
-              } catch (finalError) {
-                console.error('Final attempt to create activity failed:', finalError);
-              }
-            }
+            await createTicketActivityWithRetry('ticket_denied', {
+              mintUrl: mintUrl || null,
+              serviceName,
+              ticketTitle,
+              amount: ticketAmount,
+              requestId: `${id}-denied`,
+            });
 
             request.result(new CashuResponseStatus.Rejected({ reason: 'User denied request' }));
           } catch (error: any) {
@@ -964,19 +957,12 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                   ? getServiceNameFromMintUrl(mintUrl)
                   : 'Unknown Service';
               
-              await addActivityWithFallback({
-                type: 'ticket_denied',
-                service_key: mintUrl || 'Unknown Service', // Use mint URL (same as ticket_received)
-                service_name: serviceName,
-                detail: 'Ticket request denied',
-                date: new Date(),
+              await createTicketActivityWithRetry('ticket_denied', {
+                mintUrl: mintUrl || null,
+                serviceName,
+                ticketTitle: 'Ticket request denied',
                 amount: null,
-                currency: null,
-                converted_amount: null,
-                converted_currency: null,
-                request_id: `${id}-denied`,
-                subscription_id: null,
-                status: 'negative',
+                requestId: `${id}-denied`,
               });
             } catch (activityError) {
               console.error('Failed to create activity for denied ticket in error handler:', activityError);
@@ -990,7 +976,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           break;
       }
     },
-    [getById, addActivityWithFallback, nostrService, eCashContext]
+    [getById, addActivityWithFallback, createTicketActivityWithRetry, nostrService, eCashContext]
   );
 
   // Show skeleton loader and set timeout for request

@@ -630,11 +630,15 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
               wallet = await eCashContext.getWallet(requiredMintUrl, requiredUnit);
 
               // If wallet not found, try to create it
+              // Wallet creation may fail if the mint URL is invalid or unreachable, or if the unit is not supported.
+              // This is expected behavior - we handle it gracefully by checking if wallet exists after creation attempt.
+              // If creation fails, we'll return InsufficientFunds status below, which is appropriate since we can't fulfill the request.
               if (!wallet) {
                 try {
                   wallet = await eCashContext.addWallet(requiredMintUrl, requiredUnit);
                 } catch (error) {
-                  // Ignore wallet creation errors
+                  // Wallet creation failed - this is safe to ignore because we check wallet existence below
+                  // and return InsufficientFunds if no wallet is available, which correctly indicates we cannot fulfill the request
                 }
               }
 
