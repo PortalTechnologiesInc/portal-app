@@ -86,7 +86,6 @@ export default function NostrRelayManagementScreen() {
         setActiveRelaysList(activeRelays);
         setSelectedRelays(activeRelays);
         setPopularRelayList(Array.from(relaysSet));
-        isInitialLoadRef.current = false;
       } catch (error) {
         console.error('Error loading relays data:', error);
       } finally {
@@ -99,8 +98,19 @@ export default function NostrRelayManagementScreen() {
   // Auto-update relays when selectedRelays changes (debounced)
   // This ensures rapid clicks only trigger one update after the user stops clicking
   useEffect(() => {
-    // Skip update on initial load
-    if (isInitialLoadRef.current) {
+    // Skip update on initial load - check if still loading or if activeRelaysList is empty
+    // This prevents the debounce effect from running when selectedRelays is set during initial load
+    // We check activeRelaysList.length === 0 because during initial load, activeRelaysList is empty
+    // until the state updates are processed, so this ensures we skip the first update cycle
+    if (isInitialLoadRef.current || isLoading || activeRelaysList.length === 0) {
+      // Mark initial load as complete once we have data and are not loading
+      // Use setTimeout to ensure this runs after React has fully processed state updates
+      if (!isLoading && activeRelaysList.length > 0 && isInitialLoadRef.current) {
+        const timeoutId = setTimeout(() => {
+          isInitialLoadRef.current = false;
+        }, 0);
+        return () => clearTimeout(timeoutId);
+      }
       return;
     }
 
@@ -125,7 +135,7 @@ export default function NostrRelayManagementScreen() {
         updateTimeoutRef.current = null;
       }
     };
-  }, [selectedRelays, updateRelays]);
+  }, [selectedRelays, updateRelays, isLoading, activeRelaysList.length]);
 
   const handleAddCustomRelay = () => {
     const customRelay = customRelayTextFieldValue.trim();
