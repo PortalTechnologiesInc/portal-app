@@ -263,7 +263,7 @@ export default function NostrRelayManagementScreen() {
     relay.toLowerCase().includes(filterText.toLowerCase())
   );
 
-  const itemRows: string[][] = [[], [], [], []];
+  const itemRows: string[][] = [[], [], [], [], []];
 
   filteredRelays.forEach((item, index) => {
     itemRows[index % itemRows.length].push(item);
