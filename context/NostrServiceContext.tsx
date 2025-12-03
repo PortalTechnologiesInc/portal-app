@@ -540,17 +540,67 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
                 // Record activity for token receipt
                 try {
-                  // For Cashu direct, use mint URL as service identifier
-                  const serviceKey = tokenInfo.mintUrl;
+                  // Get Nostr service key for resolving service name (the sender's public key)
+                  const nostrServiceKey = (event as any).mainKey || (event as any).serviceKey || null;
+                  const mintUrl = tokenInfo.mintUrl;
+                  
+                  // Resolve service name from Nostr service key if available (via nip05),
+                  // otherwise fall back to mint URL-based name
+                  let serviceName: string;
+                  let serviceKey: string;
+                  
+                  if (nostrServiceKey) {
+                    // Try to resolve from nip05 via Nostr
+                    try {
+                      const appInstance = PortalAppManager.tryGetInstance();
+                      // Check cache first
+                      const cachedName = await executeOperation(
+                        db => db.getCachedServiceName(nostrServiceKey),
+                        null
+                      );
+                      
+                      if (cachedName) {
+                        serviceName = cachedName;
+                        serviceKey = nostrServiceKey;
+                      } else {
+                        // Fetch from network
+                        const profile = await appInstance.fetchProfile(nostrServiceKey);
+                        const resolvedName = getServiceNameFromProfile(profile);
+                        
+                        if (resolvedName) {
+                          // Cache the result
+                          await executeOperation(
+                            db => db.setCachedServiceName(nostrServiceKey, resolvedName),
+                            null
+                          );
+                          serviceName = resolvedName;
+                          serviceKey = nostrServiceKey;
+                        } else {
+                          // No nip05 found, fall back to mint URL
+                          serviceName = getServiceNameFromMintUrl(mintUrl);
+                          serviceKey = mintUrl;
+                        }
+                      }
+                    } catch (error) {
+                      // If resolution fails, fall back to mint URL
+                      console.error('Failed to resolve service name from Nostr:', error);
+                      serviceName = getServiceNameFromMintUrl(mintUrl);
+                      serviceKey = mintUrl;
+                    }
+                  } else {
+                    // No Nostr service key available, use mint URL
+                    serviceName = getServiceNameFromMintUrl(mintUrl);
+                    serviceKey = mintUrl;
+                  }
+                  
                   const unitInfo = await wallet.getUnitInfo();
                   const ticketTitle = unitInfo?.title || wallet.unit();
-                  const serviceName = getServiceNameFromMintUrl(serviceKey);
 
                   // Add activity to database using ActivitiesContext directly
                   const activity = {
                     type: 'ticket_received' as const,
                     service_key: serviceKey,
-                    service_name: serviceName, // Use readable service name from mint URL
+                    service_name: serviceName,
                     detail: ticketTitle, // Use ticket title as detail
                     date: new Date(),
                     amount: Number(tokenInfo.amount),
@@ -648,7 +698,15 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
               // Check if we have sufficient balance
               const balance = await wallet.getBalance();
-              if (balance < requiredAmount) {
+              
+              // Ensure both values are BigInt for proper comparison
+              const balanceBigInt = typeof balance === 'bigint' ? balance : BigInt(balance);
+              const requiredAmountBigInt = typeof requiredAmount === 'bigint' ? requiredAmount : BigInt(requiredAmount);
+              
+              console.log(`[Cashu Request] Balance check: balance=${balanceBigInt.toString()}, requested=${requiredAmountBigInt.toString()}, unit=${requiredUnit}`);
+              
+              if (balanceBigInt < requiredAmountBigInt) {
+                console.warn(`[Cashu Request] Insufficient balance: have ${balanceBigInt.toString()}, need ${requiredAmountBigInt.toString()}`);
                 return new CashuResponseStatus.InsufficientFunds();
               }
 
