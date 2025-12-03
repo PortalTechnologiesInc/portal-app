@@ -10,6 +10,8 @@ import {
   CloseRecurringPaymentResponse,
   Currency_Tags,
   Mnemonic,
+  NostrConnectRequestEvent,
+  NostrConnectResponseStatus,
   Nwc,
   PaymentResponseContent,
   PaymentStatus,
@@ -22,13 +24,14 @@ import {
   RelayStatusListener,
   RelayStatusListenerImpl,
   SinglePaymentRequest,
+  keyToHex,
   parseBolt11,
 } from 'portal-app-lib';
 import { openDatabaseAsync } from 'expo-sqlite';
 import { DatabaseService } from './DatabaseService';
 import { PortalAppManager } from './PortalAppManager';
-import { LocalAuthChallengeListener, LocalClosedRecurringPaymentListener, LocalPaymentRequestListener } from '@/context/NostrServiceContext';
-import { handleAuthChallenge, handleCloseRecurringPaymentResponse, handleRecurringPaymentRequest, handleSinglePaymentRequest } from './EventFilters';
+import { LocalAuthChallengeListener, LocalClosedRecurringPaymentListener, LocalNip46RequestListener, LocalPaymentRequestListener } from '@/context/NostrServiceContext';
+import { handleAuthChallenge, handleCloseRecurringPaymentResponse, handleNostrConnectRequest, handleRecurringPaymentRequest, handleSinglePaymentRequest } from './EventFilters';
 import { mapNumericStatusToString, getServiceNameFromProfile } from '@/utils/nostrHelper';
 import { RelayInfo } from '@/utils/common';
 import { Currency, CurrencyHelpers } from '@/utils/currency';
@@ -151,7 +154,7 @@ async function getServiceNameForNotification(
     try {
       const profile = await app.fetchProfile(serviceKey);
       const serviceName = getServiceNameFromProfile(profile);
-      
+
       if (serviceName) {
         // Cache the result for future use
         await executeOperation(
@@ -396,7 +399,7 @@ export async function handleHeadlessNotification(event: String, databaseName: st
 
           console.log(`Single payment request with id ${id} received`, request);
 
-          const resolver = function(status: PaymentStatus) {
+          const resolver = function (status: PaymentStatus) {
             // Check if this is a rejection due to amount mismatch
             const statusTag = (status as any).tag;
             const statusInner = (status as any).inner;
@@ -529,6 +532,33 @@ export async function handleHeadlessNotification(event: String, databaseName: st
         await notifyBackgroundError('Auth challenge listener error', e);
         // TODO: re-initialize the app
       });
+
+    app.listenForNip46Request(
+      new LocalNip46RequestListener((event: NostrConnectRequestEvent) => {
+        const id = event.id;
+        return new Promise<NostrConnectResponseStatus>(resolve => {
+          handleNostrConnectRequest(event, keyToHex(keypair.publicKey()), executeOperationForNotification, resolve).then((askUser) => {
+            if (askUser) {
+              Notifications.scheduleNotificationAsync({
+                content: {
+                  title: 'Authentication Request',
+                  body: `Authentication request requires approval`,
+                  data: {
+                    type: 'authentication_request',
+                    requestId: id,
+                  },
+                },
+                trigger: null, // Show immediately
+              });
+            }
+          }).finally(() => {
+            abortController.abort();
+          });
+        });
+      })
+    ).catch(e => {
+      console.error('Error listening for nip46 requests.', e);
+    });
   } catch (e) {
     console.error(e);
   }
