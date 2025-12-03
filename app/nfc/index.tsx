@@ -22,11 +22,21 @@ import * as Linking from 'expo-linking';
 import { useDeeplink } from '@/context/DeeplinkContext';
 import { AppLockService } from '@/services/AppLockService';
 
+type ErrorType =
+  | 'tag_read_failed'
+  | 'no_readable_data'
+  | 'invalid_portal_url'
+  | 'scan_cancelled'
+  | 'scan_timeout'
+  | 'scan_failed'
+  | null;
+
 export default function NFCScanScreen() {
   const router = useRouter();
   const [isNFCEnabled, setIsNFCEnabled] = useState<boolean | null>(null);
   const [isCheckingNFC, setIsCheckingNFC] = useState(false);
   const [scanState, setScanState] = useState<'ready' | 'scanning' | 'success' | 'error'>('ready');
+  const [errorType, setErrorType] = useState<ErrorType>(null);
   const [isPageFocused, setIsPageFocused] = useState(false);
   // Use ref for immediate synchronous access to focus state
   const isPageFocusedRef = useRef(false);
@@ -64,6 +74,26 @@ export default function NFCScanScreen() {
     scanTimeouts.current = [];
   };
 
+  const getErrorMessage = (): string => {
+    if (!errorType) return 'Scan failed. Use retry button below to scan again.';
+
+    switch (errorType) {
+      case 'tag_read_failed':
+        return 'Failed to read NFC tag. Make sure the tag is close to your device and try again.';
+      case 'no_readable_data':
+        return 'NFC tag has no readable data. This tag may not be formatted correctly.';
+      case 'invalid_portal_url':
+        return 'NFC tag does not contain a valid Portal URL. Make sure you are scanning a Portal-compatible tag.';
+      case 'scan_cancelled':
+        return 'Scan was cancelled. Tap retry to scan again.';
+      case 'scan_timeout':
+        return 'Scan timed out. Hold your device closer to the tag and try again.';
+      case 'scan_failed':
+      default:
+        return 'Scan failed. Use retry button below to scan again.';
+    }
+  };
+
   const scanMessage =
     isNFCEnabled === null
       ? 'Checking NFC status...'
@@ -73,7 +103,7 @@ export default function NFCScanScreen() {
           : scanState === 'success'
             ? 'NFC tag detected successfully!'
             : scanState === 'error'
-              ? 'Scan failed. Use retry button below to scan again.'
+              ? getErrorMessage()
               : 'Ready to scan NFC tags automatically'
         : 'Please enable NFC to use this feature';
 
@@ -234,12 +264,14 @@ export default function NFCScanScreen() {
           //   showToast('NFC enabled! Starting scan...', 'success');
           // }
           setScanState('ready');
+          setErrorType(null);
           // Auto-start scanning when NFC becomes enabled
           addTimeout(() => {
             startScan();
           }, 100); // Start almost immediately
         } else {
           setScanState('ready');
+          setErrorType(null);
           stopGlowAnimation();
         }
       }
@@ -340,6 +372,7 @@ export default function NFCScanScreen() {
 
         // Reset states
         setScanState('ready');
+        setErrorType(null);
         setIsCheckingNFC(false);
         setIsPageFocused(false);
         isPageFocusedRef.current = false; // Reset ref immediately
@@ -456,9 +489,9 @@ export default function NFCScanScreen() {
 
     try {
       setScanState('scanning');
+      setErrorType(null);
       startGlowAnimation();
       startScanLineAnimation();
-      // Remove scanning toast to prevent loops
 
       // Start NFC tag reading
       await NfcManager.requestTechnology([NfcTech.Ndef]);
@@ -468,6 +501,7 @@ export default function NFCScanScreen() {
 
       if (!tag) {
         setScanState('error');
+        setErrorType('tag_read_failed');
         stopGlowAnimation();
         stopScanLineAnimation();
         await NfcManager.cancelTechnologyRequest();
@@ -479,6 +513,7 @@ export default function NFCScanScreen() {
 
       if (!ndefRecords || ndefRecords.length === 0) {
         setScanState('error');
+        setErrorType('no_readable_data');
         stopGlowAnimation();
         stopScanLineAnimation();
         await NfcManager.cancelTechnologyRequest();
@@ -490,12 +525,9 @@ export default function NFCScanScreen() {
 
       if (validation.isValid && validation.portalUrl) {
         setScanState('success');
+        setErrorType(null);
         stopGlowAnimation();
         stopScanLineAnimation();
-        // Only show toast if page is focused
-        // if (isPageFocusedRef.current && !isLeavingPageRef.current) {
-        //   showToast(`Portal URL found: ${validation.portalUrl}`, 'success');
-        // }
         console.log('Valid portal URL detected:', validation.portalUrl);
 
         // Stop scanning
@@ -509,6 +541,7 @@ export default function NFCScanScreen() {
         }, 100);
       } else {
         setScanState('error');
+        setErrorType('invalid_portal_url');
         stopGlowAnimation();
         stopScanLineAnimation();
 
@@ -518,7 +551,7 @@ export default function NFCScanScreen() {
     } catch (error) {
       console.error('NFC scan error:', error);
 
-      // Don't show error toast if we're intentionally leaving the page or page is not focused
+      // Don't show error if we're intentionally leaving the page or page is not focused
       if (isLeavingPageRef.current || !isPageFocusedRef.current) {
         try {
           await NfcManager.cancelTechnologyRequest();
@@ -528,7 +561,18 @@ export default function NFCScanScreen() {
         return;
       }
 
+      // Categorize error type for better user feedback
+      const errorString = error instanceof Error ? error.message : String(error);
+      let categorizedErrorType: ErrorType = 'scan_failed';
+
+      if (errorString.includes('cancelled') || errorString.includes('cancel')) {
+        categorizedErrorType = 'scan_cancelled';
+      } else if (errorString.includes('timeout') || errorString.includes('timed out')) {
+        categorizedErrorType = 'scan_timeout';
+      }
+
       setScanState('error');
+      setErrorType(categorizedErrorType);
       stopGlowAnimation();
       stopScanLineAnimation();
 
@@ -723,22 +767,92 @@ export default function NFCScanScreen() {
           >
             {isNFCEnabled
               ? scanState === 'error'
-                ? 'Scan Failed - Try Again:'
+                ? 'Troubleshooting:'
                 : 'How to Scan Portal NFC Tags:'
               : 'How to Enable NFC:'}
           </ThemedText>
           {isNFCEnabled ? (
-            <>
-              <ThemedText style={[styles.instructionItem, { color: secondaryTextColor }]}>
-                • NFC scanning starts automatically once when enabled
-              </ThemedText>
-              <ThemedText style={[styles.instructionItem, { color: secondaryTextColor }]}>
-                • Hold your device close to an NFC tag (within 4cm)
-              </ThemedText>
-              <ThemedText style={[styles.instructionItem, { color: secondaryTextColor }]}>
-                • Keep the device steady until scan completes
-              </ThemedText>
-            </>
+            scanState === 'error' ? (
+              <>
+                {errorType === 'tag_read_failed' && (
+                  <>
+                    <ThemedText style={[styles.instructionItem, { color: secondaryTextColor }]}>
+                      • Ensure the NFC tag is within 4cm of your device
+                    </ThemedText>
+                    <ThemedText style={[styles.instructionItem, { color: secondaryTextColor }]}>
+                      • Keep your device steady and avoid moving it
+                    </ThemedText>
+                    <ThemedText style={[styles.instructionItem, { color: secondaryTextColor }]}>
+                      • Make sure the tag is not damaged or covered
+                    </ThemedText>
+                  </>
+                )}
+                {errorType === 'no_readable_data' && (
+                  <>
+                    <ThemedText style={[styles.instructionItem, { color: secondaryTextColor }]}>
+                      • This NFC tag may not be formatted correctly
+                    </ThemedText>
+                    <ThemedText style={[styles.instructionItem, { color: secondaryTextColor }]}>
+                      • Try scanning a different tag
+                    </ThemedText>
+                    <ThemedText style={[styles.instructionItem, { color: secondaryTextColor }]}>
+                      • Ensure the tag is a standard NDEF-formatted tag
+                    </ThemedText>
+                  </>
+                )}
+                {errorType === 'invalid_portal_url' && (
+                  <>
+                    <ThemedText style={[styles.instructionItem, { color: secondaryTextColor }]}>
+                      • This tag does not contain a Portal-compatible URL
+                    </ThemedText>
+                    <ThemedText style={[styles.instructionItem, { color: secondaryTextColor }]}>
+                      • Make sure you are scanning a Portal NFC tag
+                    </ThemedText>
+                    <ThemedText style={[styles.instructionItem, { color: secondaryTextColor }]}>
+                      • Try scanning a different Portal tag
+                    </ThemedText>
+                  </>
+                )}
+                {errorType === 'scan_timeout' && (
+                  <>
+                    <ThemedText style={[styles.instructionItem, { color: secondaryTextColor }]}>
+                      • Hold your device closer to the NFC tag
+                    </ThemedText>
+                    <ThemedText style={[styles.instructionItem, { color: secondaryTextColor }]}>
+                      • Keep the device steady for the entire scan
+                    </ThemedText>
+                    <ThemedText style={[styles.instructionItem, { color: secondaryTextColor }]}>
+                      • Try moving the tag to different positions on your device
+                    </ThemedText>
+                  </>
+                )}
+                {(errorType === 'scan_cancelled' || errorType === 'scan_failed' || !errorType) && (
+                  <>
+                    <ThemedText style={[styles.instructionItem, { color: secondaryTextColor }]}>
+                      • Hold your device close to an NFC tag (within 4cm)
+                    </ThemedText>
+                    <ThemedText style={[styles.instructionItem, { color: secondaryTextColor }]}>
+                      • Keep the device steady until scan completes
+                    </ThemedText>
+                    <ThemedText style={[styles.instructionItem, { color: secondaryTextColor }]}>
+                      • Tap retry to scan again
+                    </ThemedText>
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                <ThemedText style={[styles.instructionItem, { color: secondaryTextColor }]}>
+                  • NFC scanning starts automatically once when enabled
+                </ThemedText>
+                <ThemedText style={[styles.instructionItem, { color: secondaryTextColor }]}>
+                  • Hold your device close to an NFC tag (within 4cm)
+                </ThemedText>
+                <ThemedText style={[styles.instructionItem, { color: secondaryTextColor }]}>
+                  • Keep the device steady until scan completes
+                </ThemedText>
+              </>
+            )
           ) : (
             <>
               <ThemedText style={[styles.instructionItem, { color: secondaryTextColor }]}>
