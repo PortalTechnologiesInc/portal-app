@@ -620,7 +620,15 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               // Get the amount from the request
               const amount = cashuEvent.inner.amount;
               const walletBalance = await wallet.getBalance();
-              if (walletBalance < amount) {
+              
+              // Ensure both values are BigInt for proper comparison
+              const balanceBigInt = typeof walletBalance === 'bigint' ? walletBalance : BigInt(walletBalance);
+              const amountBigInt = typeof amount === 'bigint' ? amount : BigInt(amount);
+              
+              console.log(`[Ticket Request] Balance check: balance=${balanceBigInt.toString()}, requested=${amountBigInt.toString()}, unit=${cashuEvent.inner.unit}`);
+              
+              if (balanceBigInt < amountBigInt) {
+                console.warn(`[Ticket Request] Insufficient balance: have ${balanceBigInt.toString()}, need ${amountBigInt.toString()}`);
                 request.result(new CashuResponseStatus.InsufficientFunds());
                 return;
               }
