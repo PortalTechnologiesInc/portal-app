@@ -316,7 +316,7 @@ export default function NostrRelayManagementScreen() {
               Choose the Nostr relays you want to use for Nostr Wallet Connect. Relays help broadcast
               and receive transactions—pick reliable ones for better speed and connectivity. You can
               add custom relays or use trusted defaults. Changes are saved automatically. At least{' '}
-              {MIN_RELAY_CONNECTIONS} relay connection is required (maximum {MAX_RELAY_CONNECTIONS}).
+              {MIN_RELAY_CONNECTIONS} relay {MIN_RELAY_CONNECTIONS === 1 ? 'connection is' : 'connections are'} required (maximum {MAX_RELAY_CONNECTIONS}).
             </ThemedText>
             {isUpdating && (
               <ThemedText style={[styles.updatingText, { color: secondaryTextColor }]}>
