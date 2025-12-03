@@ -13,12 +13,14 @@ import {
   NostrConnectResponseStatus,
   NostrConnectMethod,
   NostrConnectRequestEvent,
+  keyToHex,
 } from 'portal-app-lib';
 import * as Notifications from 'expo-notifications';
 import { DatabaseService, fromUnixSeconds, SubscriptionWithDates } from './DatabaseService';
 import { CurrencyConversionService } from './CurrencyConversionService';
 import { globalEvents } from '@/utils/common';
 import { Currency, CurrencyHelpers, normalizeCurrencyForComparison } from '@/utils/currency';
+import { getMethodString } from '@/utils/nip46';
 
 /**
  * Sends a local notification for payment-related events with human-readable formatting
@@ -236,13 +238,13 @@ export async function handleSinglePaymentRequest(
 
       if (sendNotification) {
         // Use converted amount/currency if available, otherwise use original
-        const notificationAmount = convertedAmount !== null && convertedCurrency 
-          ? convertedAmount 
+        const notificationAmount = convertedAmount !== null && convertedCurrency
+          ? convertedAmount
           : amount;
-        const notificationCurrency = convertedAmount !== null && convertedCurrency 
-          ? convertedCurrency 
+        const notificationCurrency = convertedAmount !== null && convertedCurrency
+          ? convertedCurrency
           : currency;
-        
+
         if (notificationAmount !== null && notificationCurrency) {
           await sendPaymentNotification(
             'Payment Request',
@@ -365,13 +367,13 @@ export async function handleSinglePaymentRequest(
 
         // Send notification to user about successful payment
         // Use converted amount/currency if available, otherwise use original
-        const notificationAmount = convertedAmount !== null && convertedCurrency 
-          ? convertedAmount 
+        const notificationAmount = convertedAmount !== null && convertedCurrency
+          ? convertedAmount
           : amount;
-        const notificationCurrency = convertedAmount !== null && convertedCurrency 
-          ? convertedCurrency 
+        const notificationCurrency = convertedAmount !== null && convertedCurrency
+          ? convertedCurrency
           : currency;
-        
+
         if (notificationAmount !== null && notificationCurrency) {
           await sendPaymentNotification(
             'Payment Successful',
@@ -518,68 +520,130 @@ export async function handleNostrConnectRequest(
   executeOperation: <T>(operation: (db: DatabaseService) => Promise<T>, fallback?: T) => Promise<T>,
   resolve: (status: NostrConnectResponseStatus) => void
 ): Promise<boolean> {
-  switch (event.method) {
-    case NostrConnectMethod.Connect:
-      const eventSignerPubkey = event.params.at(0);
-      if (!eventSignerPubkey) {
-        console.log("Automatically declining request. No params");
-        resolve(new NostrConnectResponseStatus.Declined({
-          reason: "No params"
-        }));
-        return false;
-      }
+  console.log(event);
+  if (event.method == NostrConnectMethod.Connect) {
+    const eventSignerPubkey = event.params.at(0);
+    if (!eventSignerPubkey) {
+      console.log("Automatically declining request. No params");
+      resolve(new NostrConnectResponseStatus.Declined({
+        reason: "No params"
+      }));
+      return false;
+    }
 
-      if (eventSignerPubkey != signerPubkey) {
-        console.log("Automatically declining request. Connect request contains a pubkey different from this signer");
-        resolve(new NostrConnectResponseStatus.Declined({
-          reason: "Connect request contains a pubkey different from this signer"
-        }));
-        return false;
-      }
+    if (eventSignerPubkey !== signerPubkey) {
+      console.log("Automatically declining request. Connect request contains a pubkey different from this signer");
+      resolve(new NostrConnectResponseStatus.Declined({
+        reason: "Connect request contains a pubkey different from this signer"
+      }));
+      return false;
+    }
 
-      const secret = event.params.at(1);
-      if (!secret) {
-        console.log("Automatically declining request. Secret param is undefined");
-        resolve(new NostrConnectResponseStatus.Declined({
-          reason: "Secret param is undefined"
-        }));
-        return false;
-      }
-      const secretRecord = await executeOperation(db => db.getBunkerSecretOrNull(secret));
-      let isSecretInvalid: boolean = (secretRecord?.used ?? true);
+    const secret = event.params.at(1);
+    if (!secret) {
+      console.log("Automatically declining request. Secret param is undefined");
+      resolve(new NostrConnectResponseStatus.Declined({
+        reason: "Secret param is undefined"
+      }));
+      return false;
+    }
+    const secretRecord = await executeOperation(db => db.getBunkerSecretOrNull(secret));
+    let isSecretInvalid: boolean = (secretRecord?.used ?? true);
 
-      if (isSecretInvalid) {
-        console.log("Automatically declining request. Secret param is invalid");
-        resolve(new NostrConnectResponseStatus.Declined({
-          reason: "Secret param is invalid"
-        }));
-        return false;
-      }
+    if (isSecretInvalid) {
+      console.log("Automatically declining request. Secret param is invalid");
+      resolve(new NostrConnectResponseStatus.Declined({
+        reason: "Secret param is invalid"
+      }));
+      return false;
+    }
 
-      return true;
+    return true;
+  }
 
-    default:
-      try {
-        const nostrClient = await executeOperation((db) => db.getBunkerClientOrNull(event.nostrClientPubkey))
-        // check that the key is abilitated and not revoked
-        if (!nostrClient || nostrClient.revoked) {
-          console.log("Automatically declining request. Nostr client is not whitelisted or is revoked.");
+  try {
+    const hexPubkey = keyToHex(event.nostrClientPubkey);
+    const nostrClient = await executeOperation((db) => db.getBunkerClientOrNull(hexPubkey))
+    // check that the key is abilitated and not revoked
+    if (!nostrClient || nostrClient.revoked) {
+      console.log("Automatically declining request. Nostr client is not whitelisted or is revoked.");
+      resolve(new NostrConnectResponseStatus.Declined({
+        reason: "Nostr client is not whitelisted or is revoked."
+      }));
+      return false;
+    }
+
+    // check that the method has a granted permission
+    const permissions = nostrClient.granted_permissions.split(",").map(p => p.trim()).filter(Boolean);
+
+    // getting method specific permissions with paramethers
+    const methodString = getMethodString(event.method);
+    const eventSpecificPermissions = permissions.filter(p => p.startsWith(methodString));
+
+    // rejecting if there's none
+    if (eventSpecificPermissions.length === 0) {
+      console.log(`Automatically declining request. '${methodString}' permission not granted.`);
+      resolve(new NostrConnectResponseStatus.Declined({
+        reason: `'${methodString}' permission not granted`
+      }));
+      return false;
+    }
+
+    // given that this method has a permission granted continue with specific logic for sign_event
+    // sign_event is special because we also need to check that we can sign that specific event kind
+    if (event.method == NostrConnectMethod.SignEvent) {
+
+      // Check if permission is exactly "sign_event" (allows all kinds) or has specific kinds like "sign_event:1"
+      const isUnrestricted = eventSpecificPermissions.length === 1 && eventSpecificPermissions[0] === methodString
+      if (!isUnrestricted) {
+        // grabbing the event to sign and checking if exists
+        const serializedEventToSign = event.params.at(0)
+        console.log("Permission to sign event is granted. The event is:");
+        console.log(serializedEventToSign);
+
+        if (!serializedEventToSign) {
+          console.log("Automatically declining request. No event to sign in the parameters.");
           resolve(new NostrConnectResponseStatus.Declined({
-            reason: "Nostr client is not whitelisted or is revoked."
+            reason: "No event to sign in the parameters."
           }));
           return false;
         }
 
-        await executeOperation((db) => db.updateBunkerClientLastSeen(event.nostrClientPubkey), null);
-        // Nostr client is whitelisted, automatically approving the request.
-        console.log(`Approving the request for method: ${event.method}`);
-        resolve(new NostrConnectResponseStatus.Approved());
-      } catch (e) {
-        console.error(`Error while getting the nostr client from whitelist: ${e}`);
-        resolve(new NostrConnectResponseStatus.Declined({
-          reason: "Secret param is invalid"
-        }));
+        // getting the kind and checking if is allowed
+        const eventToSignObj = JSON.parse(serializedEventToSign)
+        const eventToSignKind = eventToSignObj.kind;
+        if (!eventToSignKind) {
+          console.log("Automatically declining request. Event to sign has no kind");
+          resolve(new NostrConnectResponseStatus.Declined({
+            reason: "No event to sign in the parameters. Event to sign has no kind"
+          }));
+          return false;
+        }
+
+
+        // Extract specific allowed kinds from permissions like "sign_event:1", "sign_event:2"
+        const allowedKinds = eventSpecificPermissions.map(p => p.replace('sign_event:', ''));
+
+        const eventToSignKindStr = String(eventToSignKind);
+        if (!allowedKinds.includes(eventToSignKindStr)) {
+          console.log(`Automatically declining request. Event kind ${eventToSignKind} is not in allowed kinds: ${allowedKinds.join(', ')}`);
+          resolve(new NostrConnectResponseStatus.Declined({
+            reason: `Event kind ${eventToSignKind} is not permitted. Allowed kinds: ${allowedKinds.join(', ')}`
+          }));
+          return false;
+        }
       }
-      return false;
+    }
+
+    await executeOperation((db) => db.updateBunkerClientLastSeen(hexPubkey), null);
+    // Nostr client is whitelisted, automatically approving the request.
+    console.log(`Approving the request for method: ${event.method}`);
+    resolve(new NostrConnectResponseStatus.Approved());
+  } catch (e) {
+    console.error(`Error while checking client permissions: ${e}`);
+    resolve(new NostrConnectResponseStatus.Declined({
+      reason: "Error while checking client permissions"
+    }));
   }
+  return false;
 }
