@@ -365,7 +365,7 @@ export default function NostrRelayManagementScreen() {
                           // Prevent deselecting the last relay
                           if (selectedRelays.length <= MIN_RELAY_CONNECTIONS) {
                             ToastAndroid.showWithGravity(
-                              `At least ${MIN_RELAY_CONNECTIONS} relay connection is required`,
+                              `At least ${MIN_RELAY_CONNECTIONS} relay ${MIN_RELAY_CONNECTIONS === 1 ? 'connection' : 'connections'} required`,
                               ToastAndroid.LONG,
                               ToastAndroid.CENTER
                             );
