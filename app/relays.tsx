@@ -135,7 +135,7 @@ export default function NostrRelayManagementScreen() {
         updateTimeoutRef.current = null;
       }
     };
-  }, [selectedRelays, updateRelays, isLoading, activeRelaysList.length]);
+  }, [selectedRelays, isLoading, activeRelaysList, activeRelaysList.length, nostrService, executeOperation]);
 
   const handleAddCustomRelay = () => {
     const customRelay = customRelayTextFieldValue.trim();
