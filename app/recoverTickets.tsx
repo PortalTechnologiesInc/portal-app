@@ -17,6 +17,7 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 import { useECash } from '@/context/ECashContext';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import { globalEvents } from '@/utils/common';
+import { showToast } from '@/utils/Toast';
 
 export default function RecoverTicketsScreen() {
   const router = useRouter();
@@ -70,7 +71,7 @@ export default function RecoverTicketsScreen() {
       const fetchedUrls = await executeOnNostr(async (db) => {
         const redMints = await db.readMints()
         return redMints;
-      });
+      }, []);
 
       if (fetchedUrls.length > 0) {
         Alert.alert(
@@ -79,6 +80,8 @@ export default function RecoverTicketsScreen() {
           [{ text: 'OK' }]
         );
         setMintUrls(fetchedUrls);
+      } else {
+        showToast('No mint URLs found. You can manually enter mint server URLs below.', 'error');
       }
       setIsSearchingUrls(false);
     };

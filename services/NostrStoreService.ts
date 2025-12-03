@@ -25,7 +25,7 @@ export default class NostrStoreService {
             const mintsJson = await Promise.race([
                 this.portalDb.read(MINTS_KEY),
                 new Promise<string>((_, reject) =>
-                    setTimeout(() => reject(new Error('Timeout reading mints from NostrStore')), 10000)
+                    setTimeout(() => reject(new Error('Timeout reading mints from NostrStore')), 5000)
                 ),
             ]);
             return JSON.parse(mintsJson);
