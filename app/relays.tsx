@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   StyleSheet,
   TouchableOpacity,
@@ -21,6 +21,9 @@ import popularRelayListFile from '../assets/RelayList.json';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { PortalAppManager } from '@/services/PortalAppManager';
 
+const MAX_RELAY_CONNECTIONS = 6;
+const DEBOUNCE_DELAY_MS = 800; // Delay before executing relay updates after user stops clicking
+
 function isWebsocketUri(uri: string): boolean {
   const regex = /^wss?:\/\/([a-zA-Z0-9.-]+)(:\d+)?(\/[^\s]*)?$/;
   return regex.test(uri);
@@ -40,8 +43,11 @@ export default function NostrRelayManagementScreen() {
 
   const [customRelayTextFieldValue, setCustomRelayTextFieldValue] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [filterText, setFilterText] = useState<string>('');
   const [showCustomRelayInput, setShowCustomRelayInput] = useState<boolean>(false);
+  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitialLoadRef = useRef(true);
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -79,6 +85,7 @@ export default function NostrRelayManagementScreen() {
         setActiveRelaysList(activeRelays);
         setSelectedRelays(activeRelays);
         setPopularRelayList(Array.from(relaysSet));
+        isInitialLoadRef.current = false;
       } catch (error) {
         console.error('Error loading relays data:', error);
       } finally {
@@ -88,12 +95,53 @@ export default function NostrRelayManagementScreen() {
     loadRelaysList();
   }, [executeOperation]); // Simplified dependency
 
+  // Auto-update relays when selectedRelays changes (debounced)
+  // This ensures rapid clicks only trigger one update after the user stops clicking
+  useEffect(() => {
+    // Skip update on initial load
+    if (isInitialLoadRef.current) {
+      return;
+    }
+
+    // Clear existing timeout to reset the debounce timer
+    // This means if user clicks rapidly, we keep resetting the timer
+    // and only execute once after they stop clicking for DEBOUNCE_DELAY_MS
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current);
+      updateTimeoutRef.current = null;
+    }
+
+    // Set new timeout - will only execute if user stops clicking for DEBOUNCE_DELAY_MS
+    updateTimeoutRef.current = setTimeout(() => {
+      updateRelays();
+      updateTimeoutRef.current = null;
+    }, DEBOUNCE_DELAY_MS);
+
+    // Cleanup timeout on unmount or when selectedRelays changes again
+    return () => {
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+        updateTimeoutRef.current = null;
+      }
+    };
+  }, [selectedRelays, updateRelays]);
+
   const handleAddCustomRelay = () => {
     const customRelay = customRelayTextFieldValue.trim();
 
     if (!isWebsocketUri(customRelay)) {
       ToastAndroid.showWithGravity(
         'Websocket format is wrong',
+        ToastAndroid.LONG,
+        ToastAndroid.CENTER
+      );
+      return;
+    }
+
+    // Check if limit is reached
+    if (selectedRelays.length >= MAX_RELAY_CONNECTIONS) {
+      ToastAndroid.showWithGravity(
+        `Maximum ${MAX_RELAY_CONNECTIONS} relay connections allowed`,
         ToastAndroid.LONG,
         ToastAndroid.CENTER
       );
@@ -115,7 +163,18 @@ export default function NostrRelayManagementScreen() {
     setShowCustomRelayInput(false);
   };
 
-  const updateRelays = async () => {
+  const updateRelays = useCallback(async () => {
+    // Enforce maximum relay connections limit
+    if (selectedRelays.length > MAX_RELAY_CONNECTIONS) {
+      ToastAndroid.showWithGravity(
+        `Maximum ${MAX_RELAY_CONNECTIONS} relay connections allowed. Please remove some relays.`,
+        ToastAndroid.LONG,
+        ToastAndroid.CENTER
+      );
+      return;
+    }
+
+    setIsUpdating(true);
     let newlySelectedRelays = selectedRelays;
 
     let removePromises: Promise<void>[] = [];
@@ -179,9 +238,10 @@ export default function NostrRelayManagementScreen() {
         ToastAndroid.LONG,
         ToastAndroid.CENTER
       );
+    } finally {
+      setIsUpdating(false);
     }
-    router.back();
-  };
+  }, [selectedRelays, activeRelaysList, nostrService, executeOperation]);
 
   if (isLoading) {
     return (
@@ -234,8 +294,14 @@ export default function NostrRelayManagementScreen() {
             <ThemedText style={[styles.description, { color: secondaryTextColor }]}>
               Choose the Nostr relays you want to use for Nostr Wallet Connect. Relays help broadcast
               and receive transactions—pick reliable ones for better speed and connectivity. You can
-              add custom relays or use trusted defaults.
+              add custom relays or use trusted defaults. Changes are saved automatically. Maximum{' '}
+              {MAX_RELAY_CONNECTIONS} relay connections allowed.
             </ThemedText>
+            {isUpdating && (
+              <ThemedText style={[styles.updatingText, { color: secondaryTextColor }]}>
+                Updating relays...
+              </ThemedText>
+            )}
 
           {/* Add Relays Input */}
           <ThemedText style={styles.titleText}>Popular relays:</ThemedText>
@@ -266,15 +332,25 @@ export default function NostrRelayManagementScreen() {
                             ? buttonPrimaryColor
                             : inputBackgroundColor,
                           borderColor: inputBorderColor,
+                          opacity: !selectedRelays.includes(relay) && selectedRelays.length >= MAX_RELAY_CONNECTIONS ? 0.5 : 1,
                         },
                       ]}
                       onPress={() => {
                         if (selectedRelays.includes(relay)) {
                           setSelectedRelays(selectedRelays.filter(r => r !== relay));
                         } else {
+                          if (selectedRelays.length >= MAX_RELAY_CONNECTIONS) {
+                            ToastAndroid.showWithGravity(
+                              `Maximum ${MAX_RELAY_CONNECTIONS} relay connections allowed`,
+                              ToastAndroid.LONG,
+                              ToastAndroid.CENTER
+                            );
+                            return;
+                          }
                           setSelectedRelays([...selectedRelays, relay]);
                         }
                       }}
+                      disabled={!selectedRelays.includes(relay) && selectedRelays.length >= MAX_RELAY_CONNECTIONS}
                     >
                       <ThemedText
                         style={[
@@ -302,8 +378,25 @@ export default function NostrRelayManagementScreen() {
 
           {!showCustomRelayInput ? (
             <TouchableOpacity
-              style={[styles.addCustomRelayButton, { backgroundColor: buttonSecondaryColor }]}
-              onPress={() => setShowCustomRelayInput(true)}
+              style={[
+                styles.addCustomRelayButton,
+                {
+                  backgroundColor: buttonSecondaryColor,
+                  opacity: selectedRelays.length >= MAX_RELAY_CONNECTIONS ? 0.5 : 1,
+                },
+              ]}
+              onPress={() => {
+                if (selectedRelays.length >= MAX_RELAY_CONNECTIONS) {
+                  ToastAndroid.showWithGravity(
+                    `Maximum ${MAX_RELAY_CONNECTIONS} relay connections allowed`,
+                    ToastAndroid.LONG,
+                    ToastAndroid.CENTER
+                  );
+                  return;
+                }
+                setShowCustomRelayInput(true);
+              }}
+              disabled={selectedRelays.length >= MAX_RELAY_CONNECTIONS}
             >
               <Plus size={20} color={buttonPrimaryTextColor} />
               <ThemedText
@@ -344,14 +437,6 @@ export default function NostrRelayManagementScreen() {
             </View>
           )}
 
-          <TouchableOpacity
-            style={[styles.saveButton, { backgroundColor: buttonPrimaryColor }]}
-            onPress={updateRelays}
-          >
-            <ThemedText style={[styles.saveButtonText, { color: buttonPrimaryTextColor }]}>
-            Save relays
-          </ThemedText>
-          </TouchableOpacity>
         </ScrollView>
         </KeyboardAvoidingView>
       </ThemedView>
@@ -478,21 +563,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
   },
-  saveButton: {
-    // backgroundColor handled by theme
-    padding: 16,
-    borderRadius: 12,
-    width: '100%',
-    maxWidth: 500,
-    alignItems: 'center',
-    alignSelf: 'center',
-    marginTop: 32,
+  updatingText: {
+    fontSize: 14,
+    fontStyle: 'italic',
+    marginTop: 8,
     marginBottom: 8,
-  },
-  saveButtonText: {
-    // color handled by theme
-    fontSize: 16,
-    fontWeight: 'bold',
   },
   filterContainer: {
     borderBottomWidth: 1,
