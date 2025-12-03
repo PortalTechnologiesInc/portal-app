@@ -22,6 +22,7 @@ import { useNostrService } from '@/context/NostrServiceContext';
 import { PortalAppManager } from '@/services/PortalAppManager';
 
 const MAX_RELAY_CONNECTIONS = 6;
+const MIN_RELAY_CONNECTIONS = 1;
 const DEBOUNCE_DELAY_MS = 800; // Delay before executing relay updates after user stops clicking
 
 function isWebsocketUri(uri: string): boolean {
@@ -164,6 +165,16 @@ export default function NostrRelayManagementScreen() {
   };
 
   const updateRelays = useCallback(async () => {
+    // Enforce minimum relay connections limit
+    if (selectedRelays.length < MIN_RELAY_CONNECTIONS) {
+      ToastAndroid.showWithGravity(
+        `At least ${MIN_RELAY_CONNECTIONS} relay connection is required`,
+        ToastAndroid.LONG,
+        ToastAndroid.CENTER
+      );
+      return;
+    }
+
     // Enforce maximum relay connections limit
     if (selectedRelays.length > MAX_RELAY_CONNECTIONS) {
       ToastAndroid.showWithGravity(
@@ -294,8 +305,8 @@ export default function NostrRelayManagementScreen() {
             <ThemedText style={[styles.description, { color: secondaryTextColor }]}>
               Choose the Nostr relays you want to use for Nostr Wallet Connect. Relays help broadcast
               and receive transactions—pick reliable ones for better speed and connectivity. You can
-              add custom relays or use trusted defaults. Changes are saved automatically. Maximum{' '}
-              {MAX_RELAY_CONNECTIONS} relay connections allowed.
+              add custom relays or use trusted defaults. Changes are saved automatically. At least{' '}
+              {MIN_RELAY_CONNECTIONS} relay connection is required (maximum {MAX_RELAY_CONNECTIONS}).
             </ThemedText>
             {isUpdating && (
               <ThemedText style={[styles.updatingText, { color: secondaryTextColor }]}>
@@ -332,11 +343,24 @@ export default function NostrRelayManagementScreen() {
                             ? buttonPrimaryColor
                             : inputBackgroundColor,
                           borderColor: inputBorderColor,
-                          opacity: !selectedRelays.includes(relay) && selectedRelays.length >= MAX_RELAY_CONNECTIONS ? 0.5 : 1,
+                          opacity:
+                            (!selectedRelays.includes(relay) && selectedRelays.length >= MAX_RELAY_CONNECTIONS) ||
+                            (selectedRelays.includes(relay) && selectedRelays.length <= MIN_RELAY_CONNECTIONS)
+                              ? 0.5
+                              : 1,
                         },
                       ]}
                       onPress={() => {
                         if (selectedRelays.includes(relay)) {
+                          // Prevent deselecting the last relay
+                          if (selectedRelays.length <= MIN_RELAY_CONNECTIONS) {
+                            ToastAndroid.showWithGravity(
+                              `At least ${MIN_RELAY_CONNECTIONS} relay connection is required`,
+                              ToastAndroid.LONG,
+                              ToastAndroid.CENTER
+                            );
+                            return;
+                          }
                           setSelectedRelays(selectedRelays.filter(r => r !== relay));
                         } else {
                           if (selectedRelays.length >= MAX_RELAY_CONNECTIONS) {
@@ -350,7 +374,10 @@ export default function NostrRelayManagementScreen() {
                           setSelectedRelays([...selectedRelays, relay]);
                         }
                       }}
-                      disabled={!selectedRelays.includes(relay) && selectedRelays.length >= MAX_RELAY_CONNECTIONS}
+                      disabled={
+                        (!selectedRelays.includes(relay) && selectedRelays.length >= MAX_RELAY_CONNECTIONS) ||
+                        (selectedRelays.includes(relay) && selectedRelays.length <= MIN_RELAY_CONNECTIONS)
+                      }
                     >
                       <ThemedText
                         style={[
