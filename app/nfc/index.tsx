@@ -18,7 +18,6 @@ import { ArrowLeft, Nfc, CheckCircle, XCircle, Settings } from 'lucide-react-nat
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { showToast } from '@/utils/Toast';
 import * as Linking from 'expo-linking';
 import { useDeeplink } from '@/context/DeeplinkContext';
 import { AppLockService } from '@/services/AppLockService';
@@ -141,10 +140,6 @@ export default function NFCScanScreen() {
       }
     } catch (error) {
       console.error('Error opening settings:', error);
-      // Only show toast if page is focused
-      if (isPageFocusedRef.current && !isLeavingPageRef.current) {
-        showToast('Unable to open settings. Please enable NFC manually.', 'error');
-      }
     }
   };
 
@@ -244,10 +239,6 @@ export default function NFCScanScreen() {
             startScan();
           }, 100); // Start almost immediately
         } else {
-          // Only show toast if page is focused to prevent navigation issues
-          if (isPageFocusedRef.current && !isLeavingPageRef.current) {
-            showToast('NFC disabled', 'error');
-          }
           setScanState('ready');
           stopGlowAnimation();
         }
@@ -479,10 +470,6 @@ export default function NFCScanScreen() {
         setScanState('error');
         stopGlowAnimation();
         stopScanLineAnimation();
-        // Only show toast if page is focused
-        if (isPageFocusedRef.current && !isLeavingPageRef.current) {
-          showToast('Failed to read NFC tag', 'error');
-        }
         await NfcManager.cancelTechnologyRequest();
         return;
       }
@@ -494,10 +481,6 @@ export default function NFCScanScreen() {
         setScanState('error');
         stopGlowAnimation();
         stopScanLineAnimation();
-        // Only show toast if page is focused
-        if (isPageFocusedRef.current && !isLeavingPageRef.current) {
-          showToast('NFC tag has no readable data', 'error');
-        }
         await NfcManager.cancelTechnologyRequest();
         return;
       }
@@ -528,10 +511,6 @@ export default function NFCScanScreen() {
         setScanState('error');
         stopGlowAnimation();
         stopScanLineAnimation();
-        // Only show toast if page is focused
-        if (isPageFocusedRef.current && !isLeavingPageRef.current) {
-          showToast('NFC tag does not contain a valid portal:// URL', 'error');
-        }
 
         // Stop scanning
         await NfcManager.cancelTechnologyRequest();
@@ -552,16 +531,6 @@ export default function NFCScanScreen() {
       setScanState('error');
       stopGlowAnimation();
       stopScanLineAnimation();
-
-      // Provide more specific error messages
-      const errorString = error instanceof Error ? error.message : String(error);
-      const errorMessage = errorString.includes('cancelled')
-        ? 'Scan was cancelled'
-        : errorString.includes('timeout')
-          ? 'Scan timed out - please try again'
-          : 'NFC scan failed - please try again';
-
-      showToast(errorMessage, 'error');
 
       // Stop scanning and reset state
       try {
