@@ -11,7 +11,6 @@ import { ThemedText } from '@/components/ThemedText';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { useDatabaseContext } from '@/context/DatabaseContext';
-import defaultRelayList from '@/assets/DefaultRelays.json';
 import { keyToHex } from 'portal-app-lib';
 import { showToast } from '@/utils/Toast';
 import { AllowedBunkerClientWithDates } from '@/services/DatabaseService';
@@ -80,7 +79,7 @@ const BunkerConnectionDetailsScreen = () => {
     return grantedPermissions.split(',').includes(permission);
   };
 
-  const handleTogglePermission = async (permission: string, enabled: boolean) => {
+  const handleTogglePermission = (permission: string, enabled: boolean) => {
     if (!client) return;
 
     const current = grantedPermissions ? grantedPermissions.split(',').filter(Boolean) : [];
@@ -97,34 +96,30 @@ const BunkerConnectionDetailsScreen = () => {
 
     const nextString = next.join(',');
     setGrantedPermissions(nextString);
-
-    try {
-      await executeOperation(db =>
-        db.updateBunkerClientGrantedPermissions(client.public_key, nextString)
-      );
-    } catch (error) {
-      console.error('Failed to update granted permissions for bunker client:', error);
-      // revert optimistic update on error
-      setGrantedPermissions(grantedPermissions);
-    }
   };
 
-  const handleSaveName = async () => {
+  const handleSave = async () => {
     if (!client) return;
+
     const trimmed = editableName.trim();
+    const nameToSave = trimmed.length ? trimmed : null;
 
     try {
-      await executeOperation(db =>
-        db.updateBunkerClientName(client.public_key, trimmed.length ? trimmed : null)
-      );
+      await executeOperation(async db => {
+        await db.updateBunkerClientName(client.client_pubkey, nameToSave);
+        await db.updateBunkerClientGrantedPermissions(client.client_pubkey, grantedPermissions);
+      });
+
       setClient({
         ...client,
-        client_name: trimmed.length ? trimmed : null,
+        client_name: nameToSave,
+        granted_permissions: grantedPermissions,
       });
-      showToast('Connection name updated', 'success');
+      showToast('Connection updated', 'success');
+      router.back();
     } catch (error) {
-      console.error('Failed to update bunker client name:', error);
-      showToast('Unable to update connection name. Please try again.', 'error');
+      console.error('Failed to update bunker client:', error);
+      showToast('Unable to update connection. Please try again.', 'error');
     }
   };
 
@@ -138,6 +133,13 @@ const BunkerConnectionDetailsScreen = () => {
           <ThemedText style={[styles.headerText, { color: textPrimary }]}>
             Connection details
           </ThemedText>
+          <TouchableOpacity
+            style={[styles.headerSaveButton, { backgroundColor: buttonPrimary }]}
+            onPress={handleSave}
+            disabled={!client}
+          >
+            <ThemedText style={styles.saveButtonText}>Save</ThemedText>
+          </TouchableOpacity>
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -150,28 +152,19 @@ const BunkerConnectionDetailsScreen = () => {
 
           <ThemedView style={[styles.card, { backgroundColor: cardBackground }]}>
             <ThemedText style={[styles.label, { color: textSecondary }]}>Connection name</ThemedText>
-            <View style={styles.nameRow}>
-              <TextInput
-                value={editableName}
-                onChangeText={setEditableName}
-                placeholder={client?.public_key ?? 'Enter a name'}
-                placeholderTextColor={textSecondary}
-                style={[
-                  styles.nameInput,
-                  {
-                    borderColor: inputBorder,
-                    color: textPrimary,
-                  },
-                ]}
-              />
-              <TouchableOpacity
-                style={[styles.saveButton, { backgroundColor: buttonPrimary }]}
-                onPress={handleSaveName}
-                disabled={!client}
-              >
-                <ThemedText style={styles.saveButtonText}>Save</ThemedText>
-              </TouchableOpacity>
-            </View>
+            <TextInput
+              value={editableName}
+              onChangeText={setEditableName}
+              placeholder={client?.client_pubkey ?? 'Enter a name'}
+              placeholderTextColor={textSecondary}
+              style={[
+                styles.nameInput,
+                {
+                  borderColor: inputBorder,
+                  color: textPrimary,
+                },
+              ]}
+            />
           </ThemedView>
 
           {client && (
@@ -216,6 +209,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 24,
   },
   backButton: {
@@ -231,6 +225,12 @@ const styles = StyleSheet.create({
   headerText: {
     fontSize: 20,
     fontWeight: '600',
+    flex: 1,
+  },
+  headerSaveButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
   },
   card: {
     borderRadius: 16,
@@ -266,23 +266,12 @@ const styles = StyleSheet.create({
   copyButton: {
     padding: 4,
   },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
   nameInput: {
-    flex: 1,
     borderWidth: 1,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 8,
     fontSize: 14,
-  },
-  saveButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
   },
   saveButtonText: {
     fontSize: 13,

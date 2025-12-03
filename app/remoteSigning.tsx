@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AlertCircle, ArrowLeft, Copy, Lock } from 'lucide-react-native';
@@ -6,7 +6,7 @@ import { AlertCircle, ArrowLeft, Copy, Lock } from 'lucide-react-native';
 import { ThemedView } from '@/components/ThemedView';
 import { ThemedText } from '@/components/ThemedText';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { keyToHex } from 'portal-app-lib';
@@ -71,6 +71,15 @@ const RemoteSigningScreen = () => {
     return `bunker://${remoteSignerPubkey}?${params.toString()}`;
   }, [remoteSignerPubkey, remoteRelays, bunkerSecret]);
 
+  const loadConnections = useCallback(async () => {
+    try {
+      const allowedClients = await executeOperation(db => db.getAllowedBunkerClients(), []);
+      setConnections(allowedClients);
+    } catch (err) {
+      console.error('Failed to load bunker connections:', err);
+    }
+  }, [executeOperation]);
+
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
@@ -95,9 +104,8 @@ const RemoteSigningScreen = () => {
         }
         setRemoteRelays(storedRelays.map(relay => relay.ws_uri));
 
-        // Load relays
-        const allowedClients = await executeOperation(db => db.getAllowedBunkerClients(), []);
-        setConnections(allowedClients);
+        // Load connections
+        await loadConnections();
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to load bunker configuration';
         console.error('Failed to fetch data for bunker URL:', err);
@@ -109,7 +117,14 @@ const RemoteSigningScreen = () => {
     };
 
     loadData();
-  }, [executeOperation]);
+  }, [executeOperation, loadConnections]);
+
+  // Reload connections when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      loadConnections();
+    }, [loadConnections])
+  );
 
   const handleCopyBunkerUri = () => {
     if (!bunkerUri) {
