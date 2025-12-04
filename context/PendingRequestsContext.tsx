@@ -623,13 +623,13 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               // Get the amount from the request
               const amount = cashuEvent.inner.amount;
               const walletBalance = await wallet.getBalance();
-              
+
               // Ensure both values are BigInt for proper comparison
               const balanceBigInt = typeof walletBalance === 'bigint' ? walletBalance : BigInt(walletBalance);
               const amountBigInt = typeof amount === 'bigint' ? amount : BigInt(amount);
-              
+
               console.log(`[Ticket Request] Balance check: balance=${balanceBigInt.toString()}, requested=${amountBigInt.toString()}, unit=${cashuEvent.inner.unit}`);
-              
+
               if (balanceBigInt < amountBigInt) {
                 console.warn(`[Ticket Request] Insufficient balance: have ${balanceBigInt.toString()}, need ${amountBigInt.toString()}`);
                 request.result(new CashuResponseStatus.InsufficientFunds());
@@ -647,10 +647,10 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
               // Get mint URL (this is the actual ticket mint, same as ticket_received)
               const mintUrl = cashuEvent.inner.mintUrl;
-              
+
               // Get Nostr service key for resolving service name (the requestor's public key)
               const nostrServiceKey = cashuEvent.serviceKey || cashuEvent.mainKey || null;
-              
+
               // Resolve service name from Nostr service key if available
               const serviceName = nostrServiceKey
                 ? await getServiceNameWithFallback(nostrService, nostrServiceKey)
@@ -718,13 +718,38 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             ))
           } catch (e) {
             console.error(e);
-            // todo add auth event failed
+            addActivityWithFallback({
+              type: 'auth',
+              service_key: (request.metadata as NostrConnectRequestEvent).nostrClientPubkey,
+              detail: 'Login with bunker failed',
+              date: new Date(),
+              service_name: "Nostr client",
+              amount: null,
+              currency: null,
+              converted_amount: null,
+              converted_currency: null,
+              request_id: id,
+              subscription_id: null,
+              status: 'negative',
+            });
           }
-
-          // todo add auth event
 
           // Create NostrConnectResponseStatus for approved bunker connection
           request.result(new NostrConnectResponseStatus.Approved);
+          addActivityWithFallback({
+            type: 'auth',
+            service_key: (request.metadata as NostrConnectRequestEvent).nostrClientPubkey,
+            detail: 'User approved bunker login',
+            date: new Date(),
+            service_name: "Nostr client",
+            amount: null,
+            currency: null,
+            converted_amount: null,
+            converted_currency: null,
+            request_id: id,
+            subscription_id: null,
+            status: 'positive',
+          });
           break;
       }
     },
@@ -909,13 +934,13 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           // Handle Cashu request denial (sending tokens only)
           try {
             const cashuEvent = request.metadata as any;
-            
+
             // Get mint URL (this is the actual ticket mint, same as ticket_received)
             const mintUrl = cashuEvent.inner?.mintUrl;
-            
+
             // Get Nostr service key for resolving service name (the requestor's public key)
             const nostrServiceKey = cashuEvent.serviceKey || cashuEvent.mainKey || null;
-            
+
             // Resolve service name from Nostr service key if available, otherwise use mint URL
             let serviceName = 'Unknown Service';
             try {
@@ -980,15 +1005,15 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               const cashuEvent = request.metadata as any;
               const mintUrl = cashuEvent?.inner?.mintUrl;
               const nostrServiceKey = cashuEvent?.serviceKey || cashuEvent?.mainKey || null;
-              
+
               const serviceName = nostrServiceKey
                 ? await getServiceNameWithFallback(nostrService, nostrServiceKey).catch(
-                    () => mintUrl ? getServiceNameFromMintUrl(mintUrl) : 'Unknown Service'
-                  )
+                  () => mintUrl ? getServiceNameFromMintUrl(mintUrl) : 'Unknown Service'
+                )
                 : mintUrl
                   ? getServiceNameFromMintUrl(mintUrl)
                   : 'Unknown Service';
-              
+
               await createTicketActivityWithRetry('ticket_denied', {
                 mintUrl: mintUrl || null,
                 serviceName,
@@ -1010,7 +1035,20 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           request.result(new NostrConnectResponseStatus.Declined({
             reason: "Declined by the user"
           }));
-          // todo add declined auth activity
+          addActivityWithFallback({
+            type: 'auth',
+            service_key: (request.metadata as NostrConnectRequestEvent).nostrClientPubkey,
+            detail: 'User declined bunker login',
+            date: new Date(),
+            service_name: "Nostr client",
+            amount: null,
+            currency: null,
+            converted_amount: null,
+            converted_currency: null,
+            request_id: id,
+            subscription_id: null,
+            status: 'negative',
+          });
           break;
       }
     },

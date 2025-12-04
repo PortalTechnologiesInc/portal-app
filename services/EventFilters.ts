@@ -635,7 +635,24 @@ export async function handleNostrConnectRequest(
       }
     }
 
-    await executeOperation((db) => db.updateBunkerClientLastSeen(hexPubkey), null);
+    await executeOperation(async (db) => {
+      await db.updateBunkerClientLastSeen(hexPubkey)
+      await db.addActivity({
+        type: 'auth',
+        service_key: event.nostrClientPubkey,
+        detail: `Approved nostr activity for: ${methodString}`,
+        date: new Date(),
+        service_name: nostrClient.client_name ?? "Nostr client",
+        amount: null,
+        currency: null,
+        converted_amount: null,
+        converted_currency: null,
+        request_id: event.id,
+        subscription_id: null,
+        status: 'positive',
+      });
+    }
+      , null);
     // Nostr client is whitelisted, automatically approving the request.
     console.log(`Approving the request for method: ${event.method}`);
     resolve(new NostrConnectResponseStatus.Approved());
