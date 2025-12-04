@@ -286,7 +286,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
           keypair,
           relays,
           new LocalRelayStatusListener(),
-          true
+          false
         );
 
         // Start listening and give it a moment to establish connections

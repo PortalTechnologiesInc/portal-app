@@ -30,7 +30,10 @@ import { useWalletManager } from '@/context/WalletManagerContext';
 import { BreezService } from '@/services/BreezService';
 import { WALLET_TYPE } from '@/models/WalletType';
 import LottieView from 'lottie-react-native';
-import { Currency } from '@/utils/currency';
+import { Currency as CurrencyConv } from '@/utils/currency';
+import { useNostrService } from '@/context/NostrServiceContext';
+import { PortalAppManager } from '@/services/PortalAppManager';
+import { Currency } from 'portal-app-lib';
 
 const portalLogo = require('../../assets/images/iosLight.png');
 
@@ -63,8 +66,10 @@ export default function MyWalletManagementSecret() {
   const [pageState, setPageState] = useState(PageState.GetInvoiceInfo);
   const [invoice, setInvoice] = useState('');
   const [contactNpub, setContactNpub] = useState<string | null>(null);
-  const [reverseCurrency, setReverseCurrency] = useState(true);
+  const [reverseCurrency, setReverseCurrency] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
+
+  const nostrService = useNostrService();
 
   const textInputRef = useRef<TextInput | null>(null);
   const timeoutRef = useRef<number | null>(null);
@@ -174,7 +179,38 @@ export default function MyWalletManagementSecret() {
     }, 2000);
   }, [amount, breezWallet, description]);
 
-  const sendPaymentRequest = useCallback(async () => {}, [
+  const sendPaymentRequest = useCallback(async () => {
+    if(contactNpub == null) return;
+    if(breezWallet == null) return;
+
+    console.log('HERE!!!')
+    const parsedAmount = BigInt(amount);
+    const invoice = await breezWallet.receivePayment(parsedAmount, description);
+    const nowPlus24HoursMs = Date.now() + 24 * 60 * 60 * 1000;
+
+    console.log('AAAA', invoice, parsedAmount)
+    try {
+      await PortalAppManager.tryGetInstance().singlePaymentRequest(contactNpub, {
+        amount: parsedAmount * BigInt(1000),
+        description,
+        currency: new Currency.Millisats,
+        invoice,
+        requestId: '',
+        expiresAt: BigInt(nowPlus24HoursMs),
+        authToken: undefined,
+        currentExchangeRate: undefined,
+        subscriptionId: undefined,
+      });
+    } catch(error) {
+      console.log('ERRORRR!!!', JSON.stringify(error));
+    }
+
+    setPageState(PageState.ShowPaymentSent);
+    setTimeout(() => {
+      router.replace('/breezwallet');
+    }, 2000);
+
+  }, [
     amount,
     breezWallet,
     description,
@@ -203,7 +239,7 @@ export default function MyWalletManagementSecret() {
       textInputRef.current?.focus();
     }, 150);
 
-    return () => clearTimeout(t);
+      return () => clearTimeout(t);
   }, []);
 
   return (
@@ -284,7 +320,7 @@ export default function MyWalletManagementSecret() {
                   <ThemedText>
                     {CurrencyConversionService.formatConvertedAmountWithFallback(
                       convertedAmount,
-                      reverseCurrency ? Currency.SATS : preferredCurrency
+                      reverseCurrency ? CurrencyConv.SATS : preferredCurrency
                     )}
                   </ThemedText>
                 )}
