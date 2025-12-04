@@ -1316,12 +1316,11 @@ export class DatabaseService {
         `UPDATE bunker_secrets
         SET used = ?
         WHERE secret = ?`,
-        [secret, true]
+        [secret, 1]
       );
     } catch (error) {
       console.error('Database error while getting an unused secret:', error);
       throw error;
-      ;
     }
   }
 
@@ -1402,7 +1401,6 @@ export class DatabaseService {
     } catch (error) {
       console.error('Database error while updating client last_seen:', error);
       throw error;
-      ;
     }
   }
 
@@ -1417,7 +1415,6 @@ export class DatabaseService {
     } catch (error) {
       console.error('Database error while updating client last_seen:', error);
       throw error;
-      ;
     }
   }
 
@@ -1432,7 +1429,6 @@ export class DatabaseService {
     } catch (error) {
       console.error('Database error while revoking bunker client:', error);
       throw error;
-      ;
     }
   }
 
@@ -1447,7 +1443,6 @@ export class DatabaseService {
     } catch (error) {
       console.error('Database error while updating client name:', error);
       throw error;
-      ;
     }
   }
 }

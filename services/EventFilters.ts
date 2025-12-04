@@ -558,6 +558,8 @@ export async function handleNostrConnectRequest(
       return false;
     }
 
+    await executeOperation(db => db.markBunkerSecretAsUsed(secret));
+
     return true;
   }
 
