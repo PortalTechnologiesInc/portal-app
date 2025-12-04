@@ -1,8 +1,8 @@
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { useRouter } from 'expo-router';
-import { ArrowLeft, ClipboardCopy, QrCode, X } from 'lucide-react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { ArrowLeft, ClipboardCopy, HandCoins, QrCode, X } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
@@ -22,10 +22,12 @@ enum PageState {
   GetInvoiceInfo,
   InvoiceCreating,
   ShowInvoiceInfo,
+  ShowPaymentSent,
 }
 
 export default function MyWalletManagementSecret() {
   const router = useRouter();
+  const params = useLocalSearchParams();
 
   const { preferredCurrency } = useCurrency();
 
@@ -43,6 +45,7 @@ export default function MyWalletManagementSecret() {
   const [isConverting, setIsConverting] = useState(false);
   const [pageState, setPageState] = useState(PageState.GetInvoiceInfo);
   const [invoice, setInvoice] = useState('');
+  const [contactNpub, setContactNpub] = useState<string | null>(null);
 
   const timeoutRef = useRef<number | null>(null);
   const handleChangeText = (text: string) => {
@@ -67,10 +70,16 @@ export default function MyWalletManagementSecret() {
     setPageState(PageState.InvoiceCreating);
     const createdInvoice = await breezWallet?.receivePayment(BigInt(amount), description);
 
-    console.log(createdInvoice);
     setInvoice(createdInvoice);
     setPageState(PageState.ShowInvoiceInfo);
   }, [amount, breezWallet, description]);
+
+  const sendPaymentRequest = useCallback(async () => {}, [
+    amount,
+    breezWallet,
+    description,
+    contactNpub,
+  ]);
 
   useEffect(() => {
     let active = true;
@@ -83,6 +92,12 @@ export default function MyWalletManagementSecret() {
       active = false;
     };
   }, [getWallet]);
+
+  useEffect(() => {
+    const npub = params.npub as string | null;
+    setContactNpub(npub);
+  }, [params]);
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
       <ThemedView style={[styles.container, { backgroundColor }]}>
@@ -183,23 +198,36 @@ export default function MyWalletManagementSecret() {
                 paddingRight: 30,
               }}
             >
-              <TouchableOpacity onPress={generateInvoice}>
-                <ThemedView
-                  style={{ flexDirection: 'row', gap: 10, backgroundColor: buttonPrimaryColor }}
-                >
-                  <QrCode color={buttonPrimaryTextColor} />
-                  <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
-                    Generate invoice
-                  </ThemedText>
-                </ThemedView>
-              </TouchableOpacity>
+              {contactNpub == null ? (
+                <TouchableOpacity onPress={generateInvoice}>
+                  <ThemedView
+                    style={{ flexDirection: 'row', gap: 10, backgroundColor: buttonPrimaryColor }}
+                  >
+                    <QrCode color={buttonPrimaryTextColor} />
+                    <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
+                      Generate invoice
+                    </ThemedText>
+                  </ThemedView>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity onPress={sendPaymentRequest}>
+                  <ThemedView
+                    style={{ flexDirection: 'row', gap: 10, backgroundColor: buttonPrimaryColor }}
+                  >
+                    <HandCoins color={buttonPrimaryTextColor} />
+                    <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
+                      Request payment
+                    </ThemedText>
+                  </ThemedView>
+                </TouchableOpacity>
+              )}
             </ThemedView>
           </ThemedView>
         ) : pageState === PageState.InvoiceCreating ? (
           <ThemedView style={{ alignItems: 'center', justifyContent: 'center', flex: 1 }}>
             <ActivityIndicator color={primaryTextColor} size={60} />
           </ThemedView>
-        ) : (
+        ) : pageState === PageState.ShowInvoiceInfo ? (
           <ThemedView style={{ ...styles.content, flex: 1, gap: 20, alignItems: 'center' }}>
             <ThemedView
               style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 20 }}
@@ -289,6 +317,8 @@ export default function MyWalletManagementSecret() {
               </TouchableOpacity>
             </ThemedView>
           </ThemedView>
+        ) : (
+          <></>
         )}
       </ThemedView>
     </SafeAreaView>

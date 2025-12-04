@@ -22,7 +22,9 @@ import { WalletInfo } from '@/utils/types';
 import { Nip05Contact } from '@/services/DatabaseService';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import { useDebouncedCallback } from 'use-debounce';
+import { useNostrService } from '@/context/NostrServiceContext';
 
+type SimpleNip05Contact = Omit<Nip05Contact, 'id' | 'created_at'>;
 export default function MyWalletManagementSecret() {
   const router = useRouter();
 
@@ -31,54 +33,54 @@ export default function MyWalletManagementSecret() {
   const { getWallet } = useWalletManager();
   const [breezWallet, setBreezWallet] = useState<BreezService | null>(null);
   const [walletInfo, setWalletInfo] = useState<WalletInfo | null>(null);
-  const [contacts, setContacts] = useState<Nip05Contact[]>([]);
+  const [contacts, setContacts] = useState<SimpleNip05Contact[]>([]);
   const [areContactsLoading, setAreContactsLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState('');
+
+  const nostrService = useNostrService();
 
   const getContacts = useCallback(async () => {
     const savedContacts = await executeOperation(db => db.getNip05Contacts());
 
-    const testContacts: Nip05Contact[] = [
-      {
-        id: 1,
-        name: 'cecio',
-        nickname: null,
-        domain: 'getportal.cc',
-        display_name: null,
-        npub: '',
-        created_at: new Date().getDate(),
-        avatar_uri:
-          'https://external-content.duckduckgo.com/iu/?u=https%3A%2F%2Fpreview.redd.it%2Fejhw6n68ng381.png%3Fauto%3Dwebp%26s%3Dedcc372d1d4190ab088b8e4b4fa801d93ad0ebeb&f=1&nofb=1&ipt=e064d47b295beb5cf5af2d55ea99c32570b6993edf7f690abc02feae7baef767',
-      },
-      {
-        id: 2,
-        name: 'berna',
-        nickname: 'Berna',
-        domain: 'getportal.cc',
-        display_name: 'bernino',
-        npub: '',
-        created_at: new Date().getDate(),
-        avatar_uri: '',
-      },
-      {
-        id: 3,
-        name: 'john',
-        nickname: null,
-        domain: 'getportal.cc',
-        display_name: 'JohnGalt',
-        npub: '',
-        created_at: new Date().getDate(),
-        avatar_uri: '',
-      },
-    ];
-
-    setContacts(testContacts);
+    setContacts(savedContacts);
     setAreContactsLoading(false);
   }, [executeOperation]);
 
   useEffect(() => {
     getContacts();
   }, [getContacts]);
+
+  type Nip05Contacts = Record<string, string>;
+  const fetchNip05Contacts = async () => {
+    const url = `https://getportal.cc/.well-known/nostr.json`;
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.names && typeof data.names === 'object') {
+        return data.names as Nip05Contacts;
+      }
+
+      if (typeof data === 'object') {
+        return data as Nip05Contacts;
+      }
+
+      throw new Error('Unexpected NIP05 response format');
+    } catch (err) {
+      console.error('Failed to fetch NIP05 contacts:', err);
+      throw err;
+    }
+  };
 
   const debouncedSearch = useDebouncedCallback(async (filter: string) => {
     console.log(filter);
@@ -88,6 +90,28 @@ export default function MyWalletManagementSecret() {
         await getContacts();
         return;
       }
+
+      const contacts = await fetchNip05Contacts();
+      const filteredUsernames = Object.keys(contacts).filter(username =>
+        username.startsWith(filter)
+      );
+
+      const contactsToShow: SimpleNip05Contact[] = [];
+      for (const filteredUsername of filteredUsernames) {
+        const fullProfile = await nostrService.fetchProfile(contacts[filteredUsername]);
+        console.log(fullProfile);
+
+        contactsToShow.push({
+          avatar_uri: fullProfile.avatarUri ?? null,
+          npub: fullProfile.npub,
+          display_name: fullProfile.displayName ?? null,
+          domain: 'getportal.cc',
+          nickname: null,
+          name: filteredUsername,
+        });
+      }
+
+      setContacts(contactsToShow);
     } catch (error) {
       console.error('Search failed:', error);
     } finally {
@@ -202,7 +226,12 @@ export default function MyWalletManagementSecret() {
                     }
 
                     return (
-                      <TouchableOpacity key={i} onPress={() => {}}>
+                      <TouchableOpacity
+                        key={i}
+                        onPress={() => {
+                          router.push(`/breezwallet/receive?npub=${contact.npub}`);
+                        }}
+                      >
                         <ThemedView
                           key={i}
                           style={{ justifyContent: 'space-between', flexDirection: 'row' }}
