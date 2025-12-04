@@ -14,7 +14,7 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import { showToast } from '@/utils/Toast';
 import { useWalletManager } from '@/context/WalletManagerContext';
 import { BreezService } from '@/services/BreezService';
-import WALLET_TYPE from '@/models/WalletType';
+import { WALLET_TYPE } from '@/models/WalletType';
 
 const portalLogo = require('../../assets/images/iosLight.png');
 

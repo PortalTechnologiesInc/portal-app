@@ -40,7 +40,7 @@ export class BreezService implements Wallet {
     await instance.init(mnemonic);
     await instance.addEventListener({
       onEvent: async event => {
-        console.log(`[BREEZ EVENT] ${JSON.stringify(event)}`);
+        console.log(`[BREEZ EVENT] ${event.tag.toString()}`);
         return;
       },
     });

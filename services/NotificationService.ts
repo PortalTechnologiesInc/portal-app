@@ -10,7 +10,6 @@ import {
   CloseRecurringPaymentResponse,
   Currency_Tags,
   Mnemonic,
-  Nwc,
   PaymentStatus,
   PaymentStatusNotifier,
   PortalApp,
@@ -37,6 +36,8 @@ import {
   LocalClosedRecurringPaymentListener,
   LocalPaymentRequestListener,
 } from '@/context/PortalAppContext';
+import { NwcService } from './NwcService';
+import { Wallet } from '@/models/WalletType';
 
 const EXPO_PUSH_TOKEN_KEY = 'expo_push_token_key';
 
@@ -48,6 +49,7 @@ async function subscribeToNotificationService(expoPushToken: string, pubkeys: st
 
   // right now the api accept only one pubkey, in the future it should accept a list of pubkeys
   try {
+    // eslint-disable-next-line no-undef
     await fetch('https://notifications.getportal.cc/', {
       method: 'POST',
       headers: {
@@ -85,6 +87,7 @@ Notifications.setNotificationHandler({
 });
 
 function handleRegistrationError(errorMessage: string) {
+  // eslint-disable-next-line no-undef
   alert(errorMessage);
   console.error(errorMessage);
 }
@@ -163,7 +166,7 @@ export async function handleHeadlessNotification(event: string, databaseName: st
           },
           trigger: null,
         });
-      } catch (_notificationError) {
+      } catch {
         // Intentionally swallow notification errors to avoid recursive failures
       }
     };
@@ -192,7 +195,7 @@ export async function handleHeadlessNotification(event: string, databaseName: st
       async db => new NotificationRelayStatusListener(db)
     );
 
-    let nwcWallet: Nwc | null = null;
+    let nwcWallet: Wallet | null = null;
     try {
       const walletUrl = (await getWalletUrl()).trim();
       if (walletUrl) {
@@ -209,8 +212,8 @@ export async function handleHeadlessNotification(event: string, databaseName: st
           },
         };
 
-        const walletInstance = new Nwc(walletUrl, nwcRelayListener);
-        nwcWallet = walletInstance;
+        nwcWallet = await NwcService.create(walletUrl);
+        // const walletInstance = new Nwc(walletUrl, nwcRelayListener);
       } else {
         console.log(
           'Skipping NWC initialization during headless notification: no wallet URL configured'
