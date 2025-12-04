@@ -279,7 +279,6 @@ const RemoteSigningScreen = () => {
             style={[styles.connectionCard, { backgroundColor: cardBackground }]}
             activeOpacity={0.9}
             onPress={() => {
-          console.warn(item);
               if (!item.client_pubkey) {
                 console.error('Cannot navigate: public_key is missing');
                 return;
