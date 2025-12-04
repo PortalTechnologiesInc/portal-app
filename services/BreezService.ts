@@ -38,12 +38,12 @@ export class BreezService implements Wallet {
       undefined
     );
     await instance.init(mnemonic);
-    await instance.addEventListener({
-      onEvent: async event => {
-        console.log(`[BREEZ EVENT] ${event.tag.toString()}`);
-        return;
-      },
-    });
+    // await instance.addEventListener({
+    //   onEvent: async event => {
+    //     console.log(`[BREEZ EVENT] ${JSON.stringify(event)}`);
+    //     return;
+    //   },
+    // });
     return instance;
   }
 

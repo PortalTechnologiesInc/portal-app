@@ -30,7 +30,7 @@ async function sendPaymentNotification(
   title: string,
   amount: number,
   currency: string,
-  serviceName: string,
+  serviceName: string
 ): Promise<void> {
   try {
     // Format the amount - prefer converted amount if available
@@ -85,7 +85,7 @@ export async function handleSinglePaymentRequest(
   let subId = request.content.subscriptionId;
   try {
     //clean old stale subs
-    await executeOperation((db) => db.deleteStaleProcessingSubscriptions());
+    await executeOperation(db => db.deleteStaleProcessingSubscriptions());
 
     let invoiceData = parseBolt11(request.content.invoice);
 
@@ -130,7 +130,9 @@ export async function handleSinglePaymentRequest(
           reason: `Invoice amount does not match the requested amount.`,
         })
       );
-      console.warn(`🚫 Payment rejected! The invoice amount do not match the requested amount.\nReceived ${invoiceData.amountMsat}\nRequired ${request.content.amount}`);
+      console.warn(
+        `🚫 Payment rejected! The invoice amount do not match the requested amount.\nReceived ${invoiceData.amountMsat}\nRequired ${request.content.amount}`
+      );
       return false;
     }
     // Deduplication guard: skip if an activity with the same request/event id already exists
@@ -140,7 +142,9 @@ export async function handleSinglePaymentRequest(
         false
       );
       if (alreadyExists) {
-        console.warn(`🔁 Skipping duplicate payment activity for request_id/eventId: ${request.eventId}`);
+        console.warn(
+          `🔁 Skipping duplicate payment activity for request_id/eventId: ${request.eventId}`
+        );
         return false;
       }
     } catch (e) {
@@ -224,7 +228,7 @@ export async function handleSinglePaymentRequest(
           'Payment Request',
           convertedAmount,
           convertedCurrency,
-          'Payment request',
+          'Payment request'
         );
       }
 
@@ -233,7 +237,8 @@ export async function handleSinglePaymentRequest(
 
     let lockTry = 0;
     while (true) {
-      const lockAcquired = (await executeOperation((db) => db.markSubscriptionAsProcessing(subId))) > 0;
+      const lockAcquired =
+        (await executeOperation(db => db.markSubscriptionAsProcessing(subId))) > 0;
       if (lockAcquired) {
         console.log(`💂 Lock acquired!. Processing subscription with id ${subId}`);
         break;
@@ -246,7 +251,9 @@ export async function handleSinglePaymentRequest(
       await new Promise(resolve => setTimeout(resolve, 600));
     }
 
-    console.log(`🤖 The request is from a subscription with id ${subId}. Checking to make automatic action.`);
+    console.log(
+      `🤖 The request is from a subscription with id ${subId}. Checking to make automatic action.`
+    );
     let subscription: SubscriptionWithDates;
     let subscriptionServiceName: string;
     try {
@@ -257,7 +264,9 @@ export async function handleSinglePaymentRequest(
             reason: `Subscription with ID ${subId} not found in database`,
           })
         );
-        console.warn(`🚫 Payment rejected! The request is a subscription payment, but no subscription found with id ${subId}`);
+        console.warn(
+          `🚫 Payment rejected! The request is a subscription payment, but no subscription found with id ${subId}`
+        );
         return false;
       }
       subscription = subscriptionFromDb;
@@ -279,7 +288,9 @@ export async function handleSinglePaymentRequest(
           reason: `Payment amount does not match subscription amount.\nExpected: ${subscription.amount} ${subscription.currency}\nReceived: ${amount} ${request.content.currency}`,
         })
       );
-      console.warn(`🚫 Payment rejected! Amount does not match subscription amount.\nExpected: ${subscription.amount} ${subscription.currency}\nReceived: ${amount} ${request.content.currency}`);
+      console.warn(
+        `🚫 Payment rejected! Amount does not match subscription amount.\nExpected: ${subscription.amount} ${subscription.currency}\nReceived: ${amount} ${request.content.currency}`
+      );
       return false;
     }
 
@@ -353,7 +364,7 @@ export async function handleSinglePaymentRequest(
             request_id: request.eventId,
             status: 'pending',
             subscription_id: request.content.subscriptionId || null,
-            invoice: request.content.invoice
+            invoice: request.content.invoice,
           }),
         null
       );
@@ -370,7 +381,7 @@ export async function handleSinglePaymentRequest(
       try {
         // const preimage = await wallet.payInvoice(request.content.invoice);
         const preimage = await wallet.sendPayment(request.content.invoice, BigInt(amount));
-        console.log("🧾 Invoice paid!");
+        console.log('🧾 Invoice paid!');
 
         // Send notification to user about successful payment
         await sendPaymentNotification(
@@ -401,7 +412,10 @@ export async function handleSinglePaymentRequest(
           })
         );
       } catch (error: any) {
-        console.error('Error paying invoice:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+        console.error(
+          'Error paying invoice:',
+          JSON.stringify(error, Object.getOwnPropertyNames(error))
+        );
 
         await executeOperation(
           db => db.addPaymentStatusEntry(request.content.invoice, 'payment_failed'),
@@ -411,12 +425,7 @@ export async function handleSinglePaymentRequest(
         // Update the activity status to negative
         if (id) {
           await executeOperation(
-            db =>
-              db.updateActivityStatus(
-                id,
-                'negative',
-                'Payment approved failed to process'
-              ),
+            db => db.updateActivityStatus(id, 'negative', 'Payment approved failed to process'),
             null
           );
         }
@@ -444,7 +453,7 @@ export async function handleSinglePaymentRequest(
             request_id: request.eventId,
             status: 'negative',
             subscription_id: request.content.subscriptionId || null,
-            invoice: request.content.invoice
+            invoice: request.content.invoice,
           }),
         null
       );
@@ -471,8 +480,10 @@ export async function handleSinglePaymentRequest(
     return false;
   } finally {
     if (subId) {
-      await executeOperation((db) => db.deleteProcessingSubscription(subId));
-      console.log(`💂 Lock is freed. Subscription with id ${subId} is removed from processing list.`);
+      await executeOperation(db => db.deleteProcessingSubscription(subId));
+      console.log(
+        `💂 Lock is freed. Subscription with id ${subId} is removed from processing list.`
+      );
     }
   }
 }

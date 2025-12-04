@@ -238,10 +238,7 @@ export default function SettingsScreen() {
           </ThemedText>
         </ThemedView>
 
-        <ScrollView
-          style={styles.content}
-          contentContainerStyle={styles.contentContainer}
-        >
+        <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
           {/* Wallet Section */}
           <ThemedView style={styles.section}>
             <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>

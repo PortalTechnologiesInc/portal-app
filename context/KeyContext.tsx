@@ -222,7 +222,7 @@ export const KeyProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       await saveSecureNsec(newNsec);
-      
+
       // Clear profile initialization flag for new key
       try {
         await SecureStore.deleteItemAsync('profile_initialized');
@@ -233,7 +233,7 @@ export const KeyProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       setNsecState(newNsec);
-      
+
       // Emit event for other listeners
       mnemonicEvents.emit('nsecChanged', newNsec);
     } catch (e) {
