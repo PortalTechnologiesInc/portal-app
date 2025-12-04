@@ -11,8 +11,9 @@ import {
   SendPaymentMethod,
   OnchainConfirmationSpeed,
   PrepareSendPaymentResponse,
-  initLogging,
   LogEntry,
+  initLogging,
+  WaitForPaymentIdentifier,
 } from '@breeztech/breez-sdk-spark-react-native';
 import { Wallet, WALLET_CONNECTION_STATUS, WalletConnectionStatus } from '@/models/WalletType';
 import { WalletInfo } from '@/utils/types';
@@ -77,6 +78,12 @@ export class BreezService implements Wallet {
       alias: undefined,
       balanceInSats: res.balanceSats,
     };
+  }
+
+  async waitForPayment(invoice: string) {
+    return await this.client.waitForPayment({
+      identifier: new WaitForPaymentIdentifier.PaymentRequest(invoice),
+    });
   }
 
   // for now only bolt11 invoices are supported
