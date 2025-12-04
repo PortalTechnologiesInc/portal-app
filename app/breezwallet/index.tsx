@@ -308,7 +308,8 @@ export default function MyWalletManagementSecret() {
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <Send
                     color={buttonPrimaryTextColor}
-                    style={{ transform: [{ rotate: '180deg' }] }}
+                    style={{ transform: [{ rotateY: '180deg' }] }}
+                    rotation={-1}
                   />
                   <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
                     Receive
