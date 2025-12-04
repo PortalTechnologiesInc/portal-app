@@ -178,8 +178,8 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const isSubscriptionRequest = type === 'subscription';
     const isTicketRequest = type === 'ticket';
     const isNostrConnect = type === 'nostrConnect';
-    const nostrConnectMethod = (metadata as NostrConnectRequestEvent).method
-    const nostrConnectParams = (metadata as NostrConnectRequestEvent).params
+    const nostrConnectMethod = (metadata as NostrConnectRequestEvent).method;
+    const nostrConnectParams = (metadata as NostrConnectRequestEvent).params;
     const content = (metadata as SinglePaymentRequest)?.content;
     const amount =
       content?.amount ??
