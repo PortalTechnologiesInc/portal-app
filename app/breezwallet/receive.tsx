@@ -196,7 +196,7 @@ export default function MyWalletManagementSecret() {
     setPageState(PageState.PaymentReceived);
 
     setTimeout(() => {
-      router.replace('/breezwallet');
+      router.dismissTo('/breezwallet');
     }, 2000);
   }, [amount, breezWallet, convertedAmount, description, reverseCurrency, router, waitForPayment]);
 
@@ -235,7 +235,7 @@ export default function MyWalletManagementSecret() {
 
     setPageState(PageState.ShowPaymentSent);
     setTimeout(() => {
-      router.replace('/breezwallet');
+      router.dismissTo('/breezwallet');
     }, 2000);
   }, [
     contactNpub,
