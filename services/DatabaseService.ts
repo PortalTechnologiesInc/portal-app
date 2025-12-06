@@ -67,12 +67,7 @@ export interface NameCacheRecord {
 
 export interface Nip05Contact {
   id: number;
-  name: string;
   npub: string;
-  domain: string;
-  display_name: string | null;
-  nickname: string | null;
-  avatar_uri: string | null;
   created_at: number; // Unix timestamp in seconds
 }
 
@@ -1290,28 +1285,46 @@ export class DatabaseService {
     }
   }
 
-  async saveNip05Contact(
-    contact: Omit<Nip05Contact, 'id' | 'created_at'>
-  ): Promise<Nip05Contact | null> {
+  async getRecentNip05Contacts(limit: number = 5): Promise<Array<Nip05Contact>> {
     try {
+      const contacts = await this.db.getAllAsync<Nip05Contact>(
+        `SELECT * FROM nip05_contacts ORDER BY created_at DESC LIMIT ?`,
+        [limit]
+      );
+
+      return contacts;
+    } catch (error) {
+      console.error('Error getting recent nip05 contacts:', error);
+      return [];
+    }
+  }
+
+  async saveNip05Contact(npub: string): Promise<Nip05Contact | null> {
+    try {
+      // Check if contact already exists
+      const existingContact = await this.db.getFirstAsync<Nip05Contact>(
+        `SELECT * FROM nip05_contacts WHERE npub = ?`,
+        [npub]
+      );
+
+      if (existingContact) {
+        return existingContact;
+      }
+
+      const now = Math.floor(Date.now() / 1000); // Unix timestamp in seconds
       await this.db.runAsync(
-        `INSERT INTO nip05_contacts(name, npub, domain, display_name, nickname, avatar_uri)
-         VALUES(?, ?, ?, ?, ?, ?)`,
-        [
-          contact.name,
-          contact.npub,
-          contact.domain,
-          contact.display_name,
-          contact.nickname,
-          contact.avatar_uri,
-        ]
+        `INSERT INTO nip05_contacts(npub, created_at)
+         VALUES(?, ?)`,
+        [npub, now]
       );
 
       const newContact = await this.db.getFirstAsync<Nip05Contact>(
         `SELECT *
          FROM nip05_contacts
-         WHERE npub = ? AND name = ?`,
-        [contact.npub, contact.name]
+         WHERE npub = ?
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [npub]
       );
 
       return newContact;
@@ -1321,21 +1334,13 @@ export class DatabaseService {
     }
   }
 
-  async updateNip05Contact(newContact: Omit<Nip05Contact, 'created_at'>): Promise<void> {
+  async updateNip05Contact(npub: string, id: number): Promise<void> {
     try {
       await this.db.runAsync(
         `UPDATE nip05_contacts
-         SET name = ?, npub = ?, domain = ?, display_name = ?, nickname = ?, avatar_uri = ?
+         SET npub = ?
          WHERE id = ?`,
-        [
-          newContact.name,
-          newContact.npub,
-          newContact.domain,
-          newContact.display_name,
-          newContact.nickname,
-          newContact.avatar_uri,
-          newContact.id,
-        ]
+        [npub, id]
       );
     } catch (error) {
       console.error('Error updating nip05 contact', error);
