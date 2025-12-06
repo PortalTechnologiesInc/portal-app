@@ -13,7 +13,6 @@ import {
   PrepareSendPaymentResponse,
   LogEntry,
   initLogging,
-  WaitForPaymentIdentifier,
 } from '@breeztech/breez-sdk-spark-react-native';
 import { Wallet, WALLET_CONNECTION_STATUS, WalletConnectionStatus } from '@/models/WalletType';
 import { WalletInfo } from '@/utils/types';
@@ -80,12 +79,6 @@ export class BreezService implements Wallet {
     };
   }
 
-  async waitForPayment(invoice: string) {
-    return await this.client.waitForPayment({
-      identifier: new WaitForPaymentIdentifier.PaymentRequest(invoice),
-    });
-  }
-
   // for now only bolt11 invoices are supported
   async receivePayment(amountSats: bigint, description?: string): Promise<string> {
     const response = await this.client.receivePayment({
@@ -95,6 +88,14 @@ export class BreezService implements Wallet {
       }),
     });
     return response.paymentRequest;
+  }
+
+  async getPaymentById(paymentId: string) {
+    const { payment } = await this.client.getPayment({
+      paymentId,
+    });
+
+    return payment;
   }
 
   async sendPayment(paymentRequest: string, amountSats: bigint): Promise<string> {
@@ -125,6 +126,7 @@ export class BreezService implements Wallet {
       const response = await this.client.sendPayment({
         prepareResponse,
         options: sendOptions,
+        idempotencyKey: undefined,
       });
 
       return response.payment.id;
@@ -178,6 +180,7 @@ export class BreezService implements Wallet {
     const response = await this.client.sendPayment({
       prepareResponse,
       options: sendOptions,
+      idempotencyKey: undefined,
     });
 
     return response.payment.id;

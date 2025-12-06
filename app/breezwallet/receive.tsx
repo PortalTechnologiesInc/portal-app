@@ -31,9 +31,9 @@ import { BreezService } from '@/services/BreezService';
 import { WALLET_TYPE } from '@/models/WalletType';
 import LottieView from 'lottie-react-native';
 import { Currency as CurrencyConv } from '@/utils/currency';
-import { useNostrService } from '@/context/NostrServiceContext';
 import { PortalAppManager } from '@/services/PortalAppManager';
 import { Currency } from 'portal-app-lib';
+import { PaymentType, SdkEvent, SdkEvent_Tags } from '@breeztech/breez-sdk-spark-react-native';
 
 const portalLogo = require('../../assets/images/iosLight.png');
 
@@ -68,8 +68,6 @@ export default function MyWalletManagementSecret() {
   const [contactNpub, setContactNpub] = useState<string | null>(null);
   const [reverseCurrency, setReverseCurrency] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
-
-  const nostrService = useNostrService();
 
   const textInputRef = useRef<TextInput | null>(null);
   const timeoutRef = useRef<number | null>(null);
@@ -152,19 +150,39 @@ export default function MyWalletManagementSecret() {
   }, [amount, reverseCurrency, preferredCurrency]);
 
   const waitForPayment = useCallback(
-    async (invoice: string) => {
-      if (breezWallet == null) return;
-
-      const waitResponse = await breezWallet.waitForPayment(invoice);
-      if (waitResponse.payment.status === 1) {
-        setPageState(PageState.PaymentReceived);
+  (invoice: string, amount: BigInt): Promise<void> => {
+    return new Promise(async(resolve) => {
+      if (!breezWallet) {
+        resolve();
+        return;
       }
-    },
-    [breezWallet]
-  );
+
+      const handler = async(event: SdkEvent) => {
+        console.log("[BREEZ EVENT]:", event);
+
+        let isPaid = false;
+        if(event.tag === SdkEvent_Tags.PaymentSucceeded) {
+          const { amount: paymentAmount, paymentType } = event.inner.payment;
+          isPaid = paymentType === PaymentType.Receive && amount === paymentAmount;
+        }
+
+        if (isPaid) {
+          breezWallet.removeEventListener(listenerId);
+          resolve();
+        }
+      };
+
+      const listenerId = await breezWallet.addEventListener({
+        onEvent: handler
+      });
+    });
+  },
+  [breezWallet]
+);
 
   const generateInvoice = useCallback(async () => {
     if (!breezWallet) return;
+
     setPageState(PageState.InvoiceCreating);
     const amountSats = reverseCurrency ? BigInt(convertedAmount) : BigInt(amount);
     const createdInvoice = await breezWallet?.receivePayment(amountSats, description);
@@ -172,7 +190,8 @@ export default function MyWalletManagementSecret() {
     setInvoice(createdInvoice);
     setPageState(PageState.ShowInvoiceInfo);
 
-    await waitForPayment(createdInvoice);
+    await waitForPayment(createdInvoice, amountSats);
+    setPageState(PageState.PaymentReceived);
 
     setTimeout(() => {
       router.replace('/breezwallet');
@@ -183,12 +202,10 @@ export default function MyWalletManagementSecret() {
     if(contactNpub == null) return;
     if(breezWallet == null) return;
 
-    console.log('HERE!!!')
     const parsedAmount = BigInt(amount);
     const invoice = await breezWallet.receivePayment(parsedAmount, description);
     const nowPlus24HoursMs = Date.now() + 24 * 60 * 60 * 1000;
 
-    console.log('AAAA', invoice, parsedAmount)
     try {
       await PortalAppManager.tryGetInstance().singlePaymentRequest(contactNpub, {
         amount: parsedAmount * BigInt(1000),
