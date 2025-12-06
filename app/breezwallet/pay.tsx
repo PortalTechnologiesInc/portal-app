@@ -59,9 +59,9 @@ export default function MyWalletManagementSecret() {
     setPageState(PageState.PaymentSent);
 
     setTimeout(() => {
-      router.replace('/breezwallet');
+      router.dismissTo('/breezwallet');
     }, 2000);
-  }, [prepareSendPaymentResponse, breezWallet]);
+  }, [breezWallet, prepareSendPaymentResponse, router]);
 
   useEffect(() => {
     let active = true;

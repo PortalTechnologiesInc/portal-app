@@ -26,7 +26,12 @@ import { useNostrService } from '@/context/NostrServiceContext';
 import { useCurrency } from '@/context/CurrencyContext';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 
-type SimpleNip05Contact = Omit<Nip05Contact, 'id' | 'created_at'>;
+interface ContactWithProfile extends Nip05Contact {
+  displayName?: string | null;
+  avatarUri?: string | null;
+  username?: string;
+}
+
 export default function MyWalletManagementSecret() {
   const router = useRouter();
 
@@ -36,18 +41,41 @@ export default function MyWalletManagementSecret() {
   const { getWallet } = useWalletManager();
   const [breezWallet, setBreezWallet] = useState<BreezService | null>(null);
   const [walletInfo, setWalletInfo] = useState<WalletInfo | null>(null);
-  const [contacts, setContacts] = useState<SimpleNip05Contact[]>([]);
+  const [contacts, setContacts] = useState<ContactWithProfile[]>([]);
   const [areContactsLoading, setAreContactsLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState('');
 
   const nostrService = useNostrService();
 
   const getContacts = useCallback(async () => {
-    const savedContacts = await executeOperation(db => db.getNip05Contacts());
+    const savedContacts = await executeOperation(db => db.getRecentNip05Contacts(5));
 
-    setContacts(savedContacts);
+    // Enrich contacts with profile data
+    const enrichedContacts: ContactWithProfile[] = [];
+    for (const contact of savedContacts) {
+      try {
+        const fullProfile = await nostrService.fetchProfile(contact.npub);
+        enrichedContacts.push({
+          ...contact,
+          displayName: fullProfile.displayName ?? null,
+          avatarUri: fullProfile.avatarUri ?? null,
+          username: fullProfile.username,
+        });
+      } catch (error) {
+        console.error('Failed to fetch profile for contact:', contact.npub, error);
+        // Still add the contact even if profile fetch fails
+        enrichedContacts.push({
+          ...contact,
+          displayName: null,
+          avatarUri: null,
+          username: undefined,
+        });
+      }
+    }
+
+    setContacts(enrichedContacts);
     setAreContactsLoading(false);
-  }, [executeOperation]);
+  }, [executeOperation, nostrService]);
 
   useEffect(() => {
     getContacts();
@@ -98,17 +126,17 @@ export default function MyWalletManagementSecret() {
         username.startsWith(filter)
       );
 
-      const contactsToShow: SimpleNip05Contact[] = [];
+      const contactsToShow: ContactWithProfile[] = [];
       for (const filteredUsername of filteredUsernames) {
         const fullProfile = await nostrService.fetchProfile(contacts[filteredUsername]);
 
         contactsToShow.push({
-          avatar_uri: fullProfile.avatarUri ?? null,
+          id: 0,
           npub: fullProfile.npub,
-          display_name: fullProfile.displayName ?? null,
-          domain: 'getportal.cc',
-          nickname: null,
-          name: filteredUsername,
+          created_at: Math.floor(Date.now() / 1000),
+          avatarUri: fullProfile.avatarUri ?? null,
+          displayName: fullProfile.displayName ?? null,
+          username: filteredUsername,
         });
       }
 
@@ -166,7 +194,7 @@ export default function MyWalletManagementSecret() {
       );
       setConvertedAmount(converted);
     }, 1000);
-  }, [breezWallet]);
+  }, [breezWallet, preferredCurrency]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
@@ -226,15 +254,11 @@ export default function MyWalletManagementSecret() {
                   {contacts?.map((contact, i) => {
                     let firstLine, secondLine, fistLineSecondary;
 
-                    if (contact.nickname != null) {
-                      firstLine = contact.nickname;
-                      fistLineSecondary = `(${contact.display_name})`;
-                      secondLine = `${contact.name}@${contact.domain}`;
-                    } else if (contact.display_name) {
-                      firstLine = contact.display_name;
-                      secondLine = `${contact.name}@${contact.domain}`;
+                    if (contact.displayName) {
+                      firstLine = contact.displayName;
+                      secondLine = contact.username ?? '';
                     } else {
-                      firstLine = `${contact.name}@${contact.domain}`;
+                      firstLine = contact.username ?? contact.npub;
                       secondLine = '';
                     }
 
@@ -250,9 +274,9 @@ export default function MyWalletManagementSecret() {
                           style={{ justifyContent: 'space-between', flexDirection: 'row' }}
                         >
                           <View style={{ flexDirection: 'row', gap: 10 }}>
-                            {contact.avatar_uri ? (
+                            {contact.avatarUri ? (
                               <Image
-                                source={{ uri: contact.avatar_uri }}
+                                source={{ uri: contact.avatarUri }}
                                 style={[styles.avatar, { borderColor: inputBorderColor }]}
                               />
                             ) : (
@@ -311,8 +335,7 @@ export default function MyWalletManagementSecret() {
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <Send
                     color={buttonPrimaryTextColor}
-                    style={{ transform: [{ rotateY: '180deg' }] }}
-                    rotation={-1}
+                    style={{ transform: [{ rotateX: '180deg' }] }}
                   />
                   <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
                     Receive
