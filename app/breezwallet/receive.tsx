@@ -29,6 +29,7 @@ import { PortalAppManager } from '@/services/PortalAppManager';
 import { Currency } from 'portal-app-lib';
 import { PaymentType, SdkEvent, SdkEvent_Tags } from '@breeztech/breez-sdk-spark-react-native';
 import { useDatabaseContext } from '@/context/DatabaseContext';
+import { ActivityType, globalEvents } from '@/utils/common';
 
 const portalLogo = require('../../assets/images/iosLight.png');
 
@@ -159,13 +160,66 @@ export default function MyWalletManagementSecret() {
           console.log('[BREEZ EVENT]:', event);
 
           let isPaid = false;
+          let paymentId: string | null = null;
           if (event.tag === SdkEvent_Tags.PaymentSucceeded) {
-            const { amount: paymentAmount, paymentType } = event.inner.payment;
+            const { amount: paymentAmount, paymentType, id } = event.inner.payment;
             isPaid = paymentType === PaymentType.Receive && amount === paymentAmount;
+            paymentId = id;
           }
 
-          if (isPaid) {
+          if (isPaid && paymentId !== null) {
             breezWallet.removeEventListener(listenerId);
+
+            // Create activity for the received payment
+            try {
+              const amountInSats = Number(amount);
+              const convertedAmt = await CurrencyConversionService.convertAmount(
+                amountInSats,
+                'sats',
+                preferredCurrency
+              );
+
+              // Add payment_completed status entry
+              try {
+                await executeOperation(
+                  db => db.addPaymentStatusEntry(_invoice, 'payment_completed'),
+                  null
+                );
+              } catch (statusError) {
+                console.error('Failed to add payment_completed status entry:', statusError);
+              }
+
+              const activityId = await executeOperation(db =>
+                db.addActivity({
+                  type: ActivityType.Receive,
+                  service_key: 'Breez Wallet',
+                  service_name: 'Breez Wallet',
+                  detail: description || 'Lightning Payment Received',
+                  date: new Date(),
+                  amount: amountInSats,
+                  currency: 'sats',
+                  converted_amount: convertedAmt,
+                  converted_currency: preferredCurrency,
+                  request_id: paymentId,
+                  subscription_id: null,
+                  status: 'positive',
+                  invoice: _invoice,
+                })
+              );
+
+              if (activityId) {
+                const createdActivity = await executeOperation(
+                  db => db.getActivity(activityId),
+                  null
+                );
+                if (createdActivity) {
+                  globalEvents.emit('activityAdded', createdActivity);
+                }
+              }
+            } catch (error) {
+              console.error('Failed to create activity for Breez payment received:', error);
+            }
+
             resolve();
           }
         };
@@ -179,7 +233,7 @@ export default function MyWalletManagementSecret() {
           });
       });
     },
-    [breezWallet]
+    [breezWallet, preferredCurrency, description, executeOperation]
   );
 
   const generateInvoice = useCallback(async () => {
@@ -188,6 +242,16 @@ export default function MyWalletManagementSecret() {
     setPageState(PageState.InvoiceCreating);
     const amountSats = reverseCurrency ? BigInt(convertedAmount) : BigInt(amount);
     const createdInvoice = await breezWallet?.receivePayment(amountSats, description);
+
+    // Add payment status entry when invoice is created
+    try {
+      await executeOperation(
+        db => db.addPaymentStatusEntry(createdInvoice, 'payment_started'),
+        null
+      );
+    } catch (error) {
+      console.error('Failed to add payment_started status entry:', error);
+    }
 
     setInvoice(createdInvoice);
     setPageState(PageState.ShowInvoiceInfo);
@@ -198,7 +262,16 @@ export default function MyWalletManagementSecret() {
     setTimeout(() => {
       router.dismissTo('/breezwallet');
     }, 2000);
-  }, [amount, breezWallet, convertedAmount, description, reverseCurrency, router, waitForPayment]);
+  }, [
+    amount,
+    breezWallet,
+    convertedAmount,
+    description,
+    reverseCurrency,
+    router,
+    waitForPayment,
+    executeOperation,
+  ]);
 
   const sendPaymentRequest = useCallback(async () => {
     if (contactNpub == null) return;

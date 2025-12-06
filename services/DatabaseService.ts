@@ -18,7 +18,14 @@ export const fromUnixSeconds = (seconds: number | bigint): Date => {
 // Database record types (as stored in SQLite)
 export interface ActivityRecord {
   id: string;
-  type: 'auth' | 'pay' | 'ticket' | 'ticket_approved' | 'ticket_denied' | 'ticket_received';
+  type:
+    | 'auth'
+    | 'pay'
+    | 'receive'
+    | 'ticket'
+    | 'ticket_approved'
+    | 'ticket_denied'
+    | 'ticket_received';
   service_name: string;
   service_key: string;
   detail: string;

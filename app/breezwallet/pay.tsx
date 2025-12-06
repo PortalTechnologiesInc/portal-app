@@ -21,6 +21,8 @@ import { useWalletManager } from '@/context/WalletManagerContext';
 import { BreezService } from '@/services/BreezService';
 import { WALLET_TYPE } from '@/models/WalletType';
 import LottieView from 'lottie-react-native';
+import { useDatabaseContext } from '@/context/DatabaseContext';
+import { ActivityType, globalEvents } from '@/utils/common';
 
 enum PageState {
   PaymentRecap,
@@ -33,6 +35,7 @@ export default function MyWalletManagementSecret() {
 
   const { preferredCurrency } = useCurrency();
   const { getWallet } = useWalletManager();
+  const { executeOperation } = useDatabaseContext();
   const [breezWallet, setBreezWallet] = useState<BreezService | null>(null);
 
   const [amountMillisats, setAmountMillisats] = useState<number | null>(null);
@@ -63,7 +66,7 @@ export default function MyWalletManagementSecret() {
     setTimeout(() => {
       router.dismissTo('/breezwallet');
     }, 2000);
-  }, [isPaymentSent]);
+  }, [isPaymentSent, isSendPaymentLoading, router]);
 
   const waitForPayment = useCallback(
     (_invoice: string, amount: bigint): Promise<void> => {
@@ -109,6 +112,14 @@ export default function MyWalletManagementSecret() {
     if (prepareSendPaymentResponse == null) return;
 
     setIsSendPaymentLoading(true);
+
+    // Add payment status entry when payment is started
+    try {
+      await executeOperation(db => db.addPaymentStatusEntry(invoice, 'payment_started'), null);
+    } catch (error) {
+      console.error('Failed to add payment_started status entry:', error);
+    }
+
     await breezWallet.sendPaymentWithPrepareResponse(prepareSendPaymentResponse);
     await waitForPayment(invoice, prepareSendPaymentResponse.amount);
     setIsSendPaymentLoading(false);
@@ -118,7 +129,7 @@ export default function MyWalletManagementSecret() {
     setTimeout(() => {
       router.dismissTo('/breezwallet');
     }, 2000);
-  }, [breezWallet, prepareSendPaymentResponse, router, invoice]);
+  }, [breezWallet, prepareSendPaymentResponse, waitForPayment, invoice, router, executeOperation]);
 
   useEffect(() => {
     let active = true;
@@ -140,17 +151,68 @@ export default function MyWalletManagementSecret() {
       console.log('[BREEZ EVENT]:', event);
 
       let isPaid = false;
+      let paymentAmount: bigint | null = null,
+        paymentId: string | null = null;
       if (
         event.tag === SdkEvent_Tags.PaymentSucceeded ||
         event.tag === SdkEvent_Tags.PaymentPending
       ) {
-        const { paymentType } = event.inner.payment;
+        const { paymentType, amount, id } = event.inner.payment;
         isPaid = paymentType === PaymentType.Send;
+        paymentAmount = amount;
+        paymentId = id;
       }
 
-      if (isPaid) {
+      if (isPaid && paymentAmount !== null && paymentId !== null) {
         breezWallet.removeEventListener(listenerId);
         setIsPaymentSent(true);
+
+        // Create activity for the payment
+        try {
+          const amountInSats = Number(paymentAmount);
+          const convertedAmt = await CurrencyConversionService.convertAmount(
+            amountInSats,
+            'sats',
+            preferredCurrency
+          );
+
+          // Add payment_completed status entry
+          try {
+            await executeOperation(
+              db => db.addPaymentStatusEntry(invoice, 'payment_completed'),
+              null
+            );
+          } catch (statusError) {
+            console.error('Failed to add payment_completed status entry:', statusError);
+          }
+
+          const activityId = await executeOperation(db =>
+            db.addActivity({
+              type: ActivityType.Pay,
+              service_key: 'Breez Wallet',
+              service_name: 'Breez Wallet',
+              detail: description || 'Lightning Payment',
+              date: new Date(),
+              amount: amountInSats,
+              currency: 'sats',
+              converted_amount: convertedAmt,
+              converted_currency: preferredCurrency,
+              request_id: paymentId,
+              subscription_id: null,
+              status: 'positive',
+              invoice: invoice,
+            })
+          );
+
+          if (activityId) {
+            const createdActivity = await executeOperation(db => db.getActivity(activityId), null);
+            if (createdActivity) {
+              globalEvents.emit('activityAdded', createdActivity);
+            }
+          }
+        } catch (error) {
+          console.error('Failed to create activity for Breez payment:', error);
+        }
       }
     };
 
@@ -161,7 +223,7 @@ export default function MyWalletManagementSecret() {
       .then(id => {
         listenerId = id;
       });
-  }, [breezWallet]);
+  }, [breezWallet, executeOperation, preferredCurrency, description, invoice]);
 
   useEffect(() => {
     if (breezWallet == null) return;
