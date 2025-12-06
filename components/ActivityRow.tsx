@@ -8,7 +8,12 @@ import { router } from 'expo-router';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { getActivityStatus, getStatusColor } from '@/utils/activityHelpers';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
-import { Currency, CurrencyHelpers, shouldShowConvertedAmount, formatActivityAmount } from '@/utils/currency';
+import {
+  Currency,
+  CurrencyHelpers,
+  shouldShowConvertedAmount,
+  formatActivityAmount,
+} from '@/utils/currency';
 import { useCurrency } from '@/context/CurrencyContext';
 
 interface ActivityRowProps {

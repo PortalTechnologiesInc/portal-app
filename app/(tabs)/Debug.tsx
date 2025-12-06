@@ -137,7 +137,7 @@ export default function DebugScreen() {
 
   const handleInvertFingerprintSupport = async () => {
     if (isFingerprintSupported === null) return;
-    
+
     try {
       const newValue = !isFingerprintSupported;
       await AppLockService.setFingerprintSupported(newValue);
@@ -394,14 +394,25 @@ export default function DebugScreen() {
                   Invert Fingerprint Support
                 </ThemedText>
                 <ThemedText style={[styles.settingSubtext, { color: secondaryTextColor }]}>
-                  Current: {isFingerprintSupported === null ? 'Loading...' : isFingerprintSupported ? 'Supported' : 'Not Supported'}
+                  Current:{' '}
+                  {isFingerprintSupported === null
+                    ? 'Loading...'
+                    : isFingerprintSupported
+                      ? 'Supported'
+                      : 'Not Supported'}
                 </ThemedText>
               </View>
               <Switch
                 value={isFingerprintSupported === null ? false : isFingerprintSupported}
                 onValueChange={handleInvertFingerprintSupport}
                 trackColor={{ false: '#767577', true: buttonColor }}
-                thumbColor={isFingerprintSupported === null ? '#f4f3f4' : isFingerprintSupported ? '#ffffff' : '#f4f3f4'}
+                thumbColor={
+                  isFingerprintSupported === null
+                    ? '#f4f3f4'
+                    : isFingerprintSupported
+                      ? '#ffffff'
+                      : '#f4f3f4'
+                }
                 disabled={isFingerprintSupported === null}
               />
             </View>

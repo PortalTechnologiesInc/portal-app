@@ -51,7 +51,7 @@ const BunkerConnectionDetailsScreen = () => {
   useEffect(() => {
     const loadClient = async () => {
       try {
-        if (!id) throw Error("id param is null");
+        if (!id) throw Error('id param is null');
         const allowedClient = await executeOperation(db => db.getBunkerClientOrNull(id));
         if (!allowedClient) throw Error(`No allowed nostr client with this pubkey: ${id}`);
         setClient(allowedClient);
@@ -151,7 +151,9 @@ const BunkerConnectionDetailsScreen = () => {
           </ThemedView>
 
           <ThemedView style={[styles.card, { backgroundColor: cardBackground }]}>
-            <ThemedText style={[styles.label, { color: textSecondary }]}>Connection name</ThemedText>
+            <ThemedText style={[styles.label, { color: textSecondary }]}>
+              Connection name
+            </ThemedText>
             <TextInput
               value={editableName}
               onChangeText={setEditableName}
@@ -290,4 +292,3 @@ const styles = StyleSheet.create({
 });
 
 export default BunkerConnectionDetailsScreen;
-

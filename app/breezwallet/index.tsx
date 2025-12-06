@@ -86,7 +86,6 @@ export default function MyWalletManagementSecret() {
   };
 
   const debouncedSearch = useDebouncedCallback(async (filter: string) => {
-    console.log(filter);
     setAreContactsLoading(true);
     try {
       if (!filter.trim()) {
@@ -102,7 +101,6 @@ export default function MyWalletManagementSecret() {
       const contactsToShow: SimpleNip05Contact[] = [];
       for (const filteredUsername of filteredUsernames) {
         const fullProfile = await nostrService.fetchProfile(contacts[filteredUsername]);
-        console.log(fullProfile);
 
         contactsToShow.push({
           avatar_uri: fullProfile.avatarUri ?? null,
@@ -161,7 +159,11 @@ export default function MyWalletManagementSecret() {
       const info = await breezWallet.getWalletInfo();
       setWalletInfo(info);
 
-      const converted = await CurrencyConversionService.convertAmount(Number(info.balanceInSats), 'sats', preferredCurrency);
+      const converted = await CurrencyConversionService.convertAmount(
+        Number(info.balanceInSats),
+        'sats',
+        preferredCurrency
+      );
       setConvertedAmount(converted);
     }, 1000);
   }, [breezWallet]);
@@ -185,7 +187,8 @@ export default function MyWalletManagementSecret() {
                   Balance
                 </ThemedText>
                 <ThemedText type="title" style={{ color: primaryTextColor }}>
-                  {reverseCurrency ? convertedAmount.toFixed(2) : walletInfo?.balanceInSats ?? 0} {reverseCurrency ? getCurrentCurrencySymbol() : 'sats' }
+                  {reverseCurrency ? convertedAmount.toFixed(2) : (walletInfo?.balanceInSats ?? 0)}{' '}
+                  {reverseCurrency ? getCurrentCurrencySymbol() : 'sats'}
                 </ThemedText>
               </View>
             </TouchableOpacity>
@@ -316,7 +319,12 @@ export default function MyWalletManagementSecret() {
                   </ThemedText>
                 </View>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => router.push('/breezwallet/send')}>
+              <TouchableOpacity onPress={() => router.push({
+                    pathname: '/qr',
+                    params: {
+                      mode: 'lightning',
+                    },
+                  })}>
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <Send color={buttonPrimaryTextColor} />
                   <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>

@@ -141,10 +141,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
       const id = await executeOperation(db => db.addActivity(activity));
       if (id && typeof id === 'string' && id.length > 0) {
         // Fetch the created/updated activity to emit it
-        const createdActivity = await executeOperation(
-          db => db.getActivity(id),
-          null
-        );
+        const createdActivity = await executeOperation(db => db.getActivity(id), null);
         if (createdActivity) {
           globalEvents.emit('activityAdded', createdActivity);
         }
@@ -183,7 +180,8 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
       }
     ): Promise<void> => {
       const { mintUrl, serviceName, ticketTitle, amount, requestId } = baseData;
-      const status = activityType === 'ticket_approved' ? ('positive' as const) : ('negative' as const);
+      const status =
+        activityType === 'ticket_approved' ? ('positive' as const) : ('negative' as const);
 
       // Try with full data first
       try {
@@ -392,7 +390,11 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             const normalizedPreferredCurrency = normalizeCurrencyForComparison(preferredCurrency);
 
             // Skip conversion if currencies are the same (case-insensitive, with sats normalization)
-            if (normalizedStoredCurrency && normalizedPreferredCurrency && normalizedStoredCurrency === normalizedPreferredCurrency) {
+            if (
+              normalizedStoredCurrency &&
+              normalizedPreferredCurrency &&
+              normalizedStoredCurrency === normalizedPreferredCurrency
+            ) {
               // No conversion needed - currencies match
               convertedAmount = null;
               convertedCurrency = null;
@@ -630,13 +632,18 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               const walletBalance = await wallet.getBalance();
 
               // Ensure both values are BigInt for proper comparison
-              const balanceBigInt = typeof walletBalance === 'bigint' ? walletBalance : BigInt(walletBalance);
+              const balanceBigInt =
+                typeof walletBalance === 'bigint' ? walletBalance : BigInt(walletBalance);
               const amountBigInt = typeof amount === 'bigint' ? amount : BigInt(amount);
 
-              console.log(`[Ticket Request] Balance check: balance=${balanceBigInt.toString()}, requested=${amountBigInt.toString()}, unit=${cashuEvent.inner.unit}`);
+              console.log(
+                `[Ticket Request] Balance check: balance=${balanceBigInt.toString()}, requested=${amountBigInt.toString()}, unit=${cashuEvent.inner.unit}`
+              );
 
               if (balanceBigInt < amountBigInt) {
-                console.warn(`[Ticket Request] Insufficient balance: have ${balanceBigInt.toString()}, need ${amountBigInt.toString()}`);
+                console.warn(
+                  `[Ticket Request] Insufficient balance: have ${balanceBigInt.toString()}, need ${amountBigInt.toString()}`
+                );
                 request.result(new CashuResponseStatus.InsufficientFunds());
                 return;
               }
@@ -716,11 +723,13 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           const requestedPermissions = connectEvent.params.at(2) ?? null;
           try {
             // whitelist the nostr client
-            executeOperation((db) => db.addAllowedBunkerClient(
-              keyToHex(connectEvent.nostrClientPubkey),
-              null,
-              requestedPermissions
-            ))
+            executeOperation(db =>
+              db.addAllowedBunkerClient(
+                keyToHex(connectEvent.nostrClientPubkey),
+                null,
+                requestedPermissions
+              )
+            );
           } catch (e) {
             console.error(e);
             addActivityWithFallback({
@@ -728,7 +737,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               service_key: (request.metadata as NostrConnectRequestEvent).nostrClientPubkey,
               detail: 'Login with bunker failed',
               date: new Date(),
-              service_name: "Nostr client",
+              service_name: 'Nostr client',
               amount: null,
               currency: null,
               converted_amount: null,
@@ -740,13 +749,13 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           }
 
           // Create NostrConnectResponseStatus for approved bunker connection
-          request.result(new NostrConnectResponseStatus.Approved);
+          request.result(new NostrConnectResponseStatus.Approved());
           addActivityWithFallback({
             type: 'auth',
             service_key: (request.metadata as NostrConnectRequestEvent).nostrClientPubkey,
             detail: 'User approved bunker login',
             date: new Date(),
-            service_name: "Nostr client",
+            service_name: 'Nostr client',
             amount: null,
             currency: null,
             converted_amount: null,
@@ -758,7 +767,14 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           break;
       }
     },
-    [getById, addActivityWithFallback, addSubscriptionWithFallback, createTicketActivityWithRetry, nostrService, eCashContext]
+    [
+      getById,
+      addActivityWithFallback,
+      addSubscriptionWithFallback,
+      createTicketActivityWithRetry,
+      nostrService,
+      eCashContext,
+    ]
   );
 
   const deny = useCallback(
@@ -979,8 +995,9 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               }
 
               if (ticketWallet) {
-                const deniedUnitInfo =
-                  ticketWallet.getUnitInfo ? await ticketWallet.getUnitInfo() : undefined;
+                const deniedUnitInfo = ticketWallet.getUnitInfo
+                  ? await ticketWallet.getUnitInfo()
+                  : undefined;
                 ticketTitle =
                   deniedUnitInfo?.title ||
                   (ticketWallet ? ticketWallet.unit() : cashuEvent.inner.unit || 'Unknown Ticket');
@@ -1010,9 +1027,9 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               const nostrServiceKey = cashuEvent?.serviceKey || cashuEvent?.mainKey || null;
 
               const serviceName = nostrServiceKey
-                ? await getServiceNameWithFallback(nostrService, nostrServiceKey).catch(
-                  () => mintUrl ? getServiceNameFromMintUrl(mintUrl) : 'Unknown Service'
-                )
+                ? await getServiceNameWithFallback(nostrService, nostrServiceKey).catch(() =>
+                    mintUrl ? getServiceNameFromMintUrl(mintUrl) : 'Unknown Service'
+                  )
                 : mintUrl
                   ? getServiceNameFromMintUrl(mintUrl)
                   : 'Unknown Service';
@@ -1025,7 +1042,10 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 requestId: `${id}-denied`,
               });
             } catch (activityError) {
-              console.error('Failed to create activity for denied ticket in error handler:', activityError);
+              console.error(
+                'Failed to create activity for denied ticket in error handler:',
+                activityError
+              );
             }
             request.result(
               new CashuResponseStatus.Rejected({
@@ -1035,15 +1055,17 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           }
           break;
         case 'nostrConnect':
-          request.result(new NostrConnectResponseStatus.Declined({
-            reason: "Declined by the user"
-          }));
+          request.result(
+            new NostrConnectResponseStatus.Declined({
+              reason: 'Declined by the user',
+            })
+          );
           addActivityWithFallback({
             type: 'auth',
             service_key: (request.metadata as NostrConnectRequestEvent).nostrClientPubkey,
             detail: 'User declined bunker login',
             date: new Date(),
-            service_name: "Nostr client",
+            service_name: 'Nostr client',
             amount: null,
             currency: null,
             converted_amount: null,
@@ -1055,7 +1077,14 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           break;
       }
     },
-    [getById, addActivityWithFallback, createTicketActivityWithRetry, nostrService, eCashContext, appService]
+    [
+      getById,
+      addActivityWithFallback,
+      createTicketActivityWithRetry,
+      nostrService,
+      eCashContext,
+      appService,
+    ]
   );
 
   // Show skeleton loader and set timeout for request

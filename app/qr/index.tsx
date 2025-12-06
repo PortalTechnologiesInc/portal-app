@@ -15,13 +15,15 @@ import { usePendingRequests } from '@/context/PendingRequestsContext';
 import { parseCashuToken, parseKeyHandshakeUrl } from 'portal-app-lib';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { ArrowLeft, Settings } from 'lucide-react-native';
+import { ArrowLeft, ClipboardPaste, Settings } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useECash } from '@/context/ECashContext';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import { globalEvents, getServiceNameFromMintUrl } from '@/utils/common';
+import Clipboard from '@react-native-clipboard/clipboard';
+import { showToast } from '@/utils/Toast';
 
 // Define the type for the barcode scanner result
 type BarcodeResult = {
@@ -91,6 +93,22 @@ export default function QRScannerScreen() {
   const toggleTorch = () => {
     setEnableTorch(!enableTorch);
   };
+
+  const tryPasteInvoice = async() => {
+    const invoice = await Clipboard.getString();
+    const validation = validateQRCode(invoice);
+      if (!validation.isValid) {
+        showErrorMessage(validation.error || 'Invalid QR code');
+        return;
+      }
+
+      router.replace({
+        pathname: '/breezwallet/pay',
+        params: {
+          invoice,
+        },
+      });
+  }
 
   const openSettings = async () => {
     await Linking.openSettings();
@@ -558,6 +576,22 @@ export default function QRScannerScreen() {
                 {enableTorch ? 'Turn Off Flash' : 'Turn On Flash'}
               </ThemedText>
             </TouchableOpacity>
+            
+            {
+              mode === 'lightning' && (
+                <TouchableOpacity
+                  style={[styles.flashButton, { backgroundColor: buttonPrimary, marginTop: 10 }]}
+                  onPress={tryPasteInvoice}
+                >
+                  <View style={{ flexDirection: 'row' }}>
+                  <ClipboardPaste color={buttonPrimaryText} />
+                  <ThemedText style={[styles.flashButtonText, { color: buttonPrimaryText }]}>
+                    Paste
+                  </ThemedText>
+                  </View>
+                </TouchableOpacity>
+              )
+            }
           </View>
         </ThemedView>
 

@@ -72,7 +72,11 @@ export const authenticateAsync = async (
     } else {
       const errorCode = result.error ?? 'unknown';
       let errorMessage = 'Authentication failed';
-      if (errorCode === 'user_cancel' || errorCode === 'system_cancel' || errorCode === 'app_cancel') {
+      if (
+        errorCode === 'user_cancel' ||
+        errorCode === 'system_cancel' ||
+        errorCode === 'app_cancel'
+      ) {
         errorMessage = 'Authentication was cancelled';
       }
       return {

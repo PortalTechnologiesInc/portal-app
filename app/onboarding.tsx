@@ -1003,7 +1003,9 @@ export default function Onboarding() {
                 Protect your app by requiring a PIN for sensitive actions.
               </ThemedText>
               {pinError ? (
-                <ThemedText style={[styles.errorText, styles.pinErrorText, { color: buttonDanger }]}>
+                <ThemedText
+                  style={[styles.errorText, styles.pinErrorText, { color: buttonDanger }]}
+                >
                   {pinError}
                 </ThemedText>
               ) : null}

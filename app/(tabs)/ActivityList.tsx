@@ -278,20 +278,20 @@ const ItemList: React.FC = () => {
           </View>
         ) : (
           <FlatList
-              showsVerticalScrollIndicator={false}
-              data={listData}
-              renderItem={listItemRenderer}
-              keyExtractor={item => item.title}
-              ListHeaderComponent={ListHeaderComponent}
-              ListFooterComponent={ListFooterComponent}
-              removeClippedSubviews={true}
-              maxToRenderPerBatch={10}
-              windowSize={10}
-              initialNumToRender={8}
-              onEndReached={handleEndReached}
-              onEndReachedThreshold={0.1}
-              ref={flatListRef}
-            />
+            showsVerticalScrollIndicator={false}
+            data={listData}
+            renderItem={listItemRenderer}
+            keyExtractor={item => item.title}
+            ListHeaderComponent={ListHeaderComponent}
+            ListFooterComponent={ListFooterComponent}
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={10}
+            windowSize={10}
+            initialNumToRender={8}
+            onEndReached={handleEndReached}
+            onEndReachedThreshold={0.1}
+            ref={flatListRef}
+          />
         )}
       </ThemedView>
     </SafeAreaView>

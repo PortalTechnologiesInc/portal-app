@@ -135,7 +135,14 @@ export default function NostrRelayManagementScreen() {
         updateTimeoutRef.current = null;
       }
     };
-  }, [selectedRelays, isLoading, activeRelaysList, activeRelaysList.length, nostrService, executeOperation]);
+  }, [
+    selectedRelays,
+    isLoading,
+    activeRelaysList,
+    activeRelaysList.length,
+    nostrService,
+    executeOperation,
+  ]);
 
   const handleAddCustomRelay = () => {
     const customRelay = customRelayTextFieldValue.trim();
@@ -313,10 +320,12 @@ export default function NostrRelayManagementScreen() {
             keyboardShouldPersistTaps="handled"
           >
             <ThemedText style={[styles.description, { color: secondaryTextColor }]}>
-              Choose the Nostr relays you want to use for Nostr Wallet Connect. Relays help broadcast
-              and receive transactions—pick reliable ones for better speed and connectivity. You can
-              add custom relays or use trusted defaults. Changes are saved automatically. At least{' '}
-              {MIN_RELAY_CONNECTIONS} relay {MIN_RELAY_CONNECTIONS === 1 ? 'connection is' : 'connections are'} required (maximum {MAX_RELAY_CONNECTIONS}).
+              Choose the Nostr relays you want to use for Nostr Wallet Connect. Relays help
+              broadcast and receive transactions—pick reliable ones for better speed and
+              connectivity. You can add custom relays or use trusted defaults. Changes are saved
+              automatically. At least {MIN_RELAY_CONNECTIONS} relay{' '}
+              {MIN_RELAY_CONNECTIONS === 1 ? 'connection is' : 'connections are'} required (maximum{' '}
+              {MAX_RELAY_CONNECTIONS}).
             </ThemedText>
             {isUpdating && (
               <ThemedText style={[styles.updatingText, { color: secondaryTextColor }]}>
@@ -324,157 +333,160 @@ export default function NostrRelayManagementScreen() {
               </ThemedText>
             )}
 
-          {/* Add Relays Input */}
-          <ThemedText style={styles.titleText}>Popular relays:</ThemedText>
-          <View style={[styles.filterContainer, { borderBottomColor: inputBorderColor }]}>
-            <TextInput
-              style={[styles.filterInput, { color: primaryTextColor }]}
-              value={filterText}
-              onChangeText={setFilterText}
-              placeholder="Filter relays..."
-              placeholderTextColor={inputPlaceholderColor}
-            />
-          </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.relayScrollView}
-          >
-            <View style={styles.relayListContainer}>
-              {itemRows.map((row, rowIndex) => (
-                <View key={`row-${rowIndex}`} style={styles.relayRow}>
-                  {row.map((relay, index) => (
-                    <TouchableOpacity
-                      key={`relay-${rowIndex}-${index}-${relay}`}
-                      style={[
-                        styles.relayItem,
-                        {
-                          backgroundColor: selectedRelays.includes(relay)
-                            ? buttonPrimaryColor
-                            : inputBackgroundColor,
-                          borderColor: inputBorderColor,
-                          opacity:
-                            (!selectedRelays.includes(relay) && selectedRelays.length >= MAX_RELAY_CONNECTIONS) ||
-                            (selectedRelays.includes(relay) && selectedRelays.length <= MIN_RELAY_CONNECTIONS)
-                              ? 0.5
-                              : 1,
-                        },
-                      ]}
-                      onPress={() => {
-                        if (selectedRelays.includes(relay)) {
-                          // Prevent deselecting the last relay
-                          if (selectedRelays.length <= MIN_RELAY_CONNECTIONS) {
-                            ToastAndroid.showWithGravity(
-                              `At least ${MIN_RELAY_CONNECTIONS} relay ${MIN_RELAY_CONNECTIONS === 1 ? 'connection' : 'connections'} required`,
-                              ToastAndroid.LONG,
-                              ToastAndroid.CENTER
-                            );
-                            return;
-                          }
-                          setSelectedRelays(selectedRelays.filter(r => r !== relay));
-                        } else {
-                          if (selectedRelays.length >= MAX_RELAY_CONNECTIONS) {
-                            ToastAndroid.showWithGravity(
-                              `Maximum ${MAX_RELAY_CONNECTIONS} relay connections allowed`,
-                              ToastAndroid.LONG,
-                              ToastAndroid.CENTER
-                            );
-                            return;
-                          }
-                          setSelectedRelays([...selectedRelays, relay]);
-                        }
-                      }}
-                      disabled={
-                        (!selectedRelays.includes(relay) && selectedRelays.length >= MAX_RELAY_CONNECTIONS) ||
-                        (selectedRelays.includes(relay) && selectedRelays.length <= MIN_RELAY_CONNECTIONS)
-                      }
-                    >
-                      <ThemedText
+            {/* Add Relays Input */}
+            <ThemedText style={styles.titleText}>Popular relays:</ThemedText>
+            <View style={[styles.filterContainer, { borderBottomColor: inputBorderColor }]}>
+              <TextInput
+                style={[styles.filterInput, { color: primaryTextColor }]}
+                value={filterText}
+                onChangeText={setFilterText}
+                placeholder="Filter relays..."
+                placeholderTextColor={inputPlaceholderColor}
+              />
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.relayScrollView}
+            >
+              <View style={styles.relayListContainer}>
+                {itemRows.map((row, rowIndex) => (
+                  <View key={`row-${rowIndex}`} style={styles.relayRow}>
+                    {row.map((relay, index) => (
+                      <TouchableOpacity
+                        key={`relay-${rowIndex}-${index}-${relay}`}
                         style={[
-                          styles.relayItemText,
+                          styles.relayItem,
                           {
-                            color: selectedRelays.includes(relay)
-                              ? buttonPrimaryTextColor
-                              : primaryTextColor,
+                            backgroundColor: selectedRelays.includes(relay)
+                              ? buttonPrimaryColor
+                              : inputBackgroundColor,
+                            borderColor: inputBorderColor,
+                            opacity:
+                              (!selectedRelays.includes(relay) &&
+                                selectedRelays.length >= MAX_RELAY_CONNECTIONS) ||
+                              (selectedRelays.includes(relay) &&
+                                selectedRelays.length <= MIN_RELAY_CONNECTIONS)
+                                ? 0.5
+                                : 1,
                           },
                         ]}
+                        onPress={() => {
+                          if (selectedRelays.includes(relay)) {
+                            // Prevent deselecting the last relay
+                            if (selectedRelays.length <= MIN_RELAY_CONNECTIONS) {
+                              ToastAndroid.showWithGravity(
+                                `At least ${MIN_RELAY_CONNECTIONS} relay ${MIN_RELAY_CONNECTIONS === 1 ? 'connection' : 'connections'} required`,
+                                ToastAndroid.LONG,
+                                ToastAndroid.CENTER
+                              );
+                              return;
+                            }
+                            setSelectedRelays(selectedRelays.filter(r => r !== relay));
+                          } else {
+                            if (selectedRelays.length >= MAX_RELAY_CONNECTIONS) {
+                              ToastAndroid.showWithGravity(
+                                `Maximum ${MAX_RELAY_CONNECTIONS} relay connections allowed`,
+                                ToastAndroid.LONG,
+                                ToastAndroid.CENTER
+                              );
+                              return;
+                            }
+                            setSelectedRelays([...selectedRelays, relay]);
+                          }
+                        }}
+                        disabled={
+                          (!selectedRelays.includes(relay) &&
+                            selectedRelays.length >= MAX_RELAY_CONNECTIONS) ||
+                          (selectedRelays.includes(relay) &&
+                            selectedRelays.length <= MIN_RELAY_CONNECTIONS)
+                        }
                       >
-                        {relay}
-                      </ThemedText>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              ))}
-            </View>
-          </ScrollView>
-
-          {/* Custom Relays Section */}
-          <ThemedText style={[styles.titleText, { color: primaryTextColor }]}>
-            Custom relays:
-          </ThemedText>
-
-          {!showCustomRelayInput ? (
-            <TouchableOpacity
-              style={[
-                styles.addCustomRelayButton,
-                {
-                  backgroundColor: buttonSecondaryColor,
-                  opacity: selectedRelays.length >= MAX_RELAY_CONNECTIONS ? 0.5 : 1,
-                },
-              ]}
-              onPress={() => {
-                if (selectedRelays.length >= MAX_RELAY_CONNECTIONS) {
-                  ToastAndroid.showWithGravity(
-                    `Maximum ${MAX_RELAY_CONNECTIONS} relay connections allowed`,
-                    ToastAndroid.LONG,
-                    ToastAndroid.CENTER
-                  );
-                  return;
-                }
-                setShowCustomRelayInput(true);
-              }}
-              disabled={selectedRelays.length >= MAX_RELAY_CONNECTIONS}
-            >
-              <Plus size={20} color={buttonPrimaryTextColor} />
-              <ThemedText
-                style={[styles.addCustomRelayButtonText, { color: buttonPrimaryTextColor }]}
-              >
-                Add custom relay
-              </ThemedText>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.customRelaysUrlContainer}>
-              <View
-                style={[styles.relaysUrlInputContainer, { borderBottomColor: inputBorderColor }]}
-              >
-                <TextInput
-                  style={[styles.relaysUrlInput, { color: primaryTextColor }]}
-                  value={customRelayTextFieldValue}
-                  onChangeText={setCustomRelayTextFieldValue}
-                  placeholder="Enter relay URL (e.g., wss://relay.example.com)"
-                  placeholderTextColor={inputPlaceholderColor}
-                />
-                <TouchableOpacity
-                  style={styles.textFieldAction}
-                  onPress={() => setShowCustomRelayInput(false)}
-                >
-                  <X size={20} color={primaryTextColor} />
-                </TouchableOpacity>
+                        <ThemedText
+                          style={[
+                            styles.relayItemText,
+                            {
+                              color: selectedRelays.includes(relay)
+                                ? buttonPrimaryTextColor
+                                : primaryTextColor,
+                            },
+                          ]}
+                        >
+                          {relay}
+                        </ThemedText>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ))}
               </View>
+            </ScrollView>
+
+            {/* Custom Relays Section */}
+            <ThemedText style={[styles.titleText, { color: primaryTextColor }]}>
+              Custom relays:
+            </ThemedText>
+
+            {!showCustomRelayInput ? (
               <TouchableOpacity
-                style={[styles.confirmCustomRelayButton, { backgroundColor: buttonPrimaryColor }]}
-                onPress={handleAddCustomRelay}
+                style={[
+                  styles.addCustomRelayButton,
+                  {
+                    backgroundColor: buttonSecondaryColor,
+                    opacity: selectedRelays.length >= MAX_RELAY_CONNECTIONS ? 0.5 : 1,
+                  },
+                ]}
+                onPress={() => {
+                  if (selectedRelays.length >= MAX_RELAY_CONNECTIONS) {
+                    ToastAndroid.showWithGravity(
+                      `Maximum ${MAX_RELAY_CONNECTIONS} relay connections allowed`,
+                      ToastAndroid.LONG,
+                      ToastAndroid.CENTER
+                    );
+                    return;
+                  }
+                  setShowCustomRelayInput(true);
+                }}
+                disabled={selectedRelays.length >= MAX_RELAY_CONNECTIONS}
               >
+                <Plus size={20} color={buttonPrimaryTextColor} />
                 <ThemedText
-                  style={[styles.confirmCustomRelayButtonText, { color: buttonPrimaryTextColor }]}
+                  style={[styles.addCustomRelayButtonText, { color: buttonPrimaryTextColor }]}
                 >
-                  Add
+                  Add custom relay
                 </ThemedText>
               </TouchableOpacity>
-            </View>
-          )}
-
-        </ScrollView>
+            ) : (
+              <View style={styles.customRelaysUrlContainer}>
+                <View
+                  style={[styles.relaysUrlInputContainer, { borderBottomColor: inputBorderColor }]}
+                >
+                  <TextInput
+                    style={[styles.relaysUrlInput, { color: primaryTextColor }]}
+                    value={customRelayTextFieldValue}
+                    onChangeText={setCustomRelayTextFieldValue}
+                    placeholder="Enter relay URL (e.g., wss://relay.example.com)"
+                    placeholderTextColor={inputPlaceholderColor}
+                  />
+                  <TouchableOpacity
+                    style={styles.textFieldAction}
+                    onPress={() => setShowCustomRelayInput(false)}
+                  >
+                    <X size={20} color={primaryTextColor} />
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity
+                  style={[styles.confirmCustomRelayButton, { backgroundColor: buttonPrimaryColor }]}
+                  onPress={handleAddCustomRelay}
+                >
+                  <ThemedText
+                    style={[styles.confirmCustomRelayButtonText, { color: buttonPrimaryTextColor }]}
+                  >
+                    Add
+                  </ThemedText>
+                </TouchableOpacity>
+              </View>
+            )}
+          </ScrollView>
         </KeyboardAvoidingView>
       </ThemedView>
     </SafeAreaView>

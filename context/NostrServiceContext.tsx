@@ -8,16 +8,13 @@ import {
   KeypairInterface,
 } from 'portal-app-lib';
 import { PortalAppManager } from '@/services/PortalAppManager';
-import type {
-  RelayInfo,
-} from '@/utils/types';
+import type { RelayInfo } from '@/utils/types';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import defaultRelayList from '../assets/DefaultRelays.json';
 import { useOnboarding } from './OnboardingContext';
 import { getKeypairFromKey, hasKey } from '@/utils/keyHelpers';
 import { getServiceNameFromProfile, mapNumericStatusToString } from '@/utils/nostrHelper';
-
 
 // Context type definition
 export interface NostrServiceContextType {

@@ -209,11 +209,7 @@ export default function SettingsScreen() {
 
   const executeProtectedAction = async (
     action: () => Promise<void> | void,
-    {
-      reason,
-      pinTitle,
-      pinMessage,
-    }: { reason: string; pinTitle: string; pinMessage: string }
+    { reason, pinTitle, pinMessage }: { reason: string; pinTitle: string; pinMessage: string }
   ) => {
     try {
       if (authMethod === 'biometric' && isFingerprintSupported) {
@@ -315,7 +311,8 @@ export default function SettingsScreen() {
 
     setThemeMode(nextTheme);
     showToast(
-      `Theme changed to ${nextTheme === 'auto' ? 'Auto (System)' : nextTheme === 'light' ? 'Light' : 'Dark'
+      `Theme changed to ${
+        nextTheme === 'auto' ? 'Auto (System)' : nextTheme === 'light' ? 'Light' : 'Dark'
       }`,
       'success'
     );
@@ -875,7 +872,7 @@ export default function SettingsScreen() {
                         <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
                           Use {biometricLabel}
                         </ThemedText>
-                        {isFingerprintSupported &&
+                        {isFingerprintSupported && (
                           <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
                             {isFingerprintSupported
                               ? isBiometricPreferred
@@ -883,7 +880,7 @@ export default function SettingsScreen() {
                                 : `${biometricLabel} disabled`
                               : `${biometricLabel} not available`}
                           </ThemedText>
-                        }
+                        )}
                       </View>
                     </View>
                   </View>
@@ -898,7 +895,6 @@ export default function SettingsScreen() {
                     ios_backgroundColor={inputBorderColor}
                   />
                 </View>
-
               </View>
             </>
           )}
@@ -1178,7 +1174,11 @@ export default function SettingsScreen() {
         animationType="slide"
         onRequestClose={closePinVerification}
       >
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={closePinVerification}>
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={closePinVerification}
+        >
           <TouchableOpacity
             style={modalSheetStyle}
             activeOpacity={1}

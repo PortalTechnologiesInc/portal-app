@@ -2,17 +2,11 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import {
-  ArrowDownUp,
-  ArrowLeft,
-  HandCoins,
-  ClipboardCopy,
-  QrCode,
-  X,
-} from 'lucide-react-native';
+import { ArrowDownUp, ArrowLeft, HandCoins, ClipboardCopy, QrCode, X } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ActivityIndicator,
+  Alert,
   Image,
   StyleSheet,
   Text,
@@ -63,6 +57,7 @@ export default function MyWalletManagementSecret() {
   const [description, setDescription] = useState('');
   const [convertedAmount, setConvertedAmount] = useState(0);
   const [isConverting, setIsConverting] = useState(false);
+  const [isPaymentRequestLoading, setIsPaymentRequestLoading] = useState(false);
   const [pageState, setPageState] = useState(PageState.GetInvoiceInfo);
   const [invoice, setInvoice] = useState('');
   const [contactNpub, setContactNpub] = useState<string | null>(null);
@@ -97,30 +92,30 @@ export default function MyWalletManagementSecret() {
   }, [amount, preferredCurrency, reverseCurrency]);
 
   const handleChangeText = useCallback(
-  (input: string) => {
-    if (reverseCurrency) {
-      const cleaned = input.replace(/[^0-9.]/g, '');
-      const parts = cleaned.split('.');
+    (input: string) => {
+      if (reverseCurrency) {
+        const cleaned = input.replace(/[^0-9.]/g, '');
+        const parts = cleaned.split('.');
 
-      if (parts.length > 2) return;
-      if (parts[1]?.length > 2) return;
+        if (parts.length > 2) return;
+        if (parts[1]?.length > 2) return;
 
-      parts[0] = parts[0].replace(/^0+(?!$)/, '');
-      if (parts[0] === '') parts[0] = '0';
+        parts[0] = parts[0].replace(/^0+(?!$)/, '');
+        if (parts[0] === '') parts[0] = '0';
 
-      const result = parts.join('.');
-      setAmount(result === '' ? '0' : result);
-    } else {
-      const cleaned = input.replace(/\D/g, '');
-      if (cleaned === '') {
-        setAmount('0');
+        const result = parts.join('.');
+        setAmount(result === '' ? '0' : result);
       } else {
-        setAmount(cleaned.replace(/^0+(?!$)/, '') || '0');
+        const cleaned = input.replace(/\D/g, '');
+        if (cleaned === '') {
+          setAmount('0');
+        } else {
+          setAmount(cleaned.replace(/^0+(?!$)/, '') || '0');
+        }
       }
-    }
-  },
-  [reverseCurrency]
-);
+    },
+    [reverseCurrency]
+  );
 
   const reverseCurrencyTap = useCallback(async () => {
     setIsSwitching(true);
@@ -150,35 +145,33 @@ export default function MyWalletManagementSecret() {
   }, [amount, reverseCurrency, preferredCurrency]);
 
   const waitForPayment = useCallback(
-  (invoice: string, amount: BigInt): Promise<void> => {
-    return new Promise(async(resolve) => {
-      if (!breezWallet) {
-        resolve();
-        return;
-      }
-
-      const handler = async(event: SdkEvent) => {
-        console.log("[BREEZ EVENT]:", event);
-
-        let isPaid = false;
-        if(event.tag === SdkEvent_Tags.PaymentSucceeded) {
-          const { amount: paymentAmount, paymentType } = event.inner.payment;
-          isPaid = paymentType === PaymentType.Receive && amount === paymentAmount;
-        }
-
-        if (isPaid) {
-          breezWallet.removeEventListener(listenerId);
+    (invoice: string, amount: BigInt): Promise<void> => {
+      return new Promise(async resolve => {
+        if (!breezWallet) {
           resolve();
+          return;
         }
-      };
 
-      const listenerId = await breezWallet.addEventListener({
-        onEvent: handler
+        const handler = async (event: SdkEvent) => {
+          let isPaid = false;
+          if (event.tag === SdkEvent_Tags.PaymentSucceeded) {
+            const { amount: paymentAmount, paymentType } = event.inner.payment;
+            isPaid = paymentType === PaymentType.Receive && amount === paymentAmount;
+          }
+
+          if (isPaid) {
+            breezWallet.removeEventListener(listenerId);
+            resolve();
+          }
+        };
+
+        const listenerId = await breezWallet.addEventListener({
+          onEvent: handler,
+        });
       });
-    });
-  },
-  [breezWallet]
-);
+    },
+    [breezWallet]
+  );
 
   const generateInvoice = useCallback(async () => {
     if (!breezWallet) return;
@@ -199,18 +192,21 @@ export default function MyWalletManagementSecret() {
   }, [amount, breezWallet, description]);
 
   const sendPaymentRequest = useCallback(async () => {
-    if(contactNpub == null) return;
-    if(breezWallet == null) return;
+    if (contactNpub == null) return;
+    if (breezWallet == null) return;
 
-    const parsedAmount = BigInt(amount);
-    const invoice = await breezWallet.receivePayment(parsedAmount, description);
-    const nowPlus24HoursMs = Date.now() + 24 * 60 * 60 * 1000;
+    setIsPaymentRequestLoading(true);
 
     try {
+      const amountSats = reverseCurrency ? BigInt(Math.trunc(convertedAmount)) : BigInt(amount);
+
+      const invoice = await breezWallet.receivePayment(amountSats, description);
+      const nowPlus24HoursMs = Date.now() + 24 * 60 * 60 * 1000;
+
       await PortalAppManager.tryGetInstance().singlePaymentRequest(contactNpub, {
-        amount: parsedAmount * BigInt(1000),
+        amount: amountSats * BigInt(1000),
         description,
-        currency: new Currency.Millisats,
+        currency: new Currency.Millisats(),
         invoice,
         requestId: '',
         expiresAt: BigInt(nowPlus24HoursMs),
@@ -218,21 +214,18 @@ export default function MyWalletManagementSecret() {
         currentExchangeRate: undefined,
         subscriptionId: undefined,
       });
-    } catch(error) {
-      console.log('ERRORRR!!!', JSON.stringify(error));
+    } catch (error) {
+      Alert.alert('Error', 'Error while sendig the request. Retry.');
+      return;
+    } finally {
+      setIsPaymentRequestLoading(false);
     }
 
     setPageState(PageState.ShowPaymentSent);
     setTimeout(() => {
       router.replace('/breezwallet');
     }, 2000);
-
-  }, [
-    amount,
-    breezWallet,
-    description,
-    contactNpub,
-  ]);
+  }, [amount, convertedAmount, breezWallet, description, contactNpub]);
 
   useEffect(() => {
     let active = true;
@@ -250,13 +243,13 @@ export default function MyWalletManagementSecret() {
     const npub = params.npub as string | null;
     setContactNpub(npub);
   }, [params]);
-  
+
   useEffect(() => {
     const t = setTimeout(() => {
       textInputRef.current?.focus();
     }, 150);
 
-      return () => clearTimeout(t);
+    return () => clearTimeout(t);
   }, []);
 
   return (
@@ -393,10 +386,16 @@ export default function MyWalletManagementSecret() {
                   <ThemedView
                     style={{ flexDirection: 'row', gap: 10, backgroundColor: buttonPrimaryColor }}
                   >
-                    <HandCoins color={buttonPrimaryTextColor} />
-                    <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
-                      Request payment
-                    </ThemedText>
+                    {isPaymentRequestLoading ? (
+                      <ActivityIndicator size="small" color={buttonPrimaryTextColor} />
+                    ) : (
+                      <>
+                        <HandCoins color={buttonPrimaryTextColor} />
+                        <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
+                          Request payment
+                        </ThemedText>
+                      </>
+                    )}
                   </ThemedView>
                 </TouchableOpacity>
               )}
@@ -440,7 +439,9 @@ export default function MyWalletManagementSecret() {
               <ThemedView style={{ flexDirection: 'row', gap: 10 }}>
                 <Text style={{ color: primaryTextColor, fontSize: 20 }}>Amount</Text>
                 <ThemedView>
-                  <Text style={{ color: secondaryTextColor, fontSize: 20 }}>{reverseCurrency ? parseInt(convertedAmount.toString()) : amount} sats</Text>
+                  <Text style={{ color: secondaryTextColor, fontSize: 20 }}>
+                    {reverseCurrency ? parseInt(convertedAmount.toString()) : amount} sats
+                  </Text>
                   <Text style={{ color: secondaryTextColor, fontSize: 20 }}>
                     {CurrencyConversionService.formatConvertedAmountWithFallback(
                       reverseCurrency ? Number(amount) : convertedAmount,

@@ -57,11 +57,7 @@ function getRequestDescriptionText(
   return `This was a payment request from ${serviceName}.`;
 }
 
-function getSuccessStatusText(
-  isAuth: boolean,
-  isTicket: boolean,
-  activityType: string
-): string {
+function getSuccessStatusText(isAuth: boolean, isTicket: boolean, activityType: string): string {
   if (isAuth) {
     return ' You successfully granted access.';
   }
@@ -414,7 +410,12 @@ export default function ActivityDetailScreen() {
                         : 'Payment Transaction'}
                   </ThemedText>
                   <ThemedText style={[styles.infoText, { color: secondaryTextColor }]}>
-                    {getRequestDescriptionText(isAuth, isTicket, activity.service_name, activity.detail)}
+                    {getRequestDescriptionText(
+                      isAuth,
+                      isTicket,
+                      activity.service_name,
+                      activity.detail
+                    )}
                     {activityStatus === 'success' &&
                       getSuccessStatusText(isAuth, isTicket, activity.type)}
                     {activityStatus === 'failed' &&

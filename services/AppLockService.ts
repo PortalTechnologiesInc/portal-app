@@ -104,7 +104,7 @@ export class AppLockService {
         await SecureStore.setItemAsync(SECURE_STORE_KEYS.APP_LOCK_ENABLED, 'true');
         // Ensure a default lock timer is set (Immediate) so the app actually locks
         const existingTimer = await SecureStore.getItemAsync(
-          SECURE_STORE_KEYS.APP_LOCK_TIMER_DURATION,
+          SECURE_STORE_KEYS.APP_LOCK_TIMER_DURATION
         );
         if (existingTimer === null) {
           await this.setLockTimerDuration(0);
@@ -163,9 +163,7 @@ export class AppLockService {
   static async setupPIN(pin: string): Promise<void> {
     try {
       if (pin.length < PIN_MIN_LENGTH || pin.length > PIN_MAX_LENGTH) {
-        throw new Error(
-          `PIN must be between ${PIN_MIN_LENGTH} and ${PIN_MAX_LENGTH} digits`,
-        );
+        throw new Error(`PIN must be between ${PIN_MIN_LENGTH} and ${PIN_MAX_LENGTH} digits`);
       }
       const hashedPIN = hashPIN(pin);
       await SecureStore.setItemAsync(SECURE_STORE_KEYS.APP_LOCK_PIN_HASH, hashedPIN);
@@ -248,25 +246,31 @@ export class AppLockService {
       }
 
       const timeSinceBackground = Date.now() - backgroundTimestamp;
-      
+
       // Only apply minimum duration check for very brief backgrounds (< 5 seconds)
       // This prevents false locks from brief system transitions (e.g., NFC)
       // Normal backgrounding will be longer and will lock per timer setting
       if (timeSinceBackground < MIN_BACKGROUND_DURATION_MS) {
         // Very brief background - likely system transition (NFC), don't lock
-        console.log(`[AppLock] Background too brief (likely system transition): ${timeSinceBackground}ms < ${MIN_BACKGROUND_DURATION_MS}ms - not locking`);
+        console.log(
+          `[AppLock] Background too brief (likely system transition): ${timeSinceBackground}ms < ${MIN_BACKGROUND_DURATION_MS}ms - not locking`
+        );
         return false;
       }
-      
+
       // Background is long enough - check if timer duration has passed
       // For immediate lock (timerDuration === 0), lock immediately since background is >= 5 seconds
       // For other timers, check if timer duration has passed
       if (timerDuration === 0) {
-        console.log(`[AppLock] Immediate lock: background duration ${timeSinceBackground}ms >= ${MIN_BACKGROUND_DURATION_MS}ms - locking`);
+        console.log(
+          `[AppLock] Immediate lock: background duration ${timeSinceBackground}ms >= ${MIN_BACKGROUND_DURATION_MS}ms - locking`
+        );
         return true;
       }
-      
-      console.log(`[AppLock] Background duration: ${timeSinceBackground}ms, timerDuration: ${timerDuration}ms`);
+
+      console.log(
+        `[AppLock] Background duration: ${timeSinceBackground}ms, timerDuration: ${timerDuration}ms`
+      );
       return timeSinceBackground >= timerDuration;
     } catch (error) {
       console.error('Error checking if app should lock:', error);
@@ -405,4 +409,3 @@ export class AppLockService {
     }
   }
 }
-
