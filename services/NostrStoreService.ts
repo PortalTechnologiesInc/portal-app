@@ -21,7 +21,6 @@ export default class NostrStoreService {
 
   async readMints(): Promise<string[]> {
     try {
-
       const mintsJson = await Promise.race([
         this.portalDb.read(MINTS_KEY),
         new Promise<string>((_, reject) =>
@@ -30,7 +29,7 @@ export default class NostrStoreService {
       ]);
       return JSON.parse(mintsJson);
     } catch (error) {
-      console.warn("Reding on nostrStore generated the following error: ", error);
+      console.warn('Reding on nostrStore generated the following error: ', error);
       return [];
     }
   }

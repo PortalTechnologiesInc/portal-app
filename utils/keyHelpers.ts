@@ -94,7 +94,9 @@ function keypairFromNsec(nsec: string): KeypairInterface {
     const nsecObj = new Nsec(trimmed);
     return nsecObj.getKeypair();
   } catch (error) {
-    throw new Error(`Failed to create keypair from nsec: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new Error(
+      `Failed to create keypair from nsec: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
   }
 }
 
@@ -113,7 +115,9 @@ export function getKeypairFromKey(key: KeyMaterial): KeypairInterface {
       const mnemonicObj = new Mnemonic(key.mnemonic.trim());
       return mnemonicObj.getKeypair();
     } catch (error) {
-      throw new Error(`Failed to create keypair from mnemonic: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to create keypair from mnemonic: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -122,7 +126,9 @@ export function getKeypairFromKey(key: KeyMaterial): KeypairInterface {
     try {
       return keypairFromNsec(key.nsec.trim());
     } catch (error) {
-      throw new Error(`Failed to create keypair from nsec: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to create keypair from nsec: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -141,11 +147,13 @@ export function deriveNsecFromMnemonic(mnemonic: string): string {
   try {
     const mnemonicObj = new Mnemonic(mnemonic.trim());
     const keypair = mnemonicObj.getKeypair();
-    
+
     // Use keypair.nsec() method to get nsec string
     return keypair.nsec();
   } catch (error) {
-    throw new Error(`Failed to derive nsec from mnemonic: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new Error(
+      `Failed to derive nsec from mnemonic: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
   }
 }
 
@@ -168,7 +176,9 @@ export function getCashuSeedFromKey(key: KeyMaterial): ArrayBuffer {
       // Convert ArrayBuffer to Buffer if needed
       return cashuSeed;
     } catch (error) {
-      throw new Error(`Failed to derive Cashu seed from mnemonic: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to derive Cashu seed from mnemonic: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -180,7 +190,9 @@ export function getCashuSeedFromKey(key: KeyMaterial): ArrayBuffer {
       // Convert ArrayBuffer to Buffer if needed
       return cashuSeed;
     } catch (error) {
-      throw new Error(`Failed to derive Cashu seed from nsec: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to derive Cashu seed from nsec: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -196,7 +208,9 @@ export function getMnemonicFromKey(key: KeyMaterial): Mnemonic | null {
     try {
       return new Mnemonic(key.mnemonic.trim());
     } catch (error) {
-      throw new Error(`Failed to create Mnemonic object: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to create Mnemonic object: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -214,7 +228,9 @@ export function getNsecFromKey(key: KeyMaterial): Nsec | null {
     try {
       return new Nsec(key.nsec.trim());
     } catch (error) {
-      throw new Error(`Failed to create Nsec object: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to create Nsec object: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 

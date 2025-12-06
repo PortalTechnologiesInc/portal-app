@@ -1,5 +1,13 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Platform, TouchableOpacity, ActivityIndicator } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  ScrollView,
+  Alert,
+  Platform,
+  TouchableOpacity,
+  ActivityIndicator,
+} from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -64,7 +72,8 @@ export default function TicketsScreen() {
                 // Rich metadata
                 frontCardBackground: unitInfo?.frontCardBackground,
                 backCardBackground: unitInfo?.backCardBackground,
-                location: unitInfo?.kind?.tag === 'Event' ? unitInfo.kind.inner.location : undefined,
+                location:
+                  unitInfo?.kind?.tag === 'Event' ? unitInfo.kind.inner.location : undefined,
                 date: unitInfo?.kind?.tag === 'Event' ? unitInfo.kind.inner.date : undefined,
                 kind: unitInfo?.kind?.tag || 'Other',
               });
@@ -125,7 +134,7 @@ export default function TicketsScreen() {
       } else {
         await openSettings();
       }
-    } catch { }
+    } catch {}
   };
 
   const showNFCEnableDialog = () => {
@@ -230,11 +239,17 @@ export default function TicketsScreen() {
           <View style={[styles.mintStatusBanner, { backgroundColor: surfaceSecondaryColor }]}>
             <AlertTriangle size={20} color={Colors.warning} />
             <View style={styles.mintStatusTextContainer}>
-              <ThemedText type="subtitle" style={[styles.mintStatusTitle, { color: primaryTextColor }]}>
-                {badMints.length === 1 ? 'Mint unreachable' : `${badMints.length} mints unreachable`}
+              <ThemedText
+                type="subtitle"
+                style={[styles.mintStatusTitle, { color: primaryTextColor }]}
+              >
+                {badMints.length === 1
+                  ? 'Mint unreachable'
+                  : `${badMints.length} mints unreachable`}
               </ThemedText>
               <ThemedText style={[styles.mintStatusSubtitle, { color: secondaryTextColor }]}>
-                Error while getting tickets from {badMints.join(', ')}. Tickets are hidden for now, try again later.
+                Error while getting tickets from {badMints.join(', ')}. Tickets are hidden for now,
+                try again later.
               </ThemedText>
             </View>
           </View>
@@ -320,9 +335,7 @@ export default function TicketsScreen() {
         ) : tickets.length === 0 ? (
           <View style={[styles.emptyContainer, { backgroundColor: cardBackgroundColor }]}>
             <ThemedText style={[styles.emptyText, { color: secondaryTextColor }]}>
-              {badMints.length > 0
-                ? 'No tickets available right now.'
-                : 'No tickets found'}
+              {badMints.length > 0 ? 'No tickets available right now.' : 'No tickets found'}
             </ThemedText>
           </View>
         ) : (
@@ -333,57 +346,60 @@ export default function TicketsScreen() {
             contentContainerStyle={styles.scrollContent}
           >
             {/* Focused card zone */}
-            {focusedCardId && (() => {
-              const focusedTicket = tickets.find(t => t.id === focusedCardId);
-              return focusedTicket ? (
-                <View>
-                  <TicketCard
-                    ticket={focusedTicket}
-                    index={tickets.findIndex(t => t.id === focusedCardId)}
-                    isFocused={true}
-                    onPress={() => handleCardPress(focusedCardId)}
-                  />
-                  <View style={[styles.nfcSection, { backgroundColor: surfaceSecondaryColor }]}>
-                    <View style={styles.nfcIconContainer}>
-                      {isCheckingNFC ? (
-                        <View style={styles.nfcStatusContainer}>
-                          <ThemedText style={[styles.nfcStatusText, { color: secondaryTextColor }]}>
-                            Checking NFC...
-                          </ThemedText>
-                        </View>
-                      ) : isNFCEnabled === null ? (
-                        <Nfc size={48} color={buttonPrimaryColor} />
-                      ) : isNFCEnabled ? (
-                        <CheckCircle size={48} color={Colors.success} />
-                      ) : (
-                        <XCircle size={48} color={Colors.error} />
-                      )}
+            {focusedCardId &&
+              (() => {
+                const focusedTicket = tickets.find(t => t.id === focusedCardId);
+                return focusedTicket ? (
+                  <View>
+                    <TicketCard
+                      ticket={focusedTicket}
+                      index={tickets.findIndex(t => t.id === focusedCardId)}
+                      isFocused={true}
+                      onPress={() => handleCardPress(focusedCardId)}
+                    />
+                    <View style={[styles.nfcSection, { backgroundColor: surfaceSecondaryColor }]}>
+                      <View style={styles.nfcIconContainer}>
+                        {isCheckingNFC ? (
+                          <View style={styles.nfcStatusContainer}>
+                            <ThemedText
+                              style={[styles.nfcStatusText, { color: secondaryTextColor }]}
+                            >
+                              Checking NFC...
+                            </ThemedText>
+                          </View>
+                        ) : isNFCEnabled === null ? (
+                          <Nfc size={48} color={buttonPrimaryColor} />
+                        ) : isNFCEnabled ? (
+                          <CheckCircle size={48} color={Colors.success} />
+                        ) : (
+                          <XCircle size={48} color={Colors.error} />
+                        )}
+                      </View>
+                      <ThemedText
+                        type="subtitle"
+                        style={[styles.nfcTitle, { color: primaryTextColor }]}
+                      >
+                        {isCheckingNFC
+                          ? 'Checking NFC...'
+                          : isNFCEnabled === null
+                            ? 'Validate Ticket'
+                            : isNFCEnabled
+                              ? 'NFC Ready'
+                              : 'NFC Required'}
+                      </ThemedText>
+                      <ThemedText style={[styles.nfcDescription, { color: secondaryTextColor }]}>
+                        {isCheckingNFC
+                          ? 'Checking if NFC is available on your device'
+                          : isNFCEnabled === null
+                            ? 'Hold your device near the NFC reader to validate your ticket'
+                            : isNFCEnabled
+                              ? 'NFC is enabled. Hold your device near the NFC reader to validate your ticket'
+                              : 'NFC is disabled. Enable NFC in your device settings to validate tickets'}
+                      </ThemedText>
                     </View>
-                    <ThemedText
-                      type="subtitle"
-                      style={[styles.nfcTitle, { color: primaryTextColor }]}
-                    >
-                      {isCheckingNFC
-                        ? 'Checking NFC...'
-                        : isNFCEnabled === null
-                          ? 'Validate Ticket'
-                          : isNFCEnabled
-                            ? 'NFC Ready'
-                            : 'NFC Required'}
-                    </ThemedText>
-                    <ThemedText style={[styles.nfcDescription, { color: secondaryTextColor }]}>
-                      {isCheckingNFC
-                        ? 'Checking if NFC is available on your device'
-                        : isNFCEnabled === null
-                          ? 'Hold your device near the NFC reader to validate your ticket'
-                          : isNFCEnabled
-                            ? 'NFC is enabled. Hold your device near the NFC reader to validate your ticket'
-                            : 'NFC is disabled. Enable NFC in your device settings to validate tickets'}
-                    </ThemedText>
                   </View>
-                </View>
-              ) : null;
-            })()}
+                ) : null;
+              })()}
             {/* Stacked list of all other cards */}
             <View
               style={[

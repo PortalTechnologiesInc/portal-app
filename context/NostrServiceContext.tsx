@@ -61,6 +61,13 @@ export interface NostrServiceContextType {
   allRelaysConnected: boolean;
   connectedCount: number;
   issueJWT: ((targetKey: string, expiresInHours: bigint) => string) | undefined;
+  fetchProfile: (publicKey: string) => Promise<{
+    found: boolean;
+    username?: string;
+    displayName?: string;
+    avatarUri?: string;
+    npub: string;
+  }>;
 
   // Connection management functions
   startPeriodicMonitoring: () => void;
@@ -279,7 +286,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
           keypair,
           relays,
           new LocalRelayStatusListener(),
-          true
+          false
         );
 
         // Start listening and give it a moment to establish connections
@@ -438,6 +445,89 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     return keypair!.issueJwt(targetKey, expiresInHours);
   };
 
+  const fetchProfile = useCallback(
+    async (
+      publicKey: string
+    ): Promise<{
+      found: boolean;
+      username?: string;
+      displayName?: string;
+      avatarUri?: string;
+      npub: string;
+    }> => {
+      try {
+        // Fetch fresh profile data with timeout
+        // Add timeout to prevent hanging
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('Profile fetch timeout')), 15000); // 15 second timeout
+        });
+
+        const fetchedProfile = await Promise.race([
+          PortalAppManager.tryGetInstance().fetchProfile(publicKey),
+          timeoutPromise,
+        ]);
+
+        if (fetchedProfile) {
+          // Extract data from fetched profile with proper normalization
+          let fetchedUsername = '';
+          let fetchedDisplayName = '';
+
+          // Try to get username from nip05 first (most reliable)
+          if (fetchedProfile.nip05) {
+            const nip05Parts = fetchedProfile.nip05.split('@');
+            if (nip05Parts.length > 0 && nip05Parts[0]) {
+              fetchedUsername = nip05Parts[0];
+            }
+          }
+
+          // Fallback to name field if nip05 didn't work
+          if (!fetchedUsername && fetchedProfile.name) {
+            fetchedUsername = fetchedProfile.name;
+          }
+
+          // Fallback to displayName if nothing else worked
+          if (!fetchedUsername && fetchedProfile.displayName) {
+            fetchedUsername = fetchedProfile.displayName;
+          }
+
+          // Always normalize the username to match server behavior
+          // The server trims and lowercases, so we should do the same
+          if (fetchedUsername) {
+            fetchedUsername = fetchedUsername.trim().toLowerCase().replace(/\s+/g, '');
+          }
+
+          // Extract display name (more flexible, keep as-is)
+          if (fetchedProfile.displayName) {
+            fetchedDisplayName = fetchedProfile.displayName || ''; // Allow empty string
+          } else if (fetchedProfile.name && fetchedProfile.name !== fetchedUsername) {
+            // Fallback to name if it's different from username
+            fetchedDisplayName = fetchedProfile.name;
+          } else {
+            // Final fallback to username
+            fetchedDisplayName = fetchedUsername;
+          }
+
+          const fetchedAvatarUri = fetchedProfile.picture || null; // Ensure null instead of empty string
+
+          // Return the fetched data directly
+          return {
+            found: true,
+            username: fetchedUsername || undefined,
+            displayName: fetchedDisplayName || undefined,
+            avatarUri: fetchedAvatarUri || undefined,
+            npub: publicKey,
+          };
+        } else {
+          return { found: false, npub: publicKey }; // No profile found
+        }
+      } catch (error) {
+        console.error('Failed to fetch profile:', error);
+        throw error;
+      }
+    },
+    []
+  );
+
   // Context value
   const contextValue: NostrServiceContextType = {
     isInitialized,
@@ -457,6 +547,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     removedRelays,
     markRelayAsRemoved,
     clearRemovedRelay,
+    fetchProfile,
   };
 
   return (

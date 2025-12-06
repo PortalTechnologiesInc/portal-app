@@ -237,9 +237,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               case Currency_Tags.Fiat:
                 {
                   const fiatCodeRaw = (currencyObj as any).inner;
-                  const fiatCodeValue = Array.isArray(fiatCodeRaw)
-                    ? fiatCodeRaw[0]
-                    : fiatCodeRaw;
+                  const fiatCodeValue = Array.isArray(fiatCodeRaw) ? fiatCodeRaw[0] : fiatCodeRaw;
                   const fiatCode =
                     typeof fiatCodeValue === 'string'
                       ? String(fiatCodeValue).toUpperCase()
@@ -380,9 +378,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 case Currency_Tags.Fiat:
                   {
                     const fiatCodeRaw = (currencyObj as any).inner;
-                    const fiatCodeValue = Array.isArray(fiatCodeRaw)
-                      ? fiatCodeRaw[0]
-                      : fiatCodeRaw;
+                    const fiatCodeValue = Array.isArray(fiatCodeRaw) ? fiatCodeRaw[0] : fiatCodeRaw;
                     const fiatCode =
                       typeof fiatCodeValue === 'string'
                         ? String(fiatCodeValue).toUpperCase()
@@ -465,7 +461,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                     .recurrence,
                 }),
                 requestId: (request.metadata as RecurringPaymentRequest).content.requestId,
-                });
+              });
             })().catch(err => {
               console.error('Error processing subscription:', err);
             });
@@ -626,9 +622,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               case Currency_Tags.Fiat:
                 {
                   const fiatCodeRaw = (currencyObj as any).inner;
-                  const fiatCodeValue = Array.isArray(fiatCodeRaw)
-                    ? fiatCodeRaw[0]
-                    : fiatCodeRaw;
+                  const fiatCodeValue = Array.isArray(fiatCodeRaw) ? fiatCodeRaw[0] : fiatCodeRaw;
                   const fiatCode =
                     typeof fiatCodeValue === 'string'
                       ? String(fiatCodeValue).toUpperCase()

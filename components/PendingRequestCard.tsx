@@ -76,7 +76,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const skeletonBaseColor = useThemeColor({}, 'skeletonBase');
     const warningColor = useThemeColor({}, 'statusError');
     const tertiaryColor = useThemeColor({}, 'textTertiary');
-    const buttonSuccessColor = useThemeColor({}, 'buttonSuccessText')
+    const buttonSuccessColor = useThemeColor({}, 'buttonSuccessText');
 
     // Add debug logging when a card is rendered
     console.log(
@@ -137,9 +137,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const isSubscriptionRequest = type === 'subscription';
     const isTicketRequest = type === 'ticket';
     const content = (metadata as SinglePaymentRequest)?.content;
-    const amount =
-      content?.amount ??
-      (isTicketRequest ? (metadata as any)?.inner?.amount : null);
+    const amount = content?.amount ?? (isTicketRequest ? (metadata as any)?.inner?.amount : null);
 
     // Check for insufficient balance on payment requests
     useEffect(() => {
@@ -257,7 +255,9 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
           const isFiat = content.currency.tag === Currency_Tags.Fiat;
           const fiatCurrency = isFiat ? (content.currency as any).inner : null;
           const sourceCurrency = isFiat
-            ? (Array.isArray(fiatCurrency) ? fiatCurrency[0] : fiatCurrency)
+            ? Array.isArray(fiatCurrency)
+              ? fiatCurrency[0]
+              : fiatCurrency
             : 'MSATS';
           const sourceAmount = isFiat ? Number(amount) / 100 : Number(amount);
 
@@ -390,9 +390,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
                     if (!content) return '';
                     if (content.currency.tag === Currency_Tags.Fiat) {
                       const fiatCodeRaw = (content.currency as any).inner;
-                      const fiatCode = Array.isArray(fiatCodeRaw)
-                        ? fiatCodeRaw[0]
-                        : fiatCodeRaw;
+                      const fiatCode = Array.isArray(fiatCodeRaw) ? fiatCodeRaw[0] : fiatCodeRaw;
                       return `${(Number(amount) / 100).toFixed(2)} ${fiatCode}`;
                     }
                     return `${Number(amount) / 1000} sats`;
@@ -422,9 +420,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
                 const isFiat = content.currency.tag === Currency_Tags.Fiat;
                 if (isFiat) {
                   const fiatCodeRaw = (content.currency as any).inner;
-                  const fiatCode = Array.isArray(fiatCodeRaw)
-                    ? fiatCodeRaw[0]
-                    : fiatCodeRaw;
+                  const fiatCode = Array.isArray(fiatCodeRaw) ? fiatCodeRaw[0] : fiatCodeRaw;
                   return fiatCode !== preferredCurrency;
                 }
                 return 'MSATS' !== preferredCurrency;
