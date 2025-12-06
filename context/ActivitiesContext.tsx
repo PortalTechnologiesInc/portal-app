@@ -136,10 +136,7 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
               excludeSubscriptions: excludeSubscriptions || undefined,
             };
 
-      const fetchedActivities = await executeOperation(
-        db => db.getActivities(filterOptions),
-        []
-      );
+      const fetchedActivities = await executeOperation(db => db.getActivities(filterOptions), []);
 
       if (reset) {
         // Complete refresh - replace all activities
@@ -255,7 +252,7 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
     setHasMoreActivities(true);
     // Don't clear activities immediately - let loading state handle it
     setIsLoadingMore(true);
-    
+
     // Use the ref to get current filters to avoid dependency on fetchActivities
     const filters = activeFiltersRef.current;
     const offset = 0;

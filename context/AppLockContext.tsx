@@ -8,7 +8,12 @@ import React, {
   useRef,
 } from 'react';
 import { AppState, AppStateStatus, Platform } from 'react-native';
-import { AppLockService, AuthMethod, LockTimerDuration, TIMER_OPTIONS } from '@/services/AppLockService';
+import {
+  AppLockService,
+  AuthMethod,
+  LockTimerDuration,
+  TIMER_OPTIONS,
+} from '@/services/AppLockService';
 import { authenticateAsync, isBiometricPromptInProgress } from '@/services/BiometricAuthService';
 
 interface AppLockContextType {
@@ -185,18 +190,21 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const setupPIN = useCallback(async (pin: string) => {
-    try {
-      await AppLockService.setupPIN(pin);
-      setHasPIN(true);
-      if (!isFingerprintSupported || authMethod === null) {
-        setAuthMethodState('pin');
+  const setupPIN = useCallback(
+    async (pin: string) => {
+      try {
+        await AppLockService.setupPIN(pin);
+        setHasPIN(true);
+        if (!isFingerprintSupported || authMethod === null) {
+          setAuthMethodState('pin');
+        }
+      } catch (error) {
+        console.error('Error setting up PIN:', error);
+        throw error;
       }
-    } catch (error) {
-      console.error('Error setting up PIN:', error);
-      throw error;
-    }
-  }, [isFingerprintSupported, authMethod]);
+    },
+    [isFingerprintSupported, authMethod]
+  );
 
   const clearPIN = useCallback(async () => {
     try {
@@ -295,4 +303,3 @@ export function useOnAppLock(callback: () => void) {
     wasLockedRef.current = isLocked;
   }, [isLocked]);
 }
-

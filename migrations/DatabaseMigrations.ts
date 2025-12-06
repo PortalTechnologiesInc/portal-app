@@ -2,7 +2,7 @@ import { SQLiteDatabase } from 'expo-sqlite';
 
 // Function to migrate database schema if needed
 export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
-  const DATABASE_VERSION = 19;
+  const DATABASE_VERSION = 20;
 
   try {
     let { user_version: currentDbVersion } = (await db.getFirstAsync<{
@@ -375,7 +375,8 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
             GROUP BY request_id
           );
         `);
-      } catch (_) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      } catch (_error) {
         // Best-effort cleanup; continue even if this fails
       }
 
@@ -430,6 +431,21 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
         );
       `);
       currentDbVersion = 19;
+    }
+
+    if (currentDbVersion <= 19) {
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS nip05_contacts (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          npub TEXT NOT NULL,
+          created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_nip05_contacts_npub ON nip05_contacts(npub);
+        CREATE INDEX IF NOT EXISTS idx_nip05_contacts_created_at ON nip05_contacts(created_at DESC);
+      `);
+      currentDbVersion = 20;
+      console.log('Created nip05_contacts table- now at version 20');
     }
 
     await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);

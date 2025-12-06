@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -24,12 +24,10 @@ import {
   Shield,
   Key,
   Zap,
-  Globe,
   AlertTriangle,
   ArrowRight,
   CheckCircle,
   ArrowLeft,
-  Copy,
   Lock,
 } from 'lucide-react-native';
 
@@ -38,9 +36,12 @@ import * as Clipboard from 'expo-clipboard';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { generateMnemonic, Mnemonic, Nsec } from 'portal-app-lib';
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { WALLET_TYPE } from '@/models/WalletType';
 import { useRouter } from 'expo-router';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { PIN_MIN_LENGTH, PIN_MAX_LENGTH } from '@/services/AppLockService';
+import { useWalletManager } from '@/context/WalletManagerContext';
 
 // Preload all required assets
 const onboardingLogo = require('../assets/images/appLogo.png');
@@ -55,17 +56,13 @@ type OnboardingStep =
   | 'generate'
   | 'verify'
   | 'import'
-  | 'wallet-setup'
   | 'pin-setup'
-  | 'wallet-connect'
   | 'splash';
 
 export default function Onboarding() {
   const { completeOnboarding } = useOnboarding();
   const { setMnemonic, setNsec, walletUrl, setWalletUrl } = useKey();
   const router = useRouter();
-  const { walletInfo, refreshWalletInfo, nwcConnectionStatus, nwcConnectionError, nwcConnecting } =
-    useNostrService();
   const { setupPIN, setLockEnabled, isLockEnabled, isBiometricAvailable } = useAppLock();
   const [currentStep, setCurrentStep] = useState<OnboardingStep>('welcome');
   const [seedPhrase, setSeedPhrase] = useState('');
@@ -85,7 +82,7 @@ export default function Onboarding() {
   const [pinError, setPinError] = useState('');
   const [isSavingPin, setIsSavingPin] = useState(false);
   const [isBiometricSupported, setIsBiometricSupported] = useState(false);
-  const [pinSetupPreviousStep, setPinSetupPreviousStep] = useState<OnboardingStep>('wallet-setup');
+  const [pinSetupPreviousStep, setPinSetupPreviousStep] = useState<OnboardingStep>('import');
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -105,8 +102,12 @@ export default function Onboarding() {
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   useEffect(() => {
-    const showSubscription = Keyboard.addListener('keyboardDidShow', () => setIsKeyboardVisible(true));
-    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => setIsKeyboardVisible(false));
+    const showSubscription = Keyboard.addListener('keyboardDidShow', () =>
+      setIsKeyboardVisible(true)
+    );
+    const hideSubscription = Keyboard.addListener('keyboardDidHide', () =>
+      setIsKeyboardVisible(false)
+    );
 
     return () => {
       showSubscription.remove();
@@ -138,7 +139,7 @@ export default function Onboarding() {
     setPinError('');
   };
 
-  const goToPreviousStep = () => {
+  const goToPreviousStep = useCallback(() => {
     const previousSteps: Record<OnboardingStep, OnboardingStep | null> = {
       welcome: null,
       'backup-warning': 'welcome',
@@ -146,8 +147,6 @@ export default function Onboarding() {
       generate: 'choice',
       verify: 'generate',
       import: 'choice',
-      'wallet-setup': 'choice',
-      'wallet-connect': 'wallet-setup',
       'pin-setup': pinSetupPreviousStep,
       splash: null,
     };
@@ -156,18 +155,28 @@ export default function Onboarding() {
     if (previousStep) {
       setCurrentStep(previousStep);
     }
-  };
+  }, [setCurrentStep, currentStep]);
 
   // Add this function to your component
-  const okBack = (stateToClear?: () => void) => {
-    // Clear the specified state if provided
-    if (stateToClear) {
-      stateToClear();
-    }
+  const okBack = useCallback(
+    (stateToClear?: () => void) => {
+      // Clear the specified state if provided
+      if (stateToClear) {
+        stateToClear();
+      }
+      // Navigate to previous step
+      goToPreviousStep();
+    },
+    [goToPreviousStep]
+  );
 
-    // Navigate to previous step
-    goToPreviousStep();
-  };
+  // set the preferred wallet as Breez by default on first load
+  useEffect(() => {
+    const setPreferredWalletDefault = async () => {
+      await AsyncStorage.setItem('preferred_wallet', JSON.stringify(WALLET_TYPE.BREEZ));
+    };
+    setPreferredWalletDefault();
+  }, []);
 
   // Use in back gesture handler
   useEffect(() => {
@@ -191,9 +200,6 @@ export default function Onboarding() {
               setUserInputs({ word1: '', word2: '' });
             });
             break;
-          case 'wallet-connect':
-            okBack(() => setWalletInput(''));
-            break;
           case 'pin-setup':
             okBack(() => resetPinState());
             break;
@@ -201,14 +207,6 @@ export default function Onboarding() {
             okBack(() => {
               setSeedPhrase('');
               setImportType('seed');
-            });
-            break;
-          case 'wallet-setup':
-            // Clear wallet connection status when going back from wallet setup
-            okBack(() => {
-              setIsSavingWallet(false);
-              // Reset wallet connection state if needed
-              // This ensures clean state when returning to wallet setup
             });
             break;
           case 'backup-warning':
@@ -280,7 +278,7 @@ export default function Onboarding() {
       // If the mnemonic is invalid, the constructor will throw an error
       new Mnemonic(trimmedPhrase);
       return { isValid: true };
-    } catch (error) {
+    } catch {
       return {
         isValid: false,
         error: 'Invalid seed phrase. Please check your words and try again.',
@@ -302,7 +300,10 @@ export default function Onboarding() {
     } catch (error) {
       return {
         isValid: false,
-        error: error instanceof Error ? error.message : 'Invalid Nsec. Please check your Nsec and try again.',
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Invalid Nsec. Please check your Nsec and try again.',
       };
     }
   };
@@ -342,17 +343,17 @@ export default function Onboarding() {
       // Mark this as a generated seed (no need to fetch profile)
       await SecureStore.setItemAsync(SEED_ORIGIN_KEY, 'generated');
 
-      // Go to wallet setup step
-      setCurrentStep('wallet-setup');
+      // Go to dashboard
+      handleSkipWalletSetup();
     } catch (error) {
       console.error('Failed to save mnemonic:', error);
-      // Still continue with onboarding even if saving fails
-      setCurrentStep('wallet-setup');
+      // Still go to dashboard even if saving fails
+      handleSkipWalletSetup();
     }
   };
 
   const handleGenerateComplete = async () => {
-    // In development mode, skip verification and go to wallet setup
+    // In development mode, skip verification and go to dashboard directly
     if (__DEV__) {
       try {
         // Save the mnemonic using our provider
@@ -361,12 +362,12 @@ export default function Onboarding() {
         // Mark this as a generated seed (no need to fetch profile)
         await SecureStore.setItemAsync(SEED_ORIGIN_KEY, 'generated');
 
-        // Go to wallet setup step
-        setCurrentStep('wallet-setup');
+        // Go to dashboard
+        handleSkipWalletSetup();
       } catch (error) {
         console.error('Failed to save mnemonic in dev mode:', error);
-        // Still continue with onboarding even if saving fails
-        setCurrentStep('wallet-setup');
+        // Still go to dashboard even if saving fails
+        handleSkipWalletSetup();
       }
       return;
     }
@@ -409,8 +410,8 @@ export default function Onboarding() {
       // Mark this as an imported seed (should fetch profile first)
       await SecureStore.setItemAsync(SEED_ORIGIN_KEY, 'imported');
 
-      // Go to wallet setup step
-      setCurrentStep('wallet-setup');
+      // Proceed to Dashboard
+      handleSkipWalletSetup();
     } catch (error) {
       console.error('Failed to save imported mnemonic:', error);
       Alert.alert('Error', 'Failed to save your seed phrase. Please try again.');
@@ -421,10 +422,7 @@ export default function Onboarding() {
     const validation = validateImportedNsec(seedPhrase);
 
     if (!validation.isValid) {
-      Alert.alert(
-        'Invalid Nsec',
-        validation.error || 'Please check your Nsec and try again.'
-      );
+      Alert.alert('Invalid Nsec', validation.error || 'Please check your Nsec and try again.');
       return;
     }
 
@@ -436,30 +434,16 @@ export default function Onboarding() {
       await SecureStore.setItemAsync(SEED_ORIGIN_KEY, 'imported');
 
       // Go to wallet setup step
-      setCurrentStep('wallet-setup');
+      setCurrentStep('splash');
     } catch (error) {
       console.error('Failed to save imported nsec:', error);
       Alert.alert('Error', 'Failed to save your Nsec. Please try again.');
     }
   };
 
-  const handleWalletSetup = () => {
-    // Go to inline wallet connect step
-    setWalletInput(walletUrl || '');
-    setCurrentStep('wallet-connect');
-  };
-
   const handleSkipWalletSetup = () => {
     // Skip wallet setup and go to PIN setup
     resetPinState();
-    setPinSetupPreviousStep('wallet-setup');
-    setCurrentStep('pin-setup');
-  };
-
-  const handleWalletConnectComplete = () => {
-    // After wallet connection, go to PIN setup
-    resetPinState();
-    setPinSetupPreviousStep('wallet-connect');
     setCurrentStep('pin-setup');
   };
 
@@ -574,17 +558,14 @@ export default function Onboarding() {
             });
             setUserInputs({ word1: '', word2: '' });
           });
-      case 'wallet-connect':
-        return () => okBack(() => setWalletInput(''));
       case 'pin-setup':
         return () => okBack(() => resetPinState());
       case 'import':
-        return () => okBack(() => {
-          setSeedPhrase('');
-          setImportType('seed');
-        });
-      case 'wallet-setup':
-        return () => okBack(() => setIsSavingWallet(false));
+        return () =>
+          okBack(() => {
+            setSeedPhrase('');
+            setImportType('seed');
+          });
       default:
         return () => okBack();
     }
@@ -609,7 +590,9 @@ export default function Onboarding() {
             >
               <ArrowLeft size={24} color={textPrimary} />
             </TouchableOpacity>
-            <ThemedText style={[styles.headerText, { color: textPrimary }]}>Portal Setup</ThemedText>
+            <ThemedText style={[styles.headerText, { color: textPrimary }]}>
+              Portal Setup
+            </ThemedText>
             <View style={styles.headerLogoWrapper}>
               <Image source={onboardingLogo} style={styles.headerLogo} resizeMode="contain" />
             </View>
@@ -665,7 +648,9 @@ export default function Onboarding() {
                 style={[styles.button, { backgroundColor: buttonPrimary }]}
                 onPress={() => setCurrentStep('backup-warning')}
               >
-                <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>Get Started</ThemedText>
+                <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>
+                  Get Started
+                </ThemedText>
                 <ArrowRight size={20} color={buttonPrimaryText} style={styles.buttonIcon} />
               </TouchableOpacity>
             </View>
@@ -695,9 +680,11 @@ export default function Onboarding() {
                   >
                     Your seed phrase is your master key
                   </ThemedText>
-                  <ThemedText style={[styles.warningText, isSmallDevice && styles.warningTextSmall]}>
-                    Portal generates a unique 12-word seed phrase that gives you complete control over
-                    your digital identity and authentication.
+                  <ThemedText
+                    style={[styles.warningText, isSmallDevice && styles.warningTextSmall]}
+                  >
+                    Portal generates a unique 12-word seed phrase that gives you complete control
+                    over your digital identity and authentication.
                   </ThemedText>
                 </View>
 
@@ -705,31 +692,33 @@ export default function Onboarding() {
                   <View style={styles.warningPoint}>
                     <CheckCircle size={20} color="#27ae60" />
                     <ThemedText style={styles.warningPointText}>
-                      <ThemedText type="defaultSemiBold">Write it down</ThemedText> on paper and store
-                      it safely
+                      <ThemedText type="defaultSemiBold">Write it down</ThemedText> on paper and
+                      store it safely
                     </ThemedText>
                   </View>
 
                   <View style={styles.warningPoint}>
                     <CheckCircle size={20} color="#27ae60" />
                     <ThemedText style={styles.warningPointText}>
-                      <ThemedText type="defaultSemiBold">Never share it</ThemedText> with anyone - not
-                      even Portal support
+                      <ThemedText type="defaultSemiBold">Never share it</ThemedText> with anyone -
+                      not even Portal support
                     </ThemedText>
                   </View>
 
                   <View style={styles.warningPoint}>
                     <CheckCircle size={20} color="#27ae60" />
                     <ThemedText style={styles.warningPointText}>
-                      <ThemedText type="defaultSemiBold">Keep multiple copies</ThemedText> in secure,
-                      separate locations
+                      <ThemedText type="defaultSemiBold">Keep multiple copies</ThemedText> in
+                      secure, separate locations
                     </ThemedText>
                   </View>
 
                   <View style={styles.warningPoint}>
                     <AlertTriangle size={20} color="#e74c3c" />
                     <ThemedText style={styles.warningPointText}>
-                      <ThemedText type="defaultSemiBold">If you lose it, you lose access</ThemedText>{' '}
+                      <ThemedText type="defaultSemiBold">
+                        If you lose it, you lose access
+                      </ThemedText>{' '}
                       - we cannot recover it
                     </ThemedText>
                   </View>
@@ -840,7 +829,9 @@ export default function Onboarding() {
                 style={[styles.button, styles.copyButton, { backgroundColor: buttonPrimary }]}
                 onPress={handleCopySeedPhrase}
               >
-                <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>Copy to Clipboard</ThemedText>
+                <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>
+                  Copy to Clipboard
+                </ThemedText>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -953,7 +944,10 @@ export default function Onboarding() {
 
                   <View style={styles.inputContainer}>
                     <TextInput
-                      style={[styles.input, { backgroundColor: inputBackground, color: textPrimary }]}
+                      style={[
+                        styles.input,
+                        { backgroundColor: inputBackground, color: textPrimary },
+                      ]}
                       placeholder={
                         importType === 'nsec'
                           ? 'Enter your Nsec private key (nsec1...)'
@@ -974,98 +968,25 @@ export default function Onboarding() {
                 </View>
               </ScrollView>
               <View
-                style={[styles.footer, styles.footerStack, isKeyboardVisible && styles.footerCompact]}
+                style={[
+                  styles.footer,
+                  styles.footerStack,
+                  isKeyboardVisible && styles.footerCompact,
+                ]}
               >
                 <TouchableOpacity
                   style={[styles.button, styles.finishButton, { backgroundColor: buttonPrimary }]}
-                  onPress={importType === 'nsec' ? handleImportNsecComplete : handleImportMnemonicComplete}
+                  onPress={
+                    importType === 'nsec' ? handleImportNsecComplete : handleImportMnemonicComplete
+                  }
                 >
-                  <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>Import</ThemedText>
+                  <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>
+                    Import
+                  </ThemedText>
                 </TouchableOpacity>
               </View>
             </View>
           </KeyboardAvoidingView>
-        )}
-
-        {/* Wallet Setup Step */}
-        {currentStep === 'wallet-setup' && (
-          <View style={styles.stepWrapper}>
-            <ScrollView
-              contentContainerStyle={styles.scrollContent}
-              showsVerticalScrollIndicator={false}
-            >
-              <View style={[styles.pageContainer, styles.scrollPageContainer]}>
-                <View style={styles.walletIconContainer}>
-                  <Zap size={64} color={buttonPrimary} />
-                </View>
-
-                <ThemedText type="title" style={styles.title}>
-                  Connect Your Wallet
-                </ThemedText>
-                <ThemedText style={styles.subtitle}>
-                  Add a Lightning wallet to enable payments and transactions
-                </ThemedText>
-
-                <View style={[styles.walletSetupCard, { backgroundColor: cardBackgroundColor }]}>
-                  <ThemedText type="defaultSemiBold" style={styles.walletSetupCardTitle}>
-                    Why connect a wallet?
-                  </ThemedText>
-                  <ThemedText style={styles.walletSetupText}>
-                    Connecting a Lightning wallet allows you to make payments, receive refunds, and
-                    interact with Lightning-enabled services through the Nostr network.
-                  </ThemedText>
-                </View>
-
-                <View style={styles.walletSetupPointsContainer}>
-                  <View style={styles.walletSetupPoint}>
-                    <CheckCircle size={20} color="#27ae60" />
-                    <ThemedText style={styles.walletSetupPointText}>
-                      <ThemedText type="defaultSemiBold">Make payments</ThemedText> to other users and
-                      services
-                    </ThemedText>
-                  </View>
-
-                  <View style={styles.walletSetupPoint}>
-                    <CheckCircle size={20} color="#27ae60" />
-                    <ThemedText style={styles.walletSetupPointText}>
-                      <ThemedText type="defaultSemiBold">Receive refunds</ThemedText> from Lightning
-                      payments
-                    </ThemedText>
-                  </View>
-
-                  <View style={styles.walletSetupPoint}>
-                    <CheckCircle size={20} color="#27ae60" />
-                    <ThemedText style={styles.walletSetupPointText}>
-                      <ThemedText type="defaultSemiBold">Subscriptions</ThemedText> management &
-                      recurring payouts
-                    </ThemedText>
-                  </View>
-                </View>
-              </View>
-            </ScrollView>
-            <View style={styles.footer}>
-              <View style={styles.buttonGroup}>
-                <TouchableOpacity
-                  style={[styles.button, { backgroundColor: buttonPrimary }]}
-                  onPress={handleWalletSetup}
-                >
-                  <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>
-                    Add Wallet
-                  </ThemedText>
-                  <ArrowRight size={20} color={buttonPrimaryText} style={styles.buttonIcon} />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.skipButton, { backgroundColor: surfaceSecondary }]}
-                  onPress={handleSkipWalletSetup}
-                >
-                  <ThemedText style={[styles.skipButtonText, { color: textPrimary }]}>
-                    Skip for Now
-                  </ThemedText>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
         )}
 
         {/* PIN Setup Step */}
@@ -1082,7 +1003,9 @@ export default function Onboarding() {
                 Protect your app by requiring a PIN for sensitive actions.
               </ThemedText>
               {pinError ? (
-                <ThemedText style={[styles.errorText, styles.pinErrorText, { color: buttonDanger }]}>
+                <ThemedText
+                  style={[styles.errorText, styles.pinErrorText, { color: buttonDanger }]}
+                >
                   {pinError}
                 </ThemedText>
               ) : null}
@@ -1107,133 +1030,6 @@ export default function Onboarding() {
                   skipLabel="Skip"
                 />
               </View>
-            </View>
-          </View>
-        )}
-
-        {/* Wallet Connect Step */}
-        {currentStep === 'wallet-connect' && (
-          <View style={styles.stepWrapper}>
-            <ScrollView
-              contentContainerStyle={styles.scrollContent}
-              showsVerticalScrollIndicator={false}
-            >
-              <View style={[styles.pageContainer, styles.scrollPageContainer]}>
-                <ThemedText type="title" style={styles.title}>
-                  Connect Lightning Wallet
-                </ThemedText>
-                <ThemedText style={styles.subtitle}>Paste your Nostr Wallet Connect URL</ThemedText>
-
-                <View style={styles.inputContainer}>
-                  <TextInput
-                    style={[styles.input, { backgroundColor: inputBackground, color: textPrimary }]}
-                    placeholder="nostr+walletconnect://..."
-                    placeholderTextColor={inputPlaceholder}
-                    value={walletInput}
-                    onChangeText={setWalletInput}
-                    autoCorrect={false}
-                    autoCapitalize="none"
-                  />
-                </View>
-
-                {/* Single action button is below the status section */}
-
-                <View style={[styles.walletStatusContainer, { width: '100%' }]}>
-                  <View style={styles.walletStatusRow}>
-                    <ThemedText style={styles.walletStatusLabel}>Connection:</ThemedText>
-                    <ThemedText
-                      style={[
-                        styles.walletStatusValue,
-                        nwcConnectionStatus === true && { color: '#27ae60' },
-                        nwcConnectionStatus === false && { color: '#e74c3c' },
-                      ]}
-                    >
-                      {!walletInput.trim() && !walletUrl
-                        ? 'Waiting'
-                        : nwcConnectionStatus === true
-                          ? 'Connected'
-                          : nwcConnectionStatus === false
-                            ? 'Error connecting'
-                            : nwcConnecting
-                              ? 'Connecting...'
-                              : 'Waiting'}
-                    </ThemedText>
-                  </View>
-
-                  <View style={styles.walletInfoRowMini}>
-                    <ThemedText style={styles.walletInfoLabelMini}>Balance:</ThemedText>
-                    {nwcConnectionStatus === true &&
-                    walletInfo?.data &&
-                    'get_balance' in walletInfo.data ? (
-                      <ThemedText style={styles.walletInfoValueMini}>
-                        ⚡ {Math.floor((walletInfo.data as any).get_balance / 1000).toLocaleString()}{' '}
-                        sats
-                      </ThemedText>
-                    ) : (
-                      <ThemedText style={[styles.walletInfoValueMini, { opacity: 0.5 }]}>
-                        {!walletInput.trim() && !walletUrl
-                          ? 'Waiting'
-                          : nwcConnectionStatus === false
-                            ? 'Error connecting'
-                            : nwcConnecting
-                              ? 'Connecting...'
-                              : 'Waiting'}
-                      </ThemedText>
-                    )}
-                  </View>
-                </View>
-              </View>
-            </ScrollView>
-            <View style={[styles.footer, styles.footerStack]}>
-              <TouchableOpacity
-                style={[
-                  styles.button,
-                  styles.finishButton,
-                  { backgroundColor: buttonPrimary },
-                  (isSavingWallet || nwcConnecting) && { opacity: 0.6 },
-                ]}
-                onPress={async () => {
-                  // If connected and URL hasn't changed, go to PIN setup; otherwise attempt to connect
-                  if (nwcConnectionStatus === true && walletInput === walletUrl) {
-                    handleWalletConnectComplete();
-                    return;
-                  }
-
-                  if (!walletInput.trim()) {
-                    Alert.alert('Wallet URL required', 'Please paste your wallet URL to connect.');
-                    return;
-                  }
-
-                  const validation = validateNwcUrl(walletInput);
-                  if (!validation.isValid) {
-                    Alert.alert('Invalid URL', validation.error || 'Invalid URL');
-                    return;
-                  }
-
-                  try {
-                    setIsSavingWallet(true);
-                    await setWalletUrl(walletInput.trim());
-                    // Give some time for connection attempt
-                    setTimeout(async () => {
-                      await refreshWalletInfo();
-                    }, 2000);
-                  } catch (e) {
-                    console.error('Failed to save wallet URL:', e);
-                    Alert.alert('Error', 'Failed to save wallet URL. Please try again.');
-                  } finally {
-                    setIsSavingWallet(false);
-                  }
-                }}
-                disabled={isSavingWallet || nwcConnecting}
-              >
-                <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>
-                  {nwcConnectionStatus === true && walletInput === walletUrl
-                    ? 'Continue'
-                    : isSavingWallet
-                      ? 'Saving...'
-                      : 'Connect'}
-                </ThemedText>
-              </TouchableOpacity>
             </View>
           </View>
         )}

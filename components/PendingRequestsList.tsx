@@ -15,6 +15,7 @@ import { ThemedText } from './ThemedText';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { Layout } from '@/constants/Layout';
 import { useDatabaseContext } from '@/context/DatabaseContext';
+import { usePortalApp } from '@/context/PortalAppContext';
 
 // Create a skeleton request that adheres to the PendingRequest interface
 const createSkeletonRequest = (): PendingRequest => ({
@@ -29,6 +30,7 @@ export const PendingRequestsList: React.FC = React.memo(() => {
   const { isLoadingRequest, requestFailed, pendingUrl, showSkeletonLoader, setRequestFailed } =
     usePendingRequests();
   const nostrService = useNostrService();
+  const appService = usePortalApp();
   const [data, setData] = useState<PendingRequest[]>([]);
 
   // Simple database access
@@ -97,7 +99,7 @@ export const PendingRequestsList: React.FC = React.memo(() => {
     const cleanupExpiredRequests = () => {
       const expiredRequestIds: string[] = [];
 
-      Object.values(nostrService.pendingRequests).forEach(request => {
+      Object.values(appService.pendingRequests).forEach(request => {
         if (isRequestExpired(request)) {
           expiredRequestIds.push(request.id);
         }
@@ -106,7 +108,7 @@ export const PendingRequestsList: React.FC = React.memo(() => {
       // Remove expired requests from the context
       expiredRequestIds.forEach(id => {
         console.log(`🗑️ Automatically removing expired request: ${id}`);
-        nostrService.dismissPendingRequest(id);
+        appService.dismissPendingRequest(id);
       });
     };
 
@@ -119,12 +121,12 @@ export const PendingRequestsList: React.FC = React.memo(() => {
     return () => {
       clearInterval(cleanupInterval);
     };
-  }, [nostrService.pendingRequests, nostrService.dismissPendingRequest]);
+  }, [appService.pendingRequests, nostrService.dismissPendingRequest]);
 
   useEffect(() => {
     const processData = async () => {
       // Get sorted requests
-      const sortedRequests = Object.values(nostrService.pendingRequests)
+      const sortedRequests = Object.values(appService.pendingRequests)
         .filter(request => {
           // Filter out expired requests using the helper function
           if (isRequestExpired(request)) {
@@ -182,7 +184,7 @@ export const PendingRequestsList: React.FC = React.memo(() => {
     };
 
     processData();
-  }, [nostrService.pendingRequests, isLoadingRequest, requestFailed]);
+  }, [appService.pendingRequests, isLoadingRequest, requestFailed]);
 
   const handleRetry = () => {
     setRequestFailed(false);
@@ -261,6 +263,8 @@ export const PendingRequestsList: React.FC = React.memo(() => {
     </View>
   );
 });
+
+PendingRequestsList.displayName = 'PendingRequestsList';
 
 const styles = StyleSheet.create({
   container: {

@@ -52,10 +52,13 @@ export const launchImagePickerWithAutoCancel = async (
     return result;
   });
 
-  const raceResult = await Promise.race([pickerPromise, cancelPromise.then(result => {
-    canceledExternally = true;
-    return result;
-  })]);
+  const raceResult = await Promise.race([
+    pickerPromise,
+    cancelPromise.then(result => {
+      canceledExternally = true;
+      return result;
+    }),
+  ]);
 
   if (canceledExternally) {
     pickerPromise.catch(() => undefined);
@@ -63,4 +66,3 @@ export const launchImagePickerWithAutoCancel = async (
 
   return raceResult;
 };
-

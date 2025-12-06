@@ -1,9 +1,9 @@
-import { RelayConnectionStatus } from "./types";
+import { RelayConnectionStatus } from './types';
 
 // Helper function to extract service name from profile (nip05 only)
 export function getServiceNameFromProfile(profile: any): string | null {
   return profile?.nip05 || null;
-};
+}
 
 // Note: RelayConnectionStatus, RelayInfo, and ConnectionSummary are now imported from centralized types
 

@@ -12,7 +12,7 @@ const BACKGROUND_NOTIFICATION_TASK = 'BACKGROUND-NOTIFICATION-TASK';
 /**
  * Define the background notification task
  * This runs when a remote notification is received while the app is in the background
- * 
+ *
  * According to Expo docs, this must be defined at the module level,
  * not inside React components or functions
  */
@@ -28,9 +28,9 @@ TaskManager.defineTask<Notifications.NotificationTaskPayload>(
     console.log('Execution Info:', executionInfo);
     console.log('================================================');
 
-     // Check if the app is currently in the foreground (active state)
+    // Check if the app is currently in the foreground (active state)
     if (AppState.currentState === 'active') {
-    console.log('⚠️ App is in foreground, skipping background logic');
+      console.log('⚠️ App is in foreground, skipping background logic');
 
       return; // Do not execute background logic if the app is active
     }
@@ -57,8 +57,7 @@ TaskManager.defineTask<Notifications.NotificationTaskPayload>(
               ? (JSON.parse(rawBody) as Record<string, unknown>)
               : (rawBody as Record<string, unknown>);
 
-          const eventContentValue =
-            parsedBody?.['event_content'] ?? parsedBody?.['eventContent'];
+          const eventContentValue = parsedBody?.['event_content'] ?? parsedBody?.['eventContent'];
 
           if (typeof eventContentValue !== 'string') {
             console.warn('⚠️ Notification body missing Nostr event content');
@@ -77,7 +76,7 @@ TaskManager.defineTask<Notifications.NotificationTaskPayload>(
     } else {
       console.warn('⚠️ Notification response structure unexpected:', data);
     }
-    
+
     console.log('================================================');
     console.log('🔔 BACKGROUND NOTIFICATION TASK COMPLETED');
     console.log('================================================');

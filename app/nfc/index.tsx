@@ -127,10 +127,7 @@ export default function NFCScanScreen() {
   const containerPadding = 32;
   const availableWidth = screenWidth - containerPadding;
   // Ensure scan area fits within screen bounds with minimum size of 200px
-  const scanAreaSize = Math.max(
-    200,
-    Math.min(availableWidth * 0.7, 280, screenWidth - 40)
-  );
+  const scanAreaSize = Math.max(200, Math.min(availableWidth * 0.7, 280, screenWidth - 40));
 
   // Real NFC Status Checking using react-native-nfc-manager
   const checkNFCStatus = async (): Promise<boolean> => {

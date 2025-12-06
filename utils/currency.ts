@@ -186,10 +186,10 @@ export const shouldShowConvertedAmount = (params: {
   convertedCurrency: string | null | undefined;
 }): boolean => {
   const { amount, originalCurrency, convertedCurrency } = params;
-  
+
   const original = normalizeCurrencyForComparison(originalCurrency);
   const converted = normalizeCurrencyForComparison(convertedCurrency);
-  
+
   return amount !== null && amount !== undefined && !!converted && converted !== original;
 };
 
