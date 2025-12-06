@@ -12,6 +12,7 @@ import {
 import { Platform } from 'react-native';
 import type {
   KeyHandshakeUrl,
+  NostrConnectRequestEvent,
   RecurringPaymentRequest,
   SinglePaymentRequest,
 } from 'portal-app-lib';
@@ -21,6 +22,8 @@ import {
   AuthResponseStatus,
   CashuResponseStatus,
   Currency_Tags,
+  NostrConnectResponseStatus,
+  keyToHex,
 } from 'portal-app-lib';
 
 import { fromUnixSeconds } from '@/services/DatabaseService';
@@ -28,6 +31,7 @@ import { useDatabaseContext } from '@/context/DatabaseContext';
 import { useActivities } from '@/context/ActivitiesContext';
 import { useCurrency } from '@/context/CurrencyContext';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import { normalizeCurrencyForComparison } from '@/utils/currency';
 import { NostrServiceContextType, useNostrService } from '@/context/NostrServiceContext';
 import { useECash } from '@/context/ECashContext';
 import type {
@@ -38,7 +42,7 @@ import type {
 } from '@/utils/types';
 import { PortalAppManager } from '@/services/PortalAppManager';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
-import { globalEvents } from '@/utils/common';
+import { globalEvents, getServiceNameFromMintUrl } from '@/utils/common';
 import { usePortalApp } from './PortalAppContext';
 import { useWalletManager } from './WalletManagerContext';
 
@@ -47,14 +51,28 @@ const getServiceNameWithFallback = async (
   nostrService: NostrServiceContextType,
   serviceKey: string
 ): Promise<string> => {
+  if (!serviceKey || serviceKey === 'Unknown Service') {
+    return 'Unknown Service';
+  }
+
+  // If it's a URL (mint URL), extract service name from it
+  if (serviceKey.startsWith('http://') || serviceKey.startsWith('https://')) {
+    return getServiceNameFromMintUrl(serviceKey);
+  }
+
+  // Try to resolve service name from Nostr (works with hex, npub, or any valid key format)
   try {
     const app = PortalAppManager.tryGetInstance();
     const serviceName = await nostrService.getServiceName(app, serviceKey);
-    return serviceName || 'Unknown Service';
+    if (serviceName) {
+      return serviceName;
+    }
   } catch (error) {
+    // If resolution fails, fall through to return Unknown Service
     console.error('Failed to fetch service name:', error);
-    return 'Unknown Service';
   }
+
+  return 'Unknown Service';
 };
 // Note: PendingActivity and PendingSubscription are now imported from centralized types
 
@@ -119,13 +137,122 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
   // Helper function to add an activity
   const addActivityWithFallback = async (activity: PendingActivity): Promise<string> => {
-    const id = await executeOperation(
-      db => db.addActivity(activity),
-      '' // fallback to empty string if failed
-    );
-    refreshData();
-    return id;
+    try {
+      const id = await executeOperation(db => db.addActivity(activity));
+      if (id && typeof id === 'string' && id.length > 0) {
+        // Fetch the created/updated activity to emit it
+        const createdActivity = await executeOperation(
+          db => db.getActivity(id),
+          null
+        );
+        if (createdActivity) {
+          globalEvents.emit('activityAdded', createdActivity);
+        }
+        refreshData();
+        return id;
+      } else {
+        refreshData();
+        return '';
+      }
+    } catch (error) {
+      console.error('Failed to add activity:', error);
+      refreshData();
+      return '';
+    }
   };
+
+  // Helper function to safely convert amount to number or null
+  // Preserves 0 values (doesn't convert to null due to falsy check)
+  const safeAmountToNumber = (amount: number | null | undefined): number | null => {
+    if (amount == null) return null;
+    const num = Number(amount);
+    return isNaN(num) ? null : num;
+  };
+
+  // Helper function to create ticket activity with progressive fallback retry logic
+  // Tries with full data first, then minimal required fields, then absolute minimal data
+  const createTicketActivityWithRetry = useCallback(
+    async (
+      activityType: 'ticket_approved' | 'ticket_denied',
+      baseData: {
+        mintUrl: string | null;
+        serviceName: string;
+        ticketTitle: string;
+        amount: number | null;
+        requestId: string;
+      }
+    ): Promise<void> => {
+      const { mintUrl, serviceName, ticketTitle, amount, requestId } = baseData;
+      const status = activityType === 'ticket_approved' ? ('positive' as const) : ('negative' as const);
+
+      // Try with full data first
+      try {
+        const activityId = await addActivityWithFallback({
+          type: activityType,
+          service_key: mintUrl || 'Unknown Service',
+          service_name: serviceName,
+          detail: ticketTitle,
+          date: new Date(),
+          amount: safeAmountToNumber(amount),
+          currency: activityType === 'ticket_approved' ? 'sats' : null,
+          converted_amount: null,
+          converted_currency: null,
+          request_id: requestId,
+          subscription_id: null,
+          status,
+        });
+        if (activityId) {
+          return; // Success, exit early
+        }
+      } catch (error) {
+        console.error(`Failed to create ${activityType} activity with full data:`, error);
+      }
+
+      // Try with minimal required fields
+      try {
+        const activityId = await addActivityWithFallback({
+          type: activityType,
+          service_key: mintUrl || 'Unknown Service',
+          service_name: 'Unknown Service',
+          detail: `Ticket ${activityType === 'ticket_approved' ? 'request approved' : 'request denied'}`,
+          date: new Date(),
+          amount: safeAmountToNumber(amount),
+          currency: activityType === 'ticket_approved' ? 'sats' : null,
+          converted_amount: null,
+          converted_currency: null,
+          request_id: requestId,
+          subscription_id: null,
+          status,
+        });
+        if (activityId) {
+          return; // Success, exit early
+        }
+      } catch (error) {
+        console.error(`Failed to create ${activityType} activity with minimal data:`, error);
+      }
+
+      // Last resort - try with absolute minimal data
+      try {
+        await addActivityWithFallback({
+          type: activityType,
+          service_key: mintUrl || 'Unknown Service',
+          service_name: 'Unknown Service',
+          detail: `Ticket ${activityType === 'ticket_approved' ? 'approved' : 'denied'}`,
+          date: new Date(),
+          amount: null,
+          currency: null,
+          converted_amount: null,
+          converted_currency: null,
+          request_id: requestId,
+          subscription_id: null,
+          status,
+        });
+      } catch (error) {
+        console.error(`Final attempt to create ${activityType} activity failed:`, error);
+      }
+    },
+    [addActivityWithFallback]
+  );
 
   // Helper function to add a subscription
   const addSubscriptionWithFallback = useCallback(
@@ -250,7 +377,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 break;
               case Currency_Tags.Millisats:
                 amount = amount / 1000; // Convert to sats for database storage
-                currency = 'sats';
+                currency = 'SATS';
                 conversionSourceAmount = rawAmount;
                 conversionSourceCurrency = 'MSATS';
                 break;
@@ -260,16 +387,27 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             let convertedAmount: number | null = null;
             let convertedCurrency: string | null = null;
 
-            try {
-              convertedAmount = await CurrencyConversionService.convertAmount(
-                conversionSourceAmount,
-                conversionSourceCurrency,
-                preferredCurrency // Currency enum values are already strings
-              );
-              convertedCurrency = preferredCurrency;
-            } catch (error) {
-              console.error('Currency conversion error during payment:', error);
-              // Continue without conversion - convertedAmount will remain null
+            // Normalize stored currency for comparison (handle "sats" -> "SATS")
+            const normalizedStoredCurrency = normalizeCurrencyForComparison(currency);
+            const normalizedPreferredCurrency = normalizeCurrencyForComparison(preferredCurrency);
+
+            // Skip conversion if currencies are the same (case-insensitive, with sats normalization)
+            if (normalizedStoredCurrency && normalizedPreferredCurrency && normalizedStoredCurrency === normalizedPreferredCurrency) {
+              // No conversion needed - currencies match
+              convertedAmount = null;
+              convertedCurrency = null;
+            } else {
+              try {
+                convertedAmount = await CurrencyConversionService.convertAmount(
+                  conversionSourceAmount,
+                  conversionSourceCurrency,
+                  preferredCurrency // Currency enum values are already strings
+                );
+                convertedCurrency = preferredCurrency;
+              } catch (error) {
+                console.error('Currency conversion error during payment:', error);
+                // Continue without conversion - convertedAmount will remain null
+              }
             }
 
             const activityId = await addActivityWithFallback({
@@ -391,7 +529,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                   break;
                 case Currency_Tags.Millisats:
                   amount = amount / 1000; // Convert to sats for database storage
-                  currency = 'sats';
+                  currency = 'SATS';
                   conversionSourceAmount = rawAmount;
                   conversionSourceCurrency = 'MSATS';
                   break;
@@ -490,7 +628,15 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               // Get the amount from the request
               const amount = cashuEvent.inner.amount;
               const walletBalance = await wallet.getBalance();
-              if (walletBalance < amount) {
+
+              // Ensure both values are BigInt for proper comparison
+              const balanceBigInt = typeof walletBalance === 'bigint' ? walletBalance : BigInt(walletBalance);
+              const amountBigInt = typeof amount === 'bigint' ? amount : BigInt(amount);
+
+              console.log(`[Ticket Request] Balance check: balance=${balanceBigInt.toString()}, requested=${amountBigInt.toString()}, unit=${cashuEvent.inner.unit}`);
+
+              if (balanceBigInt < amountBigInt) {
+                console.warn(`[Ticket Request] Insufficient balance: have ${balanceBigInt.toString()}, need ${amountBigInt.toString()}`);
                 request.result(new CashuResponseStatus.InsufficientFunds());
                 return;
               }
@@ -504,9 +650,20 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 unit: cashuEvent.inner.unit.toLowerCase(),
               });
 
-              // Add activity for token send
+              // Get mint URL (this is the actual ticket mint, same as ticket_received)
+              const mintUrl = cashuEvent.inner.mintUrl;
+
+              // Get Nostr service key for resolving service name (the requestor's public key)
+              const nostrServiceKey = cashuEvent.serviceKey || cashuEvent.mainKey || null;
+
+              // Resolve service name from Nostr service key if available
+              const serviceName = nostrServiceKey
+                ? await getServiceNameWithFallback(nostrService, nostrServiceKey)
+                : getServiceNameFromMintUrl(mintUrl);
+
+              // Get ticket title for detail field
               // Try to find the wallet by mintUrl
-              let ticketWallet = eCashContext.wallets[cashuEvent.inner.mintUrl];
+              let ticketWallet = eCashContext.wallets[mintUrl];
               if (!ticketWallet) {
                 // Try to find by any wallet that matches the unit
                 const walletEntries = Object.entries(eCashContext.wallets);
@@ -526,19 +683,15 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 unitInfo?.title ||
                 (ticketWallet ? ticketWallet.unit() : cashuEvent.inner.unit || 'Unknown Ticket');
 
-              addActivityWithFallback({
-                type: 'ticket_approved',
-                service_key: cashuEvent.serviceKey || 'Unknown Service',
-                service_name: ticketTitle, // Use ticket title as service name
-                detail: ticketTitle, // Use ticket title as detail
-                date: new Date(),
-                amount: Number(amount), // Store actual number of tickets, not divided by 1000
-                currency: 'sats',
-                converted_amount: null,
-                converted_currency: null,
-                request_id: id,
-                subscription_id: null,
-                status: 'positive',
+              // Create activity for approved ticket request
+              // Use unique request_id by appending activity type to ensure each action creates its own activity
+              // Use mintUrl as service_key to match ticket_received activities
+              await createTicketActivityWithRetry('ticket_approved', {
+                mintUrl,
+                serviceName,
+                ticketTitle,
+                amount: Number(amount),
+                requestId: `${id}-approved`,
               });
 
               request.result(new CashuResponseStatus.Success({ token }));
@@ -557,9 +710,55 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             );
           }
           break;
+        case 'nostrConnect':
+          const connectEvent = request.metadata as NostrConnectRequestEvent;
+
+          const requestedPermissions = connectEvent.params.at(2) ?? null;
+          try {
+            // whitelist the nostr client
+            executeOperation((db) => db.addAllowedBunkerClient(
+              keyToHex(connectEvent.nostrClientPubkey),
+              null,
+              requestedPermissions
+            ))
+          } catch (e) {
+            console.error(e);
+            addActivityWithFallback({
+              type: 'auth',
+              service_key: (request.metadata as NostrConnectRequestEvent).nostrClientPubkey,
+              detail: 'Login with bunker failed',
+              date: new Date(),
+              service_name: "Nostr client",
+              amount: null,
+              currency: null,
+              converted_amount: null,
+              converted_currency: null,
+              request_id: id,
+              subscription_id: null,
+              status: 'negative',
+            });
+          }
+
+          // Create NostrConnectResponseStatus for approved bunker connection
+          request.result(new NostrConnectResponseStatus.Approved);
+          addActivityWithFallback({
+            type: 'auth',
+            service_key: (request.metadata as NostrConnectRequestEvent).nostrClientPubkey,
+            detail: 'User approved bunker login',
+            date: new Date(),
+            service_name: "Nostr client",
+            amount: null,
+            currency: null,
+            converted_amount: null,
+            converted_currency: null,
+            request_id: id,
+            subscription_id: null,
+            status: 'positive',
+          });
+          break;
       }
     },
-    [getById, addActivityWithFallback, addSubscriptionWithFallback, nostrService, eCashContext]
+    [getById, addActivityWithFallback, addSubscriptionWithFallback, createTicketActivityWithRetry, nostrService, eCashContext]
   );
 
   const deny = useCallback(
@@ -635,7 +834,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 break;
               case Currency_Tags.Millisats:
                 amount = amount / 1000; // Convert to sats for database storage
-                currency = 'sats';
+                currency = 'SATS';
                 conversionSourceAmount = rawAmount;
                 conversionSourceCurrency = 'MSATS';
                 break;
@@ -739,11 +938,35 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           try {
             const cashuEvent = request.metadata as any;
 
-            // Only handle Cashu request events (sending tokens)
-            if (cashuEvent.inner?.mintUrl && cashuEvent.inner?.amount) {
-              // Add activity for denied token send
+            // Get mint URL (this is the actual ticket mint, same as ticket_received)
+            const mintUrl = cashuEvent.inner?.mintUrl;
+
+            // Get Nostr service key for resolving service name (the requestor's public key)
+            const nostrServiceKey = cashuEvent.serviceKey || cashuEvent.mainKey || null;
+
+            // Resolve service name from Nostr service key if available, otherwise use mint URL
+            let serviceName = 'Unknown Service';
+            try {
+              serviceName = nostrServiceKey
+                ? await getServiceNameWithFallback(nostrService, nostrServiceKey)
+                : mintUrl
+                  ? getServiceNameFromMintUrl(mintUrl)
+                  : 'Unknown Service';
+            } catch (serviceNameError) {
+              console.error('[Deny Ticket] Error resolving service name:', serviceNameError);
+              // Fallback to mint URL-based name or Unknown Service
+              serviceName = mintUrl ? getServiceNameFromMintUrl(mintUrl) : 'Unknown Service';
+            }
+
+            // Get ticket title for detail field
+            let ticketTitle = 'Unknown Ticket';
+            let ticketAmount: number | null = null;
+
+            // Try to get ticket information if available
+            if (mintUrl && cashuEvent.inner?.amount) {
+              ticketAmount = Number(cashuEvent.inner.amount);
               // Try to find the wallet by mintUrl
-              let ticketWallet = eCashContext.wallets[cashuEvent.inner.mintUrl];
+              let ticketWallet = eCashContext.wallets[mintUrl];
               if (!ticketWallet) {
                 // Try to find by any wallet that matches the unit
                 const walletEntries = Object.entries(eCashContext.wallets);
@@ -755,38 +978,55 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 }
               }
 
-              const deniedUnitInfo =
-                ticketWallet && ticketWallet.getUnitInfo
-                  ? await ticketWallet.getUnitInfo()
-                  : undefined;
-              const deniedTicketTitle =
-                deniedUnitInfo?.title ||
-                (ticketWallet ? ticketWallet.unit() : cashuEvent.inner.unit || 'Unknown Ticket');
-
-              addActivityWithFallback({
-                type: 'ticket_denied',
-                service_key: cashuEvent.serviceKey || 'Unknown Service',
-                service_name: deniedTicketTitle, // Use ticket title as service name
-                detail: deniedTicketTitle, // Use ticket title as detail
-                date: new Date(),
-                amount: Number(cashuEvent.inner.amount), // Store actual number of tickets, not divided by 1000
-                currency: null,
-                converted_amount: null,
-                converted_currency: null,
-                request_id: id,
-                subscription_id: null,
-                status: 'negative',
-              });
-
-              request.result(new CashuResponseStatus.Rejected({ reason: 'User denied request' }));
-            } else {
-              console.error('Invalid Cashu request event type for denial');
-              request.result(
-                new CashuResponseStatus.Rejected({ reason: 'Invalid Cashu request type' })
-              );
+              if (ticketWallet) {
+                const deniedUnitInfo =
+                  ticketWallet.getUnitInfo ? await ticketWallet.getUnitInfo() : undefined;
+                ticketTitle =
+                  deniedUnitInfo?.title ||
+                  (ticketWallet ? ticketWallet.unit() : cashuEvent.inner.unit || 'Unknown Ticket');
+              } else if (cashuEvent.inner.unit) {
+                ticketTitle = cashuEvent.inner.unit;
+              }
             }
+
+            // Always create activity for denied ticket request
+            // Use unique request_id by appending activity type to ensure each action creates its own activity
+            // Use mintUrl as service_key to match ticket_received activities
+            await createTicketActivityWithRetry('ticket_denied', {
+              mintUrl: mintUrl || null,
+              serviceName,
+              ticketTitle,
+              amount: ticketAmount,
+              requestId: `${id}-denied`,
+            });
+
+            request.result(new CashuResponseStatus.Rejected({ reason: 'User denied request' }));
           } catch (error: any) {
             console.error('Error processing Cashu denial:', error);
+            // Even on error, try to create activity with minimal info
+            try {
+              const cashuEvent = request.metadata as any;
+              const mintUrl = cashuEvent?.inner?.mintUrl;
+              const nostrServiceKey = cashuEvent?.serviceKey || cashuEvent?.mainKey || null;
+
+              const serviceName = nostrServiceKey
+                ? await getServiceNameWithFallback(nostrService, nostrServiceKey).catch(
+                  () => mintUrl ? getServiceNameFromMintUrl(mintUrl) : 'Unknown Service'
+                )
+                : mintUrl
+                  ? getServiceNameFromMintUrl(mintUrl)
+                  : 'Unknown Service';
+
+              await createTicketActivityWithRetry('ticket_denied', {
+                mintUrl: mintUrl || null,
+                serviceName,
+                ticketTitle: 'Ticket request denied',
+                amount: null,
+                requestId: `${id}-denied`,
+              });
+            } catch (activityError) {
+              console.error('Failed to create activity for denied ticket in error handler:', activityError);
+            }
             request.result(
               new CashuResponseStatus.Rejected({
                 reason: error.message || 'Failed to process Cashu denial',
@@ -794,9 +1034,28 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             );
           }
           break;
+        case 'nostrConnect':
+          request.result(new NostrConnectResponseStatus.Declined({
+            reason: "Declined by the user"
+          }));
+          addActivityWithFallback({
+            type: 'auth',
+            service_key: (request.metadata as NostrConnectRequestEvent).nostrClientPubkey,
+            detail: 'User declined bunker login',
+            date: new Date(),
+            service_name: "Nostr client",
+            amount: null,
+            currency: null,
+            converted_amount: null,
+            converted_currency: null,
+            request_id: id,
+            subscription_id: null,
+            status: 'negative',
+          });
+          break;
       }
     },
-    [getById, addActivityWithFallback, appService]
+    [getById, addActivityWithFallback, createTicketActivityWithRetry, nostrService, eCashContext, appService]
   );
 
   // Show skeleton loader and set timeout for request

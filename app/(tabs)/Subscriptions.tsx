@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { StyleSheet, View, FlatList, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, FlatList, TouchableOpacity, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -9,7 +9,7 @@ import { useActivities } from '@/context/ActivitiesContext';
 import { fromUnixSeconds, type SubscriptionWithDates } from '@/services/DatabaseService';
 import { parseCalendar } from 'portal-app-lib';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { Currency, shouldShowConvertedAmount } from '@/utils/currency';
+import { Currency, shouldShowConvertedAmount, formatActivityAmount } from '@/utils/currency';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 
 export default function SubscriptionsScreen() {
@@ -70,7 +70,7 @@ export default function SubscriptionsScreen() {
               </ThemedText>
               <View style={styles.amountContainer}>
                 <ThemedText style={[styles.amount, { color: primaryTextColor }]}>
-                  {item.amount} {item.currency}
+                  {formatActivityAmount(item.amount, item.currency)}
                 </ThemedText>
                 {shouldShowConvertedAmount({
                   amount: item.converted_amount,
@@ -118,49 +118,61 @@ export default function SubscriptionsScreen() {
         <ThemedText type="title" style={{ color: primaryTextColor }}>
           Your subscriptions
         </ThemedText>
-        <View style={styles.filterContainer}>
-          <TouchableOpacity
-            style={[
-              styles.filterChip,
-              {
-                backgroundColor: filter === 'active' ? buttonPrimaryColor : buttonSecondaryColor,
-              },
-            ]}
-            onPress={handleFilterActive}
+        <View style={[styles.filtersCard, { backgroundColor: cardBackgroungColor }]}>
+          <ThemedText type="subtitle" style={[styles.filtersLabel, { color: secondaryTextColor }]}>
+            Filters
+          </ThemedText>
+          <ScrollView
+            style={styles.filterScroll}
+            contentContainerStyle={styles.filterContainer}
+            horizontal
+            showsHorizontalScrollIndicator={false}
           >
-            <ThemedText
-              type="subtitle"
+            <TouchableOpacity
               style={[
-                styles.filterChipText,
+                styles.filterChip,
+                styles.filterChipFirst,
                 {
-                  color: filter === 'active' ? buttonPrimaryTextColor : buttonSecondaryTextColor,
+                  backgroundColor: filter === 'active' ? buttonPrimaryColor : buttonSecondaryColor,
                 },
               ]}
+              onPress={handleFilterActive}
             >
-              Active
-            </ThemedText>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.filterChip,
-              {
-                backgroundColor: filter === 'archived' ? buttonPrimaryColor : buttonSecondaryColor,
-              },
-            ]}
-            onPress={handleFilterArchived}
-          >
-            <ThemedText
-              type="subtitle"
+              <ThemedText
+                type="subtitle"
+                style={[
+                  styles.filterChipText,
+                  {
+                    color: filter === 'active' ? buttonPrimaryTextColor : buttonSecondaryTextColor,
+                  },
+                ]}
+              >
+                Active
+              </ThemedText>
+            </TouchableOpacity>
+            <TouchableOpacity
               style={[
-                styles.filterChipText,
+                styles.filterChip,
+                styles.filterChipLast,
                 {
-                  color: filter === 'archived' ? buttonPrimaryTextColor : buttonSecondaryTextColor,
+                  backgroundColor: filter === 'archived' ? buttonPrimaryColor : buttonSecondaryColor,
                 },
               ]}
+              onPress={handleFilterArchived}
             >
-              Archived
-            </ThemedText>
-          </TouchableOpacity>
+              <ThemedText
+                type="subtitle"
+                style={[
+                  styles.filterChipText,
+                  {
+                    color: filter === 'archived' ? buttonPrimaryTextColor : buttonSecondaryTextColor,
+                  },
+                ]}
+              >
+                Archived
+              </ThemedText>
+            </TouchableOpacity>
+          </ScrollView>
         </View>
 
         {filteredSubscriptions.length === 0 ? (
@@ -248,18 +260,39 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     // color handled by theme
   },
-  filterContainer: {
-    paddingVertical: 16,
+  filtersCard: {
+    borderRadius: 20,
+    paddingHorizontal: 2,
+    paddingVertical: 12,
+    marginTop: 16,
     marginBottom: 12,
+  },
+  filtersLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 12,
+  },
+  filterScroll: {
+    marginTop: 12,
+    alignSelf: 'stretch',
+  },
+  filterContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
+    columnGap: 8,
   },
   filterChip: {
     // backgroundColor handled by theme
-    paddingVertical: 8,
     paddingHorizontal: 16,
-    marginEnd: 8,
+    paddingVertical: 8,
     borderRadius: 20,
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  filterChipFirst: {
+    marginLeft: 8,
+  },
+  filterChipLast: {
+    marginRight: 8,
   },
   filterChipText: {
     // color handled by theme

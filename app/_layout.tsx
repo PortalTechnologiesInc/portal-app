@@ -26,6 +26,9 @@ import migrateDbIfNeeded from '@/migrations/DatabaseMigrations';
 import { PaymentControllerProvider } from '@/context/PaymentControllerContext';
 import { PortalAppProvider } from '@/context/PortalAppContext';
 import WalletManagerContextProvider from '@/context/WalletManagerContext';
+import { AppLockProvider } from '@/context/AppLockContext';
+import { AppLockScreen } from '@/components/AppLockScreen';
+import { AppLifecycleHandler } from '@/components/AppLifecycleHandler';
 
 // Prevent splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -106,7 +109,7 @@ const LoadingScreenContent = () => {
 // AuthenticatedAppContent renders the actual app content after authentication checks
 const AuthenticatedAppContent = () => {
   const { isLoading: onboardingLoading } = useOnboarding();
-  const { mnemonic, nsec, walletUrl, isLoading } = useKey();
+  const { mnemonic, nsec, isLoading } = useKey();
   const backgroundColor = useThemeColor({}, 'background');
 
   // Show loading screen with proper background while contexts are loading
@@ -120,7 +123,7 @@ const AuthenticatedAppContent = () => {
 
   return (
     <ECashProvider mnemonic={mnemonic || ''} nsec={nsec || ''}>
-      <NostrServiceProvider mnemonic={mnemonic || ''} nsec={nsec || ''} walletUrl={walletUrl}>
+      <NostrServiceProvider mnemonic={mnemonic || ''} nsec={nsec || ''}>
         <WalletManagerContextProvider>
           <PortalAppProvider>
             <UserProfileProvider>
@@ -149,9 +152,13 @@ const ThemedRootView = () => {
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor }}>
       <ThemedStatusBar />
-      <OnboardingProvider>
-        <AuthenticatedAppContent />
-      </OnboardingProvider>
+      <AppLockProvider>
+        <OnboardingProvider>
+          <AppLifecycleHandler />
+          <AuthenticatedAppContent />
+        </OnboardingProvider>
+        <AppLockScreen />
+      </AppLockProvider>
     </GestureHandlerRootView>
   );
 };

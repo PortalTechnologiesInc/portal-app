@@ -6,7 +6,7 @@ import { usePendingRequests } from '@/context/PendingRequestsContext';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { Alert } from 'react-native';
 import { router } from 'expo-router';
-import { globalEvents } from '@/utils/common';
+import { globalEvents, getServiceNameFromMintUrl } from '@/utils/common';
 import { useECash } from './ECashContext';
 import { useDatabaseContext } from './DatabaseContext';
 import { useOnboarding } from './OnboardingContext';
@@ -75,13 +75,14 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
                 const serviceKey = tokenInfo.mintUrl;
                 const unitInfo = await wallet.getUnitInfo();
                 const ticketTitle = unitInfo?.title || wallet.unit();
+                const serviceName = getServiceNameFromMintUrl(serviceKey);
 
                 // Add activity to database using ActivitiesContext directly
                 const activity = {
                   type: 'ticket_received' as const,
                   service_key: serviceKey,
-                  service_name: ticketTitle,
-                  detail: ticketTitle,
+                  service_name: serviceName, // Use readable service name from mint URL
+                  detail: ticketTitle, // Use ticket title as detail
                   date: new Date(),
                   amount: tokenInfo.amount ? Number(tokenInfo.amount) : null, // Store actual number of tickets, not divided by 1000
                   currency: null,

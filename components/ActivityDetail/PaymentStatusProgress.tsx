@@ -52,7 +52,13 @@ export const convertPaymentStatusToSteps = (
         break;
       case 'payment_completed':
         // Update the last pending step to completed
-        const lastPendingIndex = steps.findIndex(step => step.status === 'pending');
+        let lastPendingIndex = -1;
+        for (let i = steps.length - 1; i >= 0; i--) {
+          if (steps[i].status === 'pending') {
+            lastPendingIndex = i;
+            break;
+          }
+        }
         if (lastPendingIndex !== -1) {
           steps[lastPendingIndex] = {
             ...steps[lastPendingIndex],
@@ -74,7 +80,13 @@ export const convertPaymentStatusToSteps = (
         break;
       case 'payment_failed':
         // Update the last pending step to error
-        const lastPendingStepIndex = steps.findIndex(step => step.status === 'pending');
+        let lastPendingStepIndex = -1;
+        for (let i = steps.length - 1; i >= 0; i--) {
+          if (steps[i].status === 'pending') {
+            lastPendingStepIndex = i;
+            break;
+          }
+        }
         if (lastPendingStepIndex !== -1) {
           steps[lastPendingStepIndex] = {
             ...steps[lastPendingStepIndex],

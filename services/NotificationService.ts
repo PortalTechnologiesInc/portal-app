@@ -10,34 +10,30 @@ import {
   CloseRecurringPaymentResponse,
   Currency_Tags,
   Mnemonic,
+  NostrConnectRequestEvent,
+  NostrConnectResponseStatus,
   PaymentStatus,
   PaymentStatusNotifier,
   PortalApp,
+  PortalAppInterface,
   RecurringPaymentRequest,
   RecurringPaymentResponseContent,
   RelayStatusListener,
   SinglePaymentRequest,
+  keyToHex,
+  parseBolt11,
 } from 'portal-app-lib';
 import { openDatabaseAsync } from 'expo-sqlite';
 import { DatabaseService } from './DatabaseService';
 import { PortalAppManager } from './PortalAppManager';
-import {
-  handleAuthChallenge,
-  handleCloseRecurringPaymentResponse,
-  handleRecurringPaymentRequest,
-  handleSinglePaymentRequest,
-} from './EventFilters';
-import { mapNumericStatusToString } from '@/utils/nostrHelper';
+import { handleAuthChallenge, handleCloseRecurringPaymentResponse, handleNostrConnectRequest, handleRecurringPaymentRequest, handleSinglePaymentRequest } from './EventFilters';
+import { mapNumericStatusToString, getServiceNameFromProfile } from '@/utils/nostrHelper';
 import { RelayInfo } from '@/utils/common';
 import { Currency, CurrencyHelpers } from '@/utils/currency';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {
-  LocalAuthChallengeListener,
-  LocalClosedRecurringPaymentListener,
-  LocalPaymentRequestListener,
-} from '@/context/PortalAppContext';
 import { NwcService } from './NwcService';
 import { Wallet } from '@/models/WalletType';
+import { LocalAuthChallengeListener, LocalClosedRecurringPaymentListener, LocalNip46RequestListener, LocalPaymentRequestListener } from '@/context/PortalAppContext';
 
 const EXPO_PUSH_TOKEN_KEY = 'expo_push_token_key';
 
@@ -78,18 +74,174 @@ async function subscribeToNotificationService(expoPushToken: string, pubkeys: st
 }
 
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-    shouldShowBanner: false,
-    shouldShowList: false,
-  }),
+  handleNotification: async notification => {
+    // Allow showing only specific local notifications; keep others silent
+    const data = (notification.request?.content?.data || {}) as any;
+    const type = data?.type;
+
+    const isAmountExceededNotification = type === 'payment_request_exceeded_tolerance';
+
+    if (isAmountExceededNotification) {
+      return {
+        shouldShowAlert: true,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      };
+    }
+
+    return {
+      shouldShowAlert: false,
+      shouldPlaySound: false,
+      shouldSetBadge: false,
+      shouldShowBanner: false,
+      shouldShowList: false,
+    };
+  },
 });
 
 function handleRegistrationError(errorMessage: string) {
-  // eslint-disable-next-line no-undef
-  alert(errorMessage);
   console.error(errorMessage);
+}
+
+/**
+ * Formats the expected amount from a payment request for display in notifications
+ */
+function formatExpectedAmount(
+  amount: number | bigint,
+  currency: any
+): { amount: string; currency: string } | null {
+  if (currency.tag === Currency_Tags.Millisats) {
+    const expectedMsat = typeof amount === 'bigint' ? Number(amount) : amount;
+    const expectedSats = expectedMsat / 1000;
+    return { amount: expectedSats.toString(), currency: 'sats' };
+  } else if (currency.tag === Currency_Tags.Fiat) {
+    const fiatCurrencyRaw = currency.inner;
+    const fiatCurrencyValue = Array.isArray(fiatCurrencyRaw)
+      ? fiatCurrencyRaw[0]
+      : fiatCurrencyRaw;
+    const fiatCurrency =
+      typeof fiatCurrencyValue === 'string'
+        ? String(fiatCurrencyValue).toUpperCase()
+        : 'UNKNOWN';
+    const normalizedAmount = (typeof amount === 'bigint' ? Number(amount) : amount) / 100;
+    return { amount: normalizedAmount.toString(), currency: fiatCurrency };
+  }
+  return null;
+}
+
+/**
+ * Gets the service name from cache, falling back to network fetch, then default value
+ */
+async function getServiceNameForNotification(
+  serviceKey: string,
+  app: PortalAppInterface,
+  executeOperation: <T>(operation: (db: DatabaseService) => Promise<T>, fallback?: T) => Promise<T>
+): Promise<string> {
+  try {
+    // Step 1: Check cache first
+    const cachedName = await executeOperation(
+      db => db.getCachedServiceName(serviceKey),
+      null
+    );
+    if (cachedName) {
+      return cachedName;
+    }
+
+    // Step 2: Fetch from network if not in cache
+    try {
+      const profile = await app.fetchProfile(serviceKey);
+      const serviceName = getServiceNameFromProfile(profile);
+
+      if (serviceName) {
+        // Cache the result for future use
+        await executeOperation(
+          db => db.setCachedServiceName(serviceKey, serviceName),
+          null
+        );
+        return serviceName;
+      }
+    } catch (fetchError) {
+      // Network fetch failed, continue to fallback
+      console.error('Failed to fetch service name from network for auto-reject notification:', fetchError);
+    }
+
+    // Step 3: Fallback to default
+    return 'Unknown Service';
+  } catch (error) {
+    console.error('Failed to resolve service name for auto-reject notification:', error);
+    return 'Unknown Service';
+  }
+}
+
+export const AMOUNT_MISMATCH_REJECTION_REASON =
+  'Invoice amount does not match the requested amount.';
+
+/**
+ * Sends a local notification when a payment request is auto-rejected due to amount mismatch.
+ * Shared between headless (background) and foreground flows.
+ */
+export async function sendPaymentAmountMismatchNotification(
+  request: SinglePaymentRequest,
+  executeOperation: <T>(
+    operation: (db: DatabaseService) => Promise<T>,
+    fallback?: T
+  ) => Promise<T>,
+  app: PortalAppInterface
+): Promise<void> {
+  try {
+    const invoiceData = parseBolt11(request.content.invoice);
+    const invoiceAmountMsat = Number(invoiceData.amountMsat);
+
+    const formattedAmount = formatExpectedAmount(
+      request.content.amount,
+      request.content.currency
+    );
+
+    let serviceName = 'Unknown Service';
+    try {
+      serviceName = await getServiceNameForNotification(
+        request.serviceKey,
+        app,
+        executeOperation
+      );
+    } catch (error) {
+      console.error(
+        'Failed to resolve service name for payment amount mismatch notification:',
+        error
+      );
+    }
+
+    const body = formattedAmount
+      ? `${serviceName} requested more than the expected amount (${formattedAmount.amount} ${formattedAmount.currency}). The request was automatically rejected.`
+      : `${serviceName} requested more than the expected amount. The request was automatically rejected.`;
+
+    const expectedAmountValue =
+      typeof request.content.amount === 'bigint'
+        ? request.content.amount.toString()
+        : String(request.content.amount);
+    const currencyTagValue = String((request.content.currency as any).tag);
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'Payment request auto-rejected',
+        body,
+        data: {
+          type: 'payment_request_exceeded_tolerance',
+          invoiceAmountMsat: String(invoiceAmountMsat),
+          expectedAmount: expectedAmountValue,
+          currencyTag: currencyTagValue,
+        },
+      },
+      trigger: null,
+    });
+  } catch (error) {
+    console.error(
+      'Failed to send auto-reject notification for payment amount mismatch:',
+      error
+    );
+  }
 }
 
 export default async function registerPubkeysForPushNotificationsAsync(pubkeys: string[]) {
@@ -130,7 +282,8 @@ export default async function registerPubkeysForPushNotificationsAsync(pubkeys: 
       handleRegistrationError(`${e}`);
     }
   } else {
-    handleRegistrationError('Must use physical device for push notifications');
+    // Silently skip push notification registration on emulator/simulator
+    console.log('Skipping push notification registration (emulator/simulator detected)');
   }
 }
 
@@ -227,24 +380,16 @@ export async function handleHeadlessNotification(event: string, databaseName: st
     app.listen({ signal: abortController.signal });
 
     // Listen for closed recurring payments
-    app
-      .listenClosedRecurringPayment(
-        new LocalClosedRecurringPaymentListener(async (response: CloseRecurringPaymentResponse) => {
-          console.log('Closed subscription received', response);
-          const resolver = async () => {
-            /* NOOP */
-          };
-          await handleCloseRecurringPaymentResponse(
-            response,
-            executeOperationForNotification,
-            resolver
-          );
-          abortController.abort();
-        })
-      )
-      .catch(async e => {
-        await notifyBackgroundError('Recurring payment listener error', e);
-      });
+    app.listenClosedRecurringPayment(new LocalClosedRecurringPaymentListener(
+      async (response: CloseRecurringPaymentResponse) => {
+        console.log('Closed subscription received', response);
+        const resolver = async () => { /* NOOP */ };
+        await handleCloseRecurringPaymentResponse(response, executeOperationForNotification, resolver);
+        abortController.abort();
+      }
+    )).catch(async e => {
+      await notifyBackgroundError('Recurring payment listener error', e);
+    });
 
     app
       .listenForPaymentRequest(
@@ -374,6 +519,33 @@ export async function handleHeadlessNotification(event: string, databaseName: st
         await notifyBackgroundError('Auth challenge listener error', e);
         // TODO: re-initialize the app
       });
+
+    app.listenForNip46Request(
+      new LocalNip46RequestListener((event: NostrConnectRequestEvent) => {
+        const id = event.id;
+        return new Promise<NostrConnectResponseStatus>(resolve => {
+          handleNostrConnectRequest(event, keyToHex(keypair.publicKey()), executeOperationForNotification, resolve).then((askUser) => {
+            if (askUser) {
+              Notifications.scheduleNotificationAsync({
+                content: {
+                  title: 'Authentication Request',
+                  body: `Authentication request requires approval`,
+                  data: {
+                    type: 'authentication_request',
+                    requestId: id,
+                  },
+                },
+                trigger: null, // Show immediately
+              });
+            }
+          }).finally(() => {
+            abortController.abort();
+          });
+        });
+      })
+    ).catch(e => {
+      console.error('Error listening for nip46 requests.', e);
+    });
   } catch (e) {
     console.error(e);
   }

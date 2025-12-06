@@ -113,8 +113,23 @@ export interface NostrRelayWithDates extends Omit<NostrRelay, 'created_at'> {
   created_at: Date;
 }
 
+export interface AllowedBunkerClient {
+  client_pubkey: string;
+  client_name: string | null;
+  requested_permissions: string;
+  granted_permissions: string;
+  last_seen: number; // Unix timestamp in seconds
+  created_at: number; // Unix timestamp in seconds
+  revoked: boolean;
+}
+
+export interface AllowedBunkerClientWithDates extends Omit<AllowedBunkerClient, 'last_seen' | 'created_at'> {
+  last_seen: Date;
+  created_at: Date;
+}
+
 export class DatabaseService {
-  constructor(private db: SQLiteDatabase) {}
+  constructor(private db: SQLiteDatabase) { }
 
   /**
    * Force database reinitialization after reset
@@ -169,12 +184,37 @@ export class DatabaseService {
         if (result.changes && result.changes > 0) {
           return id;
         }
-        // If insert was ignored (likely due to unique request_id), fetch existing row id
+        // If insert was ignored (likely due to unique request_id), update existing row instead
         const existing = await this.db.getFirstAsync<{ id: string }>(
           'SELECT id FROM activities WHERE request_id = ? LIMIT 1',
           [activity.request_id]
         );
-        if (existing?.id) return existing.id;
+        if (existing?.id) {
+          // Update the existing activity with new data
+          await this.db.runAsync(
+            `UPDATE activities SET
+              type = ?, service_name = ?, service_key = ?, detail = ?, date = ?,
+              amount = ?, currency = ?, converted_amount = ?, converted_currency = ?,
+              subscription_id = ?, status = ?, invoice = ?
+            WHERE request_id = ?`,
+            [
+              activity.type,
+              activity.service_name,
+              activity.service_key,
+              activity.detail,
+              toUnixSeconds(activity.date),
+              activity.amount,
+              activity.currency,
+              activity.converted_amount,
+              activity.converted_currency,
+              activity.subscription_id,
+              activity.status || 'neutral',
+              activity.invoice || null,
+              activity.request_id,
+            ]
+          );
+          return existing.id;
+        }
         // Fallback: return generated id (shouldn't happen if IGNORE occurred and existing found)
         return id;
       } catch (dbError) {
@@ -237,7 +277,9 @@ export class DatabaseService {
 
   async getActivities(
     options: {
-      type?: ActivityType;
+      types?: ActivityType[];
+      includeSubscriptions?: boolean;
+      excludeSubscriptions?: boolean;
       serviceKey?: string;
       limit?: number;
       offset?: number;
@@ -247,11 +289,60 @@ export class DatabaseService {
   ): Promise<ActivityWithDates[]> {
     const conditions: string[] = [];
     const params: (string | number | null)[] = [];
+    const orConditions: string[] = [];
 
-    if (options.type !== undefined) {
-      conditions.push('type = ?');
-      params.push(options.type);
+    // Handle subscription filtering with OR logic when both include and exclude are needed
+    if (options.includeSubscriptions && options.excludeSubscriptions && options.types && options.types.includes('pay' as ActivityType)) {
+      // Special case: both payments (exclude subscriptions) and subscriptions are selected
+      // We need to combine: other types OR one-time payments OR all subscriptions
+      // Example: subscriptions + payments + logins → (type IN ('auth')) OR (type = 'pay' AND subscription_id IS NULL) OR (subscription_id IS NOT NULL)
+      const otherTypes = options.types.filter(t => t !== 'pay');
+      const orParts: string[] = [];
+      
+      // Add other types (logins, tickets) - show all of them regardless of subscription status
+      if (otherTypes.length > 0) {
+        const placeholders = otherTypes.map(() => '?').join(', ');
+        orParts.push(`type IN (${placeholders})`);
+        params.push(...otherTypes);
+      }
+      
+      // Add one-time payments
+      orParts.push(`(type = ? AND subscription_id IS NULL)`);
+      params.push('pay');
+      
+      // Add all subscriptions (any type)
+      orParts.push(`(subscription_id IS NOT NULL)`);
+      
+      // Combine all OR parts into a single OR condition
+      orConditions.push(`(${orParts.join(' OR ')})`);
+    } else if (options.includeSubscriptions && options.types && options.types.length > 0) {
+      // Special case: subscriptions + other filters (logins, tickets, but not payments)
+      // Show: activities matching the types OR all subscription activities
+      // Example: subscriptions + logins → (type IN ('auth')) OR (subscription_id IS NOT NULL)
+      const placeholders = options.types.map(() => '?').join(', ');
+      orConditions.push(`type IN (${placeholders}) OR (subscription_id IS NOT NULL)`);
+      params.push(...options.types);
+    } else {
+      // Normal filtering logic
+      // Handle multiple types
+      if (options.types && options.types.length > 0) {
+        const placeholders = options.types.map(() => '?').join(', ');
+        conditions.push(`type IN (${placeholders})`);
+        params.push(...options.types);
+      }
+
+      // Handle subscription filtering
+      if (options.includeSubscriptions) {
+        // When subscriptions is selected without other type filters:
+        // Shows all subscription activities (any type)
+        // Example: subscriptions only → subscription_id IS NOT NULL
+        conditions.push('subscription_id IS NOT NULL');
+      } else if (options.excludeSubscriptions) {
+        // Exclude subscription activities (show only one-time payments, logins, etc.)
+        conditions.push('subscription_id IS NULL');
+      }
     }
+
     if (options.serviceKey) {
       conditions.push('service_key = ?');
       params.push(options.serviceKey);
@@ -265,7 +356,20 @@ export class DatabaseService {
       params.push(toUnixSeconds(options.toDate));
     }
 
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    // Build WHERE clause with OR conditions if needed
+    let whereClause = '';
+    if (conditions.length > 0 || orConditions.length > 0) {
+      const allConditions = [...conditions];
+      if (orConditions.length > 0) {
+        if (conditions.length > 0) {
+          allConditions.push(`(${orConditions.join(' OR ')})`);
+        } else {
+          allConditions.push(...orConditions);
+        }
+      }
+      whereClause = `WHERE ${allConditions.join(' AND ')}`;
+    }
+
     const limitClause = options.limit ? `LIMIT ${options.limit}` : '';
     const offsetClause = options.offset ? `OFFSET ${options.offset}` : '';
 
@@ -573,7 +677,7 @@ export class DatabaseService {
       ) VALUES (?, ?, ?, ?)`,
         [id, eventId, approved ? '1' : '0', now]
       );
-    } catch (e) {}
+    } catch (e) { }
 
     return id;
   }
@@ -586,6 +690,16 @@ export class DatabaseService {
       [eventId]
     );
     return records ? true : false;
+  }
+
+  // Check if a pending request was approved (completed)
+  async isPendingRequestApproved(eventId: string): Promise<boolean> {
+    const record = await this.db.getFirstAsync<{ approved: number }>(
+      `SELECT approved FROM stored_pending_requests
+        WHERE event_id = ?`,
+      [eventId]
+    );
+    return record ? record.approved === 1 : false;
   }
 
   // Proof methods
@@ -737,10 +851,10 @@ export class DatabaseService {
 
       return tx
         ? JSON.stringify({
-            ...tx,
-            ys: JSON.parse(tx.ys),
-            metadata: tx.metadata ? JSON.parse(tx.metadata) : null,
-          })
+          ...tx,
+          ys: JSON.parse(tx.ys),
+          metadata: tx.metadata ? JSON.parse(tx.metadata) : null,
+        })
         : undefined;
     } catch (error) {
       console.error('[DatabaseService] Error getting transaction:', error);
@@ -1219,6 +1333,190 @@ export class DatabaseService {
       );
     } catch (error) {
       console.error('Error updating nip05 contact', error);
+    }
+  }
+  
+  // get last unused created secret
+  async getUnusedSecretOrNull(): Promise<string | null> {
+    try {
+      const secret_obj = await this.db.getFirstAsync<{ secret: string }>(
+        'SELECT secret FROM bunker_secrets WHERE used = 0'
+      );
+      return secret_obj?.secret ?? null;
+    } catch (error) {
+      console.error('Database error while getting an unused secret:', error);
+      throw error;
+    }
+  }
+  // Add newly created bunker secret
+  async addBunkerSecret(
+    secret: string,
+  ): Promise<number> {
+    try {
+      const result = await this.db.runAsync(
+        `INSERT INTO bunker_secrets (
+          secret
+        ) VALUES (?)`,
+        [secret]
+      );
+      return result.lastInsertRowId;
+    } catch (error) {
+      console.error('Error adding bunker secret entry:', error);
+      throw error;
+    }
+  }
+
+  async getBunkerSecretOrNull(secret: string): Promise<{ secret: string; used: boolean } | null> {
+    try {
+      const record = await this.db.getFirstAsync<{ secret: string; used: number }>(
+        'SELECT secret, used FROM bunker_secrets WHERE secret = ?',
+        [secret]
+      );
+      if (!record) return null;
+      // Convert INTEGER (0 or 1) to boolean
+      return {
+        secret: record.secret,
+        used: record.used === 1,
+      };
+    } catch (error) {
+      console.error('Database error while getting secret record:', error);
+      throw error;
+    }
+  }
+
+  async markBunkerSecretAsUsed(secret: string): Promise<void> {
+    try {
+      await this.db.runAsync(
+        `UPDATE bunker_secrets
+        SET used = ?
+        WHERE secret = ?`,
+        [secret, 1]
+      );
+    } catch (error) {
+      console.error('Database error while getting an unused secret:', error);
+      throw error;
+    }
+  }
+
+  // Add newly allowed nostr clients
+  async addAllowedBunkerClient(
+    pubkey: string,
+    nip_05: string | null = null,
+    requested_permissions: string | null,
+  ): Promise<number> {
+    try {
+      const now = toUnixSeconds(Date.now());
+      const result = await this.db.runAsync(
+        `INSERT OR REPLACE INTO bunker_allowed_clients (
+          client_pubkey,
+          client_name,
+          requested_permissions,
+          granted_permissions,
+          created_at,
+          last_seen,
+          revoked
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          pubkey,
+          nip_05,
+          requested_permissions,
+          requested_permissions,
+          now,
+          now,
+          false,
+        ]
+      );
+      return result.lastInsertRowId;
+    } catch (error) {
+      console.error('Error adding bunker_allowed_client:', error);
+      throw error;
+    }
+  }
+
+  async getAllowedBunkerClients(): Promise<AllowedBunkerClientWithDates[]> {
+    const records = await this.db.getAllAsync<AllowedBunkerClient>(
+      `SELECT * FROM bunker_allowed_clients
+      WHERE revoked = 0
+      ORDER BY last_seen DESC`,
+    );
+
+    return records.map(record => ({
+      ...record,
+      last_seen: fromUnixSeconds(record.last_seen),
+      created_at: fromUnixSeconds(record.created_at),
+    }));
+  }
+
+  async getBunkerClientOrNull(pubkey: string): Promise<AllowedBunkerClientWithDates | null> {
+    const record = await this.db.getFirstAsync<AllowedBunkerClient>(
+      `SELECT * FROM bunker_allowed_clients
+      WHERE client_pubkey = ?`,
+      [pubkey]
+    );
+
+    if (!record) return null;
+
+    return {
+      ...record,
+      last_seen: fromUnixSeconds(record.last_seen),
+      created_at: fromUnixSeconds(record.created_at),
+    };
+  }
+
+  async updateBunkerClientLastSeen(pubkey: string): Promise<void> {
+    try {
+      const now = toUnixSeconds(Date.now());
+      await this.db.runAsync(
+        `UPDATE bunker_allowed_clients
+        SET last_seen = ?
+        WHERE client_pubkey = ?`,
+        [now, pubkey]
+      );
+    } catch (error) {
+      console.error('Database error while updating client last_seen:', error);
+      throw error;
+    }
+  }
+
+  async updateBunkerClientGrantedPermissions(pubkey: string, grantedPermissions: string): Promise<void> {
+    try {
+      await this.db.runAsync(
+        `UPDATE bunker_allowed_clients
+        SET granted_permissions = ?
+        WHERE client_pubkey = ?`,
+        [grantedPermissions, pubkey]
+      );
+    } catch (error) {
+      console.error('Database error while updating client last_seen:', error);
+      throw error;
+    }
+  }
+
+  async revokeBunkerClient(pubkey: string): Promise<void> {
+    try {
+      await this.db.runAsync(
+        `UPDATE bunker_allowed_clients
+        SET revoked = ?
+        WHERE client_pubkey = ?`,
+        [true, pubkey]
+      );
+    } catch (error) {
+      console.error('Database error while revoking bunker client:', error);
+      throw error;
+    }
+  }
+
+  async updateBunkerClientName(pubkey: string, name: string | null): Promise<void> {
+    try {
+      await this.db.runAsync(
+        `UPDATE bunker_allowed_clients
+        SET client_name = ?
+        WHERE client_pubkey = ?`,
+        [name, pubkey]
+      );
+    } catch (error) {
+      console.error('Database error while updating client name:', error);
+      throw error;
     }
   }
 }

@@ -12,6 +12,10 @@ import {
   CashuResponseStatus,
   ClosedRecurringPaymentListener,
   CloseRecurringPaymentResponse,
+  keyToHex,
+  NostrConnectRequestEvent,
+  NostrConnectRequestListener,
+  NostrConnectResponseStatus,
   parseCashuToken,
   PaymentRequestListener,
   PaymentStatus,
@@ -25,6 +29,7 @@ import {
   handleSinglePaymentRequest,
   handleRecurringPaymentRequest,
   handleCloseRecurringPaymentResponse,
+  handleNostrConnectRequest,
 } from '@/services/EventFilters';
 import { showToast, handleErrorWithToastAndReinit } from '@/utils/Toast';
 import { PendingRequest } from '@/utils/types';
@@ -34,6 +39,8 @@ import { useECash } from './ECashContext';
 import { useCurrency } from './CurrencyContext';
 import { globalEvents } from '@/utils/common';
 import { AppState } from 'react-native';
+import { useKey } from './KeyContext';
+import { getKeypairFromKey } from '@/utils/keyHelpers';
 
 export class LocalCashuDirectListener implements CashuDirectListener {
   private callback: (event: CashuDirectContentWithKey) => Promise<void>;
@@ -108,6 +115,17 @@ export class LocalClosedRecurringPaymentListener implements ClosedRecurringPayme
   }
 }
 
+export class LocalNip46RequestListener implements NostrConnectRequestListener {
+  private callback: (event: NostrConnectRequestEvent) => Promise<NostrConnectResponseStatus>;
+
+  constructor(callback: (event: NostrConnectRequestEvent) => Promise<NostrConnectResponseStatus>) {
+    this.callback = callback;
+  }
+  async onRequest(event: NostrConnectRequestEvent): Promise<NostrConnectResponseStatus> {
+    return this.callback(event)
+  }
+}
+
 interface PortalAppProviderProps {
   children: React.ReactNode;
 }
@@ -126,9 +144,13 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
   const [pendingRequests, setPendingRequests] = useState<{ [key: string]: PendingRequest }>({});
   const { activeWallet } = useWalletManager();
   const { preferredCurrency } = useCurrency();
+  const { mnemonic, nsec } = useKey();
 
   const initializeApp = useCallback(() => {
     const app = PortalAppManager.tryGetInstance();
+
+    const keypair = getKeypairFromKey({ mnemonic, nsec });
+    const publicKeyStr = keypair.publicKey().toString();
 
     // listener to receive tokens
     app
@@ -476,6 +498,36 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
       .catch(e => {
         console.error('Error listening for recurring payments closing.', e);
       });
+
+      app.listenForNip46Request(
+                new LocalNip46RequestListener((event: NostrConnectRequestEvent) => {
+                  const id = event.id;
+                  return new Promise<NostrConnectResponseStatus>(resolve => {
+                    handleNostrConnectRequest(event, keyToHex(publicKeyStr), executeOperation, resolve).then((askUser) => {
+                      if (askUser) {
+                        const newRequest: PendingRequest = {
+                          id,
+                          metadata: event,
+                          timestamp: new Date(),
+                          type: 'nostrConnect',
+                          result: resolve,
+                        };
+      
+                        setPendingRequests(prev => {
+                          // Check if request already exists to prevent duplicates
+                          if (prev[id]) {
+                            return prev;
+                          }
+                          return { ...prev, [id]: newRequest };
+                        });
+                      }
+                    })
+                  });
+                })
+              ).catch(e => {
+                console.error('Error listening for nip46 requests.', e);
+              });
+
   }, [executeOperation, executeOnNostr, activeWallet]);
 
   const dismissPendingRequest = useCallback((id: string) => {

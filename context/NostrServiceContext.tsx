@@ -8,45 +8,16 @@ import {
   KeypairInterface,
 } from 'portal-app-lib';
 import { PortalAppManager } from '@/services/PortalAppManager';
-import type { RelayConnectionStatus, RelayInfo } from '@/utils/types';
+import type {
+  RelayInfo,
+} from '@/utils/types';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import defaultRelayList from '../assets/DefaultRelays.json';
 import { useOnboarding } from './OnboardingContext';
 import { getKeypairFromKey, hasKey } from '@/utils/keyHelpers';
+import { getServiceNameFromProfile, mapNumericStatusToString } from '@/utils/nostrHelper';
 
-// Helper function to extract service name from profile (nip05 only)
-const getServiceNameFromProfile = (profile: Profile | undefined): string | null => {
-  return profile?.nip05 || null;
-};
-
-// Note: RelayConnectionStatus, RelayInfo, and ConnectionSummary are now imported from centralized types
-
-// Map numeric RelayStatus values to string status names
-// Based on the actual Rust enum from portal-app-lib:
-// pub enum RelayStatus { Initialized, Pending, Connecting, Connected, Disconnected, Terminated, Banned }
-function mapNumericStatusToString(numericStatus: number): RelayConnectionStatus {
-  switch (numericStatus) {
-    case 0:
-      return 'Initialized';
-    case 1:
-      return 'Pending';
-    case 2:
-      return 'Connecting';
-    case 3:
-      return 'Connected';
-    case 4:
-      return 'Disconnected';
-    case 5:
-      return 'Terminated';
-    case 6:
-      return 'Banned';
-    default:
-      console.warn(`🔍 NostrService: Unknown numeric RelayStatus: ${numericStatus}`);
-      return 'Unknown';
-  }
-}
-// Note: WalletInfo and WalletInfoState are now imported from centralized types
 
 // Context type definition
 export interface NostrServiceContextType {

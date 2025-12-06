@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { FC } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { AlertTriangle } from 'lucide-react-native';
+import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react-native';
 import { usePendingRequests } from '../context/PendingRequestsContext';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { useECash } from '@/context/ECashContext';
@@ -11,6 +11,8 @@ import {
   type SinglePaymentRequest,
   type RecurringPaymentRequest,
   Currency_Tags,
+  NostrConnectRequestEvent,
+  NostrConnectMethod,
 } from 'portal-app-lib';
 import type { PendingRequest } from '@/utils/types';
 import { useThemeColor } from '@/hooks/useThemeColor';
@@ -20,6 +22,7 @@ import { SkeletonPulse } from './PendingRequestSkeletonCard';
 import { PortalAppManager } from '@/services/PortalAppManager';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 import { useWalletManager } from '@/context/WalletManagerContext';
+import { formatActivityAmount, normalizeCurrencyForComparison } from '@/utils/currency';
 
 interface PendingRequestCardProps {
   request: PendingRequest;
@@ -40,6 +43,8 @@ const getRequestTypeText = (type: string) => {
       return 'Identity Request';
     case 'ticket':
       return 'Ticket Request';
+    case 'nostrConnect':
+      return 'Nostr Connect';
     default:
       return 'Unknown Request';
   }
@@ -61,9 +66,12 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const { eCashLoading, hasECashWallets } = useWalletStatus();
     const [serviceName, setServiceName] = useState<string | null>(null);
     const [isServiceNameLoading, setIsServiceNameLoading] = useState(true);
+    const [requestorName, setRequestorName] = useState<string | null>(null);
+    const [isRequestorNameLoading, setIsRequestorNameLoading] = useState(false);
     const [hasInsufficientBalance, setHasInsufficientBalance] = useState(false);
     const [convertedAmount, setConvertedAmount] = useState<number | null>(null);
     const [isConvertingCurrency, setIsConvertingCurrency] = useState(false);
+    const [isPermissionsExpanded, setIsPermissionsExpanded] = useState(false);
     const isMounted = useRef(true);
     const { activeWallet, walletInfo } = useWalletManager();
 
@@ -80,7 +88,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
 
     // Add debug logging when a card is rendered
     console.log(
-      `Rendering card ${id} of type ${type} with service key ${(metadata as SinglePaymentRequest).serviceKey}`
+      `Rendering card ${id} of type ${type}`
     );
 
     const calendarObj =
@@ -91,40 +99,77 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const recurrence = calendarObj?.inner.toHumanReadable(false);
 
     useEffect(() => {
+      // Reset mounted flag at the start of each effect
+      isMounted.current = true;
+
       if (type === 'ticket' && request.ticketTitle) {
         setServiceName(request.ticketTitle);
         setIsServiceNameLoading(false);
-        return;
+        // For ticket requests, also fetch the requestor's name
+        const fetchRequestorName = async () => {
+          if (!isMounted.current) return;
+
+          // CashuRequestContentWithKey structure: has mainKey (the requestor's pubkey)
+          // Check both mainKey and serviceKey as the structure might vary
+          const requestorServiceKey = (metadata as any)?.mainKey || (metadata as any)?.serviceKey;
+          if (!requestorServiceKey) {
+            console.warn(
+              '[PendingRequestCard] No requestor pubkey found in ticket request. Metadata keys:',
+              metadata ? Object.keys(metadata) : 'metadata is null/undefined'
+            );
+            return;
+          }
+
+          console.log('[PendingRequestCard] Fetching requestor name for ticket with pubkey:', requestorServiceKey);
+
+          try {
+            setIsRequestorNameLoading(true);
+            const name = await nostrService.getServiceName(
+              PortalAppManager.tryGetInstance(),
+              requestorServiceKey
+            );
+            if (isMounted.current) {
+              console.log('[PendingRequestCard] Successfully fetched requestor name:', name);
+              setRequestorName(name);
+              setIsRequestorNameLoading(false);
+            }
+          } catch (error) {
+            console.error('[PendingRequestCard] Failed to fetch requestor name:', error);
+            if (isMounted.current) {
+              setRequestorName(null);
+              setIsRequestorNameLoading(false);
+            }
+          }
+        };
+
+        fetchRequestorName();
+      } else {
+        const fetchServiceName = async () => {
+          if (!isMounted.current) return;
+
+          const serviceKey = (metadata as any).serviceKey;
+
+          try {
+            setIsServiceNameLoading(true);
+            const name = await nostrService.getServiceName(
+              PortalAppManager.tryGetInstance(),
+              serviceKey
+            );
+            if (isMounted.current) {
+              setServiceName(name);
+              setIsServiceNameLoading(false);
+            }
+          } catch (error) {
+            console.error('Failed to fetch service name:', error);
+            if (isMounted.current) {
+              setServiceName(null);
+              setIsServiceNameLoading(false);
+            }
+          }
+        };
+
+        fetchServiceName();
       }
-
-      const fetchServiceName = async () => {
-        if (!isMounted.current) return;
-
-        const serviceKey =
-          type === 'ticket'
-            ? (metadata as any)?.title || 'Unknown Ticket'
-            : (metadata as any).serviceKey;
-
-        try {
-          setIsServiceNameLoading(true);
-          const name = await nostrService.getServiceName(
-            PortalAppManager.tryGetInstance(),
-            serviceKey
-          );
-          if (isMounted.current) {
-            setServiceName(name);
-            setIsServiceNameLoading(false);
-          }
-        } catch (error) {
-          console.error('Failed to fetch service name:', error);
-          if (isMounted.current) {
-            setServiceName(null);
-            setIsServiceNameLoading(false);
-          }
-        }
-      };
-
-      fetchServiceName();
 
       return () => {
         isMounted.current = false;
@@ -136,8 +181,18 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const isPaymentRequest = type === 'payment';
     const isSubscriptionRequest = type === 'subscription';
     const isTicketRequest = type === 'ticket';
+    const isNostrConnect = type === 'nostrConnect';
+    const nostrConnectMethod = (metadata as NostrConnectRequestEvent).method;
+    const nostrConnectParams = (metadata as NostrConnectRequestEvent).params;
     const content = (metadata as SinglePaymentRequest)?.content;
-    const amount = content?.amount ?? (isTicketRequest ? (metadata as any)?.inner?.amount : null);
+    const amount =
+      content?.amount ??
+      (isTicketRequest ? (metadata as any)?.inner?.amount : null);
+    
+    // For ticket requests, get the requestor's pubkey from mainKey (CashuRequestContentWithKey structure)
+    const ticketRequestorPubkey = isTicketRequest
+      ? (metadata as any)?.mainKey || (metadata as any)?.serviceKey
+      : null;
 
     // Check for insufficient balance on payment requests
     useEffect(() => {
@@ -248,17 +303,32 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
           return;
         }
 
+        // Determine source currency and normalized display currency
+        const isFiat = content.currency.tag === Currency_Tags.Fiat;
+        const fiatCurrency = isFiat ? (content.currency as any).inner : null;
+        const sourceCurrency = isFiat
+          ? (Array.isArray(fiatCurrency) ? fiatCurrency[0] : fiatCurrency)
+          : 'MSATS';
+        
+        // Normalize display currency for comparison (MSATS -> SATS, handle case)
+        const normalizedDisplayCurrency = isFiat
+          ? normalizeCurrencyForComparison(sourceCurrency)
+          : 'SATS'; // MSATS normalizes to SATS for display
+        const normalizedPreferredCurrency = normalizeCurrencyForComparison(preferredCurrency);
+
+        // Skip conversion if currencies are the same (case-insensitive, with sats normalization)
+        if (normalizedDisplayCurrency && normalizedPreferredCurrency && normalizedDisplayCurrency === normalizedPreferredCurrency) {
+          // No conversion needed - currencies match
+          if (isMounted.current) {
+            setConvertedAmount(null);
+            setIsConvertingCurrency(false);
+          }
+          return;
+        }
+
         try {
           setIsConvertingCurrency(true);
 
-          // Determine source currency
-          const isFiat = content.currency.tag === Currency_Tags.Fiat;
-          const fiatCurrency = isFiat ? (content.currency as any).inner : null;
-          const sourceCurrency = isFiat
-            ? Array.isArray(fiatCurrency)
-              ? fiatCurrency[0]
-              : fiatCurrency
-            : 'MSATS';
           const sourceAmount = isFiat ? Number(amount) / 100 : Number(amount);
 
           // Convert to user's preferred currency
@@ -284,13 +354,44 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
       convertCurrency();
     }, [isPaymentRequest, isSubscriptionRequest, amount, metadata, preferredCurrency]);
 
-    // Format service name with quantity for ticket requests
+    // Format service name - for tickets, use requestor name; for others, use service name
     const formatServiceName = () => {
-      if (isTicketRequest && amount && Number(amount) > 1) {
-        const ticketAmount = Number(amount);
-        return `${serviceName || 'Unknown Service'} x ${ticketAmount}`;
+      if (isTicketRequest) {
+        // For ticket requests, show requestor name as main service name (matching payment request style)
+        return requestorName || 'Unknown Requestor';
       }
       return serviceName || 'Unknown Service';
+    };
+
+    // Format secondary info - for tickets, show ticket title; for others, show recipient pubkey
+    const formatSecondaryInfo = () => {
+      if (isTicketRequest) {
+        // For ticket requests, show ticket title as secondary info
+        if (amount && Number(amount) > 1) {
+          const ticketAmount = Number(amount);
+          return `${serviceName || request.ticketTitle || 'Unknown Ticket'} x ${ticketAmount}`;
+        }
+        return serviceName || request.ticketTitle || 'Unknown Ticket';
+      }
+      // For payment/subscription requests, show truncated recipient pubkey
+      return truncatePubkey(recipientPubkey);
+    };
+
+    // Normalize amount and currency from request format to formatActivityAmount format
+    const getNormalizedAmountAndCurrency = (): { normalizedAmount: number; normalizedCurrency: string } | null => {
+      if (!content || amount == null) return null;
+
+      if (content.currency.tag === Currency_Tags.Fiat) {
+        const fiatCodeRaw = (content.currency as any).inner;
+        const fiatCode = Array.isArray(fiatCodeRaw) ? fiatCodeRaw[0] : fiatCodeRaw;
+        // Convert from minor units (cents) to major units (dollars)
+        const normalizedAmount = Number(amount) / 100;
+        return { normalizedAmount, normalizedCurrency: String(fiatCode).toUpperCase() };
+      } else {
+        // Millisats: convert to sats
+        const normalizedAmount = Number(amount) / 1000;
+        return { normalizedAmount, normalizedCurrency: 'SATS' };
+      }
     };
 
     // Determine what warning to show (if any)
@@ -365,20 +466,38 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
           style={[
             styles.serviceName,
             { color: primaryTextColor },
-            !serviceName && styles.unknownService,
+            (isTicketRequest ? !requestorName : !serviceName) && styles.unknownService,
           ]}
         >
-          {isServiceNameLoading ? (
-            <SkeletonPulse
-              style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
-            />
+          {isTicketRequest ? (
+            // For ticket requests, show requestor name (loading state)
+            isRequestorNameLoading ? (
+              <SkeletonPulse
+                style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
+              />
+            ) : (
+              formatServiceName()
+            )
           ) : (
-            formatServiceName()
+            // For payment/subscription requests, show service name (loading state)
+            isServiceNameLoading ? (
+              <SkeletonPulse
+                style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
+              />
+            ) : (
+              formatServiceName()
+            )
           )}
         </Text>
 
         <Text style={[styles.serviceInfo, { color: secondaryTextColor }]}>
-          {truncatePubkey(recipientPubkey)}
+          {isTicketRequest ? (
+            // For ticket requests, show ticket title as secondary info
+            formatSecondaryInfo()
+          ) : (
+            // For payment/subscription requests, show truncated recipient pubkey
+            formatSecondaryInfo()
+          )}
         </Text>
 
         {(isPaymentRequest || isSubscriptionRequest) && amount !== null && (
@@ -387,13 +506,10 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
               <View style={styles.amountRow}>
                 <Text style={[styles.amountText, { color: primaryTextColor }]}>
                   {(() => {
-                    if (!content) return '';
-                    if (content.currency.tag === Currency_Tags.Fiat) {
-                      const fiatCodeRaw = (content.currency as any).inner;
-                      const fiatCode = Array.isArray(fiatCodeRaw) ? fiatCodeRaw[0] : fiatCodeRaw;
-                      return `${(Number(amount) / 100).toFixed(2)} ${fiatCode}`;
-                    }
-                    return `${Number(amount) / 1000} sats`;
+                    const normalized = getNormalizedAmountAndCurrency();
+                    return normalized
+                      ? formatActivityAmount(normalized.normalizedAmount, normalized.normalizedCurrency)
+                      : '';
                   })()}
                 </Text>
                 <Text style={[styles.recurranceText, { color: primaryTextColor }]}>
@@ -403,12 +519,10 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
             ) : (
               <Text style={[styles.amountText, { color: primaryTextColor }]}>
                 {(() => {
-                  if (!content) return '';
-                  if (content.currency.tag === Currency_Tags.Fiat) {
-                    const fiatCode = (content.currency as any).inner;
-                    return `${(Number(amount) / 100).toFixed(2)} ${fiatCode}`;
-                  }
-                  return `${Number(amount) / 1000} sats`;
+                  const normalized = getNormalizedAmountAndCurrency();
+                  return normalized
+                    ? formatActivityAmount(normalized.normalizedAmount, normalized.normalizedCurrency)
+                    : '';
                 })()}
               </Text>
             )}
@@ -418,12 +532,20 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
               (() => {
                 if (!content || amount == null) return false;
                 const isFiat = content.currency.tag === Currency_Tags.Fiat;
+                
+                // Normalize currencies for comparison
                 if (isFiat) {
                   const fiatCodeRaw = (content.currency as any).inner;
-                  const fiatCode = Array.isArray(fiatCodeRaw) ? fiatCodeRaw[0] : fiatCodeRaw;
-                  return fiatCode !== preferredCurrency;
+                  const fiatCode = Array.isArray(fiatCodeRaw)
+                    ? fiatCodeRaw[0]
+                    : fiatCodeRaw;
+                  const normalizedFiat = normalizeCurrencyForComparison(fiatCode);
+                  const normalizedPreferred = normalizeCurrencyForComparison(preferredCurrency);
+                  return normalizedFiat !== normalizedPreferred;
                 }
-                return 'MSATS' !== preferredCurrency;
+                // For MSATS, normalized display currency is SATS
+                const normalizedPreferred = normalizeCurrencyForComparison(preferredCurrency);
+                return 'SATS' !== normalizedPreferred;
               })() && (
                 <View style={styles.convertedAmountContainer}>
                   {isConvertingCurrency ? (
@@ -443,6 +565,78 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
                   )}
                 </View>
               )}
+          </View>
+        )}
+
+        {isNostrConnect && (
+          <View style={[styles.nostrConnectContainer, { borderColor }]}>
+            {(() => {
+              // For Connect method (nip46), show requested permissions
+              if (nostrConnectMethod == NostrConnectMethod.Connect) {
+                const requestedPermissions =
+                  nostrConnectParams.at(2);
+
+                if (!requestedPermissions) return null;
+
+                // Parse permissions (can be string or array)
+                const permissions =
+                  typeof requestedPermissions === 'string'
+                    ? requestedPermissions.split(',').map(p => p.trim())
+                    : [];
+
+                if (permissions.length === 0) return null;
+
+                const maxCollapsedItems = 3;
+                const shouldShowExpand = permissions.length > maxCollapsedItems;
+                const displayedPermissions = isPermissionsExpanded
+                  ? permissions
+                  : permissions.slice(0, maxCollapsedItems);
+
+                return (
+                  <View style={styles.permissionsContainer}>
+                    <TouchableOpacity
+                      style={styles.permissionsHeader}
+                      onPress={() => shouldShowExpand && setIsPermissionsExpanded(!isPermissionsExpanded)}
+                      disabled={!shouldShowExpand}
+                      activeOpacity={shouldShowExpand ? 0.7 : 1}
+                    >
+                      <Text style={[styles.permissionsLabel, { color: secondaryTextColor }]}>
+                        Requested Permissions {shouldShowExpand && `(${permissions.length})`}
+                      </Text>
+                      {shouldShowExpand && (
+                        isPermissionsExpanded ? (
+                          <ChevronUp size={16} color={secondaryTextColor} />
+                        ) : (
+                          <ChevronDown size={16} color={secondaryTextColor} />
+                        )
+                      )}
+                    </TouchableOpacity>
+                    <View style={styles.permissionsList}>
+                      {displayedPermissions.map((permission: string, index: number) => (
+                        <View key={index} style={styles.permissionItem}>
+                          <Text style={[styles.permissionText, { color: primaryTextColor }]}>
+                            {permission}
+                          </Text>
+                        </View>
+                      ))}
+                      {!isPermissionsExpanded && shouldShowExpand && (
+                        <Text style={[styles.showMoreText, { color: secondaryTextColor }]}>
+                          +{permissions.length - maxCollapsedItems} more
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                );
+              } else {
+                return (
+                  <View style={styles.methodInfoContainer}>
+                    <Text style={[styles.methodDescription, { color: secondaryTextColor }]}>
+                      Nostr Connect request
+                    </Text>
+                  </View>
+                );
+              }
+            })()}
           </View>
         )}
 
@@ -556,6 +750,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 12,
   },
+  serviceInfoSkeleton: {
+    borderRadius: 4,
+    width: 120,
+    height: 14,
+  },
   amountContainer: {
     borderWidth: 1,
     textAlign: 'center',
@@ -648,5 +847,52 @@ const styles = StyleSheet.create({
     width: 80,
     height: 14,
     borderRadius: 4,
+  },
+  nostrConnectContainer: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 20,
+  },
+  permissionsContainer: {
+    gap: 12,
+  },
+  permissionsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  permissionsLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    flex: 1,
+  },
+  permissionsList: {
+    gap: 8,
+  },
+  permissionItem: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  permissionText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  showMoreText: {
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  methodInfoContainer: {
+    gap: 8,
+  },
+  methodDescription: {
+    fontSize: 14,
+    lineHeight: 20,
   },
 });

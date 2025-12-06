@@ -10,7 +10,7 @@ import { parseCalendar } from 'portal-app-lib';
 import { fromUnixSeconds } from '@/services/DatabaseService';
 import { BanknoteIcon } from 'lucide-react-native';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { Currency, CurrencyHelpers, shouldShowConvertedAmount } from '@/utils/currency';
+import { Currency, CurrencyHelpers, shouldShowConvertedAmount, formatActivityAmount } from '@/utils/currency';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 
 export const UpcomingPaymentsList: React.FC = () => {
@@ -82,7 +82,7 @@ export const UpcomingPaymentsList: React.FC = () => {
         </View>
         <View style={styles.paymentDetails}>
           <ThemedText style={[styles.amount, { color: primaryTextColor }]}>
-            {item.amount} {item.currency}
+            {formatActivityAmount(item.amount, item.currency)}
           </ThemedText>
           {shouldShowConvertedAmount({
             amount: item.convertedAmount,

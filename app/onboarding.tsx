@@ -15,8 +15,10 @@ import {
 } from 'react-native';
 import { ThemedView } from '@/components/ThemedView';
 import { ThemedText } from '@/components/ThemedText';
+import { PINKeypad } from '@/components/PINKeypad';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { useKey } from '@/context/KeyContext';
+import { useAppLock } from '@/context/AppLockContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import {
   Shield,
@@ -36,6 +38,10 @@ import { generateMnemonic, Mnemonic, Nsec } from 'portal-app-lib';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WALLET_TYPE } from '@/models/WalletType';
+import { useRouter } from 'expo-router';
+import { useNostrService } from '@/context/NostrServiceContext';
+import { PIN_MIN_LENGTH, PIN_MAX_LENGTH } from '@/services/AppLockService';
+import { useWalletManager } from '@/context/WalletManagerContext';
 
 // Preload all required assets
 const onboardingLogo = require('../assets/images/appLogo.png');
@@ -50,11 +56,14 @@ type OnboardingStep =
   | 'generate'
   | 'verify'
   | 'import'
+  | 'pin-setup'
   | 'splash';
 
 export default function Onboarding() {
   const { completeOnboarding } = useOnboarding();
   const { setMnemonic, setNsec, walletUrl, setWalletUrl } = useKey();
+  const router = useRouter();
+  const { setupPIN, setLockEnabled, isLockEnabled, isBiometricAvailable } = useAppLock();
   const [currentStep, setCurrentStep] = useState<OnboardingStep>('welcome');
   const [seedPhrase, setSeedPhrase] = useState('');
   const [verificationWords, setVerificationWords] = useState<{
@@ -68,6 +77,12 @@ export default function Onboarding() {
   const [walletInput, setWalletInput] = useState('');
   const [isSavingWallet, setIsSavingWallet] = useState(false);
   const [importType, setImportType] = useState<'seed' | 'nsec'>('seed');
+  const [pinStep, setPinStep] = useState<'enter' | 'confirm'>('enter');
+  const [enteredPin, setEnteredPin] = useState('');
+  const [pinError, setPinError] = useState('');
+  const [isSavingPin, setIsSavingPin] = useState(false);
+  const [isBiometricSupported, setIsBiometricSupported] = useState(false);
+  const [pinSetupPreviousStep, setPinSetupPreviousStep] = useState<OnboardingStep>('import');
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -78,6 +93,7 @@ export default function Onboarding() {
   const inputPlaceholder = useThemeColor({}, 'inputPlaceholder');
   const buttonPrimary = useThemeColor({}, 'buttonPrimary');
   const buttonPrimaryText = useThemeColor({}, 'buttonPrimaryText');
+  const buttonDanger = useThemeColor({}, 'buttonDanger');
 
   const { width, height } = useWindowDimensions();
   const shortestSide = Math.min(width, height);
@@ -99,6 +115,30 @@ export default function Onboarding() {
     };
   }, []);
 
+  useEffect(() => {
+    let isMounted = true;
+    isBiometricAvailable()
+      .then(result => {
+        if (isMounted) {
+          setIsBiometricSupported(result);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setIsBiometricSupported(false);
+        }
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [isBiometricAvailable]);
+
+  const resetPinState = () => {
+    setPinStep('enter');
+    setEnteredPin('');
+    setPinError('');
+  };
+
   const goToPreviousStep = useCallback(() => {
     const previousSteps: Record<OnboardingStep, OnboardingStep | null> = {
       welcome: null,
@@ -107,6 +147,7 @@ export default function Onboarding() {
       generate: 'choice',
       verify: 'generate',
       import: 'choice',
+      'pin-setup': pinSetupPreviousStep,
       splash: null,
     };
 
@@ -158,6 +199,9 @@ export default function Onboarding() {
               });
               setUserInputs({ word1: '', word2: '' });
             });
+            break;
+          case 'pin-setup':
+            okBack(() => resetPinState());
             break;
           case 'import':
             okBack(() => {
@@ -398,11 +442,97 @@ export default function Onboarding() {
   };
 
   const handleSkipWalletSetup = () => {
-    // Skip wallet setup and complete onboarding
+    // Skip wallet setup and go to PIN setup
+    resetPinState();
+    setCurrentStep('pin-setup');
+  };
+
+  const handleCompletionWithoutPIN = () => {
+    // Complete onboarding without setting up a PIN
+    resetPinState();
     setCurrentStep('splash');
     setTimeout(() => {
       completeOnboarding();
     }, 2000);
+  };
+
+  const handlePinEntryComplete = async (pin: string) => {
+    if (isSavingPin) {
+      return;
+    }
+
+    if (pinStep === 'enter') {
+      setEnteredPin(pin);
+      setPinStep('confirm');
+      setPinError('');
+      return;
+    }
+
+    if (pin !== enteredPin) {
+      setPinError('PINs do not match. Please try again.');
+      setTimeout(() => {
+        resetPinState();
+      }, 1500);
+      return;
+    }
+
+    try {
+      setIsSavingPin(true);
+      await setupPIN(pin);
+      // Always enable app lock when setting up PIN in onboarding
+      await setLockEnabled(true);
+      resetPinState();
+      setCurrentStep('splash');
+      setTimeout(() => {
+        completeOnboarding();
+      }, 2000);
+    } catch (error) {
+      console.error('Failed to save PIN:', error);
+      setPinError('Unable to save PIN. Please try again.');
+    } finally {
+      setIsSavingPin(false);
+    }
+  };
+
+  // Local URL validation adapted from wallet screen
+  const validateNwcUrl = (url: string): { isValid: boolean; error?: string } => {
+    if (!url.trim()) {
+      return { isValid: false, error: 'URL cannot be empty' };
+    }
+
+    try {
+      // Normalize protocol
+      let normalized = url.trim();
+      if (normalized.startsWith('nostrwalletconnect:')) {
+        normalized = normalized.replace('nostrwalletconnect:', 'nostr+walletconnect://');
+      } else if (normalized.startsWith('nwc://')) {
+        normalized = normalized.replace('nwc://', 'nostr+walletconnect://');
+      }
+
+      const urlObj = new URL(normalized);
+
+      if (!/^nostr\+walletconnect:\/\//.test(normalized)) {
+        return { isValid: false, error: 'Unsupported NWC URL format' };
+      }
+
+      // secret may be in pathname (after protocol) or as query param
+      const secret = urlObj.pathname.replace(/^\/+/, '') || urlObj.searchParams.get('secret');
+      const relay = urlObj.searchParams.get('relay');
+
+      if (!secret) {
+        return { isValid: false, error: 'Missing secret' };
+      }
+      if (!relay) {
+        return { isValid: false, error: 'Missing relay parameter' };
+      }
+      if (!relay.startsWith('wss://') && !relay.startsWith('ws://')) {
+        return { isValid: false, error: 'Relay must be a websocket URL (wss:// or ws://)' };
+      }
+
+      return { isValid: true };
+    } catch {
+      return { isValid: false, error: 'Invalid URL format' };
+    }
   };
 
   // Show splash screen when transitioning to home
@@ -428,6 +558,8 @@ export default function Onboarding() {
             });
             setUserInputs({ word1: '', word2: '' });
           });
+      case 'pin-setup':
+        return () => okBack(() => resetPinState());
       case 'import':
         return () =>
           okBack(() => {
@@ -450,7 +582,12 @@ export default function Onboarding() {
         {/* Header with Back Button */}
         {shouldShowBackButton() && (
           <ThemedView style={styles.header}>
-            <TouchableOpacity onPress={getBackButtonHandler()} style={styles.backButton}>
+            <TouchableOpacity
+              onPress={getBackButtonHandler()}
+              style={styles.backButton}
+              activeOpacity={0.7}
+              hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+            >
               <ArrowLeft size={24} color={textPrimary} />
             </TouchableOpacity>
             <ThemedText style={[styles.headerText, { color: textPrimary }]}>
@@ -851,6 +988,49 @@ export default function Onboarding() {
             </View>
           </KeyboardAvoidingView>
         )}
+
+        {/* PIN Setup Step */}
+        {currentStep === 'pin-setup' && (
+          <View style={[styles.stepWrapper, styles.pinSetupFull]}>
+            <View style={styles.pinSetupContent}>
+              <View style={[styles.pinIconContainer, { backgroundColor: buttonPrimary + '20' }]}>
+                <Shield size={32} color={buttonPrimary} />
+              </View>
+              <ThemedText type="title" style={styles.title}>
+                Secure Portal with a PIN
+              </ThemedText>
+              <ThemedText style={styles.subtitle}>
+                Protect your app by requiring a PIN for sensitive actions.
+              </ThemedText>
+              {pinError ? (
+                <ThemedText style={[styles.errorText, styles.pinErrorText, { color: buttonDanger }]}>
+                  {pinError}
+                </ThemedText>
+              ) : null}
+              {isSavingPin && (
+                <ThemedText style={[styles.pinSavingText, { color: textPrimary }]}>
+                  Saving PIN...
+                </ThemedText>
+              )}
+              <View style={styles.pinKeypadContainer}>
+                <PINKeypad
+                  key={pinStep}
+                  onPINComplete={handlePinEntryComplete}
+                  minLength={PIN_MIN_LENGTH}
+                  maxLength={PIN_MAX_LENGTH}
+                  autoSubmit={false}
+                  submitLabel={pinStep === 'enter' ? 'Next' : 'Confirm'}
+                  showDots
+                  error={!!pinError}
+                  onError={() => setPinError('')}
+                  showSkipButton
+                  onSkipPress={handleCompletionWithoutPIN}
+                  skipLabel="Skip"
+                />
+              </View>
+            </View>
+          </View>
+        )}
       </ThemedView>
     </SafeAreaView>
   );
@@ -912,7 +1092,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 16,
-    marginBottom: 30,
+    marginBottom: 10,
     textAlign: 'center',
     opacity: 0.7,
   },
@@ -1025,6 +1205,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     fontWeight: 'bold',
+  },
+  errorText: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 12,
+    fontWeight: '600',
   },
   buttonIcon: {
     marginLeft: 8,
@@ -1148,17 +1334,55 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '600',
   },
+  pinIconContainer: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  pinSetupFull: {
+    justifyContent: 'center',
+  },
+  pinSetupContent: {
+    flex: 1,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    paddingBottom: 24,
+  },
+  pinKeypadContainer: {
+    width: '100%',
+    marginTop: 10,
+    alignItems: 'center',
+  },
+  pinErrorText: {
+    marginBottom: 10,
+  },
+  pinSavingText: {
+    textAlign: 'center',
+    marginBottom: 12,
+    fontSize: 14,
+    opacity: 0.8,
+  },
   // Header styles
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 12,
     position: 'relative',
+    minHeight: 56,
   },
   backButton: {
-    padding: 8,
-    marginLeft: -30,
+    width: 48,
+    height: 48,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    zIndex: 1,
   },
   headerText: {
     fontSize: 20,

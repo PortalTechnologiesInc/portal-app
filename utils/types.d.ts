@@ -89,7 +89,8 @@ export type PendingRequestType =
   | 'certificate'
   | 'identity'
   | 'subscription'
-  | 'ticket';
+  | 'ticket'
+  | 'nostrConnect';
 
 // =============================================================================
 // CORE ENTITY INTERFACES
@@ -207,6 +208,7 @@ export type ProfileSyncStatus = 'idle' | 'syncing' | 'completed' | 'failed';
 export interface BiometricAuthResult {
   success: boolean;
   error?: string;
+  code?: string;
 }
 
 // =============================================================================

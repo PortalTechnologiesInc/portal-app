@@ -412,6 +412,28 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
 
     if (currentDbVersion <= 18) {
       await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS bunker_secrets (
+          secret TEXT PRIMARY KEY NOT NULL UNIQUE,
+          used INTEGER NOT NULL DEFAULT 0 CHECK (used IN (0, 1))
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_bunker_secrets ON bunker_secrets(secret);
+
+        CREATE TABLE IF NOT EXISTS bunker_allowed_clients (
+          client_pubkey TEXT PRIMARY KEY NOT NULL UNIQUE,
+          client_name TEXT,
+          requested_permissions TEXT,
+          granted_permissions TEXT,
+          created_at INTEGER NOT NULL,
+          last_seen INTEGER NOT NULL,
+          revoked INTEGER NOT NULL DEFAULT 0 CHECK (revoked IN (0, 1))
+        );
+      `);
+      currentDbVersion = 19;
+    }
+
+    if (currentDbVersion <= 19) {
+      await db.execAsync(`
         CREATE TABLE IF NOT EXISTS nip05_contacts (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           name TEXT NOT NULL,
@@ -427,8 +449,8 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
         CREATE INDEX IF NOT EXISTS idx_nip05_contacts_npub ON nip05_contacts(npub);
         CREATE INDEX IF NOT EXISTS idx_nip05_contacts_nickname ON nip05_contacts(nickname);
       `);
-      currentDbVersion = 19;
-      console.log('Created nip05_contacts table- now at version 19');
+      currentDbVersion = 20;
+      console.log('Created nip05_contacts table- now at version 20');
     }
 
     await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);

@@ -12,7 +12,7 @@ import {
   type ActivityStatus,
 } from '@/utils/activityHelpers';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
-import { Currency, shouldShowConvertedAmount } from '@/utils/currency';
+import { Currency, shouldShowConvertedAmount, formatActivityAmount } from '@/utils/currency';
 
 interface ActivityMainCardProps {
   serviceName: string;
@@ -90,8 +90,14 @@ export const ActivityMainCard: React.FC<ActivityMainCardProps> = ({
       </View>
 
       <ThemedText type="title" style={[styles.serviceName, { color: primaryTextColor }]}>
-        {isTicket ? formatTicketTitle() : serviceName}
+        {serviceName}
       </ThemedText>
+
+      {isTicket && detail && (
+        <ThemedText style={[styles.tokenName, { color: secondaryTextColor }]}>
+          {detail}
+        </ThemedText>
+      )}
 
       <View style={[styles.statusContainer, { backgroundColor: surfaceSecondaryColor }]}>
         {getStatusIcon(activityStatus, statusColors)}
@@ -105,7 +111,7 @@ export const ActivityMainCard: React.FC<ActivityMainCardProps> = ({
       {isPayment && amount && (
         <View style={styles.amountContainer}>
           <ThemedText style={[styles.amount, { color: primaryTextColor }]}>
-            {amount.toLocaleString()} {currency}
+            {formatActivityAmount(amount, currency || null)}
           </ThemedText>
           {shouldShowConvertedAmount({
             amount: converted_amount,
@@ -154,6 +160,14 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     textAlign: 'center',
+    width: '100%',
+    marginBottom: 12,
+  },
+  tokenName: {
+    fontSize: 18,
+    fontWeight: '500',
+    textAlign: 'center',
+    width: '100%',
     marginBottom: 12,
   },
   statusContainer: {

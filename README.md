@@ -16,6 +16,7 @@ Portal is a mobile identity wallet for secure authentication and payments using 
 ### 💳 Payments & Subscriptions
 
 - **Lightning Payments**: One-time Bitcoin Lightning Network payments
+- **Cashu/eCash Support**: Native Cashu token support for eCash payments and transactions
 - **Subscription Management**: Monitor and control recurring payments
 - **Payment Status Tracking**: Real-time payment status with Revolut-style UI
 - **Wallet Integration**: Seamless NWC (Nostr Wallet Connect) integration
@@ -24,6 +25,8 @@ Portal is a mobile identity wallet for secure authentication and payments using 
 
 - **Activity Dashboard**: Comprehensive tracking of all authentications and payments
 - **QR Code Scanner**: Quick authentication and payment initiation
+- **NFC Scanning**: Contactless NFC tag scanning for authentication and ticket validation
+- **Ticket Management**: Digital ticket storage, validation, and recovery
 - **Dark/Light Theme**: Adaptive theme system with system preference support
 - **Intuitive Navigation**: Tab-based navigation with detailed activity views
 
@@ -114,17 +117,18 @@ Portal is a mobile identity wallet for secure authentication and payments using 
 
 ### Authentication Flow
 
-1. **Scan QR Code**: Use built-in scanner from website or service
+1. **Scan QR Code or NFC Tag**: Use built-in scanner or NFC reader from website or service
 2. **Review Request**: Examine authentication details and permissions
 3. **Biometric Confirmation**: Confirm with Face ID/Touch ID
 4. **Approve/Deny**: Complete the authentication process
 
 ### Payment Management
 
-1. **Payment Requests**: Review incoming payment requests
+1. **Payment Requests**: Review incoming payment requests (Lightning or Cashu)
 2. **Status Tracking**: Monitor payment progress with real-time updates
 3. **Subscription Control**: Manage recurring payments and subscriptions
-4. **Activity History**: View complete payment and authentication history
+4. **Ticket Management**: Store, validate, and recover digital tickets via NFC
+5. **Activity History**: View complete payment and authentication history
 
 ## 🏗 Project Architecture
 
@@ -134,18 +138,31 @@ Portal is a mobile identity wallet for secure authentication and payments using 
 portal-app/
 ├── app/                    # Expo Router pages
 │   ├── (tabs)/            # Tab navigation screens
+│   │   ├── ActivityList.tsx
+│   │   ├── Certificates.tsx
+│   │   ├── Debug.tsx
+│   │   ├── IdentityList.tsx
+│   │   ├── Settings.tsx
+│   │   ├── Subscriptions.tsx
+│   │   └── Tickets.tsx
 │   ├── activity/[id]/     # Dynamic activity detail pages
+│   ├── nfc/               # NFC scanner flow
 │   ├── qr/               # QR scanner flow
-│   └── subscription/[id]/ # Subscription management
+│   ├── subscription/[id]/ # Subscription management
+│   ├── onboarding.tsx    # First-time setup flow
+│   ├── wallet.tsx        # Wallet management
+│   ├── recoverTickets.tsx # Ticket recovery
+│   └── relays.tsx        # Nostr relay configuration
 ├── components/            # Reusable UI components
 │   ├── ActivityDetail/   # Activity-specific components
 │   └── ui/              # Base UI components
 ├── context/              # React Context providers
 │   ├── ActivitiesContext.tsx
+│   ├── ECashContext.tsx
 │   ├── NostrServiceContext.tsx
 │   └── ThemeContext.tsx
 ├── services/             # Core business logic
-│   ├── database/        # SQLite database layer
+│   ├── DatabaseService.ts
 │   ├── BiometricAuthService.ts
 │   └── SecureStorageService.ts
 ├── hooks/               # Custom React hooks
@@ -173,14 +190,15 @@ npm run android
 npm run ios
 npm run web
 
-# Type checking
-npm run type-check
+# Code formatting
+npm run format
+npm run format:check
 
 # Linting
 npm run lint
 
-# Build for production
-npm run build
+# Testing
+npm test
 ```
 
 ### Key Development Patterns
@@ -197,7 +215,7 @@ const textColor = useThemeColor({}, 'textPrimary');
 #### Database Operations
 
 ```typescript
-import { DatabaseService } from '@/services/database';
+import { DatabaseService } from '@/services/DatabaseService';
 import { useSQLiteContext } from 'expo-sqlite';
 
 const db = useSQLiteContext();
@@ -216,7 +234,7 @@ const authResult = await BiometricAuthService.authenticate();
 
 1. **Create Components**: Add to appropriate directory in `components/`
 2. **Update Context**: Extend existing or create new context providers
-3. **Database Schema**: Update database migrations in `services/database/`
+3. **Database Schema**: Update database migrations in `migrations/`
 4. **Type Definitions**: Add interfaces to `models/` directory
 5. **Navigation**: Add routes in `app/` directory following Expo Router conventions
 

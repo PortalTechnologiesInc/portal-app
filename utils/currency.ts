@@ -164,6 +164,20 @@ export const CurrencyHelpers = {
 };
 
 /**
+ * Normalize currency string for comparison: handle "sats" → "SATS" and uppercase conversion
+ * @param curr - Currency string to normalize
+ * @returns Normalized currency string or null
+ */
+export const normalizeCurrencyForComparison = (curr: string | null | undefined): string | null => {
+  if (!curr) return null;
+  const trimmed = curr.trim();
+  if (trimmed.toLowerCase() === 'sats') {
+    return Currency.SATS;
+  }
+  return trimmed.toUpperCase();
+};
+
+/**
  * Decide whether to show a converted amount given original and converted values.
  */
 export const shouldShowConvertedAmount = (params: {
@@ -172,7 +186,66 @@ export const shouldShowConvertedAmount = (params: {
   convertedCurrency: string | null | undefined;
 }): boolean => {
   const { amount, originalCurrency, convertedCurrency } = params;
-  const original = originalCurrency?.toUpperCase();
-  const converted = convertedCurrency?.toUpperCase();
+  
+  const original = normalizeCurrencyForComparison(originalCurrency);
+  const converted = normalizeCurrencyForComparison(convertedCurrency);
+  
   return amount !== null && amount !== undefined && !!converted && converted !== original;
+};
+
+/**
+ * Format activity amount with currency symbol in consistent {currency_symbol}{value} format
+ * @param amount - The amount to format (can be null)
+ * @param currency - The currency code as string (can be null, will be normalized)
+ * @returns Formatted string in {currency_symbol}{value} format, or 'N/A' if invalid
+ */
+export const formatActivityAmount = (amount: number | null, currency: string | null): string => {
+  // Handle null/undefined cases
+  if (amount === null || amount === undefined || isNaN(amount)) {
+    return 'N/A';
+  }
+
+  if (!currency) {
+    return amount.toString();
+  }
+
+  // Normalize currency string: handle lowercase "sats" and uppercase conversion
+  let normalizedCurrency = currency.trim();
+  if (normalizedCurrency.toLowerCase() === 'sats') {
+    normalizedCurrency = Currency.SATS;
+  } else {
+    normalizedCurrency = normalizedCurrency.toUpperCase();
+  }
+
+  // Try to convert to Currency enum
+  let currencyEnum: Currency | null = null;
+  if (CurrencyHelpers.isValidCurrency(normalizedCurrency)) {
+    currencyEnum = normalizedCurrency as Currency;
+  }
+
+  // If we couldn't determine the currency, return amount with original currency string
+  if (!currencyEnum) {
+    return `${amount.toFixed(2)} ${normalizedCurrency}`;
+  }
+
+  // Get currency symbol
+  const symbol = CurrencyHelpers.getSymbol(currencyEnum);
+
+  // Format according to currency type
+  if (currencyEnum === Currency.SATS) {
+    // SATS: whole number with symbol suffix (e.g., "5 sats")
+    return `${Math.round(amount)} ${symbol}`;
+  }
+
+  if (currencyEnum === Currency.BTC) {
+    // BTC: up to 8 decimals, trim trailing zeros
+    const fixed = amount.toFixed(8);
+    const trimmed = fixed
+      .replace(/\.0+$/, '') // remove trailing .0... entirely
+      .replace(/(\.\d*?[1-9])0+$/, '$1'); // trim trailing zeros keeping last non-zero
+    return `${symbol}${trimmed}`;
+  }
+
+  // Fiat and others: 2 decimals with symbol prefix
+  return `${symbol}${amount.toFixed(2)}`;
 };

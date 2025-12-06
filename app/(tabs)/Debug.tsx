@@ -19,6 +19,7 @@ import { router } from 'expo-router';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { usePendingRequests } from '@/context/PendingRequestsContext';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import { AppLockService } from '@/services/AppLockService';
 
 // Log level options for dropdown
 const LOG_LEVEL_OPTIONS = [
@@ -50,6 +51,9 @@ export default function DebugScreen() {
   const [convertedAmount, setConvertedAmount] = useState<number | null>(null);
   const [isConverting, setIsConverting] = useState(false);
 
+  // App Lock Testing state
+  const [isFingerprintSupported, setIsFingerprintSupported] = useState<boolean | null>(null);
+
   // Services
   const nostrService = useNostrService();
   const { showSkeletonLoader } = usePendingRequests();
@@ -77,6 +81,10 @@ export default function DebugScreen() {
         if (savedLogLevel !== null) {
           setCurrentLogLevel(parseInt(savedLogLevel, 10));
         }
+
+        // Load fingerprint support status
+        const fingerprintSupported = await AppLockService.getFingerprintSupported();
+        setIsFingerprintSupported(fingerprintSupported);
 
         setIsInitialized(true);
       } catch (error) {
@@ -125,6 +133,20 @@ export default function DebugScreen() {
   const handleClearLogs = () => {
     console.clear();
     console.log('🧹 Console cleared from Debug screen');
+  };
+
+  const handleInvertFingerprintSupport = async () => {
+    if (isFingerprintSupported === null) return;
+    
+    try {
+      const newValue = !isFingerprintSupported;
+      await AppLockService.setFingerprintSupported(newValue);
+      setIsFingerprintSupported(newValue);
+      console.log(`Fingerprint support inverted to: ${newValue}`);
+    } catch (error) {
+      console.error('Failed to invert fingerprint support:', error);
+      Alert.alert('Error', 'Failed to invert fingerprint support value.');
+    }
   };
 
   // Currency conversion handler
@@ -364,6 +386,25 @@ export default function DebugScreen() {
                 🧹 Clear Console
               </ThemedText>
             </TouchableOpacity>
+
+            {/* Fingerprint Support Toggle */}
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <ThemedText style={[styles.settingLabel, { color: primaryTextColor }]}>
+                  Invert Fingerprint Support
+                </ThemedText>
+                <ThemedText style={[styles.settingSubtext, { color: secondaryTextColor }]}>
+                  Current: {isFingerprintSupported === null ? 'Loading...' : isFingerprintSupported ? 'Supported' : 'Not Supported'}
+                </ThemedText>
+              </View>
+              <Switch
+                value={isFingerprintSupported === null ? false : isFingerprintSupported}
+                onValueChange={handleInvertFingerprintSupport}
+                trackColor={{ false: '#767577', true: buttonColor }}
+                thumbColor={isFingerprintSupported === null ? '#f4f3f4' : isFingerprintSupported ? '#ffffff' : '#f4f3f4'}
+                disabled={isFingerprintSupported === null}
+              />
+            </View>
           </ThemedView>
 
           {/* QR Code Testing */}
