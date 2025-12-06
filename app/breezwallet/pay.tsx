@@ -11,7 +11,10 @@ import bolt11 from 'light-bolt11-decoder';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 import { useCurrency } from '@/context/CurrencyContext';
 import {
+  PaymentType,
   PrepareSendPaymentResponse,
+  SdkEvent,
+  SdkEvent_Tags,
   SendPaymentMethod,
 } from '@breeztech/breez-sdk-spark-react-native';
 import { useWalletManager } from '@/context/WalletManagerContext';
@@ -41,6 +44,7 @@ export default function MyWalletManagementSecret() {
     useState<PrepareSendPaymentResponse | null>(null);
   const [isSendPaymentLoading, setIsSendPaymentLoading] = useState(false);
   const [pageState, setPageState] = useState(PageState.PaymentRecap);
+  const [isPaymentSent, setIsPaymentSent] = useState(false);
 
   const backgroundColor = useThemeColor({}, 'background');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
@@ -48,12 +52,10 @@ export default function MyWalletManagementSecret() {
   const buttonPrimaryColor = useThemeColor({}, 'buttonPrimary');
   const buttonPrimaryTextColor = useThemeColor({}, 'buttonPrimaryText');
 
-  const confirmPayment = useCallback(async () => {
-    if (breezWallet == null) return;
-    if (prepareSendPaymentResponse == null) return;
+  useEffect(() => {
+    if (!isPaymentSent) return;
+    if (!isSendPaymentLoading) return;
 
-    setIsSendPaymentLoading(true);
-    await breezWallet.sendPaymentWithPrepareResponse(prepareSendPaymentResponse);
     setIsSendPaymentLoading(false);
 
     setPageState(PageState.PaymentSent);
@@ -61,7 +63,62 @@ export default function MyWalletManagementSecret() {
     setTimeout(() => {
       router.dismissTo('/breezwallet');
     }, 2000);
-  }, [breezWallet, prepareSendPaymentResponse, router]);
+  }, [isPaymentSent]);
+
+  const waitForPayment = useCallback(
+    (_invoice: string, amount: bigint): Promise<void> => {
+      return new Promise(resolve => {
+        if (!breezWallet) {
+          resolve();
+          return;
+        }
+
+        let listenerId: string;
+        const handler = async (event: SdkEvent) => {
+          console.log('[BREEZ EVENT]:', event);
+
+          let isPaid = false;
+          if (
+            event.tag === SdkEvent_Tags.PaymentSucceeded ||
+            event.tag === SdkEvent_Tags.PaymentPending
+          ) {
+            const { amount: paymentAmount, paymentType } = event.inner.payment;
+            isPaid = paymentType === PaymentType.Send && amount === paymentAmount;
+          }
+
+          if (isPaid) {
+            breezWallet.removeEventListener(listenerId);
+            resolve();
+          }
+        };
+
+        breezWallet
+          .addEventListener({
+            onEvent: handler,
+          })
+          .then(id => {
+            listenerId = id;
+          });
+      });
+    },
+    [breezWallet]
+  );
+
+  const confirmPayment = useCallback(async () => {
+    if (breezWallet == null) return;
+    if (prepareSendPaymentResponse == null) return;
+
+    setIsSendPaymentLoading(true);
+    await breezWallet.sendPaymentWithPrepareResponse(prepareSendPaymentResponse);
+    await waitForPayment(invoice, prepareSendPaymentResponse.amount);
+    setIsSendPaymentLoading(false);
+
+    setPageState(PageState.PaymentSent);
+
+    setTimeout(() => {
+      router.dismissTo('/breezwallet');
+    }, 2000);
+  }, [breezWallet, prepareSendPaymentResponse, router, invoice]);
 
   useEffect(() => {
     let active = true;
@@ -74,6 +131,37 @@ export default function MyWalletManagementSecret() {
       active = false;
     };
   }, [getWallet]);
+
+  useEffect(() => {
+    if (breezWallet == null) return;
+
+    let listenerId: string;
+    const handler = async (event: SdkEvent) => {
+      console.log('[BREEZ EVENT]:', event);
+
+      let isPaid = false;
+      if (
+        event.tag === SdkEvent_Tags.PaymentSucceeded ||
+        event.tag === SdkEvent_Tags.PaymentPending
+      ) {
+        const { paymentType } = event.inner.payment;
+        isPaid = paymentType === PaymentType.Send;
+      }
+
+      if (isPaid) {
+        breezWallet.removeEventListener(listenerId);
+        setIsPaymentSent(true);
+      }
+    };
+
+    breezWallet
+      .addEventListener({
+        onEvent: handler,
+      })
+      .then(id => {
+        listenerId = id;
+      });
+  }, [breezWallet]);
 
   useEffect(() => {
     if (breezWallet == null) return;

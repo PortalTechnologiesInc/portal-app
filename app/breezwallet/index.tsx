@@ -342,12 +342,16 @@ export default function MyWalletManagementSecret() {
                   </ThemedText>
                 </View>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => router.push({
+              <TouchableOpacity
+                onPress={() =>
+                  router.push({
                     pathname: '/qr',
                     params: {
                       mode: 'lightning',
                     },
-                  })}>
+                  })
+                }
+              >
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <Send color={buttonPrimaryTextColor} />
                   <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>

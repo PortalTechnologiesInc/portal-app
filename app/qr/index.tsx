@@ -94,21 +94,21 @@ export default function QRScannerScreen() {
     setEnableTorch(!enableTorch);
   };
 
-  const tryPasteInvoice = async() => {
+  const tryPasteInvoice = async () => {
     const invoice = await Clipboard.getString();
     const validation = validateQRCode(invoice);
-      if (!validation.isValid) {
-        showErrorMessage(validation.error || 'Invalid QR code');
-        return;
-      }
+    if (!validation.isValid) {
+      showErrorMessage(validation.error || 'Invalid QR code');
+      return;
+    }
 
-      router.replace({
-        pathname: '/breezwallet/pay',
-        params: {
-          invoice,
-        },
-      });
-  }
+    router.replace({
+      pathname: '/breezwallet/pay',
+      params: {
+        invoice,
+      },
+    });
+  };
 
   const openSettings = async () => {
     await Linking.openSettings();
@@ -576,22 +576,20 @@ export default function QRScannerScreen() {
                 {enableTorch ? 'Turn Off Flash' : 'Turn On Flash'}
               </ThemedText>
             </TouchableOpacity>
-            
-            {
-              mode === 'lightning' && (
-                <TouchableOpacity
-                  style={[styles.flashButton, { backgroundColor: buttonPrimary, marginTop: 10 }]}
-                  onPress={tryPasteInvoice}
-                >
-                  <View style={{ flexDirection: 'row' }}>
+
+            {mode === 'lightning' && (
+              <TouchableOpacity
+                style={[styles.flashButton, { backgroundColor: buttonPrimary, marginTop: 10 }]}
+                onPress={tryPasteInvoice}
+              >
+                <View style={{ flexDirection: 'row' }}>
                   <ClipboardPaste color={buttonPrimaryText} />
                   <ThemedText style={[styles.flashButtonText, { color: buttonPrimaryText }]}>
                     Paste
                   </ThemedText>
-                  </View>
-                </TouchableOpacity>
-              )
-            }
+                </View>
+              </TouchableOpacity>
+            )}
           </View>
         </ThemedView>
 

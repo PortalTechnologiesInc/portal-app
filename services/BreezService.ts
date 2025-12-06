@@ -169,7 +169,7 @@ export class BreezService implements Wallet {
     if (prepareResponse.paymentMethod instanceof SendPaymentMethod.Bolt11Invoice) {
       sendOptions = new SendPaymentOptions.Bolt11Invoice({
         preferSpark: true,
-        completionTimeoutSecs: 60,
+        completionTimeoutSecs: undefined,
       });
     } else if (prepareResponse.paymentMethod instanceof SendPaymentMethod.BitcoinAddress) {
       sendOptions = new SendPaymentOptions.BitcoinAddress({
