@@ -12,6 +12,17 @@ import { BreezService } from '@/services/BreezService';
 import { NwcService } from '@/services/NwcService';
 import { WalletInfo } from '@/utils/types';
 import { useKey } from './KeyContext';
+import { useDatabaseContext } from './DatabaseContext';
+import { useCurrency } from './CurrencyContext';
+import { ActivityType, globalEvents } from '@/utils/common';
+import {
+  SdkEvent,
+  SdkEvent_Tags,
+  PaymentType,
+  Payment,
+  PaymentStatus,
+} from '@breeztech/breez-sdk-spark-react-native';
+import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 
 export interface WalletManagerContextType {
   activeWallet?: Wallet;
@@ -38,6 +49,8 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
   children,
 }) => {
   const { mnemonic, walletUrl } = useKey();
+  const { executeOperation } = useDatabaseContext();
+  const { preferredCurrency } = useCurrency();
 
   const [activeWallet, setActiveWallet] = useState<Wallet | undefined>(undefined);
   const [walletInfo, setWalletInfo] = useState<WalletInfo | undefined>(undefined);
@@ -63,6 +76,123 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
   );
 
   /**
+   * Setup event listener for Breez wallet to track activities and payment status
+   */
+  const setupBreezEventListener = useCallback(
+    (breezWallet: BreezService) => {
+      const handler = async (event: SdkEvent) => {
+        console.log('[BREEZ EVENT]:', event);
+
+        // Extract event type and payment data
+        let paymentData: Payment;
+
+        switch (event.tag) {
+          case SdkEvent_Tags.PaymentPending:
+          case SdkEvent_Tags.PaymentSucceeded:
+          case SdkEvent_Tags.PaymentFailed:
+            paymentData = event.inner.payment;
+            break;
+          default:
+            return; // Early exit if not a payment event
+        }
+
+        const { amount, id, paymentType: pType, status: pStatus } = paymentData;
+        const amountInSats = Number(amount);
+
+        const statusMap = {
+          pending: { status: 'pending' as const, statusEntry: null },
+          succeeded: { status: 'positive' as const, statusEntry: 'payment_completed' as const },
+          failed: { status: 'negative' as const, statusEntry: 'payment_failed' as const },
+        };
+
+        const activityTypeMap = {
+          send: {
+            type: ActivityType.Pay,
+            messages: {
+              pending: 'Payment pending',
+              succeeded: 'Payment completed',
+              failed: 'Payment failed',
+            },
+          },
+          receive: {
+            type: ActivityType.Receive,
+            messages: {
+              pending: 'Waiting for payment',
+              succeeded: 'Payment received',
+              failed: 'Payment failed',
+            },
+          },
+        };
+
+        const eventType =
+          pStatus === PaymentStatus.Pending
+            ? 'pending'
+            : pStatus === PaymentStatus.Completed
+              ? 'succeeded'
+              : 'failed';
+        const { status, statusEntry } = statusMap[eventType];
+        const typeConfig = activityTypeMap[pType === PaymentType.Send ? 'send' : 'receive'];
+
+        if (!typeConfig) return;
+
+        try {
+          // Convert amount to preferred currency
+          const convertedAmt = await CurrencyConversionService.convertAmount(
+            amountInSats,
+            'sats',
+            preferredCurrency
+          );
+
+          // Create or update activity
+          const activityId = await executeOperation(db =>
+            db.addActivity({
+              type: typeConfig.type,
+              service_key: 'Breez Wallet',
+              service_name: 'Breez Wallet',
+              detail: typeConfig.messages[eventType],
+              date: new Date(),
+              amount: amountInSats,
+              currency: 'sats',
+              converted_amount: convertedAmt,
+              converted_currency: preferredCurrency,
+              request_id: id,
+              subscription_id: null, // TODO: link to subscription if applicable
+              status,
+              invoice: null, // TODO: get invoice from details if available
+            })
+          );
+
+          if (activityId) {
+            const createdActivity = await executeOperation(db => db.getActivity(activityId), null);
+            if (createdActivity) {
+              globalEvents.emit(
+                status === 'pending' ? 'activityAdded' : 'activityUpdated',
+                status === 'pending' ? createdActivity : { activityId }
+              );
+            }
+          }
+
+          // Add payment status entry if needed
+          if (statusEntry) {
+            try {
+              await executeOperation(db => db.addPaymentStatusEntry(id, statusEntry), null);
+            } catch (statusError) {
+              console.error('Failed to add payment status entry:', statusError);
+            }
+          }
+        } catch (error) {
+          console.error('Failed to handle Breez payment event:', error);
+        }
+      };
+
+      breezWallet.addEventListener({ onEvent: handler }).catch(error => {
+        console.error('Failed to setup Breez event listener:', error);
+      });
+    },
+    [executeOperation, preferredCurrency]
+  );
+
+  /**
    * Create or return a cached wallet instance
    */
   const getWallet = useCallback(
@@ -80,6 +210,8 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
             mnemonic,
             onStatusChange(walletType)
           )) as WalletTypeMap[T];
+          // Setup event listener for Breez wallet
+          setupBreezEventListener(instance as BreezService);
           break;
 
         case WALLET_TYPE.NWC:
@@ -99,7 +231,7 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
       walletCacheRef.current.set(walletType, instance);
       return instance;
     },
-    [mnemonic, walletUrl, onStatusChange]
+    [mnemonic, walletUrl, onStatusChange, setupBreezEventListener]
   );
 
   /**
