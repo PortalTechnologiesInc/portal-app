@@ -54,7 +54,7 @@ export class BreezService implements Wallet {
     const seed = new Seed.Mnemonic({ mnemonic, passphrase: undefined });
     const config = defaultConfig(Network.Mainnet);
     config.apiKey = process.env.EXPO_PUBLIC_BREEZ_API_KEY;
-    config.preferSparkOverLightning = true;
+    config.preferSparkOverLightning = false;
 
     const dirUri = FileSystem.documentDirectory + 'breez-wallet';
     const storageDir = dirUri.replace('file://', '');
@@ -114,7 +114,7 @@ export class BreezService implements Wallet {
 
       if (prepareResponse.paymentMethod instanceof SendPaymentMethod.Bolt11Invoice) {
         sendOptions = new SendPaymentOptions.Bolt11Invoice({
-          preferSpark: true,
+          preferSpark: false,
           completionTimeoutSecs: 60,
         });
       } else if (prepareResponse.paymentMethod instanceof SendPaymentMethod.BitcoinAddress) {
@@ -168,7 +168,7 @@ export class BreezService implements Wallet {
 
     if (prepareResponse.paymentMethod instanceof SendPaymentMethod.Bolt11Invoice) {
       sendOptions = new SendPaymentOptions.Bolt11Invoice({
-        preferSpark: true,
+        preferSpark: false,
         completionTimeoutSecs: undefined,
       });
     } else if (prepareResponse.paymentMethod instanceof SendPaymentMethod.BitcoinAddress) {

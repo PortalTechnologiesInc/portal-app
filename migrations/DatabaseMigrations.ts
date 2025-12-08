@@ -465,7 +465,9 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
           created_at INTEGER NOT NULL,
           subscription_id TEXT REFERENCES subscriptions(id) ON DELETE SET NULL,
           status TEXT NOT NULL DEFAULT 'neutral' CHECK (status IN ('neutral', 'positive', 'negative', 'pending')),
-          invoice TEXT
+          invoice TEXT,
+          converted_amount REAL,
+          converted_currency TEXT
         );
         
         -- Copy data from old table to new table
@@ -479,6 +481,9 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
         CREATE INDEX IF NOT EXISTS idx_activities_date ON activities(date);
         CREATE INDEX IF NOT EXISTS idx_activities_type ON activities(type);
         CREATE INDEX IF NOT EXISTS idx_activities_subscription ON activities(subscription_id);
+        CREATE INDEX IF NOT EXISTS idx_activities_status ON activities(status);
+        CREATE INDEX IF NOT EXISTS idx_activities_invoice ON activities(invoice);
+        CREATE INDEX IF NOT EXISTS idx_activities_converted_currency ON activities(converted_currency);
       `);
       currentDbVersion = 21;
       console.log('Updated activities table to support receive type - now at version 21');

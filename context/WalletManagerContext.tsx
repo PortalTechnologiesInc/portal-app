@@ -21,6 +21,7 @@ import {
   PaymentType,
   Payment,
   PaymentStatus,
+  PaymentDetails_Tags,
 } from '@breeztech/breez-sdk-spark-react-native';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 
@@ -96,7 +97,7 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
             return; // Early exit if not a payment event
         }
 
-        const { amount, id, paymentType: pType, status: pStatus } = paymentData;
+        const { amount, id, paymentType: pType, status: pStatus, details } = paymentData;
         const amountInSats = Number(amount);
 
         const statusMap = {
@@ -142,6 +143,8 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
             'sats',
             preferredCurrency
           );
+          const invoice =
+            details?.tag === PaymentDetails_Tags.Lightning ? details.inner.invoice : null;
 
           // Create or update activity
           const activityId = await executeOperation(db =>
@@ -158,7 +161,7 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
               request_id: id,
               subscription_id: null, // TODO: link to subscription if applicable
               status,
-              invoice: null, // TODO: get invoice from details if available
+              invoice,
             })
           );
 
@@ -173,9 +176,9 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
           }
 
           // Add payment status entry if needed
-          if (statusEntry) {
+          if (statusEntry && invoice) {
             try {
-              await executeOperation(db => db.addPaymentStatusEntry(id, statusEntry), null);
+              await executeOperation(db => db.addPaymentStatusEntry(invoice, statusEntry), null);
             } catch (statusError) {
               console.error('Failed to add payment status entry:', statusError);
             }
