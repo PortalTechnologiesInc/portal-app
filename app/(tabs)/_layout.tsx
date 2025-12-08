@@ -108,10 +108,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="ActivityList"
+        name="Wallet"
         options={{
-          title: 'Activities',
-          tabBarIcon: ({ color }) => <ActivityIcon color={color} />,
+          title: 'Wallet',
+          tabBarIcon: ({ color }) => <WalletIcon color={color} />,
         }}
       />
       <Tabs.Screen
@@ -133,13 +133,6 @@ export default function TabLayout() {
         options={{
           title: 'Settings',
           tabBarIcon: ({ color }) => <SettingsIcon color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="Wallet"
-        options={{
-          title: 'Wallet',
-          tabBarIcon: ({ color }) => <WalletIcon color={color} />,
         }}
       />
       <Tabs.Screen

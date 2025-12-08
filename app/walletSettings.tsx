@@ -92,7 +92,7 @@ export default function WalletSettings() {
           {/* Breez Wallet */}
           <TouchableOpacity
             style={[styles.card, { backgroundColor: cardBackgroundColor }]}
-            onPress={() => router.push('/breezwallet')}
+            onPress={() => router.push('/Wallet')}
             activeOpacity={0.7}
           >
             <View style={styles.cardContent}>

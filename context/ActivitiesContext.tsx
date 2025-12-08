@@ -104,6 +104,7 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
       }
       if (hasPayments) {
         types.push(ActivityType.Pay);
+        types.push(ActivityType.Receive);
         // Exclude subscriptions only if subscriptions filter is NOT active
         if (!hasSubscriptions) {
           excludeSubscriptions = true;
@@ -269,6 +270,7 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
     }
     if (hasPayments) {
       types.push(ActivityType.Pay);
+      types.push(ActivityType.Receive);
       if (!hasSubscriptions) {
         excludeSubscriptions = true;
       }

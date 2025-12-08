@@ -21,6 +21,8 @@ import { useWalletManager } from '@/context/WalletManagerContext';
 import { BreezService } from '@/services/BreezService';
 import { WALLET_TYPE } from '@/models/WalletType';
 import LottieView from 'lottie-react-native';
+import { useDatabaseContext } from '@/context/DatabaseContext';
+import { ActivityType, globalEvents } from '@/utils/common';
 
 enum PageState {
   PaymentRecap,
@@ -33,6 +35,7 @@ export default function MyWalletManagementSecret() {
 
   const { preferredCurrency } = useCurrency();
   const { getWallet } = useWalletManager();
+  const { executeOperation } = useDatabaseContext();
   const [breezWallet, setBreezWallet] = useState<BreezService | null>(null);
 
   const [amountMillisats, setAmountMillisats] = useState<number | null>(null);
@@ -61,64 +64,63 @@ export default function MyWalletManagementSecret() {
     setPageState(PageState.PaymentSent);
 
     setTimeout(() => {
-      router.dismissTo('/breezwallet');
+      router.dismissTo('/Wallet');
     }, 2000);
-  }, [isPaymentSent]);
-
-  const waitForPayment = useCallback(
-    (_invoice: string, amount: bigint): Promise<void> => {
-      return new Promise(resolve => {
-        if (!breezWallet) {
-          resolve();
-          return;
-        }
-
-        let listenerId: string;
-        const handler = async (event: SdkEvent) => {
-          console.log('[BREEZ EVENT]:', event);
-
-          let isPaid = false;
-          if (
-            event.tag === SdkEvent_Tags.PaymentSucceeded ||
-            event.tag === SdkEvent_Tags.PaymentPending
-          ) {
-            const { amount: paymentAmount, paymentType } = event.inner.payment;
-            isPaid = paymentType === PaymentType.Send && amount === paymentAmount;
-          }
-
-          if (isPaid) {
-            breezWallet.removeEventListener(listenerId);
-            resolve();
-          }
-        };
-
-        breezWallet
-          .addEventListener({
-            onEvent: handler,
-          })
-          .then(id => {
-            listenerId = id;
-          });
-      });
-    },
-    [breezWallet]
-  );
+  }, [isPaymentSent, isSendPaymentLoading, router]);
 
   const confirmPayment = useCallback(async () => {
     if (breezWallet == null) return;
     if (prepareSendPaymentResponse == null) return;
 
     setIsSendPaymentLoading(true);
-    await breezWallet.sendPaymentWithPrepareResponse(prepareSendPaymentResponse);
-    await waitForPayment(invoice, prepareSendPaymentResponse.amount);
+
+    // Add payment status entry when payment is started
+    try {
+      const activityId = await executeOperation(db =>
+        db.addActivity({
+          type: ActivityType.Pay,
+          service_key: 'Breez Wallet',
+          service_name: 'Breez Wallet',
+          detail: 'Payment pending',
+          date: new Date(),
+          amount: (amountMillisats ?? 0) / 1000,
+          currency: 'sats',
+          converted_amount: convertedAmount,
+          converted_currency: preferredCurrency,
+          request_id: invoice,
+          subscription_id: null, // TODO: link to subscription if applicable
+          status: 'neutral',
+          invoice,
+        })
+      );
+
+      await executeOperation(db => db.addPaymentStatusEntry(invoice, 'payment_started'), null);
+      if (activityId) {
+        const createdActivity = await executeOperation(db => db.getActivity(activityId), null);
+        if (createdActivity) {
+          globalEvents.emit('activityAdded', createdActivity);
+        }
+      }
+
+      await breezWallet.sendPaymentWithPrepareResponse(prepareSendPaymentResponse);
+
+      await executeOperation(db =>
+        db.updateActivityStatus(activityId, 'positive', 'Payment completed')
+      );
+      await executeOperation(db => db.addPaymentStatusEntry(invoice, 'payment_completed'), null);
+      globalEvents.emit('activityUpdated', { activityId });
+    } catch (error) {
+      console.error('Failed to add payment_started status entry:', error);
+    }
+
     setIsSendPaymentLoading(false);
 
     setPageState(PageState.PaymentSent);
 
     setTimeout(() => {
-      router.dismissTo('/breezwallet');
+      router.dismissTo('/Wallet');
     }, 2000);
-  }, [breezWallet, prepareSendPaymentResponse, router, invoice]);
+  }, [breezWallet, prepareSendPaymentResponse, invoice, router, executeOperation, amountMillisats]);
 
   useEffect(() => {
     let active = true;
@@ -161,7 +163,7 @@ export default function MyWalletManagementSecret() {
       .then(id => {
         listenerId = id;
       });
-  }, [breezWallet]);
+  }, [breezWallet, executeOperation, preferredCurrency, description, invoice]);
 
   useEffect(() => {
     if (breezWallet == null) return;

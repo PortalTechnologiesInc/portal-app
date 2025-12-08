@@ -189,6 +189,16 @@ export default function MyWalletManagementSecret() {
     const amountSats = reverseCurrency ? BigInt(convertedAmount) : BigInt(amount);
     const createdInvoice = await breezWallet?.receivePayment(amountSats, description);
 
+    // Add payment status entry when invoice is created
+    try {
+      await executeOperation(
+        db => db.addPaymentStatusEntry(createdInvoice, 'payment_started'),
+        null
+      );
+    } catch (error) {
+      console.error('Failed to add payment_started status entry:', error);
+    }
+
     setInvoice(createdInvoice);
     setPageState(PageState.ShowInvoiceInfo);
 
@@ -196,9 +206,18 @@ export default function MyWalletManagementSecret() {
     setPageState(PageState.PaymentReceived);
 
     setTimeout(() => {
-      router.dismissTo('/breezwallet');
+      router.dismissTo('/Wallet');
     }, 2000);
-  }, [amount, breezWallet, convertedAmount, description, reverseCurrency, router, waitForPayment]);
+  }, [
+    amount,
+    breezWallet,
+    convertedAmount,
+    description,
+    reverseCurrency,
+    router,
+    waitForPayment,
+    executeOperation,
+  ]);
 
   const sendPaymentRequest = useCallback(async () => {
     if (contactNpub == null) return;
@@ -235,7 +254,7 @@ export default function MyWalletManagementSecret() {
 
     setPageState(PageState.ShowPaymentSent);
     setTimeout(() => {
-      router.dismissTo('/breezwallet');
+      router.dismissTo('/Wallet');
     }, 2000);
   }, [
     contactNpub,

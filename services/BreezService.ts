@@ -11,8 +11,6 @@ import {
   SendPaymentMethod,
   OnchainConfirmationSpeed,
   PrepareSendPaymentResponse,
-  LogEntry,
-  initLogging,
 } from '@breeztech/breez-sdk-spark-react-native';
 import { Wallet, WALLET_CONNECTION_STATUS, WalletConnectionStatus } from '@/models/WalletType';
 import { WalletInfo } from '@/utils/types';
@@ -28,22 +26,7 @@ export class BreezService implements Wallet {
   ): Promise<BreezService> {
     const instance = new BreezService();
     instance.onStatusChange = onStatusChange || null;
-    initLogging(
-      undefined,
-      {
-        log: (logEntry: LogEntry) => {
-          console.log(`[BREEZ] ${logEntry.level}: ${logEntry.line}`);
-        },
-      },
-      undefined
-    );
     await instance.init(mnemonic);
-    // await instance.addEventListener({
-    //   onEvent: async event => {
-    //     console.log(`[BREEZ EVENT] ${JSON.stringify(event)}`);
-    //     return;
-    //   },
-    // });
     return instance;
   }
 
@@ -54,7 +37,7 @@ export class BreezService implements Wallet {
     const seed = new Seed.Mnemonic({ mnemonic, passphrase: undefined });
     const config = defaultConfig(Network.Mainnet);
     config.apiKey = process.env.EXPO_PUBLIC_BREEZ_API_KEY;
-    config.preferSparkOverLightning = true;
+    config.preferSparkOverLightning = false;
 
     const dirUri = FileSystem.documentDirectory + 'breez-wallet';
     const storageDir = dirUri.replace('file://', '');
@@ -114,8 +97,8 @@ export class BreezService implements Wallet {
 
       if (prepareResponse.paymentMethod instanceof SendPaymentMethod.Bolt11Invoice) {
         sendOptions = new SendPaymentOptions.Bolt11Invoice({
-          preferSpark: true,
-          completionTimeoutSecs: 60,
+          preferSpark: false,
+          completionTimeoutSecs: 30,
         });
       } else if (prepareResponse.paymentMethod instanceof SendPaymentMethod.BitcoinAddress) {
         sendOptions = new SendPaymentOptions.BitcoinAddress({
@@ -168,8 +151,8 @@ export class BreezService implements Wallet {
 
     if (prepareResponse.paymentMethod instanceof SendPaymentMethod.Bolt11Invoice) {
       sendOptions = new SendPaymentOptions.Bolt11Invoice({
-        preferSpark: true,
-        completionTimeoutSecs: undefined,
+        preferSpark: false,
+        completionTimeoutSecs: 30,
       });
     } else if (prepareResponse.paymentMethod instanceof SendPaymentMethod.BitcoinAddress) {
       sendOptions = new SendPaymentOptions.BitcoinAddress({

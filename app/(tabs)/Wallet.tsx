@@ -38,14 +38,14 @@ export default function MyWalletManagementSecret() {
   const { executeOperation } = useDatabaseContext();
   const { preferredCurrency, getCurrentCurrencySymbol } = useCurrency();
 
-  const { getWallet } = useWalletManager();
+  const { isWalletManagerInitialized, getWallet } = useWalletManager();
   const [breezWallet, setBreezWallet] = useState<BreezService | null>(null);
   const [walletInfo, setWalletInfo] = useState<WalletInfo | null>(null);
   const [contacts, setContacts] = useState<ContactWithProfile[]>([]);
-  const [areContactsLoading, setAreContactsLoading] = useState(true);
+  const [areContactsLoading, setAreContactsLoading] = useState(false);
   const [activeFilter, setActiveFilter] = useState('');
 
-  const nostrService = useNostrService();
+  const {fetchProfile, isInitialized} = useNostrService();
 
   const getContacts = useCallback(async () => {
     const savedContacts = await executeOperation(db => db.getRecentNip05Contacts(5));
@@ -54,7 +54,7 @@ export default function MyWalletManagementSecret() {
     const enrichedContacts: ContactWithProfile[] = [];
     for (const contact of savedContacts) {
       try {
-        const fullProfile = await nostrService.fetchProfile(contact.npub);
+        const fullProfile = await fetchProfile(contact.npub);
         enrichedContacts.push({
           ...contact,
           displayName: fullProfile.displayName ?? null,
@@ -74,12 +74,13 @@ export default function MyWalletManagementSecret() {
     }
 
     setContacts(enrichedContacts);
-    setAreContactsLoading(false);
-  }, [executeOperation, nostrService]);
+  }, [executeOperation, fetchProfile]);
 
   useEffect(() => {
-    getContacts();
-  }, [getContacts]);
+    if (isInitialized) {
+      getContacts();
+    }
+  }, [getContacts, isInitialized]);
 
   type Nip05Contacts = Record<string, string>;
   const fetchNip05Contacts = async () => {
@@ -128,7 +129,7 @@ export default function MyWalletManagementSecret() {
 
       const contactsToShow: ContactWithProfile[] = [];
       for (const filteredUsername of filteredUsernames) {
-        const fullProfile = await nostrService.fetchProfile(contacts[filteredUsername]);
+        const fullProfile = await fetchProfile(contacts[filteredUsername]);
 
         contactsToShow.push({
           id: 0,
@@ -172,14 +173,20 @@ export default function MyWalletManagementSecret() {
   useEffect(() => {
     let active = true;
 
-    getWallet(WALLET_TYPE.BREEZ).then(wallet => {
-      if (active) setBreezWallet(wallet);
-    });
+    if (isWalletManagerInitialized) {
+      getWallet(WALLET_TYPE.BREEZ)
+        .then(wallet => {
+          if (active) setBreezWallet(wallet);
+        })
+        .catch(error => {
+          console.error('Failed to get wallet:', JSON.stringify(error));
+        });
+    }
 
     return () => {
       active = false;
     };
-  }, [getWallet]);
+  }, [getWallet, isWalletManagerInitialized]);
 
   useEffect(() => {
     if (breezWallet == null) return;
