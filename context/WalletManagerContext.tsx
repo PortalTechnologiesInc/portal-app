@@ -36,6 +36,7 @@ export interface WalletManagerContextType {
   prepareSendPayment: (paymentRequest: string, amountSats: bigint) => Promise<unknown>;
   sendPayment: (paymentRequest: string, amountSats: bigint) => Promise<string>;
   receivePayment: (amountSats: bigint) => Promise<string>;
+  isWalletManagerInitialized: boolean;
 }
 
 interface WalletManagerContextProviderProps {
@@ -56,8 +57,7 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
   const [activeWallet, setActiveWallet] = useState<Wallet | undefined>(undefined);
   const [walletInfo, setWalletInfo] = useState<WalletInfo | undefined>(undefined);
   const [preferredWallet, setPreferredWallet] = useState<WalletType | null>(null);
-
-  // Wallet cache
+  const [isWalletManagerInitialized, setIsWalletManagerInitialized] = useState(false);
   const walletCacheRef = useRef<Map<WalletType, Wallet>>(new Map());
 
   const defaultStatuses: Map<WalletType, WalletConnectionStatus> = new Map([
@@ -197,7 +197,7 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
   );
 
   /**
-   * Create or return a cached wallet instance
+   * Create or return a cached wallet instance (uses ref to avoid dependency cycle)
    */
   const getWallet = useCallback(
     async <T extends WalletType>(walletType: T): Promise<WalletTypeMap[T]> => {
@@ -235,7 +235,7 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
       walletCacheRef.current.set(walletType, instance);
       return instance;
     },
-    [mnemonic, walletUrl, onStatusChange, setupBreezEventListener]
+    [mnemonic, onStatusChange, setupBreezEventListener, walletUrl]
   );
 
   /**
@@ -263,41 +263,52 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
   }, [activeWallet]);
 
   /**
-   * Restore preferred wallet on mount
+   * Single initialization effect - runs only once to set up wallets
    */
   useEffect(() => {
     const init = async () => {
       if (!mnemonic) return;
 
-      const stored = await AsyncStorage.getItem(PREFERRED_WALLET_KEY);
+      try {
+        // Initialize Breez wallet at startup
+        await getWallet(WALLET_TYPE.BREEZ);
 
-      if (stored) {
-        const walletType = JSON.parse(stored) as WalletType;
-        await switchActiveWallet(walletType);
-      } else {
-        // default
-        await switchActiveWallet(WALLET_TYPE.BREEZ);
+        // Restore preferred wallet
+        const stored = await AsyncStorage.getItem(PREFERRED_WALLET_KEY);
+        if (stored) {
+          const walletType = JSON.parse(stored) as WalletType;
+          await switchActiveWallet(walletType);
+        } else {
+          // Default to Breez
+          await switchActiveWallet(WALLET_TYPE.BREEZ);
+        }
+
+        setIsWalletManagerInitialized(true);
+      } catch (error) {
+        console.error('Failed to initialize wallet manager:', JSON.stringify(error));
       }
     };
 
     init();
-  }, [mnemonic, switchActiveWallet]);
+  }, [getWallet, mnemonic, switchActiveWallet]);
 
   /**
    * If wallet url is removed, update global status and switch to breez as preferred
    */
   useEffect(() => {
-    if (!walletUrl) {
-      setWalletStatus(prev =>
-        new Map(prev).set(WALLET_TYPE.NWC, WALLET_CONNECTION_STATUS.NOT_CONFIGURED)
-      );
-      walletCacheRef.current.delete(WALLET_TYPE.NWC);
-      switchActiveWallet(WALLET_TYPE.BREEZ);
-    } else {
-      walletCacheRef.current.delete(WALLET_TYPE.NWC);
-      getWallet(WALLET_TYPE.NWC);
+    if (isWalletManagerInitialized) {
+      if (!walletUrl) {
+        setWalletStatus(prev =>
+          new Map(prev).set(WALLET_TYPE.NWC, WALLET_CONNECTION_STATUS.NOT_CONFIGURED)
+        );
+        walletCacheRef.current.delete(WALLET_TYPE.NWC);
+        switchActiveWallet(WALLET_TYPE.BREEZ);
+      } else {
+        walletCacheRef.current.delete(WALLET_TYPE.NWC);
+        getWallet(WALLET_TYPE.NWC);
+      }
     }
-  }, [walletUrl, switchActiveWallet, getWallet]);
+  }, [walletUrl, switchActiveWallet, getWallet, isWalletManagerInitialized]);
 
   /**
    * Auto-refresh when wallet changes
@@ -344,6 +355,7 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
     receivePayment,
     prepareSendPayment,
     walletStatus,
+    isWalletManagerInitialized,
   };
 
   return (

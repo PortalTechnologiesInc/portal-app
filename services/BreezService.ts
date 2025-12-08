@@ -11,11 +11,6 @@ import {
   SendPaymentMethod,
   OnchainConfirmationSpeed,
   PrepareSendPaymentResponse,
-  LogEntry,
-  initLogging,
-  SdkEvent,
-  SdkEvent_Tags,
-  PaymentType,
 } from '@breeztech/breez-sdk-spark-react-native';
 import { Wallet, WALLET_CONNECTION_STATUS, WalletConnectionStatus } from '@/models/WalletType';
 import { WalletInfo } from '@/utils/types';
@@ -31,15 +26,6 @@ export class BreezService implements Wallet {
   ): Promise<BreezService> {
     const instance = new BreezService();
     instance.onStatusChange = onStatusChange || null;
-    initLogging(
-      undefined,
-      {
-        log: (logEntry: LogEntry) => {
-          console.log(`[BREEZ] ${logEntry.level}: ${logEntry.line}`);
-        },
-      },
-      undefined
-    );
     await instance.init(mnemonic);
     return instance;
   }
