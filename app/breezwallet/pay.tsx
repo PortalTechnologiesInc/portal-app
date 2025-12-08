@@ -64,7 +64,7 @@ export default function MyWalletManagementSecret() {
     setPageState(PageState.PaymentSent);
 
     setTimeout(() => {
-      router.dismissTo('/breezwallet');
+      router.dismissTo('/Wallet');
     }, 2000);
   }, [isPaymentSent, isSendPaymentLoading, router]);
 
@@ -118,7 +118,7 @@ export default function MyWalletManagementSecret() {
     setPageState(PageState.PaymentSent);
 
     setTimeout(() => {
-      router.dismissTo('/breezwallet');
+      router.dismissTo('/Wallet');
     }, 2000);
   }, [breezWallet, prepareSendPaymentResponse, invoice, router, executeOperation, amountMillisats]);
 

@@ -135,7 +135,7 @@ export default function ActivityDetailScreen() {
           setActivity(activityData);
 
           // If this is a payment activity, fetch payment status entries
-          if ((activityData.type === ActivityType.Pay || activityData.type === ActivityType.Receive) && activityData.invoice) {
+          if (activityData.type === ActivityType.Pay || activityData.type === ActivityType.Receive && activityData.invoice) {
             try {
               const paymentStatusEntries = await executeOperation(
                 db => db.getPaymentStatusEntries(activityData.invoice!),
