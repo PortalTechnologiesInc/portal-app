@@ -135,7 +135,7 @@ export default function ActivityDetailScreen() {
           setActivity(activityData);
 
           // If this is a payment activity, fetch payment status entries
-          if (activityData.type === 'pay' && activityData.invoice) {
+          if ((activityData.type === ActivityType.Pay || activityData.type === ActivityType.Receive) && activityData.invoice) {
             try {
               const paymentStatusEntries = await executeOperation(
                 db => db.getPaymentStatusEntries(activityData.invoice!),
@@ -233,7 +233,7 @@ export default function ActivityDetailScreen() {
   }
 
   const activityStatus = getActivityStatus(activity);
-  const isPayment = activity.type === ActivityType.Pay;
+  const isPayment = activity.type === ActivityType.Pay || activity.type === ActivityType.Receive;
   const isAuth = activity.type === ActivityType.Auth;
   const isTicket =
     activity.type === ActivityType.Ticket ||

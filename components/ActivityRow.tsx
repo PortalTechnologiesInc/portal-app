@@ -70,6 +70,8 @@ export const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
         return 'Login Request';
       case ActivityType.Pay:
         return 'Payment';
+      case ActivityType.Receive:
+        return 'Incoming';
       case 'ticket':
       case 'ticket_approved':
       case 'ticket_denied':
@@ -115,7 +117,7 @@ export const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
         </ThemedText>
       </View>
       <View style={styles.activityDetails}>
-        {activity.type === ActivityType.Pay && activity.amount !== null && (
+        {(activity.type === ActivityType.Pay || activity.type === ActivityType.Receive) && activity.amount !== null && (
           <ThemedText style={[styles.amount, { color: primaryTextColor }]}>
             {shouldShowConvertedAmount({
               amount: activity.converted_amount,

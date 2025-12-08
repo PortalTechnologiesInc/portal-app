@@ -99,6 +99,7 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
 
         const { amount, id, paymentType: pType, status: pStatus, details } = paymentData;
         const amountInSats = Number(amount);
+        if (pType === PaymentType.Send) return;
 
         const statusMap = {
           pending: { status: 'pending' as const, statusEntry: null },
@@ -132,7 +133,7 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
               ? 'succeeded'
               : 'failed';
         const { status, statusEntry } = statusMap[eventType];
-        const typeConfig = activityTypeMap[pType === PaymentType.Send ? 'send' : 'receive'];
+        const typeConfig = activityTypeMap['receive'];
 
         if (!typeConfig) return;
 

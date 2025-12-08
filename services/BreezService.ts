@@ -13,6 +13,9 @@ import {
   PrepareSendPaymentResponse,
   LogEntry,
   initLogging,
+  SdkEvent,
+  SdkEvent_Tags,
+  PaymentType,
 } from '@breeztech/breez-sdk-spark-react-native';
 import { Wallet, WALLET_CONNECTION_STATUS, WalletConnectionStatus } from '@/models/WalletType';
 import { WalletInfo } from '@/utils/types';
@@ -115,7 +118,7 @@ export class BreezService implements Wallet {
       if (prepareResponse.paymentMethod instanceof SendPaymentMethod.Bolt11Invoice) {
         sendOptions = new SendPaymentOptions.Bolt11Invoice({
           preferSpark: false,
-          completionTimeoutSecs: 60,
+          completionTimeoutSecs: 30,
         });
       } else if (prepareResponse.paymentMethod instanceof SendPaymentMethod.BitcoinAddress) {
         sendOptions = new SendPaymentOptions.BitcoinAddress({
@@ -169,7 +172,7 @@ export class BreezService implements Wallet {
     if (prepareResponse.paymentMethod instanceof SendPaymentMethod.Bolt11Invoice) {
       sendOptions = new SendPaymentOptions.Bolt11Invoice({
         preferSpark: false,
-        completionTimeoutSecs: undefined,
+        completionTimeoutSecs: 30,
       });
     } else if (prepareResponse.paymentMethod instanceof SendPaymentMethod.BitcoinAddress) {
       sendOptions = new SendPaymentOptions.BitcoinAddress({
