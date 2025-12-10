@@ -1098,7 +1098,7 @@ export default function Onboarding() {
                   error={!!pinError}
                   onError={() => setPinError('')}
                   showSkipButton
-                  onSkipPress={handleSkipPinSetup}
+                  onSkipPress={handleCompletionWithoutPIN}
                   skipLabel="Skip"
                 />
               </View>
