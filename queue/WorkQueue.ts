@@ -108,6 +108,7 @@ export abstract class Task<A extends unknown[], P extends unknown[], T> {
       if (lock) {
         return await lock;
       } else {
+        // await this.db.beginTransaction();
         const promise = this.fn(this.providers, ...this.args.values());
         locksMap.set(key, promise);
         try {
@@ -115,6 +116,7 @@ export abstract class Task<A extends unknown[], P extends unknown[], T> {
           await this.db.setCache(key, JSON.stringify(data), this.expiry);
           return data;
         } finally {
+          // await this.db.commitTransaction();
           locksMap.delete(key);
         }
       }
@@ -152,6 +154,7 @@ export abstract class Task<A extends unknown[], P extends unknown[], T> {
   }
 
   static deserialize(serialized: QueuedTaskRecord): Task<any[], any, any> {
+
     const constructor = Task.getFromRegistry(serialized.task_name);
     if (!constructor) {
       throw new Error(`Task constructor not found: ${serialized.task_name}`);
@@ -176,9 +179,9 @@ export interface DefaultProviders {
 export class ProviderRepository {
   private static providers = new Map<string, any>();
 
-  static register(provider: any) {
-    console.warn('Registering provider', provider.constructor.name);
-    ProviderRepository.providers.set(provider.constructor.name, provider);
+  static register(provider: any, name?: string) {
+    console.warn('Registering provider', name || provider.constructor.name);
+    ProviderRepository.providers.set(name || provider.constructor.name, provider);
   }
 
   static get<T>(type: string): T | undefined {
@@ -186,25 +189,16 @@ export class ProviderRepository {
   }
 }
 
-async function runTask(db: DatabaseService, record: QueuedTaskRecord) {
+async function runTask(db: DatabaseService, record: QueuedTaskRecord): Promise<any> {
   try {
     const task = Task.deserialize(record);
     const result = await task.run();
-
-    const waiter = waitersMap.get(record.id);
-    if (waiter) {
-      waiter(result, null);
-    }
+    await db.deleteQueuedTask(record.id);
+    return result;
   } catch (error) {
     console.error('Error running task:', error);
-
-    const waiter = waitersMap.get(record.id);
-    if (waiter) {
-      waiter(null, error);
-    }
-  } finally {
     await db.deleteQueuedTask(record.id);
-    waitersMap.delete(record.id);
+    throw error;
   }
 }
 
@@ -240,17 +234,6 @@ export async function enqueueTask<T>(task: Task<any[], any, T>): Promise<T> {
   const record = task.serialize();
   const id = await db.addQueuedTask(record.task_name, record.arguments, record.expires_at, record.priority);
   console.log('Added task to queue', id);
-  const promise = new Promise<T>((resolve, reject) => {
-    waitersMap.set(id, (result: T | null, error: any) => {
-      if (error) {
-        reject(error);
-      } else {
-        resolve(result as T);
-      }
-    });
-  });
 
-  runTask(db, record);
-
-  return promise;
+  return await runTask(db, record);
 }

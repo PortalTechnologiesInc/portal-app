@@ -56,6 +56,7 @@ import { getKeypairFromKey, hasKey } from '@/utils/keyHelpers';
 import { getServiceNameFromProfile, mapNumericStatusToString } from '@/utils/nostrHelper';
 import { DefaultProviders, processQueue, ProviderRepository, enqueueTask, Task } from '@/queue/WorkQueue';
 import { ActivityWithDates, DatabaseService } from '@/services/DatabaseService';
+import { SetPendingRequestsProvider } from '..';
 
 // Note: WalletInfo and WalletInfoState are now imported from centralized types
 
@@ -178,7 +179,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   };
 
   useEffect(() => {
-    ProviderRepository.register(new SetPendingRequestsProvider(setPendingRequests));
+    ProviderRepository.register(new SetPendingRequestsForeground(setPendingRequests), 'SetPendingRequestsProvider');
     ProviderRepository.register(new RelayStatusesProvider(relayStatuses));
   }, [setPendingRequests, relayStatuses]);
 
@@ -1031,7 +1032,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   }
   Task.register(SaveActivityTask);
 
-  class SetPendingRequestsProvider {
+  class SetPendingRequestsForeground implements SetPendingRequestsProvider {
     constructor(private readonly cb: (update: (prev: { [key: string]: PendingRequest }) => { [key: string]: PendingRequest }) => void) {}
 
     addPendingRequest(request: PendingRequest): void {
