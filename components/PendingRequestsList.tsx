@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, StyleSheet, FlatList } from 'react-native';
 import { usePendingRequests } from '../context/PendingRequestsContext';
 import { PendingRequestCard } from './PendingRequestCard';
 import { PendingRequestSkeletonCard } from './PendingRequestSkeletonCard';
 import { FailedRequestCard } from './FailedRequestCard';
-import type { PendingRequest, PendingRequestType } from '@/utils/types';
+import type { PendingRequest } from '@/utils/types';
 import type {
   AuthChallengeEvent,
   RecurringPaymentRequest,
@@ -65,7 +65,7 @@ export const PendingRequestsList: React.FC = React.memo(() => {
   };
 
   // Updated isRequestExpired function
-  const isRequestExpired = (request: PendingRequest): boolean => {
+  const isRequestExpired = useCallback((request: PendingRequest): boolean => {
     try {
       let expiresAt: bigint | undefined;
 
@@ -92,7 +92,7 @@ export const PendingRequestsList: React.FC = React.memo(() => {
       console.warn('Error checking request expiration:', error);
       return false;
     }
-  };
+  }, []);
 
   // Periodic cleanup effect to remove expired requests from NostrService context
   useEffect(() => {
@@ -121,7 +121,7 @@ export const PendingRequestsList: React.FC = React.memo(() => {
     return () => {
       clearInterval(cleanupInterval);
     };
-  }, [appService.pendingRequests, nostrService.dismissPendingRequest]);
+  }, [appService.pendingRequests, appService.dismissPendingRequest]);
 
   useEffect(() => {
     const processData = async () => {

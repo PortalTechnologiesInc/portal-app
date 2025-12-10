@@ -45,7 +45,7 @@ export default function MyWalletManagementSecret() {
   const [areContactsLoading, setAreContactsLoading] = useState(false);
   const [activeFilter, setActiveFilter] = useState('');
 
-  const {fetchProfile, isInitialized} = useNostrService();
+  const { fetchProfile, isInitialized } = useNostrService();
 
   const getContacts = useCallback(async () => {
     const savedContacts = await executeOperation(db => db.getRecentNip05Contacts(5));
@@ -53,26 +53,22 @@ export default function MyWalletManagementSecret() {
     // Enrich contacts with profile data
     const enrichedContacts: ContactWithProfile[] = [];
     for (const contact of savedContacts) {
+      const enriched: ContactWithProfile = {
+        displayName: null,
+        avatarUri: null,
+        username: undefined,
+        ...contact,
+      };
       try {
         const fullProfile = await fetchProfile(contact.npub);
-        enrichedContacts.push({
-          ...contact,
-          displayName: fullProfile.displayName ?? null,
-          avatarUri: fullProfile.avatarUri ?? null,
-          username: fullProfile.username,
-        });
+        enriched.displayName = fullProfile.displayName ?? null;
+        enriched.avatarUri = fullProfile.avatarUri ?? null;
+        enriched.username = fullProfile.username;
       } catch (error) {
         console.error('Failed to fetch profile for contact:', contact.npub, error);
-        // Still add the contact even if profile fetch fails
-        enrichedContacts.push({
-          ...contact,
-          displayName: null,
-          avatarUri: null,
-          username: undefined,
-        });
       }
+      enrichedContacts.push(enriched);
     }
-
     setContacts(enrichedContacts);
   }, [executeOperation, fetchProfile]);
 
@@ -123,9 +119,9 @@ export default function MyWalletManagementSecret() {
       }
 
       const contacts = await fetchNip05Contacts();
-      const filteredUsernames = Object.keys(contacts).filter(username =>
-        username.startsWith(filter)
-      );
+      const filteredUsernames = Object.keys(contacts)
+        .filter(username => username.includes(filter))
+        .slice(0, 20);
 
       const contactsToShow: ContactWithProfile[] = [];
       for (const filteredUsername of filteredUsernames) {

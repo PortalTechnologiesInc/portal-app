@@ -36,6 +36,7 @@ export default [
         process: 'readonly',
         AbortController: 'readonly',
         URLSearchParams: 'readonly',
+        TextEncoder: 'readonly',
       },
     },
     plugins: {

@@ -8,7 +8,6 @@ import { useRouter } from 'expo-router';
 import { ArrowLeft, Star, StarOff, Wallet, Zap } from 'lucide-react-native';
 import { WALLET_CONNECTION_STATUS, WALLET_TYPE, WalletType } from '@/models/WalletType';
 import { useWalletManager } from '@/context/WalletManagerContext';
-import { useECash } from '@/context/ECashContext';
 import { useKey } from '@/context/KeyContext';
 
 export default function WalletSettings() {
@@ -25,7 +24,6 @@ export default function WalletSettings() {
 
   const statusConnectedColor = useThemeColor({}, 'statusConnected');
   const statusConnectingColor = useThemeColor({}, 'statusConnecting');
-  const { isLoading } = useECash();
 
   const getWalletStatusText = (type: WalletType) => {
     const status = walletStatus.get(type);
@@ -43,30 +41,6 @@ export default function WalletSettings() {
     }
     return secondaryTextColor;
   };
-
-  if (isLoading) {
-    return (
-      <SafeAreaView style={[styles.safeArea, { backgroundColor: backgroundColor }]} edges={['top']}>
-        <ThemedView style={styles.container}>
-          <ThemedView style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <ArrowLeft size={20} color={primaryTextColor} />
-            </TouchableOpacity>
-            <ThemedText
-              style={styles.headerText}
-              lightColor={primaryTextColor}
-              darkColor={primaryTextColor}
-            >
-              Settings
-            </ThemedText>
-          </ThemedView>
-          <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-            <ThemedText style={{ color: primaryTextColor }}>Loading...</ThemedText>
-          </ScrollView>
-        </ThemedView>
-      </SafeAreaView>
-    );
-  }
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>

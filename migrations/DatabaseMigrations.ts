@@ -438,7 +438,7 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
         CREATE TABLE IF NOT EXISTS nip05_contacts (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           npub TEXT NOT NULL,
-          created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+          created_at INTEGER DEFAULT (strftime('%s', 'now'))
         );
 
         CREATE INDEX IF NOT EXISTS idx_nip05_contacts_npub ON nip05_contacts(npub);

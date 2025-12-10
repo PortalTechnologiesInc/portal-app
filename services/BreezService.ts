@@ -21,20 +21,23 @@ export class BreezService implements Wallet {
   private onStatusChange: ((status: WalletConnectionStatus) => void) | null = null;
 
   static async create(
-    mnemonic: string,
+    nsec: string,
     onStatusChange?: (status: WalletConnectionStatus) => void
   ): Promise<BreezService> {
     const instance = new BreezService();
     instance.onStatusChange = onStatusChange || null;
-    await instance.init(mnemonic);
+    await instance.init(nsec);
     return instance;
   }
 
-  private async init(mnemonic: string) {
+  private async init(nsec: string) {
     if (this.onStatusChange) {
       this.onStatusChange(WALLET_CONNECTION_STATUS.CONNECTING);
     }
-    const seed = new Seed.Mnemonic({ mnemonic, passphrase: undefined });
+    // const seed = new Seed.Mnemonic({ mnemonic: nsec, passphrase: undefined });
+    const nsecBuffer = new TextEncoder().encode(nsec).buffer;
+    const seed = new Seed.Entropy(nsecBuffer);
+
     const config = defaultConfig(Network.Mainnet);
     config.apiKey = process.env.EXPO_PUBLIC_BREEZ_API_KEY;
     config.preferSparkOverLightning = false;

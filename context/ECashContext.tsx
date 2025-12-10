@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { CashuWallet, CashuLocalStore, CashuWalletInterface, Mnemonic } from 'portal-app-lib';
+import { CashuWallet, CashuLocalStore, CashuWalletInterface } from 'portal-app-lib';
 import { DatabaseService } from '@/services/DatabaseService';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';

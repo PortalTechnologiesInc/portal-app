@@ -38,10 +38,7 @@ import { generateMnemonic, Mnemonic, Nsec } from 'portal-app-lib';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WALLET_TYPE } from '@/models/WalletType';
-import { useRouter } from 'expo-router';
-import { useNostrService } from '@/context/NostrServiceContext';
 import { PIN_MIN_LENGTH, PIN_MAX_LENGTH } from '@/services/AppLockService';
-import { useWalletManager } from '@/context/WalletManagerContext';
 
 // Preload all required assets
 const onboardingLogo = require('../assets/images/appLogo.png');
@@ -61,9 +58,8 @@ type OnboardingStep =
 
 export default function Onboarding() {
   const { completeOnboarding } = useOnboarding();
-  const { setMnemonic, setNsec, walletUrl, setWalletUrl } = useKey();
-  const router = useRouter();
-  const { setupPIN, setLockEnabled, isLockEnabled, isBiometricAvailable } = useAppLock();
+  const { setMnemonic, setNsec } = useKey();
+  const { setupPIN, setLockEnabled, isBiometricAvailable } = useAppLock();
   const [currentStep, setCurrentStep] = useState<OnboardingStep>('welcome');
   const [seedPhrase, setSeedPhrase] = useState('');
   const [verificationWords, setVerificationWords] = useState<{
@@ -74,8 +70,6 @@ export default function Onboarding() {
     word2: { index: 0, value: '' },
   });
   const [userInputs, setUserInputs] = useState({ word1: '', word2: '' });
-  const [walletInput, setWalletInput] = useState('');
-  const [isSavingWallet, setIsSavingWallet] = useState(false);
   const [importType, setImportType] = useState<'seed' | 'nsec'>('seed');
   const [pinStep, setPinStep] = useState<'enter' | 'confirm'>('enter');
   const [enteredPin, setEnteredPin] = useState('');
@@ -432,9 +426,8 @@ export default function Onboarding() {
 
       // Mark this as an imported seed (should fetch profile first)
       await SecureStore.setItemAsync(SEED_ORIGIN_KEY, 'imported');
-
       // Go to wallet setup step
-      setCurrentStep('splash');
+      handleSkipWalletSetup();
     } catch (error) {
       console.error('Failed to save imported nsec:', error);
       Alert.alert('Error', 'Failed to save your Nsec. Please try again.');
@@ -491,47 +484,6 @@ export default function Onboarding() {
       setPinError('Unable to save PIN. Please try again.');
     } finally {
       setIsSavingPin(false);
-    }
-  };
-
-  // Local URL validation adapted from wallet screen
-  const validateNwcUrl = (url: string): { isValid: boolean; error?: string } => {
-    if (!url.trim()) {
-      return { isValid: false, error: 'URL cannot be empty' };
-    }
-
-    try {
-      // Normalize protocol
-      let normalized = url.trim();
-      if (normalized.startsWith('nostrwalletconnect:')) {
-        normalized = normalized.replace('nostrwalletconnect:', 'nostr+walletconnect://');
-      } else if (normalized.startsWith('nwc://')) {
-        normalized = normalized.replace('nwc://', 'nostr+walletconnect://');
-      }
-
-      const urlObj = new URL(normalized);
-
-      if (!/^nostr\+walletconnect:\/\//.test(normalized)) {
-        return { isValid: false, error: 'Unsupported NWC URL format' };
-      }
-
-      // secret may be in pathname (after protocol) or as query param
-      const secret = urlObj.pathname.replace(/^\/+/, '') || urlObj.searchParams.get('secret');
-      const relay = urlObj.searchParams.get('relay');
-
-      if (!secret) {
-        return { isValid: false, error: 'Missing secret' };
-      }
-      if (!relay) {
-        return { isValid: false, error: 'Missing relay parameter' };
-      }
-      if (!relay.startsWith('wss://') && !relay.startsWith('ws://')) {
-        return { isValid: false, error: 'Relay must be a websocket URL (wss:// or ws://)' };
-      }
-
-      return { isValid: true };
-    } catch {
-      return { isValid: false, error: 'Invalid URL format' };
     }
   };
 
@@ -839,7 +791,7 @@ export default function Onboarding() {
                 onPress={handleGenerateComplete}
               >
                 <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>
-                  I've Written It Down
+                  I&apos;ve Written It Down
                 </ThemedText>
               </TouchableOpacity>
             </View>

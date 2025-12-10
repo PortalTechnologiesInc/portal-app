@@ -685,7 +685,9 @@ export class DatabaseService {
       ) VALUES (?, ?, ?, ?)`,
         [id, eventId, approved ? '1' : '0', now]
       );
-    } catch (e) {}
+    } catch {
+      /* empty */
+    }
 
     return id;
   }
@@ -1318,11 +1320,10 @@ export class DatabaseService {
         return existingContact;
       }
 
-      const now = Math.floor(Date.now() / 1000); // Unix timestamp in seconds
       await this.db.runAsync(
-        `INSERT INTO nip05_contacts(npub, created_at)
-         VALUES(?, ?)`,
-        [npub, now]
+        `INSERT INTO nip05_contacts(npub)
+         VALUES(?)`,
+        [npub]
       );
 
       const newContact = await this.db.getFirstAsync<Nip05Contact>(

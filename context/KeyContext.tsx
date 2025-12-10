@@ -15,7 +15,7 @@ import {
 } from '@/services/SecureStorageService';
 import { generateMnemonic } from 'portal-app-lib';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
-import { validateKeyMaterial, type KeyMaterial } from '@/utils/keyHelpers';
+import { validateKeyMaterial } from '@/utils/keyHelpers';
 
 type KeyContextType = {
   mnemonic: string | null;
@@ -154,7 +154,7 @@ export const KeyProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         try {
           await SecureStore.deleteItemAsync('profile_initialized');
           console.log('Cleared profile_initialized flag for new key');
-        } catch (e) {
+        } catch {
           // Silent fail - this is not critical
         }
       } else {

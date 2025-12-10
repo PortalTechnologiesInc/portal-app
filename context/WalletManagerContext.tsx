@@ -24,6 +24,7 @@ import {
   PaymentDetails_Tags,
 } from '@breeztech/breez-sdk-spark-react-native';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import { deriveNsecFromMnemonic } from '@/utils/keyHelpers';
 
 export interface WalletManagerContextType {
   activeWallet?: Wallet;
@@ -50,7 +51,7 @@ const PREFERRED_WALLET_KEY = 'preferred_wallet';
 export const WalletManagerContextProvider: React.FC<WalletManagerContextProviderProps> = ({
   children,
 }) => {
-  const { mnemonic, walletUrl } = useKey();
+  const { walletUrl, nsec, mnemonic } = useKey();
   const { executeOperation } = useDatabaseContext();
   const { preferredCurrency } = useCurrency();
 
@@ -201,17 +202,21 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
    */
   const getWallet = useCallback(
     async <T extends WalletType>(walletType: T): Promise<WalletTypeMap[T]> => {
-      if (!mnemonic) throw new Error('Missing mnemonic for wallet creation');
+      if (!nsec && !mnemonic) throw new Error('Missing nsec or mnemonic for wallet creation');
       if (walletCacheRef.current.has(walletType)) {
         return walletCacheRef.current.get(walletType)! as WalletTypeMap[T];
       }
 
       let instance: WalletTypeMap[T];
 
+      let nsecToUse = nsec;
+      if (!nsec) {
+        nsecToUse = deriveNsecFromMnemonic(mnemonic!);
+      }
       switch (walletType) {
         case WALLET_TYPE.BREEZ:
           instance = (await BreezService.create(
-            mnemonic,
+            nsecToUse!,
             onStatusChange(walletType)
           )) as WalletTypeMap[T];
           // Setup event listener for Breez wallet
@@ -235,7 +240,7 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
       walletCacheRef.current.set(walletType, instance);
       return instance;
     },
-    [mnemonic, onStatusChange, setupBreezEventListener, walletUrl]
+    [onStatusChange, setupBreezEventListener, walletUrl, nsec, mnemonic]
   );
 
   /**
@@ -267,7 +272,7 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
    */
   useEffect(() => {
     const init = async () => {
-      if (!mnemonic) return;
+      if (!nsec && !mnemonic) return;
 
       try {
         // Initialize Breez wallet at startup
@@ -285,12 +290,12 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
 
         setIsWalletManagerInitialized(true);
       } catch (error) {
-        console.error('Failed to initialize wallet manager:', JSON.stringify(error));
+        console.error('Failed to initialize wallet manager:', error);
       }
     };
 
     init();
-  }, [getWallet, mnemonic, switchActiveWallet]);
+  }, [getWallet, nsec, switchActiveWallet, mnemonic]);
 
   /**
    * If wallet url is removed, update global status and switch to breez as preferred
