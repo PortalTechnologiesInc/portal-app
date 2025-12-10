@@ -18,6 +18,10 @@ jobs:
     - name: Install dependencies
       run: |
         nix develop --command npm install
+
+    - name: Copy environment file
+      run: |
+        echo "${{ secrets.PORTAL_EAS_ENV }}" | base64 -d > .eas.env
         
     - name: Prebuild Android project
       run: |
