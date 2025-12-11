@@ -1129,14 +1129,16 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
   // Check for expected pending requests and clear skeleton loader
   useEffect(() => {
     // Check for removing skeleton when we get the expected request
-    for (const request of Object.values(appService.pendingRequests)) {
-      const serviceKey = (request.metadata as SinglePaymentRequest).serviceKey;
+    if (timeoutId) {
+      for (const request of Object.values(appService.pendingRequests)) {
+        const serviceKey = (request.metadata as SinglePaymentRequest).serviceKey;
 
-      if (serviceKey === pendingUrl?.mainKey) {
-        cancelSkeletonLoader();
+        if (serviceKey === pendingUrl?.mainKey) {
+          cancelSkeletonLoader();
+        }
       }
     }
-  }, [appService.pendingRequests, pendingUrl, timeoutId]);
+  }, [appService.pendingRequests, cancelSkeletonLoader, pendingUrl, timeoutId]);
 
   // Memoize the context value to prevent recreation on every render
   const contextValue = useMemo(
