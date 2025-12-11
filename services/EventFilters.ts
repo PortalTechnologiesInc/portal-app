@@ -347,7 +347,7 @@ export async function handleSinglePaymentRequest(
       const walletInfo = await wallet.getWalletInfo();
       balance = walletInfo.balanceInSats;
     }
-    if (balance && amount > balance) {
+    if (balance && BigInt(amount) > balance) {
       executeOperation(
         db =>
           db.addActivity({

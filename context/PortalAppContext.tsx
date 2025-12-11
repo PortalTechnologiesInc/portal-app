@@ -534,7 +534,7 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
       .catch(e => {
         console.error('Error listening for nip46 requests.', e);
       });
-  }, [executeOperation, executeOnNostr, activeWallet]);
+  }, [executeOperation, executeOnNostr, activeWallet, preferredCurrency]);
 
   const dismissPendingRequest = useCallback((id: string) => {
     setPendingRequests(prev => {
