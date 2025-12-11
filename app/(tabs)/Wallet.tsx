@@ -114,7 +114,9 @@ export default function MyWalletManagementSecret() {
     setAreContactsLoading(true);
     try {
       if (!filter.trim()) {
-        await getContacts();
+        if (isInitialized) {
+          await getContacts();
+        }
         return;
       }
 

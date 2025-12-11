@@ -264,35 +264,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         console.log('NostrService initialized successfully with public key:', publicKeyStr);
         console.log('Running on those relays:', relays);
 
-        app.listenForNip46Request(
-          new LocalNip46RequestListener((event: NostrConnectRequestEvent) => {
-            const id = event.id;
-            return new Promise<NostrConnectResponseStatus>(resolve => {
-              handleNostrConnectRequest(event, keyToHex(publicKeyStr), executeOperation, resolve).then((askUser) => {
-                if (askUser) {
-                  const newRequest: PendingRequest = {
-                    id,
-                    metadata: event,
-                    timestamp: new Date(),
-                    type: 'nostrConnect',
-                    result: resolve,
-                  };
-
-                  setPendingRequests(prev => {
-                    // Check if request already exists to prevent duplicates
-                    if (prev[id]) {
-                      return prev;
-                    }
-                    return { ...prev, [id]: newRequest };
-                  });
-                }
-              })
-            });
-          })
-        ).catch(e => {
-          console.error('Error listening for nip46 requests.', e);
-        });
-
         // Mark as initialized
         setIsInitialized(true);
         setPublicKey(publicKeyStr);
