@@ -17,7 +17,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          nix develop --command npm install
+          nix develop --command npm ci --foreground-scripts=true
 
       - name: Copy environment file
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
