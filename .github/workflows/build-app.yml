@@ -20,6 +20,7 @@ jobs:
           nix develop --command npm install
 
       - name: Copy environment file
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         run: |
           echo "${{ secrets.PORTAL_EAS_ENV }}" | base64 -d > ./google-services.json
           echo "GOOGLE_SERVICES_JSON=$PWD/google-services.json" >> $GITHUB_ENV
@@ -38,10 +39,12 @@ jobs:
           nix develop --command ./gradlew bundleRelease
 
       - name: Decode keystore
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         run: |
           echo "${{ secrets.PORTAL_DEBUG_KEYSTORE }}" | base64 -d > portal.keystore
 
       - name: Sign AAB
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         run: |
           nix develop --command apksigner sign \
             --ks portal.keystore \
@@ -56,6 +59,7 @@ jobs:
             --in android/app/build/outputs/bundle/release/app-release.aab
 
       - name: Upload build artifacts
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/upload-artifact@v4
         with:
           name: android-bundle
@@ -65,6 +69,7 @@ jobs:
   extract-apk:
     runs-on: [self-hosted, nixos]
     needs: build-bundle
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
 
     steps:
       - name: Checkout code
