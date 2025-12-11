@@ -132,7 +132,7 @@ export interface AllowedBunkerClientWithDates
 }
 
 export class DatabaseService {
-  constructor(private db: SQLiteDatabase) {}
+  constructor(private db: SQLiteDatabase) { }
 
   /**
    * Force database reinitialization after reset
@@ -861,10 +861,10 @@ export class DatabaseService {
 
       return tx
         ? JSON.stringify({
-            ...tx,
-            ys: JSON.parse(tx.ys),
-            metadata: tx.metadata ? JSON.parse(tx.metadata) : null,
-          })
+          ...tx,
+          ys: JSON.parse(tx.ys),
+          metadata: tx.metadata ? JSON.parse(tx.metadata) : null,
+        })
         : undefined;
     } catch (error) {
       console.error('[DatabaseService] Error getting transaction:', error);

@@ -19,6 +19,11 @@ jobs:
         run: |
           nix develop --command npm install
 
+      - name: Copy environment file
+        run: |
+          echo "${{ secrets.PORTAL_EAS_ENV }}" | base64 -d > ./google-services.json
+          echo "GOOGLE_SERVICES_JSON=$PWD/google-services.json" >> $GITHUB_ENV
+
       - name: Prebuild Android project
         run: |
           nix develop --command npx expo prebuild --platform android --clean

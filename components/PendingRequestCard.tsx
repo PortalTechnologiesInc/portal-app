@@ -492,7 +492,14 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
               style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
             />
           ) : (
-            formatServiceName()
+            // For payment/subscription requests, show service name (loading state)
+            isServiceNameLoading ? (
+              <SkeletonPulse
+                style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
+              />
+            ) : (
+              formatServiceName()
+            )
           )}
         </Text>
 
