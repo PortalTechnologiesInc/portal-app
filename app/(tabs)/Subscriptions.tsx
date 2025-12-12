@@ -155,7 +155,8 @@ export default function SubscriptionsScreen() {
                 styles.filterChip,
                 styles.filterChipLast,
                 {
-                  backgroundColor: filter === 'archived' ? buttonPrimaryColor : buttonSecondaryColor,
+                  backgroundColor:
+                    filter === 'archived' ? buttonPrimaryColor : buttonSecondaryColor,
                 },
               ]}
               onPress={handleFilterArchived}
@@ -165,7 +166,8 @@ export default function SubscriptionsScreen() {
                 style={[
                   styles.filterChipText,
                   {
-                    color: filter === 'archived' ? buttonPrimaryTextColor : buttonSecondaryTextColor,
+                    color:
+                      filter === 'archived' ? buttonPrimaryTextColor : buttonSecondaryTextColor,
                   },
                 ]}
               >

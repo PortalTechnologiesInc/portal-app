@@ -83,9 +83,7 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   return (
-    <OnboardingContext.Provider
-      value={{ isOnboardingComplete, isLoading, completeOnboarding }}
-    >
+    <OnboardingContext.Provider value={{ isOnboardingComplete, isLoading, completeOnboarding }}>
       {children}
     </OnboardingContext.Provider>
   );

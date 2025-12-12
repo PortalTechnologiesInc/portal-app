@@ -18,7 +18,14 @@ export const fromUnixSeconds = (seconds: number | bigint): Date => {
 // Database record types (as stored in SQLite)
 export interface ActivityRecord {
   id: string;
-  type: 'auth' | 'pay' | 'ticket' | 'ticket_approved' | 'ticket_denied' | 'ticket_received';
+  type:
+    | 'auth'
+    | 'pay'
+    | 'receive'
+    | 'ticket'
+    | 'ticket_approved'
+    | 'ticket_denied'
+    | 'ticket_received';
   service_name: string;
   service_key: string;
   detail: string;
@@ -62,6 +69,12 @@ export interface NameCacheRecord {
   service_pubkey: string;
   service_name: string;
   expires_at: number; // Unix timestamp in seconds
+  created_at: number; // Unix timestamp in seconds
+}
+
+export interface Nip05Contact {
+  id: number;
+  npub: string;
   created_at: number; // Unix timestamp in seconds
 }
 
@@ -112,7 +125,8 @@ export interface AllowedBunkerClient {
   revoked: boolean;
 }
 
-export interface AllowedBunkerClientWithDates extends Omit<AllowedBunkerClient, 'last_seen' | 'created_at'> {
+export interface AllowedBunkerClientWithDates
+  extends Omit<AllowedBunkerClient, 'last_seen' | 'created_at'> {
   last_seen: Date;
   created_at: Date;
 }
@@ -281,27 +295,32 @@ export class DatabaseService {
     const orConditions: string[] = [];
 
     // Handle subscription filtering with OR logic when both include and exclude are needed
-    if (options.includeSubscriptions && options.excludeSubscriptions && options.types && options.types.includes('pay' as ActivityType)) {
+    if (
+      options.includeSubscriptions &&
+      options.excludeSubscriptions &&
+      options.types &&
+      options.types.includes('pay' as ActivityType)
+    ) {
       // Special case: both payments (exclude subscriptions) and subscriptions are selected
       // We need to combine: other types OR one-time payments OR all subscriptions
       // Example: subscriptions + payments + logins → (type IN ('auth')) OR (type = 'pay' AND subscription_id IS NULL) OR (subscription_id IS NOT NULL)
       const otherTypes = options.types.filter(t => t !== 'pay');
       const orParts: string[] = [];
-      
+
       // Add other types (logins, tickets) - show all of them regardless of subscription status
       if (otherTypes.length > 0) {
         const placeholders = otherTypes.map(() => '?').join(', ');
         orParts.push(`type IN (${placeholders})`);
         params.push(...otherTypes);
       }
-      
+
       // Add one-time payments
       orParts.push(`(type = ? AND subscription_id IS NULL)`);
       params.push('pay');
-      
+
       // Add all subscriptions (any type)
       orParts.push(`(subscription_id IS NOT NULL)`);
-      
+
       // Combine all OR parts into a single OR condition
       orConditions.push(`(${orParts.join(' OR ')})`);
     } else if (options.includeSubscriptions && options.types && options.types.length > 0) {
@@ -666,7 +685,9 @@ export class DatabaseService {
       ) VALUES (?, ?, ?, ?)`,
         [id, eventId, approved ? '1' : '0', now]
       );
-    } catch (e) { }
+    } catch {
+      /* empty */
+    }
 
     return id;
   }
@@ -1262,6 +1283,78 @@ export class DatabaseService {
     }
   }
 
+  async getNip05Contacts(): Promise<Array<Nip05Contact>> {
+    try {
+      const contacts = await this.db.getAllAsync<Nip05Contact>(`SELECT * FROM nip05_contacts`);
+
+      return contacts;
+    } catch (error) {
+      console.error('Error getting nip05 contacts:', error);
+      return [];
+    }
+  }
+
+  async getRecentNip05Contacts(limit: number = 5): Promise<Array<Nip05Contact>> {
+    try {
+      const contacts = await this.db.getAllAsync<Nip05Contact>(
+        `SELECT * FROM nip05_contacts ORDER BY created_at DESC LIMIT ?`,
+        [limit]
+      );
+
+      return contacts;
+    } catch (error) {
+      console.error('Error getting recent nip05 contacts:', error);
+      return [];
+    }
+  }
+
+  async saveNip05Contact(npub: string): Promise<Nip05Contact | null> {
+    try {
+      // Check if contact already exists
+      const existingContact = await this.db.getFirstAsync<Nip05Contact>(
+        `SELECT * FROM nip05_contacts WHERE npub = ?`,
+        [npub]
+      );
+
+      if (existingContact) {
+        return existingContact;
+      }
+
+      await this.db.runAsync(
+        `INSERT INTO nip05_contacts(npub)
+         VALUES(?)`,
+        [npub]
+      );
+
+      const newContact = await this.db.getFirstAsync<Nip05Contact>(
+        `SELECT *
+         FROM nip05_contacts
+         WHERE npub = ?
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [npub]
+      );
+
+      return newContact;
+    } catch (error) {
+      console.error('Error saving nip05 contact', error);
+      return null;
+    }
+  }
+
+  async updateNip05Contact(npub: string, id: number): Promise<void> {
+    try {
+      await this.db.runAsync(
+        `UPDATE nip05_contacts
+         SET npub = ?
+         WHERE id = ?`,
+        [npub, id]
+      );
+    } catch (error) {
+      console.error('Error updating nip05 contact', error);
+    }
+  }
+
   // get last unused created secret
   async getUnusedSecretOrNull(): Promise<string | null> {
     try {
@@ -1275,9 +1368,7 @@ export class DatabaseService {
     }
   }
   // Add newly created bunker secret
-  async addBunkerSecret(
-    secret: string,
-  ): Promise<number> {
+  async addBunkerSecret(secret: string): Promise<number> {
     try {
       const result = await this.db.runAsync(
         `INSERT INTO bunker_secrets (
@@ -1328,7 +1419,7 @@ export class DatabaseService {
   async addAllowedBunkerClient(
     pubkey: string,
     nip_05: string | null = null,
-    requested_permissions: string | null,
+    requested_permissions: string | null
   ): Promise<number> {
     try {
       const now = toUnixSeconds(Date.now());
@@ -1342,15 +1433,7 @@ export class DatabaseService {
           last_seen,
           revoked
         ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [
-          pubkey,
-          nip_05,
-          requested_permissions,
-          requested_permissions,
-          now,
-          now,
-          false,
-        ]
+        [pubkey, nip_05, requested_permissions, requested_permissions, now, now, false]
       );
       return result.lastInsertRowId;
     } catch (error) {
@@ -1363,7 +1446,7 @@ export class DatabaseService {
     const records = await this.db.getAllAsync<AllowedBunkerClient>(
       `SELECT * FROM bunker_allowed_clients
       WHERE revoked = 0
-      ORDER BY last_seen DESC`,
+      ORDER BY last_seen DESC`
     );
 
     return records.map(record => ({
@@ -1404,7 +1487,10 @@ export class DatabaseService {
     }
   }
 
-  async updateBunkerClientGrantedPermissions(pubkey: string, grantedPermissions: string): Promise<void> {
+  async updateBunkerClientGrantedPermissions(
+    pubkey: string,
+    grantedPermissions: string
+  ): Promise<void> {
     try {
       await this.db.runAsync(
         `UPDATE bunker_allowed_clients

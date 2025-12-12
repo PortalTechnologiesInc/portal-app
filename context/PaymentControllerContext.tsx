@@ -16,7 +16,7 @@ export function PaymentControllerProvider({ children }: { children: ReactNode })
 
   useEffect(() => {
     if (!nwcWallet) return;
-    executeOperation(async (db) => {
+    executeOperation(async db => {
       const pendingPayments = await db.getPendingPayments();
       for (const element of pendingPayments) {
         let invoice = element.invoice;
@@ -26,7 +26,7 @@ export function PaymentControllerProvider({ children }: { children: ReactNode })
         }
 
         try {
-          console.warn("🧾 looking up for invoice: ", invoice);
+          console.warn('🧾 looking up for invoice: ', invoice);
           const lookupResponse = await nwcWallet.lookupInvoice(invoice);
           if (lookupResponse.settledAt || lookupResponse.preimage) {
             await db.updateActivityStatus(element.id, 'positive', 'Payment completed');
@@ -54,9 +54,7 @@ export function PaymentControllerProvider({ children }: { children: ReactNode })
   }, [nwcWallet]);
 
   return (
-    <PaymentControllerContext.Provider value={{}}>
-      {children}
-    </PaymentControllerContext.Provider>
+    <PaymentControllerContext.Provider value={{}}>{children}</PaymentControllerContext.Provider>
   );
 }
 

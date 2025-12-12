@@ -8,7 +8,12 @@ import { router } from 'expo-router';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { getActivityStatus, getStatusColor } from '@/utils/activityHelpers';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
-import { Currency, CurrencyHelpers, shouldShowConvertedAmount, formatActivityAmount } from '@/utils/currency';
+import {
+  Currency,
+  CurrencyHelpers,
+  shouldShowConvertedAmount,
+  formatActivityAmount,
+} from '@/utils/currency';
 import { useCurrency } from '@/context/CurrencyContext';
 
 interface ActivityRowProps {
@@ -65,6 +70,8 @@ export const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
         return 'Login Request';
       case ActivityType.Pay:
         return 'Payment';
+      case ActivityType.Receive:
+        return 'Incoming';
       case 'ticket':
       case 'ticket_approved':
       case 'ticket_denied':
@@ -110,7 +117,7 @@ export const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
         </ThemedText>
       </View>
       <View style={styles.activityDetails}>
-        {activity.type === ActivityType.Pay && activity.amount !== null && (
+        {(activity.type === ActivityType.Pay || activity.type === ActivityType.Receive) && activity.amount !== null && (
           <ThemedText style={[styles.amount, { color: primaryTextColor }]}>
             {shouldShowConvertedAmount({
               amount: activity.converted_amount,

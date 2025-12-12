@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { FC } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,6 +21,7 @@ import { Layout } from '@/constants/Layout';
 import { SkeletonPulse } from './PendingRequestSkeletonCard';
 import { PortalAppManager } from '@/services/PortalAppManager';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import { useWalletManager } from '@/context/WalletManagerContext';
 import { formatActivityAmount, normalizeCurrencyForComparison } from '@/utils/currency';
 
 interface PendingRequestCardProps {
@@ -62,7 +63,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const nostrService = useNostrService();
     const { wallets } = useECash();
     const { preferredCurrency } = useCurrency();
-    const { eCashLoading, hasECashWallets, nwcStatus } = useWalletStatus();
+    const { eCashLoading, hasECashWallets } = useWalletStatus();
     const [serviceName, setServiceName] = useState<string | null>(null);
     const [isServiceNameLoading, setIsServiceNameLoading] = useState(true);
     const [requestorName, setRequestorName] = useState<string | null>(null);
@@ -72,6 +73,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const [isConvertingCurrency, setIsConvertingCurrency] = useState(false);
     const [isPermissionsExpanded, setIsPermissionsExpanded] = useState(false);
     const isMounted = useRef(true);
+    const { activeWallet, walletInfo } = useWalletManager();
 
     // Theme colors
     const cardBackgroundColor = useThemeColor({}, 'cardBackground');
@@ -81,11 +83,11 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const shadowColor = useThemeColor({}, 'shadowColor');
     const skeletonBaseColor = useThemeColor({}, 'skeletonBase');
     const warningColor = useThemeColor({}, 'statusError');
+    const tertiaryColor = useThemeColor({}, 'textTertiary');
+    const buttonSuccessColor = useThemeColor({}, 'buttonSuccessText');
 
     // Add debug logging when a card is rendered
-    console.log(
-      `Rendering card ${id} of type ${type}`
-    );
+    console.log(`Rendering card ${id} of type ${type}`);
 
     const calendarObj =
       type === 'subscription'
@@ -116,7 +118,10 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
             return;
           }
 
-          console.log('[PendingRequestCard] Fetching requestor name for ticket with pubkey:', requestorServiceKey);
+          console.log(
+            '[PendingRequestCard] Fetching requestor name for ticket with pubkey:',
+            requestorServiceKey
+          );
 
           try {
             setIsRequestorNameLoading(true);
@@ -181,10 +186,8 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const nostrConnectMethod = (metadata as NostrConnectRequestEvent).method;
     const nostrConnectParams = (metadata as NostrConnectRequestEvent).params;
     const content = (metadata as SinglePaymentRequest)?.content;
-    const amount =
-      content?.amount ??
-      (isTicketRequest ? (metadata as any)?.inner?.amount : null);
-    
+    const amount = content?.amount ?? (isTicketRequest ? (metadata as any)?.inner?.amount : null);
+
     // For ticket requests, get the requestor's pubkey from mainKey (CashuRequestContentWithKey structure)
     const ticketRequestorPubkey = isTicketRequest
       ? (metadata as any)?.mainKey || (metadata as any)?.serviceKey
@@ -202,7 +205,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
         }
 
         // If no wallet configured, insufficient balance check is irrelevant
-        const hasWorkingWallet = hasECashWallets || nwcStatus === true;
+        const hasWorkingWallet = hasECashWallets || activeWallet !== undefined;
         if (!hasWorkingWallet) {
           setHasInsufficientBalance(false);
           return;
@@ -215,6 +218,8 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
         }
 
         try {
+          let requestedMsats = Number(amount);
+
           if (content.currency.tag === Currency_Tags.Fiat) {
             // For fiat payments, convert to msats and check NWC wallet balance
             try {
@@ -226,63 +231,40 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
                 fiatCurrency[0],
                 'MSATS'
               );
-              const requestedMsats = Math.round(amountInMsat);
 
-              // Check NWC wallet balance (fiat payments only use NWC wallet)
-              let canPay = false;
-              if (nwcStatus === true) {
-                try {
-                  const nwcMsats =
-                    (nostrService.walletInfo.data?.get_balance as number | undefined) ?? undefined;
-                  if (typeof nwcMsats === 'number' && nwcMsats >= requestedMsats) {
-                    canPay = true;
-                  }
-                } catch (e) {
-                  // ignore
-                }
-              }
-
-              setHasInsufficientBalance(!canPay);
+              requestedMsats = Math.round(amountInMsat);
             } catch (error) {
               console.error('Error converting fiat amount for balance check:', error);
               setHasInsufficientBalance(false);
             }
-          } else {
-            // For eCash/sats payments, check if we have a wallet with sufficient balance
-            const requestedMsats = Number(amount);
-            const requiredSats = Math.ceil(requestedMsats / 1000); // Convert msats to sats for eCash
-            let canPay = false;
-
-            // 1) Consider NWC LN wallet balance (msats)
-            try {
-              const nwcMsats =
-                (nostrService.walletInfo.data?.get_balance as number | undefined) ?? undefined;
-              if (
-                nwcStatus === true &&
-                typeof nwcMsats === 'number' &&
-                nwcMsats >= requestedMsats
-              ) {
-                canPay = true;
-              }
-            } catch (e) {
-              // ignore
-            }
-
-            for (const [walletKey, wallet] of Object.entries(wallets)) {
-              try {
-                const balance = await wallet.getBalance();
-                if (balance >= requiredSats) {
-                  canPay = true;
-                  break;
-                }
-              } catch (error) {
-                console.error('Error checking wallet balance:', error);
-                continue;
-              }
-            }
-
-            setHasInsufficientBalance(!canPay);
           }
+
+          const requiredSats = Math.ceil(requestedMsats / 1000); // Convert msats to sats for eCash
+          let canPay = false;
+
+          console.log('Checking balances for requested sats:', requiredSats);
+          const walletInfo = await activeWallet?.getWalletInfo();
+          const walletBalance = Number(walletInfo?.balanceInSats) || 0;
+          // 1) Consider NWC LN wallet balance (msats)
+          // const walletBalance = Number(walletInfo?.balanceInSats);
+          if (!isNaN(walletBalance) && walletBalance >= requiredSats) {
+            canPay = true;
+          }
+
+          for (const [walletKey, wallet] of Object.entries(wallets)) {
+            try {
+              const balance = await wallet.getBalance();
+              if (balance >= requiredSats) {
+                canPay = true;
+                break;
+              }
+            } catch (error) {
+              console.error('Error checking wallet balance:', error);
+              continue;
+            }
+          }
+
+          setHasInsufficientBalance(!canPay);
         } catch (error) {
           console.error('Error checking payment balance:', error);
           setHasInsufficientBalance(false);
@@ -294,10 +276,11 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
       isPaymentRequest,
       isSubscriptionRequest,
       hasECashWallets,
-      nwcStatus,
       metadata,
       amount,
       wallets,
+      walletInfo,
+      activeWallet,
     ]);
 
     // Currency conversion effect
@@ -323,9 +306,11 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
         const isFiat = content.currency.tag === Currency_Tags.Fiat;
         const fiatCurrency = isFiat ? (content.currency as any).inner : null;
         const sourceCurrency = isFiat
-          ? (Array.isArray(fiatCurrency) ? fiatCurrency[0] : fiatCurrency)
+          ? Array.isArray(fiatCurrency)
+            ? fiatCurrency[0]
+            : fiatCurrency
           : 'MSATS';
-        
+
         // Normalize display currency for comparison (MSATS -> SATS, handle case)
         const normalizedDisplayCurrency = isFiat
           ? normalizeCurrencyForComparison(sourceCurrency)
@@ -333,7 +318,11 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
         const normalizedPreferredCurrency = normalizeCurrencyForComparison(preferredCurrency);
 
         // Skip conversion if currencies are the same (case-insensitive, with sats normalization)
-        if (normalizedDisplayCurrency && normalizedPreferredCurrency && normalizedDisplayCurrency === normalizedPreferredCurrency) {
+        if (
+          normalizedDisplayCurrency &&
+          normalizedPreferredCurrency &&
+          normalizedDisplayCurrency === normalizedPreferredCurrency
+        ) {
           // No conversion needed - currencies match
           if (isMounted.current) {
             setConvertedAmount(null);
@@ -394,7 +383,10 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     };
 
     // Normalize amount and currency from request format to formatActivityAmount format
-    const getNormalizedAmountAndCurrency = (): { normalizedAmount: number; normalizedCurrency: string } | null => {
+    const getNormalizedAmountAndCurrency = (): {
+      normalizedAmount: number;
+      normalizedCurrency: string;
+    } | null => {
       if (!content || amount == null) return null;
 
       if (content.currency.tag === Currency_Tags.Fiat) {
@@ -411,7 +403,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     };
 
     // Determine what warning to show (if any)
-    const getWarningInfo = () => {
+    const warningInfo = useMemo(() => {
       // Only show warnings for payment and subscription requests
       if (!isPaymentRequest && !isSubscriptionRequest) {
         return null;
@@ -424,7 +416,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
 
       // Check if user has any functional wallet
       // For eCash: must have wallets, for Lightning: must be actually connected (not just configured)
-      const hasWorkingWallet = hasECashWallets || nwcStatus === true;
+      const hasWorkingWallet = hasECashWallets || activeWallet !== undefined;
 
       if (!hasWorkingWallet) {
         return {
@@ -443,9 +435,13 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
       }
 
       return null;
-    };
-
-    const warningInfo = getWarningInfo();
+    }, [
+      isPaymentRequest,
+      isSubscriptionRequest,
+      hasECashWallets,
+      activeWallet,
+      hasInsufficientBalance,
+    ]);
 
     // Determine if approve button should be disabled
     const isApproveDisabled = () => {
@@ -460,7 +456,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
       }
 
       // Check if user has any functional wallet
-      const hasWorkingWallet = hasECashWallets || nwcStatus === true;
+      const hasWorkingWallet = hasECashWallets || activeWallet !== undefined;
 
       // Disable if no wallet configured or insufficient balance
       return !hasWorkingWallet || hasInsufficientBalance;
@@ -490,6 +486,11 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
             ) : (
               formatServiceName()
             )
+          ) : // For payment/subscription requests, show service name (loading state)
+          isServiceNameLoading ? (
+            <SkeletonPulse
+              style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
+            />
           ) : (
             // For payment/subscription requests, show service name (loading state)
             isServiceNameLoading ? (
@@ -503,13 +504,11 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
         </Text>
 
         <Text style={[styles.serviceInfo, { color: secondaryTextColor }]}>
-          {isTicketRequest ? (
-            // For ticket requests, show ticket title as secondary info
-            formatSecondaryInfo()
-          ) : (
-            // For payment/subscription requests, show truncated recipient pubkey
-            formatSecondaryInfo()
-          )}
+          {isTicketRequest
+            ? // For ticket requests, show ticket title as secondary info
+              formatSecondaryInfo()
+            : // For payment/subscription requests, show truncated recipient pubkey
+              formatSecondaryInfo()}
         </Text>
 
         {(isPaymentRequest || isSubscriptionRequest) && amount !== null && (
@@ -520,7 +519,10 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
                   {(() => {
                     const normalized = getNormalizedAmountAndCurrency();
                     return normalized
-                      ? formatActivityAmount(normalized.normalizedAmount, normalized.normalizedCurrency)
+                      ? formatActivityAmount(
+                          normalized.normalizedAmount,
+                          normalized.normalizedCurrency
+                        )
                       : '';
                   })()}
                 </Text>
@@ -533,7 +535,10 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
                 {(() => {
                   const normalized = getNormalizedAmountAndCurrency();
                   return normalized
-                    ? formatActivityAmount(normalized.normalizedAmount, normalized.normalizedCurrency)
+                    ? formatActivityAmount(
+                        normalized.normalizedAmount,
+                        normalized.normalizedCurrency
+                      )
                     : '';
                 })()}
               </Text>
@@ -544,13 +549,11 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
               (() => {
                 if (!content || amount == null) return false;
                 const isFiat = content.currency.tag === Currency_Tags.Fiat;
-                
+
                 // Normalize currencies for comparison
                 if (isFiat) {
                   const fiatCodeRaw = (content.currency as any).inner;
-                  const fiatCode = Array.isArray(fiatCodeRaw)
-                    ? fiatCodeRaw[0]
-                    : fiatCodeRaw;
+                  const fiatCode = Array.isArray(fiatCodeRaw) ? fiatCodeRaw[0] : fiatCodeRaw;
                   const normalizedFiat = normalizeCurrencyForComparison(fiatCode);
                   const normalizedPreferred = normalizeCurrencyForComparison(preferredCurrency);
                   return normalizedFiat !== normalizedPreferred;
@@ -585,8 +588,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
             {(() => {
               // For Connect method (nip46), show requested permissions
               if (nostrConnectMethod == NostrConnectMethod.Connect) {
-                const requestedPermissions =
-                  nostrConnectParams.at(2);
+                const requestedPermissions = nostrConnectParams.at(2);
 
                 if (!requestedPermissions) return null;
 
@@ -608,20 +610,21 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
                   <View style={styles.permissionsContainer}>
                     <TouchableOpacity
                       style={styles.permissionsHeader}
-                      onPress={() => shouldShowExpand && setIsPermissionsExpanded(!isPermissionsExpanded)}
+                      onPress={() =>
+                        shouldShowExpand && setIsPermissionsExpanded(!isPermissionsExpanded)
+                      }
                       disabled={!shouldShowExpand}
                       activeOpacity={shouldShowExpand ? 0.7 : 1}
                     >
                       <Text style={[styles.permissionsLabel, { color: secondaryTextColor }]}>
                         Requested Permissions {shouldShowExpand && `(${permissions.length})`}
                       </Text>
-                      {shouldShowExpand && (
-                        isPermissionsExpanded ? (
+                      {shouldShowExpand &&
+                        (isPermissionsExpanded ? (
                           <ChevronUp size={16} color={secondaryTextColor} />
                         ) : (
                           <ChevronDown size={16} color={secondaryTextColor} />
-                        )
-                      )}
+                        ))}
                     </TouchableOpacity>
                     <View style={styles.permissionsList}>
                       {displayedPermissions.map((permission: string, index: number) => (
@@ -688,20 +691,12 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
             <Ionicons
               name="checkmark-outline"
               size={20}
-              color={
-                approveDisabled
-                  ? useThemeColor({}, 'textTertiary')
-                  : useThemeColor({}, 'buttonSuccessText')
-              }
+              color={approveDisabled ? tertiaryColor : buttonSuccessColor}
             />
             <Text
               style={[
                 styles.buttonText,
-                {
-                  color: approveDisabled
-                    ? useThemeColor({}, 'textTertiary')
-                    : useThemeColor({}, 'buttonSuccessText'),
-                },
+                { color: approveDisabled ? tertiaryColor : buttonSuccessColor },
               ]}
             >
               Approve
@@ -736,6 +731,8 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     );
   }
 );
+
+PendingRequestCard.displayName = 'PendingRequestCard';
 
 const styles = StyleSheet.create({
   card: {

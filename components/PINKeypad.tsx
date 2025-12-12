@@ -176,10 +176,7 @@ export function PINKeypad({
               styles.dot,
               dynamicStyles.dot,
               {
-                backgroundColor:
-                  error
-                    ? errorColor
-                    : buttonPrimaryColor,
+                backgroundColor: error ? errorColor : buttonPrimaryColor,
                 borderColor: error ? errorColor : buttonPrimaryColor,
               },
             ]}
@@ -454,5 +451,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-
-

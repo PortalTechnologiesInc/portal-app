@@ -25,7 +25,7 @@ export const RecentActivitiesList: React.FC = () => {
   // Activities are automatically loaded - no manual loading state needed
 
   const handleSeeAll = useCallback(() => {
-    router.push('/ActivityList');
+    router.push('/activity');
   }, []);
 
   const today = useMemo(() => {

@@ -10,13 +10,13 @@ import {
 } from 'portal-app-lib';
 export class PortalAppManager {
   private static instance: PortalAppInterface | null;
-  private constructor() { }
+  private constructor() {}
 
   static async getInstance(
     keypair: KeypairInterface,
     relays: string[],
     relayStatusCallback: RelayStatusListener,
-    logRust: boolean = false,
+    logRust: boolean = false
   ): Promise<PortalAppInterface> {
     if (!this.instance) {
       console.log('📚 Initializing the lib!');

@@ -7,7 +7,6 @@ import { generateRandomGamertag } from '@/utils/common';
 import { keyToHex } from 'portal-app-lib';
 import type { ProfileSyncStatus } from '@/utils/types';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
-import { PortalAppManager } from '@/services/PortalAppManager';
 
 // Helper function to validate image
 const validateImage = async (uri: string): Promise<{ isValid: boolean; error?: string }> => {
@@ -239,94 +238,45 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setSyncStatus('syncing');
 
     try {
-      // Fetch fresh profile data with timeout
-      // Add timeout to prevent hanging
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Profile fetch timeout')), 15000); // 15 second timeout
-      });
+      const { found, avatarUri, displayName, username } =
+        await nostrService.fetchProfile(publicKey);
 
-      const fetchedProfile = (await Promise.race([
-        PortalAppManager.tryGetInstance().fetchProfile(publicKey),
-        timeoutPromise,
-      ])) as any;
-
-      if (fetchedProfile) {
-        // Extract data from fetched profile with proper normalization
-        let fetchedUsername = '';
-        let fetchedDisplayName = '';
-
-        // Try to get username from nip05 first (most reliable)
-        if (fetchedProfile.nip05) {
-          const nip05Parts = fetchedProfile.nip05.split('@');
-          if (nip05Parts.length > 0 && nip05Parts[0]) {
-            fetchedUsername = nip05Parts[0];
-          }
-        }
-
-        // Fallback to name field if nip05 didn't work
-        if (!fetchedUsername && fetchedProfile.name) {
-          fetchedUsername = fetchedProfile.name;
-        }
-
-        // Fallback to displayName if nothing else worked
-        if (!fetchedUsername && fetchedProfile.displayName) {
-          fetchedUsername = fetchedProfile.displayName;
-        }
-
-        // Always normalize the username to match server behavior
-        // The server trims and lowercases, so we should do the same
-        if (fetchedUsername) {
-          fetchedUsername = fetchedUsername.trim().toLowerCase().replace(/\s+/g, '');
-        }
-
-        // Extract display name (more flexible, keep as-is)
-        if ('displayName' in fetchedProfile) {
-          fetchedDisplayName = fetchedProfile.displayName || ''; // Allow empty string
-        } else if (fetchedProfile.name && fetchedProfile.name !== fetchedUsername) {
-          // Fallback to name if it's different from username
-          fetchedDisplayName = fetchedProfile.name;
-        } else {
-          // Final fallback to username
-          fetchedDisplayName = fetchedUsername;
-        }
-
-        const fetchedAvatarUri = fetchedProfile.picture || null; // Ensure null instead of empty string
-
+      if (found) {
         // Save the fetched data to local storage
-        if (fetchedUsername) {
-          await setUsername(fetchedUsername);
+        if (username) {
+          await setUsername(username);
         }
 
         // Always set display name, even if empty (user might have intentionally cleared it)
-        await setDisplayName(fetchedDisplayName);
+        await setDisplayName(displayName ?? '');
 
         // Always update avatar to match network profile (even if null/empty)
-        setAvatarUriState(fetchedAvatarUri);
+        setAvatarUriState(avatarUri ?? '');
 
         // Force avatar refresh to bust cache
         setAvatarRefreshKey(Date.now());
 
-        if (fetchedAvatarUri) {
+        if (avatarUri) {
           // Cache the avatar URL in SecureStore
-          await SecureStore.setItemAsync(AVATAR_URI_KEY, fetchedAvatarUri);
+          await SecureStore.setItemAsync(AVATAR_URI_KEY, avatarUri);
         } else {
           // No avatar in profile - clear cached avatar
           await SecureStore.deleteItemAsync(AVATAR_URI_KEY);
         }
 
         // Update network state to reflect what was fetched
-        setNetworkUsername(fetchedUsername);
-        setNetworkDisplayName(fetchedDisplayName);
-        setNetworkAvatarUri(fetchedAvatarUri);
+        setNetworkUsername(username ?? '');
+        setNetworkDisplayName(displayName ?? '');
+        setNetworkAvatarUri(avatarUri || null);
 
         setSyncStatus('completed');
 
         // Return the fetched data directly
         return {
           found: true,
-          username: fetchedUsername || undefined,
-          displayName: fetchedDisplayName || undefined,
-          avatarUri: fetchedAvatarUri || undefined,
+          username: username || undefined,
+          displayName: displayName || undefined,
+          avatarUri: avatarUri || undefined,
         };
       } else {
         setSyncStatus('completed');
@@ -465,7 +415,6 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
       // Step 2: Handle avatar changes (submitImage)
       let imageUrl = '';
       if (avatarChanged && newAvatarUri) {
-
         let cleanBase64 = '';
 
         // Check if the avatar is already base64 (from network fetch)

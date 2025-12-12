@@ -249,6 +249,7 @@
             # Packages included in the environment
             buildInputs = with pkgs; [
               aider-chat
+              curl
               nodejs_23
               openjdk17
               apksigner

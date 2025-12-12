@@ -1,5 +1,12 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Modal, TouchableOpacity, ScrollView, useWindowDimensions } from 'react-native';
+import {
+  StyleSheet,
+  View,
+  Modal,
+  TouchableOpacity,
+  ScrollView,
+  useWindowDimensions,
+} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from './ThemedText';
 import { PINKeypad } from './PINKeypad';
@@ -219,4 +226,3 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 });
-

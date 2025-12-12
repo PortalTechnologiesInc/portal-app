@@ -49,6 +49,7 @@ export const DATABASE_TABLES = [
   'processed_cashu_tokens',
   'payment_status',
   'processed_notification_events',
+  'nip05_contacts',
 ] as const;
 
 // All database indexes that should be dropped during reset
@@ -71,6 +72,8 @@ export const DATABASE_INDEXES = [
   'cashu_mint_keysets_mint_url_index',
   'cashu_mint_keysets_keyset_id_index',
   'idx_processed_notification_events_processed_at',
+  'idx_nip05_contacts_npub',
+  'idx_nip05_contacts_created_at',
 ] as const;
 
 /**

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { CashuWallet, CashuLocalStore, CashuWalletInterface, Mnemonic } from 'portal-app-lib';
+import { CashuWallet, CashuLocalStore, CashuWalletInterface } from 'portal-app-lib';
 import { DatabaseService } from '@/services/DatabaseService';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
@@ -27,7 +27,15 @@ interface ECashContextType {
 
 const ECashContext = createContext<ECashContextType | undefined>(undefined);
 
-export function ECashProvider({ children, mnemonic, nsec }: { children: ReactNode; mnemonic: string; nsec: string }) {
+export function ECashProvider({
+  children,
+  mnemonic,
+  nsec,
+}: {
+  children: ReactNode;
+  mnemonic: string;
+  nsec: string;
+}) {
   const [wallets, setWallets] = useState<{ [key: string]: CashuWalletInterface }>({});
   const [isLoading, setIsLoading] = useState(false);
   const { executeOperation } = useDatabaseContext();
