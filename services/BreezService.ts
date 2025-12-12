@@ -15,6 +15,7 @@ import {
 } from '@breeztech/breez-sdk-spark-react-native';
 import { Wallet, WALLET_CONNECTION_STATUS, WalletConnectionStatus } from '@/models/WalletType';
 import { WalletInfo } from '@/utils/types';
+import { Nsec } from 'portal-app-lib';
 
 export class BreezService implements Wallet {
   private client!: BreezSdkInterface;
@@ -42,9 +43,9 @@ export class BreezService implements Wallet {
     if (this.onStatusChange) {
       this.onStatusChange(WALLET_CONNECTION_STATUS.CONNECTING);
     }
-    // const seed = new Seed.Mnemonic({ mnemonic: nsec, passphrase: undefined });
-    const nsecBuffer = new TextEncoder().encode(nsec).buffer;
-    const seed = new Seed.Entropy(nsecBuffer);
+    const nsecInstance = new Nsec(nsec);
+    const entropy = nsecInstance.deriveCashu();
+    const seed = new Seed.Entropy(entropy);
 
     const config = defaultConfig(Network.Mainnet);
     config.apiKey = process.env.EXPO_PUBLIC_BREEZ_API_KEY;
