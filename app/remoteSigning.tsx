@@ -177,12 +177,14 @@ const RemoteSigningScreen = () => {
             <ThemedText style={[styles.errorTitle, { color: textPrimary }]}>
               Something went wrong
             </ThemedText>
-            <ThemedText style={[styles.errorMessage, { color: textSecondary }]}>
-              {error}
-            </ThemedText>
+            <ThemedText style={[styles.errorMessage, { color: textSecondary }]}>{error}</ThemedText>
             <View style={styles.errorButtons}>
               <TouchableOpacity
-                style={[styles.errorButton, styles.errorButtonSecondary, { borderColor: inputBorder }]}
+                style={[
+                  styles.errorButton,
+                  styles.errorButtonSecondary,
+                  { borderColor: inputBorder },
+                ]}
                 onPress={() => router.back()}
                 activeOpacity={0.8}
               >
@@ -212,9 +214,7 @@ const RemoteSigningScreen = () => {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={20} color={textPrimary} />
         </TouchableOpacity>
-        <ThemedText style={[styles.headerText, { color: textPrimary }]}>
-          Remote Signing
-        </ThemedText>
+        <ThemedText style={[styles.headerText, { color: textPrimary }]}>Remote Signing</ThemedText>
       </ThemedView>
       <FlatList
         data={connections}
@@ -237,7 +237,8 @@ const RemoteSigningScreen = () => {
                     sealed while clients request Portal signature over secure relays.
                   </ThemedText>
                   <ThemedText style={[styles.infoSubtitle, { color: textSecondary, marginTop: 8 }]}>
-                    Share this bunker URI with your client to establish a secure remote signing connection.
+                    Share this bunker URI with your client to establish a secure remote signing
+                    connection.
                   </ThemedText>
                 </View>
               </View>
@@ -251,10 +252,7 @@ const RemoteSigningScreen = () => {
                 ]}
               >
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
-                  <ThemedText
-                    style={[styles.bunkerUriText, { color: textPrimary }]}
-                    selectable
-                  >
+                  <ThemedText style={[styles.bunkerUriText, { color: textPrimary }]} selectable>
                     {isLoading ? 'Loading...' : bunkerUri || 'Unable to generate bunker URI'}
                   </ThemedText>
                 </ScrollView>

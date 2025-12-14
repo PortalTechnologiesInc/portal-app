@@ -94,9 +94,7 @@ export const ActivityMainCard: React.FC<ActivityMainCardProps> = ({
       </ThemedText>
 
       {isTicket && detail && (
-        <ThemedText style={[styles.tokenName, { color: secondaryTextColor }]}>
-          {detail}
-        </ThemedText>
+        <ThemedText style={[styles.tokenName, { color: secondaryTextColor }]}>{detail}</ThemedText>
       )}
 
       <View style={[styles.statusContainer, { backgroundColor: surfaceSecondaryColor }]}>

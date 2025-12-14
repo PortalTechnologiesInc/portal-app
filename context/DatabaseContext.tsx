@@ -91,7 +91,7 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
       if (fallback !== undefined) return fallback;
       throw e;
     }
-  }
+  };
 
   const resetApp = () => {
     return AppResetService.performCompleteReset(sqliteContext);

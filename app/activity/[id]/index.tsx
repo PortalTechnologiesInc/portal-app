@@ -57,11 +57,7 @@ function getRequestDescriptionText(
   return `This was a payment request from ${serviceName}.`;
 }
 
-function getSuccessStatusText(
-  isAuth: boolean,
-  isTicket: boolean,
-  activityType: string
-): string {
+function getSuccessStatusText(isAuth: boolean, isTicket: boolean, activityType: string): string {
   if (isAuth) {
     return ' You successfully granted access.';
   }
@@ -139,7 +135,7 @@ export default function ActivityDetailScreen() {
           setActivity(activityData);
 
           // If this is a payment activity, fetch payment status entries
-          if (activityData.type === 'pay' && activityData.invoice) {
+          if (activityData.type === ActivityType.Pay || activityData.type === ActivityType.Receive && activityData.invoice) {
             try {
               const paymentStatusEntries = await executeOperation(
                 db => db.getPaymentStatusEntries(activityData.invoice!),
@@ -237,7 +233,7 @@ export default function ActivityDetailScreen() {
   }
 
   const activityStatus = getActivityStatus(activity);
-  const isPayment = activity.type === ActivityType.Pay;
+  const isPayment = activity.type === ActivityType.Pay || activity.type === ActivityType.Receive;
   const isAuth = activity.type === ActivityType.Auth;
   const isTicket =
     activity.type === ActivityType.Ticket ||
@@ -414,7 +410,12 @@ export default function ActivityDetailScreen() {
                         : 'Payment Transaction'}
                   </ThemedText>
                   <ThemedText style={[styles.infoText, { color: secondaryTextColor }]}>
-                    {getRequestDescriptionText(isAuth, isTicket, activity.service_name, activity.detail)}
+                    {getRequestDescriptionText(
+                      isAuth,
+                      isTicket,
+                      activity.service_name,
+                      activity.detail
+                    )}
                     {activityStatus === 'success' &&
                       getSuccessStatusText(isAuth, isTicket, activity.type)}
                     {activityStatus === 'failed' &&

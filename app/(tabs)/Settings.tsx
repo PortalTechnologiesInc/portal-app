@@ -39,7 +39,6 @@ import { useTheme, ThemeMode } from '@/context/ThemeContext';
 import { useCurrency } from '@/context/CurrencyContext';
 import { Currency, CurrencyHelpers } from '@/utils/currency';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { useWalletStatus } from '@/hooks/useWalletStatus';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import { useKey } from '@/context/KeyContext';
 import { getNsecStringFromKey } from '@/utils/keyHelpers';
@@ -109,9 +108,6 @@ export default function SettingsScreen() {
     : Math.max(16, insets.bottom + 8);
   const sheetMinHeight = Math.min(height * 0.7, modalMaxHeight);
 
-  // Unified wallet status
-  const { hasLightningWallet, isLightningConnected } = useWalletStatus();
-
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');
@@ -159,32 +155,9 @@ export default function SettingsScreen() {
     [modalMaxHeight, modalPadding, sheetMinHeight]
   );
 
-  // Get event-driven NWC connection status
-  const { nwcConnectionStatus, nwcConnectionError, nwcConnecting } = nostrService;
-
-  // Subscribe to wallet URL changes for display purposes
-  useEffect(() => {
-    const loadWalletUrl = async () => {
-      try {
-        const url = await getWalletUrl();
-        setWalletUrl(url);
-      } catch (error) {
-        console.error('Error loading wallet URL:', error);
-      }
-    };
-
-    loadWalletUrl();
-
-    const subscription = walletUrlEvents.addListener('walletUrlChanged', async newUrl => {
-      setWalletUrl(newUrl || '');
-    });
-
-    return () => subscription.remove();
-  }, []);
-
   const handleWalletCardPress = () => {
     router.push({
-      pathname: '/wallet',
+      pathname: '/walletSettings',
       params: {
         source: 'settings',
       },
@@ -236,11 +209,7 @@ export default function SettingsScreen() {
 
   const executeProtectedAction = async (
     action: () => Promise<void> | void,
-    {
-      reason,
-      pinTitle,
-      pinMessage,
-    }: { reason: string; pinTitle: string; pinMessage: string }
+    { reason, pinTitle, pinMessage }: { reason: string; pinTitle: string; pinMessage: string }
   ) => {
     try {
       if (authMethod === 'biometric' && isFingerprintSupported) {
@@ -342,7 +311,8 @@ export default function SettingsScreen() {
 
     setThemeMode(nextTheme);
     showToast(
-      `Theme changed to ${nextTheme === 'auto' ? 'Auto (System)' : nextTheme === 'light' ? 'Light' : 'Dark'
+      `Theme changed to ${
+        nextTheme === 'auto' ? 'Auto (System)' : nextTheme === 'light' ? 'Light' : 'Dark'
       }`,
       'success'
     );
@@ -580,17 +550,6 @@ export default function SettingsScreen() {
 
   const currencies = Object.values(Currency).filter(currency => currency !== Currency.MSATS);
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    try {
-      // Refresh wallet info
-      await nostrService.refreshWalletInfo();
-    } catch (error) {
-      console.error('Error refreshing wallet info:', error);
-    }
-    setRefreshing(false);
-  };
-
   const handleClearAppData = () => {
     Alert.alert(
       'Reset App',
@@ -646,17 +605,6 @@ export default function SettingsScreen() {
     );
   };
 
-  function getWalletStatusText() {
-    if (!walletUrl || !walletUrl.trim()) return 'Not configured';
-    if (nwcConnectionStatus === true) return 'Connected';
-    if (nwcConnectionStatus === false) {
-      return nwcConnectionError ? `Error: ${nwcConnectionError}` : 'Disconnected';
-    }
-    if (nwcConnecting) return 'Connecting...';
-    if (nwcConnectionStatus === null && hasLightningWallet) return 'Connecting...';
-    return 'Not configured';
-  }
-
   const renderCurrencyItem = ({ item }: { item: Currency }) => (
     <TouchableOpacity
       style={[styles.currencyItem, { backgroundColor: cardBackgroundColor }]}
@@ -700,20 +648,7 @@ export default function SettingsScreen() {
           </ThemedText>
         </ThemedView>
 
-        <ScrollView
-          style={styles.content}
-          contentContainerStyle={styles.contentContainer}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[buttonPrimaryColor]}
-              tintColor={buttonPrimaryColor}
-              title="Pull to refresh connection"
-              titleColor={primaryTextColor}
-            />
-          }
-        >
+        <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
           {/* Wallet Section */}
           <ThemedView style={styles.section}>
             <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
@@ -733,22 +668,12 @@ export default function SettingsScreen() {
                       </View>
                       <View style={styles.cardText}>
                         <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
-                          Wallet Connect
+                          Wallet Configuration
                         </ThemedText>
                         <View style={styles.cardStatusRow}>
                           <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
-                            {getWalletStatusText()}
+                            Manage your wallet configurations
                           </ThemedText>
-                          <View
-                            style={[
-                              styles.statusIndicator,
-                              {
-                                backgroundColor: isLightningConnected
-                                  ? statusConnectedColor
-                                  : secondaryTextColor,
-                              },
-                            ]}
-                          />
                         </View>
                       </View>
                     </View>
@@ -947,7 +872,7 @@ export default function SettingsScreen() {
                         <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
                           Use {biometricLabel}
                         </ThemedText>
-                        {isFingerprintSupported &&
+                        {isFingerprintSupported && (
                           <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
                             {isFingerprintSupported
                               ? isBiometricPreferred
@@ -955,7 +880,7 @@ export default function SettingsScreen() {
                                 : `${biometricLabel} disabled`
                               : `${biometricLabel} not available`}
                           </ThemedText>
-                        }
+                        )}
                       </View>
                     </View>
                   </View>
@@ -970,7 +895,6 @@ export default function SettingsScreen() {
                     ios_backgroundColor={inputBorderColor}
                   />
                 </View>
-
               </View>
             </>
           )}
@@ -1250,7 +1174,11 @@ export default function SettingsScreen() {
         animationType="slide"
         onRequestClose={closePinVerification}
       >
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={closePinVerification}>
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={closePinVerification}
+        >
           <TouchableOpacity
             style={modalSheetStyle}
             activeOpacity={1}

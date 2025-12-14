@@ -68,8 +68,8 @@ export default function RecoverTicketsScreen() {
   useEffect(() => {
     const retrieveMintsUrls = async () => {
       setIsSearchingUrls(true);
-      const fetchedUrls = await executeOnNostr(async (db) => {
-        const redMints = await db.readMints()
+      const fetchedUrls = await executeOnNostr(async db => {
+        const redMints = await db.readMints();
         return redMints;
       }, [] as string[]);
 
@@ -120,8 +120,12 @@ export default function RecoverTicketsScreen() {
         const mintKeys = await response.json();
 
         if (!mintKeys.keysets) {
-          console.warn(`Mint response of ${url} does not match the expected standard.\nPlease check the URL and try again if it\'s wrong.`);
-          Alert.alert(`Mint response of ${url} does not match the expected standard.\nPlease check the URL and try again if it\'s wrong.`);
+          console.warn(
+            `Mint response of ${url} does not match the expected standard.\nPlease check the URL and try again if it\'s wrong.`
+          );
+          Alert.alert(
+            `Mint response of ${url} does not match the expected standard.\nPlease check the URL and try again if it\'s wrong.`
+          );
           continue;
         } else if (mintKeys.keysets.length == 0) {
           console.warn(`Mint response of ${url} does not contains any ticket unit.`);
@@ -130,10 +134,7 @@ export default function RecoverTicketsScreen() {
         }
 
         for (const keyset of mintKeys.keysets) {
-          await addWallet(
-            url,
-            keyset.unit.toLowerCase()
-          );
+          await addWallet(url, keyset.unit.toLowerCase());
 
           // Emit event to notify that wallet balances have changed
           globalEvents.emit('walletBalancesChanged', {
@@ -196,7 +197,10 @@ export default function RecoverTicketsScreen() {
                 </ThemedText>
               </View>
               <ThemedText style={[styles.infoDescription, { color: secondaryTextColor }]}>
-                If you're missing tickets or they haven't appeared in your wallet, you can try to recover them by entering the mint server URLs that emitted the tickets. Note that the mint URL may differ from the generic event URL, so if you encounter errors, please contact the event organizer for assistance.
+                If you're missing tickets or they haven't appeared in your wallet, you can try to
+                recover them by entering the mint server URLs that emitted the tickets. Note that
+                the mint URL may differ from the generic event URL, so if you encounter errors,
+                please contact the event organizer for assistance.
               </ThemedText>
             </ThemedView>
 
@@ -222,28 +226,31 @@ export default function RecoverTicketsScreen() {
                       },
                     ]}
                     value={url}
-                    onChangeText={(value) => updateMintUrl(index, value)}
+                    onChangeText={value => updateMintUrl(index, value)}
                     placeholder="https://mint.example.com"
                     placeholderTextColor={inputPlaceholderColor}
                     autoCapitalize="none"
                     autoCorrect={false}
                     keyboardType="url"
                   />
-                  {index != 0 &&
+                  {index != 0 && (
                     <TouchableOpacity
                       style={[styles.removeButton, { backgroundColor: buttonDangerColor }]}
                       onPress={() => removeMintUrl(index)}
                     >
                       <X size={16} color={buttonDangerTextColor} />
                     </TouchableOpacity>
-                  }
+                  )}
                 </View>
               ))}
             </ThemedView>
 
             {/* Add More URLs Button */}
             <TouchableOpacity
-              style={[styles.addMoreButton, { backgroundColor: cardBackgroundColor, borderColor: inputBorderColor }]}
+              style={[
+                styles.addMoreButton,
+                { backgroundColor: cardBackgroundColor, borderColor: inputBorderColor },
+              ]}
               onPress={addNewUrlField}
               activeOpacity={0.7}
             >

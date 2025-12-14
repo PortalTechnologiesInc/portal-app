@@ -57,7 +57,6 @@ export function AppLockScreen() {
     return () => subscription.remove();
   }, []);
 
-
   const backgroundColor = useThemeColor({}, 'background');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
@@ -199,7 +198,9 @@ export function AppLockScreen() {
             <ThemedText style={[styles.title, { color: primaryTextColor, fontSize: 24 * rem }]}>
               App Locked
             </ThemedText>
-            <ThemedText style={[styles.subtitle, { color: secondaryTextColor, fontSize: 16 * rem }]}>
+            <ThemedText
+              style={[styles.subtitle, { color: secondaryTextColor, fontSize: 16 * rem }]}
+            >
               {showBiometric && showPIN
                 ? 'Use biometric or enter your PIN to unlock'
                 : showBiometric
@@ -272,10 +273,7 @@ export function AppLockScreen() {
   };
 
   return (
-    <View
-      style={styles.overlayContainer}
-      pointerEvents="auto"
-    >
+    <View style={styles.overlayContainer} pointerEvents="auto">
       {shouldTint && (
         <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, styles.tintOverlay]} />
       )}
@@ -384,4 +382,3 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.95)',
   },
 });
-

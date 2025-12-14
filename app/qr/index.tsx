@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, TouchableOpacity, BackHandler, View, Linking, Platform, Alert } from 'react-native';
+import {
+  StyleSheet,
+  TouchableOpacity,
+  BackHandler,
+  View,
+  Linking,
+  Platform,
+  Alert,
+} from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -7,13 +15,15 @@ import { usePendingRequests } from '@/context/PendingRequestsContext';
 import { parseCashuToken, parseKeyHandshakeUrl } from 'portal-app-lib';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { ArrowLeft, Settings } from 'lucide-react-native';
+import { ArrowLeft, ClipboardPaste, Settings } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useECash } from '@/context/ECashContext';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import { globalEvents, getServiceNameFromMintUrl } from '@/utils/common';
+import Clipboard from '@react-native-clipboard/clipboard';
+import { showToast } from '@/utils/Toast';
 
 // Define the type for the barcode scanner result
 type BarcodeResult = {
@@ -84,6 +94,22 @@ export default function QRScannerScreen() {
     setEnableTorch(!enableTorch);
   };
 
+  const tryPasteInvoice = async () => {
+    const invoice = await Clipboard.getString();
+    const validation = validateQRCode(invoice);
+    if (!validation.isValid) {
+      showErrorMessage(validation.error || 'Invalid QR code');
+      return;
+    }
+
+    router.replace({
+      pathname: '/breezwallet/pay',
+      params: {
+        invoice,
+      },
+    });
+  };
+
   const openSettings = async () => {
     await Linking.openSettings();
   };
@@ -133,6 +159,15 @@ export default function QRScannerScreen() {
           return {
             isValid: false,
             error: 'Invalid ticket QR code. Please scan a valid ticket QR code.',
+          };
+        }
+        break;
+
+      case 'lightning':
+        if (!data.toLowerCase().startsWith('lnbc')) {
+          return {
+            isValid: false,
+            error: 'Invalid lightning invoice. Please scan a valid lightning invoice.',
           };
         }
         break;
@@ -207,11 +242,10 @@ export default function QRScannerScreen() {
           return;
         }
 
-
         try {
           await wallet.receiveToken(token);
 
-          await executeOnNostr(async (db) => {
+          await executeOnNostr(async db => {
             let mintsList = await db.readMints();
 
             // Convert to Set to prevent duplicates, then back to array
@@ -220,7 +254,6 @@ export default function QRScannerScreen() {
 
             db.storeMints(mintsList);
           });
-
 
           globalEvents.emit('walletBalancesChanged', {
             mintUrl: tokenInfo.mintUrl,
@@ -279,6 +312,15 @@ export default function QRScannerScreen() {
         }
         break;
 
+      case 'lightning':
+        router.replace({
+          pathname: '/breezwallet/pay',
+          params: {
+            invoice: data,
+          },
+        });
+        break;
+
       default:
         // Main QR handling - process the URL
         try {
@@ -301,17 +343,27 @@ export default function QRScannerScreen() {
 
   const getHeaderTitle = () => {
     switch (mode) {
-      case 'wallet': return 'Scan Wallet QR';
-      case 'ticket': return 'Scan Ticket QR';
-      default: return 'Scan Authentication QR';
+      case 'wallet':
+        return 'Scan Wallet QR';
+      case 'ticket':
+        return 'Scan Ticket QR';
+      case 'lightning':
+        return 'Scan a lightning invoice';
+      default:
+        return 'Scan Authentication QR';
     }
   };
 
   const getInstructionText = () => {
     switch (mode) {
-      case 'wallet': return 'Point your camera at a wallet connection QR code';
-      case 'ticket': return 'Point your camera at a ticket QR code';
-      default: return 'Point your camera at a Portal authentication QR code';
+      case 'wallet':
+        return 'Point your camera at a wallet connection QR code';
+      case 'ticket':
+        return 'Point your camera at a ticket QR code';
+      case 'lightning':
+        return 'Point your camera at a lightning invoice';
+      default:
+        return 'Point your camera at a Portal authentication QR code';
     }
   };
 
@@ -370,7 +422,8 @@ export default function QRScannerScreen() {
                   Camera Access Required
                 </ThemedText>
                 <ThemedText style={[styles.messageText, { color: textSecondary }]}>
-                  Camera access was denied. If you wish to use the QR scanner, please enable camera permissions in your device settings.
+                  Camera access was denied. If you wish to use the QR scanner, please enable camera
+                  permissions in your device settings.
                 </ThemedText>
                 {Platform.OS !== 'ios' && (
                   <TouchableOpacity
@@ -379,7 +432,9 @@ export default function QRScannerScreen() {
                   >
                     <View style={styles.buttonContent}>
                       <Settings size={16} color={buttonPrimaryText} style={styles.buttonIcon} />
-                      <ThemedText style={[styles.permissionButtonText, { color: buttonPrimaryText }]}>
+                      <ThemedText
+                        style={[styles.permissionButtonText, { color: buttonPrimaryText }]}
+                      >
                         Open Settings
                       </ThemedText>
                     </View>
@@ -521,6 +576,20 @@ export default function QRScannerScreen() {
                 {enableTorch ? 'Turn Off Flash' : 'Turn On Flash'}
               </ThemedText>
             </TouchableOpacity>
+
+            {mode === 'lightning' && (
+              <TouchableOpacity
+                style={[styles.flashButton, { backgroundColor: buttonPrimary, marginTop: 10 }]}
+                onPress={tryPasteInvoice}
+              >
+                <View style={{ flexDirection: 'row' }}>
+                  <ClipboardPaste color={buttonPrimaryText} />
+                  <ThemedText style={[styles.flashButtonText, { color: buttonPrimaryText }]}>
+                    Paste
+                  </ThemedText>
+                </View>
+              </TouchableOpacity>
+            )}
           </View>
         </ThemedView>
 
@@ -536,11 +605,7 @@ export default function QRScannerScreen() {
                   },
                 ]}
               >
-                {
-                  showError
-                    ? errorMessage
-                    : 'QR Code Scanned!'
-                }
+                {showError ? errorMessage : 'QR Code Scanned!'}
               </ThemedText>
             </View>
           </View>

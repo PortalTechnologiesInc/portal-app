@@ -43,6 +43,8 @@ import type {
 import { PortalAppManager } from '@/services/PortalAppManager';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 import { globalEvents, getServiceNameFromMintUrl } from '@/utils/common';
+import { usePortalApp } from './PortalAppContext';
+import { useWalletManager } from './WalletManagerContext';
 
 // Helper function to get service name with fallback
 const getServiceNameWithFallback = async (
@@ -99,9 +101,11 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
   // Simple database access
   const { executeOperation } = useDatabaseContext();
 
+  const appService = usePortalApp();
   const nostrService = useNostrService();
   const eCashContext = useECash();
   const { preferredCurrency } = useCurrency();
+  const walletService = useWalletManager();
 
   // Get the refreshData function from ActivitiesContext
   const { refreshData } = useActivities();
@@ -131,17 +135,13 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
     };
   }, []);
 
-
   // Helper function to add an activity
   const addActivityWithFallback = async (activity: PendingActivity): Promise<string> => {
     try {
       const id = await executeOperation(db => db.addActivity(activity));
       if (id && typeof id === 'string' && id.length > 0) {
         // Fetch the created/updated activity to emit it
-        const createdActivity = await executeOperation(
-          db => db.getActivity(id),
-          null
-        );
+        const createdActivity = await executeOperation(db => db.getActivity(id), null);
         if (createdActivity) {
           globalEvents.emit('activityAdded', createdActivity);
         }
@@ -180,7 +180,8 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
       }
     ): Promise<void> => {
       const { mintUrl, serviceName, ticketTitle, amount, requestId } = baseData;
-      const status = activityType === 'ticket_approved' ? ('positive' as const) : ('negative' as const);
+      const status =
+        activityType === 'ticket_approved' ? ('positive' as const) : ('negative' as const);
 
       // Try with full data first
       try {
@@ -283,16 +284,16 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
   // Memoize these functions to prevent recreation on every render
   const getByType = useCallback(
     (type: PendingRequestType) => {
-      return Object.values(nostrService.pendingRequests).filter(request => request.type === type);
+      return Object.values(appService.pendingRequests).filter(request => request.type === type);
     },
-    [nostrService.pendingRequests]
+    [appService.pendingRequests]
   );
 
   const getById = useCallback(
     (id: string) => {
-      return nostrService.pendingRequests[id];
+      return appService.pendingRequests[id];
     },
-    [nostrService.pendingRequests]
+    [appService.pendingRequests]
   );
 
   const approve = useCallback(
@@ -303,7 +304,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
         return;
       }
 
-      nostrService.dismissPendingRequest(id);
+      appService.dismissPendingRequest(id);
       await executeOperation(db => db.storePendingRequest(id, true), null);
 
       switch (request.type) {
@@ -361,9 +362,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               case Currency_Tags.Fiat:
                 {
                   const fiatCodeRaw = (currencyObj as any).inner;
-                  const fiatCodeValue = Array.isArray(fiatCodeRaw)
-                    ? fiatCodeRaw[0]
-                    : fiatCodeRaw;
+                  const fiatCodeValue = Array.isArray(fiatCodeRaw) ? fiatCodeRaw[0] : fiatCodeRaw;
                   const fiatCode =
                     typeof fiatCodeValue === 'string'
                       ? String(fiatCodeValue).toUpperCase()
@@ -391,7 +390,11 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             const normalizedPreferredCurrency = normalizeCurrencyForComparison(preferredCurrency);
 
             // Skip conversion if currencies are the same (case-insensitive, with sats normalization)
-            if (normalizedStoredCurrency && normalizedPreferredCurrency && normalizedStoredCurrency === normalizedPreferredCurrency) {
+            if (
+              normalizedStoredCurrency &&
+              normalizedPreferredCurrency &&
+              normalizedStoredCurrency === normalizedPreferredCurrency
+            ) {
               // No conversion needed - currencies match
               convertedAmount = null;
               convertedCurrency = null;
@@ -435,7 +438,12 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             );
 
             try {
-              const preimage = await nostrService.payInvoice(metadata.content.invoice);
+              const response = await walletService.sendPayment(
+                metadata.content.invoice,
+                BigInt(amount)
+              );
+
+              console.log(response);
 
               await executeOperation(
                 db => db.addPaymentStatusEntry(metadata.content.invoice, 'payment_completed'),
@@ -451,11 +459,12 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
               await notifier(
                 new PaymentStatus.Success({
-                  preimage,
+                  // preimage,
+                  preimage: '',
                 })
               );
             } catch (err) {
-              console.error('Error paying invoice:', err);
+              console.log('Error paying invoice:', JSON.stringify(err));
 
               await executeOperation(
                 db => db.addPaymentStatusEntry(metadata.content.invoice, 'payment_failed'),
@@ -509,9 +518,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 case Currency_Tags.Fiat:
                   {
                     const fiatCodeRaw = (currencyObj as any).inner;
-                    const fiatCodeValue = Array.isArray(fiatCodeRaw)
-                      ? fiatCodeRaw[0]
-                      : fiatCodeRaw;
+                    const fiatCodeValue = Array.isArray(fiatCodeRaw) ? fiatCodeRaw[0] : fiatCodeRaw;
                     const fiatCode =
                       typeof fiatCodeValue === 'string'
                         ? String(fiatCodeValue).toUpperCase()
@@ -625,13 +632,18 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               const walletBalance = await wallet.getBalance();
 
               // Ensure both values are BigInt for proper comparison
-              const balanceBigInt = typeof walletBalance === 'bigint' ? walletBalance : BigInt(walletBalance);
+              const balanceBigInt =
+                typeof walletBalance === 'bigint' ? walletBalance : BigInt(walletBalance);
               const amountBigInt = typeof amount === 'bigint' ? amount : BigInt(amount);
 
-              console.log(`[Ticket Request] Balance check: balance=${balanceBigInt.toString()}, requested=${amountBigInt.toString()}, unit=${cashuEvent.inner.unit}`);
+              console.log(
+                `[Ticket Request] Balance check: balance=${balanceBigInt.toString()}, requested=${amountBigInt.toString()}, unit=${cashuEvent.inner.unit}`
+              );
 
               if (balanceBigInt < amountBigInt) {
-                console.warn(`[Ticket Request] Insufficient balance: have ${balanceBigInt.toString()}, need ${amountBigInt.toString()}`);
+                console.warn(
+                  `[Ticket Request] Insufficient balance: have ${balanceBigInt.toString()}, need ${amountBigInt.toString()}`
+                );
                 request.result(new CashuResponseStatus.InsufficientFunds());
                 return;
               }
@@ -711,11 +723,13 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           const requestedPermissions = connectEvent.params.at(2) ?? null;
           try {
             // whitelist the nostr client
-            executeOperation((db) => db.addAllowedBunkerClient(
-              keyToHex(connectEvent.nostrClientPubkey),
-              null,
-              requestedPermissions
-            ))
+            executeOperation(db =>
+              db.addAllowedBunkerClient(
+                keyToHex(connectEvent.nostrClientPubkey),
+                null,
+                requestedPermissions
+              )
+            );
           } catch (e) {
             console.error(e);
             addActivityWithFallback({
@@ -723,7 +737,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               service_key: (request.metadata as NostrConnectRequestEvent).nostrClientPubkey,
               detail: 'Login with bunker failed',
               date: new Date(),
-              service_name: "Nostr client",
+              service_name: 'Nostr client',
               amount: null,
               currency: null,
               converted_amount: null,
@@ -735,13 +749,13 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           }
 
           // Create NostrConnectResponseStatus for approved bunker connection
-          request.result(new NostrConnectResponseStatus.Approved);
+          request.result(new NostrConnectResponseStatus.Approved());
           addActivityWithFallback({
             type: 'auth',
             service_key: (request.metadata as NostrConnectRequestEvent).nostrClientPubkey,
             detail: 'User approved bunker login',
             date: new Date(),
-            service_name: "Nostr client",
+            service_name: 'Nostr client',
             amount: null,
             currency: null,
             converted_amount: null,
@@ -753,7 +767,14 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           break;
       }
     },
-    [getById, addActivityWithFallback, addSubscriptionWithFallback, createTicketActivityWithRetry, nostrService, eCashContext]
+    [
+      getById,
+      addActivityWithFallback,
+      addSubscriptionWithFallback,
+      createTicketActivityWithRetry,
+      nostrService,
+      eCashContext,
+    ]
   );
 
   const deny = useCallback(
@@ -764,7 +785,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
         return;
       }
 
-      nostrService.dismissPendingRequest(id);
+      appService.dismissPendingRequest(id);
       await executeOperation(db => db.storePendingRequest(id, false), null);
 
       switch (request?.type) {
@@ -816,9 +837,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               case Currency_Tags.Fiat:
                 {
                   const fiatCodeRaw = (currencyObj as any).inner;
-                  const fiatCodeValue = Array.isArray(fiatCodeRaw)
-                    ? fiatCodeRaw[0]
-                    : fiatCodeRaw;
+                  const fiatCodeValue = Array.isArray(fiatCodeRaw) ? fiatCodeRaw[0] : fiatCodeRaw;
                   const fiatCode =
                     typeof fiatCodeValue === 'string'
                       ? String(fiatCodeValue).toUpperCase()
@@ -976,8 +995,9 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               }
 
               if (ticketWallet) {
-                const deniedUnitInfo =
-                  ticketWallet.getUnitInfo ? await ticketWallet.getUnitInfo() : undefined;
+                const deniedUnitInfo = ticketWallet.getUnitInfo
+                  ? await ticketWallet.getUnitInfo()
+                  : undefined;
                 ticketTitle =
                   deniedUnitInfo?.title ||
                   (ticketWallet ? ticketWallet.unit() : cashuEvent.inner.unit || 'Unknown Ticket');
@@ -1007,9 +1027,9 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               const nostrServiceKey = cashuEvent?.serviceKey || cashuEvent?.mainKey || null;
 
               const serviceName = nostrServiceKey
-                ? await getServiceNameWithFallback(nostrService, nostrServiceKey).catch(
-                  () => mintUrl ? getServiceNameFromMintUrl(mintUrl) : 'Unknown Service'
-                )
+                ? await getServiceNameWithFallback(nostrService, nostrServiceKey).catch(() =>
+                    mintUrl ? getServiceNameFromMintUrl(mintUrl) : 'Unknown Service'
+                  )
                 : mintUrl
                   ? getServiceNameFromMintUrl(mintUrl)
                   : 'Unknown Service';
@@ -1022,7 +1042,10 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 requestId: `${id}-denied`,
               });
             } catch (activityError) {
-              console.error('Failed to create activity for denied ticket in error handler:', activityError);
+              console.error(
+                'Failed to create activity for denied ticket in error handler:',
+                activityError
+              );
             }
             request.result(
               new CashuResponseStatus.Rejected({
@@ -1032,15 +1055,17 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           }
           break;
         case 'nostrConnect':
-          request.result(new NostrConnectResponseStatus.Declined({
-            reason: "Declined by the user"
-          }));
+          request.result(
+            new NostrConnectResponseStatus.Declined({
+              reason: 'Declined by the user',
+            })
+          );
           addActivityWithFallback({
             type: 'auth',
             service_key: (request.metadata as NostrConnectRequestEvent).nostrClientPubkey,
             detail: 'User declined bunker login',
             date: new Date(),
-            service_name: "Nostr client",
+            service_name: 'Nostr client',
             amount: null,
             currency: null,
             converted_amount: null,
@@ -1052,7 +1077,14 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           break;
       }
     },
-    [getById, addActivityWithFallback, createTicketActivityWithRetry, nostrService, eCashContext]
+    [
+      getById,
+      addActivityWithFallback,
+      createTicketActivityWithRetry,
+      nostrService,
+      eCashContext,
+      appService,
+    ]
   );
 
   // Show skeleton loader and set timeout for request
@@ -1097,14 +1129,16 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
   // Check for expected pending requests and clear skeleton loader
   useEffect(() => {
     // Check for removing skeleton when we get the expected request
-    for (const request of Object.values(nostrService.pendingRequests)) {
-      const serviceKey = (request.metadata as SinglePaymentRequest).serviceKey;
+    if (timeoutId) {
+      for (const request of Object.values(appService.pendingRequests)) {
+        const serviceKey = (request.metadata as SinglePaymentRequest).serviceKey;
 
-      if (serviceKey === pendingUrl?.mainKey) {
-        cancelSkeletonLoader();
+        if (serviceKey === pendingUrl?.mainKey) {
+          cancelSkeletonLoader();
+        }
       }
     }
-  }, [nostrService.pendingRequests, pendingUrl, cancelSkeletonLoader]);
+  }, [appService.pendingRequests, cancelSkeletonLoader, pendingUrl, timeoutId]);
 
   // Memoize the context value to prevent recreation on every render
   const contextValue = useMemo(

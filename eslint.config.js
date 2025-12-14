@@ -33,6 +33,10 @@ export default [
         require: 'readonly',
         URL: 'readonly',
         BackHandler: 'readonly',
+        process: 'readonly',
+        AbortController: 'readonly',
+        URLSearchParams: 'readonly',
+        TextEncoder: 'readonly',
       },
     },
     plugins: {

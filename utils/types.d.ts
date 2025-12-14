@@ -46,7 +46,7 @@ export interface ConnectionSummary {
  */
 export interface WalletInfo {
   alias?: string;
-  get_balance?: number;
+  balanceInSats?: bigint;
 }
 
 /**
@@ -69,6 +69,7 @@ export interface WalletInfoState {
 export enum ActivityType {
   Auth = 'auth',
   Pay = 'pay',
+  Receive = 'receive',
   Ticket = 'ticket',
   TicketApproved = 'ticket_approved',
   TicketDenied = 'ticket_denied',

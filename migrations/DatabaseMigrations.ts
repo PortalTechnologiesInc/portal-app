@@ -2,7 +2,7 @@ import { SQLiteDatabase } from 'expo-sqlite';
 
 // Function to migrate database schema if needed
 export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
-  const DATABASE_VERSION = 19;
+  const DATABASE_VERSION = 21;
 
   try {
     let { user_version: currentDbVersion } = (await db.getFirstAsync<{
@@ -375,7 +375,8 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
             GROUP BY request_id
           );
         `);
-      } catch (_) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      } catch (_error) {
         // Best-effort cleanup; continue even if this fails
       }
 
@@ -430,6 +431,63 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
         );
       `);
       currentDbVersion = 19;
+    }
+
+    if (currentDbVersion <= 19) {
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS nip05_contacts (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          npub TEXT NOT NULL,
+          created_at INTEGER DEFAULT (strftime('%s', 'now'))
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_nip05_contacts_npub ON nip05_contacts(npub);
+        CREATE INDEX IF NOT EXISTS idx_nip05_contacts_created_at ON nip05_contacts(created_at DESC);
+      `);
+      currentDbVersion = 20;
+      console.log('Created nip05_contacts table- now at version 20');
+    }
+
+    if (currentDbVersion <= 20) {
+      await db.execAsync(`
+        -- Update activities table to allow receive type
+        -- First, create a new table with the updated constraint
+        CREATE TABLE activities_new (
+          id TEXT PRIMARY KEY NOT NULL,
+          type TEXT NOT NULL CHECK (type IN ('auth', 'pay', 'receive', 'ticket', 'ticket_approved', 'ticket_denied', 'ticket_received')),
+          service_name TEXT NOT NULL,
+          service_key TEXT NOT NULL,
+          detail TEXT NOT NULL,
+          date INTEGER NOT NULL,
+          amount INTEGER,
+          currency TEXT,
+          request_id TEXT NOT NULL UNIQUE,
+          created_at INTEGER NOT NULL,
+          subscription_id TEXT REFERENCES subscriptions(id) ON DELETE SET NULL,
+          status TEXT NOT NULL DEFAULT 'neutral' CHECK (status IN ('neutral', 'positive', 'negative', 'pending')),
+          invoice TEXT,
+          converted_amount REAL,
+          converted_currency TEXT
+        );
+        
+        -- Copy data from old table to new table
+        INSERT INTO activities_new SELECT * FROM activities;
+        
+        -- Drop old table and rename new table
+        DROP TABLE activities;
+        ALTER TABLE activities_new RENAME TO activities;
+        
+        -- Recreate indexes
+        CREATE INDEX IF NOT EXISTS idx_activities_date ON activities(date);
+        CREATE INDEX IF NOT EXISTS idx_activities_type ON activities(type);
+        CREATE INDEX IF NOT EXISTS idx_activities_subscription ON activities(subscription_id);
+        CREATE INDEX IF NOT EXISTS idx_activities_status ON activities(status);
+        CREATE INDEX IF NOT EXISTS idx_activities_invoice ON activities(invoice);
+        CREATE INDEX IF NOT EXISTS idx_activities_converted_currency ON activities(converted_currency);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_activities_request_id_unique ON activities(request_id);
+      `);
+      currentDbVersion = 21;
+      console.log('Updated activities table to support receive type - now at version 21');
     }
 
     await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);

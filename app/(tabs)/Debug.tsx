@@ -137,7 +137,7 @@ export default function DebugScreen() {
 
   const handleInvertFingerprintSupport = async () => {
     if (isFingerprintSupported === null) return;
-    
+
     try {
       const newValue = !isFingerprintSupported;
       await AppLockService.setFingerprintSupported(newValue);
@@ -152,7 +152,10 @@ export default function DebugScreen() {
   // Currency conversion handler
   const handleCurrencyConversion = async () => {
     if (!conversionAmount.trim() || !sourceCurrency.trim() || !destinationCurrency.trim()) {
-      Alert.alert('Missing Fields', 'Please enter amount, source currency, and destination currency.');
+      Alert.alert(
+        'Missing Fields',
+        'Please enter amount, source currency, and destination currency.'
+      );
       return;
     }
 
@@ -172,12 +175,15 @@ export default function DebugScreen() {
         sourceCurrency.trim(),
         destinationCurrency.trim()
       );
-      
+
       console.log(`Conversion result: ${result}`);
       setConvertedAmount(result);
     } catch (error) {
       console.error('Currency conversion failed:', error);
-      Alert.alert('Conversion Failed', 'Unable to convert currencies. Please check your inputs and try again.');
+      Alert.alert(
+        'Conversion Failed',
+        'Unable to convert currencies. Please check your inputs and try again.'
+      );
     } finally {
       setIsConverting(false);
     }
@@ -388,14 +394,25 @@ export default function DebugScreen() {
                   Invert Fingerprint Support
                 </ThemedText>
                 <ThemedText style={[styles.settingSubtext, { color: secondaryTextColor }]}>
-                  Current: {isFingerprintSupported === null ? 'Loading...' : isFingerprintSupported ? 'Supported' : 'Not Supported'}
+                  Current:{' '}
+                  {isFingerprintSupported === null
+                    ? 'Loading...'
+                    : isFingerprintSupported
+                      ? 'Supported'
+                      : 'Not Supported'}
                 </ThemedText>
               </View>
               <Switch
                 value={isFingerprintSupported === null ? false : isFingerprintSupported}
                 onValueChange={handleInvertFingerprintSupport}
                 trackColor={{ false: '#767577', true: buttonColor }}
-                thumbColor={isFingerprintSupported === null ? '#f4f3f4' : isFingerprintSupported ? '#ffffff' : '#f4f3f4'}
+                thumbColor={
+                  isFingerprintSupported === null
+                    ? '#f4f3f4'
+                    : isFingerprintSupported
+                      ? '#ffffff'
+                      : '#f4f3f4'
+                }
                 disabled={isFingerprintSupported === null}
               />
             </View>
@@ -490,7 +507,8 @@ export default function DebugScreen() {
               💱 Currency Conversion Testing
             </ThemedText>
             <ThemedText style={[styles.description, { color: secondaryTextColor }]}>
-              Test currency conversion between different currencies. Supports BTC, SATS, MSATS, and fiat currencies.
+              Test currency conversion between different currencies. Supports BTC, SATS, MSATS, and
+              fiat currencies.
             </ThemedText>
 
             {/* Amount Input */}
@@ -590,10 +608,7 @@ export default function DebugScreen() {
             {/* Conversion Result */}
             {convertedAmount !== null && (
               <ThemedView
-                style={[
-                  styles.resultContainer,
-                  { backgroundColor: surfaceSecondaryColor },
-                ]}
+                style={[styles.resultContainer, { backgroundColor: surfaceSecondaryColor }]}
               >
                 <ThemedText style={[styles.resultLabel, { color: primaryTextColor }]}>
                   Result:

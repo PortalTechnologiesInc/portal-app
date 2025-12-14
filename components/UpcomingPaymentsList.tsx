@@ -10,7 +10,12 @@ import { parseCalendar } from 'portal-app-lib';
 import { fromUnixSeconds } from '@/services/DatabaseService';
 import { BanknoteIcon } from 'lucide-react-native';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { Currency, CurrencyHelpers, shouldShowConvertedAmount, formatActivityAmount } from '@/utils/currency';
+import {
+  Currency,
+  CurrencyHelpers,
+  shouldShowConvertedAmount,
+  formatActivityAmount,
+} from '@/utils/currency';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 
 export const UpcomingPaymentsList: React.FC = () => {
@@ -41,10 +46,10 @@ export const UpcomingPaymentsList: React.FC = () => {
             sub.recurrence_first_payment_due > new Date() || !sub.last_payment_date
               ? sub.recurrence_first_payment_due
               : fromUnixSeconds(
-                parsedCalendar.nextOccurrence(
-                  BigInt((sub.last_payment_date?.getTime() ?? 0) / 1000)
-                ) ?? 0
-              );
+                  parsedCalendar.nextOccurrence(
+                    BigInt((sub.last_payment_date?.getTime() ?? 0) / 1000)
+                  ) ?? 0
+                );
 
           return {
             id: sub.id,
