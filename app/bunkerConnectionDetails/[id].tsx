@@ -1,19 +1,18 @@
+import Clipboard from '@react-native-clipboard/clipboard';
+import { router, useLocalSearchParams } from 'expo-router';
+import { ArrowLeft, Copy } from 'lucide-react-native';
+import { keyToHex } from 'portal-app-lib';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Switch, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Copy } from 'lucide-react-native';
-import { router, useLocalSearchParams } from 'expo-router';
-import Clipboard from '@react-native-clipboard/clipboard';
 import uuid from 'react-native-uuid';
-
-import { ThemedView } from '@/components/ThemedView';
 import { ThemedText } from '@/components/ThemedText';
-import { useThemeColor } from '@/hooks/useThemeColor';
-import { useNostrService } from '@/context/NostrServiceContext';
+import { ThemedView } from '@/components/ThemedView';
 import { useDatabaseContext } from '@/context/DatabaseContext';
-import { keyToHex } from 'portal-app-lib';
+import { useNostrService } from '@/context/NostrServiceContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import type { AllowedBunkerClientWithDates } from '@/services/DatabaseService';
 import { showToast } from '@/utils/Toast';
-import { AllowedBunkerClientWithDates } from '@/services/DatabaseService';
 
 const BunkerConnectionDetailsScreen = () => {
   const { id } = useLocalSearchParams<{ id?: string }>();

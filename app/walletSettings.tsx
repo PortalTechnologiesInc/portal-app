@@ -1,14 +1,14 @@
-import React from 'react';
-import { StyleSheet, TouchableOpacity, View, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { ThemedView } from '@/components/ThemedView';
-import { ThemedText } from '@/components/ThemedText';
-import { useThemeColor } from '@/hooks/useThemeColor';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Star, StarOff, Wallet, Zap } from 'lucide-react-native';
-import { WALLET_CONNECTION_STATUS, WALLET_TYPE, WalletType } from '@/models/WalletType';
-import { useWalletManager } from '@/context/WalletManagerContext';
+import React from 'react';
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { ThemedText } from '@/components/ThemedText';
+import { ThemedView } from '@/components/ThemedView';
 import { useKey } from '@/context/KeyContext';
+import { useWalletManager } from '@/context/WalletManagerContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import { WALLET_CONNECTION_STATUS, WALLET_TYPE, type WalletType } from '@/models/WalletType';
 
 export default function WalletSettings() {
   const router = useRouter();

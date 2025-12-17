@@ -1,5 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
-import { SECURE_STORE_KEYS, getAllSecureStoreKeys } from './StorageRegistry';
+import { getAllSecureStoreKeys, SECURE_STORE_KEYS } from './StorageRegistry';
 
 // Type for mnemonic data
 type MnemonicData = string | null;

@@ -1,21 +1,25 @@
-import * as FileSystem from 'expo-file-system';
 import {
-  Seed,
-  defaultConfig,
-  Network,
+  type BreezSdkInterface,
   connect,
-  BreezSdkInterface,
-  ReceivePaymentMethod,
-  SendPaymentOptions,
-  EventListener,
-  SendPaymentMethod,
-  OnchainConfirmationSpeed,
-  PrepareSendPaymentResponse,
+  defaultConfig,
+  type EventListener,
   initLogging,
+  Network,
+  OnchainConfirmationSpeed,
+  type PrepareSendPaymentResponse,
+  ReceivePaymentMethod,
+  Seed,
+  SendPaymentMethod,
+  SendPaymentOptions,
 } from '@breeztech/breez-sdk-spark-react-native';
-import { Wallet, WALLET_CONNECTION_STATUS, WalletConnectionStatus } from '@/models/WalletType';
-import { WalletInfo } from '@/utils/types';
+import * as FileSystem from 'expo-file-system';
 import { Nsec } from 'portal-app-lib';
+import {
+  WALLET_CONNECTION_STATUS,
+  type Wallet,
+  type WalletConnectionStatus,
+} from '@/models/WalletType';
+import type { WalletInfo } from '@/utils/types';
 
 export class BreezService implements Wallet {
   private client!: BreezSdkInterface;

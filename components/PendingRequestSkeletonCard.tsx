@@ -1,8 +1,7 @@
-import React from 'react';
-import { useEffect, useRef } from 'react';
-import { View, StyleSheet, Animated, type ViewStyle, type StyleProp } from 'react-native';
-import { useThemeColor } from '@/hooks/useThemeColor';
+import React, { useEffect, useRef } from 'react';
+import { Animated, type StyleProp, StyleSheet, View, type ViewStyle } from 'react-native';
 import { Layout } from '@/constants/Layout';
+import { useThemeColor } from '@/hooks/useThemeColor';
 
 // Animated pulse component for skeleton loading effect
 export const SkeletonPulse = ({ style }: { style: StyleProp<ViewStyle> }) => {

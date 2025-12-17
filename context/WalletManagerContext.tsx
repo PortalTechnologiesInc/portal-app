@@ -1,30 +1,31 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Wallet,
-  WalletType,
-  WALLET_TYPE,
-  WalletTypeMap,
-  WalletConnectionStatus,
-  WALLET_CONNECTION_STATUS,
-} from '@/models/WalletType';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { BreezService } from '@/services/BreezService';
-import { NwcService } from '@/services/NwcService';
-import { WalletInfo } from '@/utils/types';
-import { useKey } from './KeyContext';
-import { useDatabaseContext } from './DatabaseContext';
-import { useCurrency } from './CurrencyContext';
-import { ActivityType, globalEvents } from '@/utils/common';
-import {
-  SdkEvent,
-  SdkEvent_Tags,
-  PaymentType,
-  Payment,
-  PaymentStatus,
+  type Payment,
   PaymentDetails_Tags,
+  PaymentStatus,
+  PaymentType,
+  type SdkEvent,
+  SdkEvent_Tags,
 } from '@breeztech/breez-sdk-spark-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import type React from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import {
+  WALLET_CONNECTION_STATUS,
+  WALLET_TYPE,
+  type Wallet,
+  type WalletConnectionStatus,
+  type WalletType,
+  type WalletTypeMap,
+} from '@/models/WalletType';
+import { BreezService } from '@/services/BreezService';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import { NwcService } from '@/services/NwcService';
+import { ActivityType, globalEvents } from '@/utils/common';
 import { deriveNsecFromMnemonic } from '@/utils/keyHelpers';
+import type { WalletInfo } from '@/utils/types';
+import { useCurrency } from './CurrencyContext';
+import { useDatabaseContext } from './DatabaseContext';
+import { useKey } from './KeyContext';
 
 export interface WalletManagerContextType {
   activeWallet?: Wallet;

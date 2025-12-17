@@ -1,26 +1,30 @@
-import {
-  AuthChallengeEvent,
-  AuthResponseStatus,
-  CloseRecurringPaymentResponse,
-  RecurringPaymentRequest,
-  RecurringPaymentResponseContent,
-  SinglePaymentRequest,
-  PaymentStatus,
-  parseCalendar,
-  parseBolt11,
-  Currency_Tags,
-  NostrConnectResponseStatus,
-  NostrConnectMethod,
-  NostrConnectRequestEvent,
-  keyToHex,
-} from 'portal-app-lib';
 import * as Notifications from 'expo-notifications';
-import { DatabaseService, fromUnixSeconds, SubscriptionWithDates } from './DatabaseService';
-import { CurrencyConversionService } from './CurrencyConversionService';
+import {
+  type AuthChallengeEvent,
+  type AuthResponseStatus,
+  type CloseRecurringPaymentResponse,
+  Currency_Tags,
+  keyToHex,
+  NostrConnectMethod,
+  type NostrConnectRequestEvent,
+  NostrConnectResponseStatus,
+  PaymentStatus,
+  parseBolt11,
+  parseCalendar,
+  type RecurringPaymentRequest,
+  type RecurringPaymentResponseContent,
+  type SinglePaymentRequest,
+} from 'portal-app-lib';
+import type { Wallet } from '@/models/WalletType';
 import { globalEvents } from '@/utils/common';
-import { Wallet } from '@/models/WalletType';
 import { Currency, CurrencyHelpers, normalizeCurrencyForComparison } from '@/utils/currency';
 import { getMethodString } from '@/utils/nip46';
+import { CurrencyConversionService } from './CurrencyConversionService';
+import {
+  type DatabaseService,
+  fromUnixSeconds,
+  type SubscriptionWithDates,
+} from './DatabaseService';
 
 /**
  * Sends a local notification for payment-related events with human-readable formatting
@@ -87,12 +91,12 @@ export async function handleSinglePaymentRequest(
   resolve: (status: PaymentStatus) => void,
   sendNotification: boolean = false
 ): Promise<boolean> {
-  let subId = request.content.subscriptionId;
+  const subId = request.content.subscriptionId;
   try {
     //clean old stale subs
     await executeOperation(db => db.deleteStaleProcessingSubscriptions());
 
-    let invoiceData = parseBolt11(request.content.invoice);
+    const invoiceData = parseBolt11(request.content.invoice);
 
     const checkAmount = async () => {
       const invoiceAmountMsat = Number(invoiceData.amountMsat);
@@ -286,7 +290,7 @@ export async function handleSinglePaymentRequest(
     let subscription: SubscriptionWithDates;
     let subscriptionServiceName: string;
     try {
-      let subscriptionFromDb = await executeOperation(db => db.getSubscription(subId), null);
+      const subscriptionFromDb = await executeOperation(db => db.getSubscription(subId), null);
       if (!subscriptionFromDb) {
         resolve(
           new PaymentStatus.Rejected({
@@ -328,7 +332,7 @@ export async function handleSinglePaymentRequest(
       subscription.recurrence_first_payment_due.getTime() / 1000
     );
     if (subscription.last_payment_date) {
-      let lastPayment = BigInt(subscription.last_payment_date.getTime() / 1000);
+      const lastPayment = BigInt(subscription.last_payment_date.getTime() / 1000);
       nextOccurrence = parseCalendar(subscription.recurrence_calendar).nextOccurrence(lastPayment);
     }
 
@@ -561,7 +565,7 @@ export async function handleCloseRecurringPaymentResponse(
 
 export async function handleNostrConnectRequest(
   event: NostrConnectRequestEvent,
-  signerPubkey: String,
+  signerPubkey: string,
   executeOperation: <T>(operation: (db: DatabaseService) => Promise<T>, fallback?: T) => Promise<T>,
   resolve: (status: NostrConnectResponseStatus) => void
 ): Promise<boolean> {
@@ -601,7 +605,7 @@ export async function handleNostrConnectRequest(
       return false;
     }
     const secretRecord = await executeOperation(db => db.getBunkerSecretOrNull(secret));
-    let isSecretInvalid: boolean = secretRecord?.used ?? true;
+    const isSecretInvalid: boolean = secretRecord?.used ?? true;
 
     if (isSecretInvalid) {
       console.log('Automatically declining request. Secret param is invalid');

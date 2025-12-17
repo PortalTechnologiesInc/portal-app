@@ -1,21 +1,21 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { View, StyleSheet, FlatList } from 'react-native';
-import { usePendingRequests } from '../context/PendingRequestsContext';
-import { PendingRequestCard } from './PendingRequestCard';
-import { PendingRequestSkeletonCard } from './PendingRequestSkeletonCard';
-import { FailedRequestCard } from './FailedRequestCard';
-import type { PendingRequest } from '@/utils/types';
 import type {
   AuthChallengeEvent,
   RecurringPaymentRequest,
   SinglePaymentRequest,
 } from 'portal-app-lib';
-import { useNostrService } from '@/context/NostrServiceContext';
-import { ThemedText } from './ThemedText';
-import { useThemeColor } from '@/hooks/useThemeColor';
+import React, { useCallback, useEffect, useState } from 'react';
+import { FlatList, StyleSheet, View } from 'react-native';
 import { Layout } from '@/constants/Layout';
 import { useDatabaseContext } from '@/context/DatabaseContext';
+import { useNostrService } from '@/context/NostrServiceContext';
 import { usePortalApp } from '@/context/PortalAppContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import type { PendingRequest } from '@/utils/types';
+import { usePendingRequests } from '../context/PendingRequestsContext';
+import { FailedRequestCard } from './FailedRequestCard';
+import { PendingRequestCard } from './PendingRequestCard';
+import { PendingRequestSkeletonCard } from './PendingRequestSkeletonCard';
+import { ThemedText } from './ThemedText';
 
 // Create a skeleton request that adheres to the PendingRequest interface
 const createSkeletonRequest = (): PendingRequest => ({

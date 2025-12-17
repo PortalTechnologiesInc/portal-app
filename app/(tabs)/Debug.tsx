@@ -1,25 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router } from 'expo-router';
+import { LogLevel, parseKeyHandshakeUrl } from 'portal-app-lib';
+import React, { useEffect, useState } from 'react';
 import {
-  StyleSheet,
-  View,
-  ScrollView,
-  TouchableOpacity,
   Alert,
+  ScrollView,
+  StyleSheet,
   Switch,
   TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import Dropdown from 'react-native-input-select';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { useThemeColor } from '@/hooks/useThemeColor';
-import { LogLevel, parseKeyHandshakeUrl } from 'portal-app-lib';
-import Dropdown from 'react-native-input-select';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { router } from 'expo-router';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { usePendingRequests } from '@/context/PendingRequestsContext';
-import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import { useThemeColor } from '@/hooks/useThemeColor';
 import { AppLockService } from '@/services/AppLockService';
+import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 
 // Log level options for dropdown
 const LOG_LEVEL_OPTIONS = [

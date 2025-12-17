@@ -1,12 +1,12 @@
-import { type ReactNode, createContext, useContext } from 'react';
 import { useSQLiteContext } from 'expo-sqlite';
-import { DatabaseService } from '../services/DatabaseService';
-import { AppResetService } from '../services/AppResetService';
-import { useKey } from './KeyContext';
 import { Mnemonic } from 'portal-app-lib';
-import defaultRelayList from '../assets/DefaultRelays.json';
+import { createContext, type ReactNode, useContext } from 'react';
 import NostrStoreService from '@/services/NostrStoreService';
 import { getKeypairFromKey, hasKey } from '@/utils/keyHelpers';
+import defaultRelayList from '../assets/DefaultRelays.json';
+import { AppResetService } from '../services/AppResetService';
+import { DatabaseService } from '../services/DatabaseService';
+import { useKey } from './KeyContext';
 
 // Create a context to expose database initialization state
 interface DatabaseContextType {

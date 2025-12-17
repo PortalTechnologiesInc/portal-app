@@ -1,8 +1,8 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { CashuWallet, CashuLocalStore, CashuWalletInterface } from 'portal-app-lib';
-import { DatabaseService } from '@/services/DatabaseService';
+import { type CashuLocalStore, CashuWallet, type CashuWalletInterface } from 'portal-app-lib';
+import React, { createContext, type ReactNode, useContext, useEffect, useState } from 'react';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
+import type { DatabaseService } from '@/services/DatabaseService';
 import { getCashuSeedFromKey, hasKey } from '@/utils/keyHelpers';
 
 // Centralized wallet key creation with unit normalization

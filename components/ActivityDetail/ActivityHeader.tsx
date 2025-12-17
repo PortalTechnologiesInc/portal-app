@@ -1,7 +1,7 @@
-import React from 'react';
-import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { Share } from 'lucide-react-native';
+import type React from 'react';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { useThemeColor } from '@/hooks/useThemeColor';
 

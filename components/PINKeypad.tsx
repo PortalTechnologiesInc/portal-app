@@ -1,9 +1,9 @@
+import { Delete } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
-import { StyleSheet, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { useThemeColor } from '@/hooks/useThemeColor';
 import { ThemedText } from './ThemedText';
 import { ThemedView } from './ThemedView';
-import { useThemeColor } from '@/hooks/useThemeColor';
-import { Delete } from 'lucide-react-native';
 
 interface PINKeypadProps {
   onPINComplete: (pin: string) => void;

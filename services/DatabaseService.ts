@@ -1,9 +1,9 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import type { ActivityType, UpcomingPayment } from '@/utils/types';
-import type { Currency } from '@/utils/currency';
 import uuid from 'react-native-uuid';
-import { generateResetSQL } from './StorageRegistry';
 import migrateDbIfNeeded from '@/migrations/DatabaseMigrations';
+import type { Currency } from '@/utils/currency';
+import type { ActivityType, UpcomingPayment } from '@/utils/types';
+import { generateResetSQL } from './StorageRegistry';
 
 // Timestamp utilities
 export const toUnixSeconds = (date: Date | number): number => {
@@ -132,7 +132,7 @@ export interface AllowedBunkerClientWithDates
 }
 
 export class DatabaseService {
-  constructor(private db: SQLiteDatabase) { }
+  constructor(private db: SQLiteDatabase) {}
 
   /**
    * Force database reinitialization after reset
@@ -861,10 +861,10 @@ export class DatabaseService {
 
       return tx
         ? JSON.stringify({
-          ...tx,
-          ys: JSON.parse(tx.ys),
-          metadata: tx.metadata ? JSON.parse(tx.metadata) : null,
-        })
+            ...tx,
+            ys: JSON.parse(tx.ys),
+            metadata: tx.metadata ? JSON.parse(tx.metadata) : null,
+          })
         : undefined;
     } catch (error) {
       console.error('[DatabaseService] Error getting transaction:', error);

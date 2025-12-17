@@ -1,4 +1,4 @@
-import { KeypairInterface, PortalDb, PortalDbInterface } from 'portal-app-lib';
+import { type KeypairInterface, PortalDb, type PortalDbInterface } from 'portal-app-lib';
 
 const MINTS_KEY = 'mints_key';
 

@@ -1,12 +1,12 @@
 import {
   initLogger,
-  KeypairInterface,
-  LogCallback,
-  LogEntry,
+  type KeypairInterface,
+  type LogCallback,
+  type LogEntry,
   LogLevel,
   PortalApp,
-  PortalAppInterface,
-  RelayStatusListener,
+  type PortalAppInterface,
+  type RelayStatusListener,
 } from 'portal-app-lib';
 export class PortalAppManager {
   private static instance: PortalAppInterface | null;
@@ -18,7 +18,7 @@ export class PortalAppManager {
     relayStatusCallback: RelayStatusListener,
     logRust: boolean = false
   ): Promise<PortalAppInterface> {
-    if (!this.instance) {
+    if (!PortalAppManager.instance) {
       console.log('📚 Initializing the lib!');
       PortalAppManager.instance = await PortalApp.create(keypair, relays, relayStatusCallback);
     }
@@ -32,19 +32,19 @@ export class PortalAppManager {
       }
     }
 
-    return this.instance!;
+    return PortalAppManager.instance!;
   }
 
   static tryGetInstance() {
-    if (!this.instance) {
+    if (!PortalAppManager.instance) {
       throw new Error('PortalAppManager not initialized');
     }
 
-    return this.instance;
+    return PortalAppManager.instance;
   }
 
   static clearInstance() {
-    this.instance = null;
+    PortalAppManager.instance = null;
   }
 }
 

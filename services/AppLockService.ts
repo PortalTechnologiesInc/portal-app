@@ -1,7 +1,7 @@
-import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { SECURE_STORE_KEYS } from './StorageRegistry';
+import * as SecureStore from 'expo-secure-store';
 import { isBiometricAuthAvailable } from './BiometricAuthService';
+import { SECURE_STORE_KEYS } from './StorageRegistry';
 
 const FINGERPRINT_SUPPORTED_KEY = 'isFingerprintSupported';
 export const PIN_MIN_LENGTH = 4;
@@ -107,14 +107,14 @@ export class AppLockService {
           SECURE_STORE_KEYS.APP_LOCK_TIMER_DURATION
         );
         if (existingTimer === null) {
-          await this.setLockTimerDuration(0);
+          await AppLockService.setLockTimerDuration(0);
         }
         // Don't mark as authenticated when enabling - let the app lock on next check
         // This ensures the lock actually works when first enabled
       } else {
         await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.APP_LOCK_ENABLED);
         // Retain auth method and PIN so global security preferences remain available
-        this.resetSessionState();
+        AppLockService.resetSessionState();
       }
     } catch (error) {
       console.error('Error setting app lock enabled:', error);
@@ -215,7 +215,7 @@ export class AppLockService {
    */
   static async shouldLockApp(): Promise<boolean> {
     try {
-      if (this.isLockSuppressed()) {
+      if (AppLockService.isLockSuppressed()) {
         console.log(
           `[AppLock] Suppressed - skipping lock${
             lockSuppressionReason ? ` (${lockSuppressionReason})` : ''
@@ -224,12 +224,12 @@ export class AppLockService {
         return false;
       }
 
-      const isEnabled = await this.isAppLockEnabled();
+      const isEnabled = await AppLockService.isAppLockEnabled();
       if (!isEnabled) {
         return false;
       }
 
-      const timerDuration = await this.getLockTimerDuration();
+      const timerDuration = await AppLockService.getLockTimerDuration();
       if (timerDuration === null) {
         // "Never" option - don't lock
         return false;
@@ -283,7 +283,7 @@ export class AppLockService {
    * Record timestamp when app goes to background
    */
   static recordBackgroundTime(): void {
-    if (this.isLockSuppressed()) {
+    if (AppLockService.isLockSuppressed()) {
       return;
     }
     backgroundTimestamp = Date.now();
@@ -340,12 +340,12 @@ export class AppLockService {
    * Unlock app (clear lock state)
    */
   static unlockApp(): void {
-    this.markSessionAuthenticated();
+    AppLockService.markSessionAuthenticated();
   }
 
   private static markSessionAuthenticated(): void {
     lastUnlockTimestamp = Date.now();
-    this.clearBackgroundTime();
+    AppLockService.clearBackgroundTime();
   }
 
   private static resetSessionState(): void {

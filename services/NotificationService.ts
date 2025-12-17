@@ -1,31 +1,40 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
-import Constants from 'expo-constants';
-import { Platform, AppState } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
-import { getMnemonic, getWalletUrl } from './SecureStorageService';
-import {
-  AuthChallengeEvent,
-  AuthResponseStatus,
-  CloseRecurringPaymentResponse,
-  Currency_Tags,
-  Mnemonic,
-  NostrConnectRequestEvent,
-  NostrConnectResponseStatus,
-  PaymentStatus,
-  PaymentStatusNotifier,
-  PortalApp,
-  PortalAppInterface,
-  RecurringPaymentRequest,
-  RecurringPaymentResponseContent,
-  RelayStatusListener,
-  SinglePaymentRequest,
-  keyToHex,
-  parseBolt11,
-} from 'portal-app-lib';
 import { openDatabaseAsync } from 'expo-sqlite';
+import {
+  type AuthChallengeEvent,
+  type AuthResponseStatus,
+  type CloseRecurringPaymentResponse,
+  Currency_Tags,
+  keyToHex,
+  Mnemonic,
+  type NostrConnectRequestEvent,
+  type NostrConnectResponseStatus,
+  type PaymentStatus,
+  type PaymentStatusNotifier,
+  PortalApp,
+  type PortalAppInterface,
+  parseBolt11,
+  type RecurringPaymentRequest,
+  type RecurringPaymentResponseContent,
+  type RelayStatusListener,
+  type SinglePaymentRequest,
+} from 'portal-app-lib';
+import { AppState, Platform } from 'react-native';
+import {
+  LocalAuthChallengeListener,
+  LocalClosedRecurringPaymentListener,
+  LocalNip46RequestListener,
+  LocalPaymentRequestListener,
+} from '@/context/PortalAppContext';
+import type { Wallet } from '@/models/WalletType';
+import type { RelayInfo } from '@/utils/common';
+import { Currency, CurrencyHelpers } from '@/utils/currency';
+import { getServiceNameFromProfile, mapNumericStatusToString } from '@/utils/nostrHelper';
 import { DatabaseService } from './DatabaseService';
-import { PortalAppManager } from './PortalAppManager';
 import {
   handleAuthChallenge,
   handleCloseRecurringPaymentResponse,
@@ -33,18 +42,9 @@ import {
   handleRecurringPaymentRequest,
   handleSinglePaymentRequest,
 } from './EventFilters';
-import { mapNumericStatusToString, getServiceNameFromProfile } from '@/utils/nostrHelper';
-import { RelayInfo } from '@/utils/common';
-import { Currency, CurrencyHelpers } from '@/utils/currency';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NwcService } from './NwcService';
-import { Wallet } from '@/models/WalletType';
-import {
-  LocalAuthChallengeListener,
-  LocalClosedRecurringPaymentListener,
-  LocalNip46RequestListener,
-  LocalPaymentRequestListener,
-} from '@/context/PortalAppContext';
+import { PortalAppManager } from './PortalAppManager';
+import { getMnemonic, getWalletUrl } from './SecureStorageService';
 
 const EXPO_PUSH_TOKEN_KEY = 'expo_push_token_key';
 
@@ -281,7 +281,7 @@ export default async function registerPubkeysForPushNotificationsAsync(pubkeys: 
 export async function handleHeadlessNotification(event: string, databaseName: string) {
   try {
     const abortController = new AbortController();
-    let mnemonic = await getMnemonic();
+    const mnemonic = await getMnemonic();
     if (!mnemonic) return;
 
     // Create Mnemonic object
@@ -315,7 +315,7 @@ export async function handleHeadlessNotification(event: string, databaseName: st
       }
     };
 
-    let executeOperationForNotification = async <T>(
+    const executeOperationForNotification = async <T>(
       operation: (db: DatabaseService) => Promise<T>,
       fallback?: T
     ): Promise<T> => {
@@ -335,7 +335,7 @@ export async function handleHeadlessNotification(event: string, databaseName: st
     // Get relays using the executeOperationForNotification helper
     const notificationRelays = ['wss://relay.getportal.cc'];
 
-    let relayListener = await executeOperationForNotification(
+    const relayListener = await executeOperationForNotification(
       async db => new NotificationRelayStatusListener(db)
     );
 
@@ -367,7 +367,7 @@ export async function handleHeadlessNotification(event: string, databaseName: st
       await notifyBackgroundError('NWC initialization failed', error);
     }
 
-    let app = await PortalApp.create(keypair, notificationRelays, relayListener);
+    const app = await PortalApp.create(keypair, notificationRelays, relayListener);
     app.listen({ signal: abortController.signal });
 
     // Listen for closed recurring payments

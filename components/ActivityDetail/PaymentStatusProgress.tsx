@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, Animated, Easing, TouchableOpacity } from 'react-native';
+import { Animated, Easing, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { useThemeColor } from '@/hooks/useThemeColor';
 
@@ -50,7 +50,7 @@ export const convertPaymentStatusToSteps = (
           timestamp: entry.created_at,
         });
         break;
-      case 'payment_completed':
+      case 'payment_completed': {
         // Update the last pending step to completed
         let lastPendingIndex = -1;
         for (let i = steps.length - 1; i >= 0; i--) {
@@ -78,7 +78,8 @@ export const convertPaymentStatusToSteps = (
           });
         }
         break;
-      case 'payment_failed':
+      }
+      case 'payment_failed': {
         // Update the last pending step to error
         let lastPendingStepIndex = -1;
         for (let i = steps.length - 1; i >= 0; i--) {
@@ -108,6 +109,7 @@ export const convertPaymentStatusToSteps = (
           });
         }
         break;
+      }
     }
   }
 

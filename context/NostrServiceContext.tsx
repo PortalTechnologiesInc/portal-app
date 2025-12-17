@@ -1,20 +1,21 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { AppState } from 'react-native';
-import {
+import type {
   KeyHandshakeUrl,
-  Profile,
-  PortalAppInterface,
-  RelayStatusListener,
   KeypairInterface,
+  PortalAppInterface,
+  Profile,
+  RelayStatusListener,
 } from 'portal-app-lib';
-import { PortalAppManager } from '@/services/PortalAppManager';
-import type { RelayInfo } from '@/utils/types';
-import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
+import type React from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import { useDatabaseContext } from '@/context/DatabaseContext';
-import defaultRelayList from '../assets/DefaultRelays.json';
-import { useOnboarding } from './OnboardingContext';
+import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
+import { PortalAppManager } from '@/services/PortalAppManager';
 import { getKeypairFromKey, hasKey } from '@/utils/keyHelpers';
 import { getServiceNameFromProfile, mapNumericStatusToString } from '@/utils/nostrHelper';
+import type { RelayInfo } from '@/utils/types';
+import defaultRelayList from '../assets/DefaultRelays.json';
+import { useOnboarding } from './OnboardingContext';
 
 // Context type definition
 export interface NostrServiceContextType {

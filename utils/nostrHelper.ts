@@ -1,4 +1,4 @@
-import { RelayConnectionStatus } from './types';
+import type { RelayConnectionStatus } from './types';
 
 // Helper function to extract service name from profile (nip05 only)
 export function getServiceNameFromProfile(profile: any): string | null {

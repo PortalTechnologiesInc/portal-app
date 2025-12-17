@@ -1,22 +1,22 @@
+import { router } from 'expo-router';
+import { BanknoteIcon } from 'lucide-react-native';
+import { parseCalendar } from 'portal-app-lib';
 import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
-import { router } from 'expo-router';
-import { ThemedText } from './ThemedText';
-import type { UpcomingPayment } from '@/utils/types';
-import { formatRelativeTime } from '@/utils/common';
+import { FlatList, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useActivities } from '@/context/ActivitiesContext';
-import { parseCalendar } from 'portal-app-lib';
-import { fromUnixSeconds } from '@/services/DatabaseService';
-import { BanknoteIcon } from 'lucide-react-native';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import {
-  Currency,
-  CurrencyHelpers,
-  shouldShowConvertedAmount,
-  formatActivityAmount,
-} from '@/utils/currency';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import { fromUnixSeconds } from '@/services/DatabaseService';
+import { formatRelativeTime } from '@/utils/common';
+import {
+  type Currency,
+  CurrencyHelpers,
+  formatActivityAmount,
+  shouldShowConvertedAmount,
+} from '@/utils/currency';
+import type { UpcomingPayment } from '@/utils/types';
+import { ThemedText } from './ThemedText';
 
 export const UpcomingPaymentsList: React.FC = () => {
   // Initialize with empty array - will be populated with real data later

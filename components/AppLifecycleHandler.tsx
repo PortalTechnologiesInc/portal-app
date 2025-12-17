@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { AppState, Keyboard, type AppStateStatus } from 'react-native';
+import { AppState, type AppStateStatus, Keyboard } from 'react-native';
 import { cancelActiveFilePicker } from '@/services/FilePickerService';
 
 export function AppLifecycleHandler() {

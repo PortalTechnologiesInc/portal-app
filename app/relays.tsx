@@ -1,25 +1,24 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter } from 'expo-router';
+import { ArrowLeft, Plus, X } from 'lucide-react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  View,
-  ToastAndroid,
-  ScrollView,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  ToastAndroid,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { useRouter } from 'expo-router';
-import { ArrowLeft, X, Plus } from 'lucide-react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDatabaseContext } from '@/context/DatabaseContext';
-import { useThemeColor } from '@/hooks/useThemeColor';
-
-import popularRelayListFile from '../assets/RelayList.json';
 import { useNostrService } from '@/context/NostrServiceContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
 import { PortalAppManager } from '@/services/PortalAppManager';
+import popularRelayListFile from '../assets/RelayList.json';
 
 const MAX_RELAY_CONNECTIONS = 6;
 const MIN_RELAY_CONNECTIONS = 1;
@@ -68,7 +67,7 @@ export default function NostrRelayManagementScreen() {
   useEffect(() => {
     const loadRelaysList = async () => {
       try {
-        let relaysSet: Set<string> = new Set();
+        const relaysSet: Set<string> = new Set();
 
         const activeRelays = await executeOperation(
           db => db.getRelays().then(relays => relays.map(value => value.ws_uri)),
@@ -203,10 +202,10 @@ export default function NostrRelayManagementScreen() {
     }
 
     setIsUpdating(true);
-    let newlySelectedRelays = selectedRelays;
+    const newlySelectedRelays = selectedRelays;
 
-    let removePromises: Promise<void>[] = [];
-    let addPromises: Promise<void>[] = [];
+    const removePromises: Promise<void>[] = [];
+    const addPromises: Promise<void>[] = [];
 
     // Handle relay removals
     for (const oldRelay of activeRelaysList) {

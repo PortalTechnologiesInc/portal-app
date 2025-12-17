@@ -1,11 +1,12 @@
-import React, { useCallback, useMemo } from 'react';
-import { View, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
 import { router } from 'expo-router';
-import { ThemedText } from './ThemedText';
-import { formatDayAndDate } from '@/utils/common';
+import type React from 'react';
+import { useCallback, useMemo } from 'react';
+import { FlatList, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useActivities } from '@/context/ActivitiesContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { formatDayAndDate } from '@/utils/common';
 import { ActivityRow } from './ActivityRow';
+import { ThemedText } from './ThemedText';
 
 export const RecentActivitiesList: React.FC = () => {
   // Use the main activities state to automatically get updates

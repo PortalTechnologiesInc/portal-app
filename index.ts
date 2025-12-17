@@ -1,9 +1,10 @@
 // services/notifications.js
-import * as TaskManager from 'expo-task-manager';
+
 import * as Notifications from 'expo-notifications';
+import * as TaskManager from 'expo-task-manager';
 import { AppState } from 'react-native';
-import { DATABASE_NAME } from './app/_layout';
 import { handleHeadlessNotification } from '@/services/NotificationService';
+import { DATABASE_NAME } from './app/_layout';
 
 // Import expo-router entry point - must be imported for app to work
 import 'expo-router/entry';

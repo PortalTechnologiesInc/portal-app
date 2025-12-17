@@ -1,29 +1,29 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { StyleSheet, TouchableOpacity, Alert, TextInput, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Check,
+  CheckCircle,
+  Pencil,
+  QrCode,
+  Trash2,
+  X,
+  XCircle,
+} from 'lucide-react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Colors } from '@/constants/Colors';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import {
-  ArrowLeft,
-  Pencil,
-  X,
-  QrCode,
-  Check,
-  AlertTriangle,
-  CheckCircle,
-  XCircle,
-  Trash2,
-} from 'lucide-react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { getWalletUrl, saveWalletUrl, walletUrlEvents } from '@/services/SecureStorageService';
-import { useThemeColor } from '@/hooks/useThemeColor';
-import { useWalletManager } from '@/context/WalletManagerContext';
-import { WALLET_CONNECTION_STATUS, WALLET_TYPE } from '@/models/WalletType';
-import { NwcService } from '@/services/NwcService';
 import { useECash } from '@/context/ECashContext';
-import { WalletInfo } from '@/utils/types';
+import { useWalletManager } from '@/context/WalletManagerContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import { WALLET_CONNECTION_STATUS, WALLET_TYPE } from '@/models/WalletType';
+import type { NwcService } from '@/services/NwcService';
+import { getWalletUrl, saveWalletUrl, walletUrlEvents } from '@/services/SecureStorageService';
+import type { WalletInfo } from '@/utils/types';
 
 // Pure function for NWC URL validation - better testability and reusability
 const validateNwcUrl = (url: string): { isValid: boolean; error?: string } => {
@@ -123,7 +123,7 @@ export default function WalletManagementScreen() {
 
   // get the nwc wallet instance
   useEffect(() => {
-    let active = true;
+    const active = true;
 
     getWallet(WALLET_TYPE.NWC).then(wallet => {
       if (active) setNwcWallet(wallet);

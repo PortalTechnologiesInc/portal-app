@@ -1,12 +1,12 @@
-import type React from 'react';
-import { createContext, useContext, useState, useEffect } from 'react';
-import * as SecureStore from 'expo-secure-store';
 import * as FileSystem from 'expo-file-system';
-import { useNostrService } from './NostrServiceContext';
-import { generateRandomGamertag } from '@/utils/common';
+import * as SecureStore from 'expo-secure-store';
 import { keyToHex } from 'portal-app-lib';
-import type { ProfileSyncStatus } from '@/utils/types';
+import type React from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
+import { generateRandomGamertag } from '@/utils/common';
+import type { ProfileSyncStatus } from '@/utils/types';
+import { useNostrService } from './NostrServiceContext';
 
 // Helper function to validate image
 const validateImage = async (uri: string): Promise<{ isValid: boolean; error?: string }> => {

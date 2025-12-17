@@ -1,20 +1,20 @@
-import type React from 'react';
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import { generateMnemonic } from 'portal-app-lib';
+import type React from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 import {
-  getMnemonic as getSecureMnemonic,
-  saveMnemonic as saveSecureMnemonic,
   deleteMnemonic as deleteSecureMnemonic,
-  getNsec as getSecureNsec,
-  saveNsec as saveSecureNsec,
   deleteNsec as deleteSecureNsec,
-  mnemonicEvents,
+  getMnemonic as getSecureMnemonic,
+  getNsec as getSecureNsec,
   getWalletUrl as getSecureWalletUrl,
+  mnemonicEvents,
+  saveMnemonic as saveSecureMnemonic,
+  saveNsec as saveSecureNsec,
   saveWalletUrl as saveSecureWalletUrl,
   walletUrlEvents,
 } from '@/services/SecureStorageService';
-import { generateMnemonic } from 'portal-app-lib';
-import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 import { validateKeyMaterial } from '@/utils/keyHelpers';
 
 type KeyContextType = {

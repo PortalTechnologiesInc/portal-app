@@ -1,28 +1,28 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import type { FC } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react-native';
-import { usePendingRequests } from '../context/PendingRequestsContext';
-import { useNostrService } from '@/context/NostrServiceContext';
-import { useECash } from '@/context/ECashContext';
-import { useCurrency } from '@/context/CurrencyContext';
 import {
-  type SinglePaymentRequest,
-  type RecurringPaymentRequest,
   Currency_Tags,
-  NostrConnectRequestEvent,
   NostrConnectMethod,
+  type NostrConnectRequestEvent,
+  type RecurringPaymentRequest,
+  type SinglePaymentRequest,
 } from 'portal-app-lib';
-import type { PendingRequest } from '@/utils/types';
+import type { FC } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Layout } from '@/constants/Layout';
+import { useCurrency } from '@/context/CurrencyContext';
+import { useECash } from '@/context/ECashContext';
+import { useNostrService } from '@/context/NostrServiceContext';
+import { useWalletManager } from '@/context/WalletManagerContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useWalletStatus } from '@/hooks/useWalletStatus';
-import { Layout } from '@/constants/Layout';
-import { SkeletonPulse } from './PendingRequestSkeletonCard';
-import { PortalAppManager } from '@/services/PortalAppManager';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
-import { useWalletManager } from '@/context/WalletManagerContext';
+import { PortalAppManager } from '@/services/PortalAppManager';
 import { formatActivityAmount, normalizeCurrencyForComparison } from '@/utils/currency';
+import type { PendingRequest } from '@/utils/types';
+import { usePendingRequests } from '../context/PendingRequestsContext';
+import { SkeletonPulse } from './PendingRequestSkeletonCard';
 
 interface PendingRequestCardProps {
   request: PendingRequest;
@@ -260,7 +260,6 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
               }
             } catch (error) {
               console.error('Error checking wallet balance:', error);
-              continue;
             }
           }
 
@@ -491,15 +490,13 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
             <SkeletonPulse
               style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
             />
+          ) : // For payment/subscription requests, show service name (loading state)
+          isServiceNameLoading ? (
+            <SkeletonPulse
+              style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
+            />
           ) : (
-            // For payment/subscription requests, show service name (loading state)
-            isServiceNameLoading ? (
-              <SkeletonPulse
-                style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
-              />
-            ) : (
-              formatServiceName()
-            )
+            formatServiceName()
           )}
         </Text>
 

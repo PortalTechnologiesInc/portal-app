@@ -1,7 +1,7 @@
-import React from 'react';
-import { View, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
-import { Copy } from 'lucide-react-native';
 import { FontAwesome6 } from '@expo/vector-icons';
+import { Copy } from 'lucide-react-native';
+import type React from 'react';
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { useThemeColor } from '@/hooks/useThemeColor';
 

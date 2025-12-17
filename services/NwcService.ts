@@ -1,7 +1,11 @@
-import { Wallet, WALLET_CONNECTION_STATUS, WalletConnectionStatus } from '@/models/WalletType';
+import { type GetInfoResponse, Nwc, type RelayStatusListener } from 'portal-app-lib';
+import {
+  WALLET_CONNECTION_STATUS,
+  type Wallet,
+  type WalletConnectionStatus,
+} from '@/models/WalletType';
 import { mapNumericStatusToString } from '@/utils/nostrHelper';
-import { RelayConnectionStatus, WalletInfo } from '@/utils/types';
-import { GetInfoResponse, Nwc, RelayStatusListener } from 'portal-app-lib';
+import type { RelayConnectionStatus, WalletInfo } from '@/utils/types';
 
 export class NwcService implements Wallet {
   private client!: Nwc;
