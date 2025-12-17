@@ -1,15 +1,15 @@
-import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, TouchableOpacity, Alert, AppState } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
+import * as Constants from 'expo-constants';
+import * as Linking from 'expo-linking';
 import { useLocalSearchParams } from 'expo-router';
+import { AlertCircle, AlertTriangle, XCircle } from 'lucide-react-native';
+import React, { useEffect, useRef } from 'react';
+import { Alert, AppState, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { AlertCircle, AlertTriangle, XCircle } from 'lucide-react-native';
-import { useThemeColor } from '@/hooks/useThemeColor';
-import * as Linking from 'expo-linking';
-import * as Constants from 'expo-constants';
 import { useNostrService } from '@/context/NostrServiceContext';
-import * as Clipboard from 'expo-clipboard';
+import { useThemeColor } from '@/hooks/useThemeColor';
 
 const iconMap: Record<string, React.ReactNode> = {
   alert: <AlertTriangle size={48} color="#FFB300" />,

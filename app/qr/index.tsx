@@ -1,28 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import Clipboard from '@react-native-clipboard/clipboard';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import { router, useLocalSearchParams } from 'expo-router';
+import { ArrowLeft, ClipboardPaste, Settings } from 'lucide-react-native';
+import { parseCashuToken, parseKeyHandshakeUrl } from 'portal-app-lib';
+import React, { useEffect, useState } from 'react';
 import {
-  StyleSheet,
-  TouchableOpacity,
+  Alert,
   BackHandler,
-  View,
   Linking,
   Platform,
-  Alert,
+  StyleSheet,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { CameraView, useCameraPermissions } from 'expo-camera';
-import { Ionicons } from '@expo/vector-icons';
-import { router, useLocalSearchParams } from 'expo-router';
-import { usePendingRequests } from '@/context/PendingRequestsContext';
-import { parseCashuToken, parseKeyHandshakeUrl } from 'portal-app-lib';
-import { useNostrService } from '@/context/NostrServiceContext';
-import { useThemeColor } from '@/hooks/useThemeColor';
-import { ArrowLeft, ClipboardPaste, Settings } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { useECash } from '@/context/ECashContext';
 import { useDatabaseContext } from '@/context/DatabaseContext';
-import { globalEvents, getServiceNameFromMintUrl } from '@/utils/common';
-import Clipboard from '@react-native-clipboard/clipboard';
+import { useECash } from '@/context/ECashContext';
+import { useNostrService } from '@/context/NostrServiceContext';
+import { usePendingRequests } from '@/context/PendingRequestsContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import { getServiceNameFromMintUrl, globalEvents } from '@/utils/common';
 import { showToast } from '@/utils/Toast';
 
 // Define the type for the barcode scanner result
@@ -201,7 +201,7 @@ export default function QRScannerScreen() {
     }
 
     switch (mode) {
-      case 'wallet':
+      case 'wallet': {
         // Wallet QR handling - navigate to wallet with scanned URL
         const timestamp = Date.now();
         setTimeout(() => {
@@ -216,8 +216,9 @@ export default function QRScannerScreen() {
           });
         }, 300);
         break;
+      }
 
-      case 'ticket':
+      case 'ticket': {
         // Navigate back with clean history after a brief delay for UX
         setTimeout(() => {
           router.back();
@@ -311,6 +312,7 @@ export default function QRScannerScreen() {
           return;
         }
         break;
+      }
 
       case 'lightning':
         router.replace({

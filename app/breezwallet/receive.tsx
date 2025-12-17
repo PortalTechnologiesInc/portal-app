@@ -1,9 +1,10 @@
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
-import { useThemeColor } from '@/hooks/useThemeColor';
+import { PaymentType, type SdkEvent, SdkEvent_Tags } from '@breeztech/breez-sdk-spark-react-native';
+import Clipboard from '@react-native-clipboard/clipboard';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowDownUp, ArrowLeft, HandCoins, ClipboardCopy, QrCode, X, Key } from 'lucide-react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import LottieView from 'lottie-react-native';
+import { ArrowDownUp, ArrowLeft, ClipboardCopy, HandCoins, QrCode, X } from 'lucide-react-native';
+import { Currency } from 'portal-app-lib';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -18,22 +19,21 @@ import {
   TouchableOpacity,
   TouchableWithoutFeedback,
 } from 'react-native';
-import QRCode from 'react-native-qrcode-svg';
 import { Colors } from 'react-native/Libraries/NewAppScreen';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import QRCode from 'react-native-qrcode-svg';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { ThemedText } from '@/components/ThemedText';
+import { ThemedView } from '@/components/ThemedView';
 import { useCurrency } from '@/context/CurrencyContext';
-import Clipboard from '@react-native-clipboard/clipboard';
-import { showToast } from '@/utils/Toast';
-import { useWalletManager } from '@/context/WalletManagerContext';
-import { BreezService } from '@/services/BreezService';
-import { WALLET_TYPE } from '@/models/WalletType';
-import LottieView from 'lottie-react-native';
-import { Currency as CurrencyConv } from '@/utils/currency';
-import { PortalAppManager } from '@/services/PortalAppManager';
-import { Currency } from 'portal-app-lib';
-import { PaymentType, SdkEvent, SdkEvent_Tags } from '@breeztech/breez-sdk-spark-react-native';
 import { useDatabaseContext } from '@/context/DatabaseContext';
+import { useWalletManager } from '@/context/WalletManagerContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import { WALLET_TYPE } from '@/models/WalletType';
+import type { BreezService } from '@/services/BreezService';
+import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import { PortalAppManager } from '@/services/PortalAppManager';
+import { Currency as CurrencyConv } from '@/utils/currency';
+import { showToast } from '@/utils/Toast';
 
 const portalLogo = require('../../assets/images/iosLight.png');
 
@@ -73,7 +73,7 @@ export default function MyWalletManagementSecret() {
   const [isSwitching, setIsSwitching] = useState(false);
 
   const textInputRef = useRef<TextInput | null>(null);
-  const timeoutRef = useRef<number | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!amount || amount === '0') {
       setConvertedAmount(0);

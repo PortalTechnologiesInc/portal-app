@@ -1,27 +1,27 @@
-import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { canOpenURL, openSettings, openURL } from 'expo-linking';
+import { router } from 'expo-router';
+import { AlertTriangle, CheckCircle, Nfc, Upload, XCircle } from 'lucide-react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View,
-  StyleSheet,
-  ScrollView,
+  ActivityIndicator,
   Alert,
   Platform,
+  ScrollView,
+  StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
+  View,
 } from 'react-native';
+import NfcManager from 'react-native-nfc-manager';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import uuid from 'react-native-uuid';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useThemeColor } from '@/hooks/useThemeColor';
-import { Ticket } from '@/utils/types';
-import { Colors } from '@/constants/Colors';
-import { Nfc, CheckCircle, XCircle, Upload, AlertTriangle } from 'lucide-react-native';
-import NfcManager from 'react-native-nfc-manager';
-import { canOpenURL, openURL, openSettings } from 'expo-linking';
 import TicketCard from '@/components/TicketCard';
+import { Colors } from '@/constants/Colors';
 import { useECash } from '@/context/ECashContext';
-import uuid from 'react-native-uuid';
-import { router } from 'expo-router';
+import { useThemeColor } from '@/hooks/useThemeColor';
 import { globalEvents } from '@/utils/common';
+import type { Ticket } from '@/utils/types';
 
 export default function TicketsScreen() {
   const [filter, setFilter] = useState<'all' | 'active' | 'used' | 'expired'>('all');

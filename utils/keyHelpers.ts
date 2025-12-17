@@ -1,4 +1,4 @@
-import { Mnemonic, Nsec, KeypairInterface } from 'portal-app-lib';
+import { type KeypairInterface, Mnemonic, Nsec } from 'portal-app-lib';
 
 /**
  * Type representing available key material

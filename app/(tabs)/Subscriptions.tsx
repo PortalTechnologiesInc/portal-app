@@ -1,16 +1,16 @@
-import React, { useCallback, useMemo, useState } from 'react';
-import { StyleSheet, View, FlatList, TouchableOpacity, ScrollView } from 'react-native';
 import { router } from 'expo-router';
+import { parseCalendar } from 'portal-app-lib';
+import React, { useCallback, useMemo, useState } from 'react';
+import { FlatList, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { formatDayAndDate } from '@/utils/common';
 import { useActivities } from '@/context/ActivitiesContext';
-import { fromUnixSeconds, type SubscriptionWithDates } from '@/services/DatabaseService';
-import { parseCalendar } from 'portal-app-lib';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { Currency, shouldShowConvertedAmount, formatActivityAmount } from '@/utils/currency';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import { fromUnixSeconds, type SubscriptionWithDates } from '@/services/DatabaseService';
+import { formatDayAndDate } from '@/utils/common';
+import { type Currency, formatActivityAmount, shouldShowConvertedAmount } from '@/utils/currency';
 
 export default function SubscriptionsScreen() {
   const { subscriptions } = useActivities();

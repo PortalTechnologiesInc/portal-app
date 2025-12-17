@@ -1,18 +1,18 @@
-import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import { Key, BanknoteIcon, Ticket } from 'lucide-react-native';
+import { BanknoteIcon, Key, Ticket } from 'lucide-react-native';
+import type React from 'react';
+import { StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { ActivityType } from '@/utils/common';
-import {
-  getStatusIcon,
-  getStatusColor,
-  getStatusText,
-  getActivityDescription,
-  type ActivityStatus,
-} from '@/utils/activityHelpers';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
-import { Currency, shouldShowConvertedAmount, formatActivityAmount } from '@/utils/currency';
+import {
+  type ActivityStatus,
+  getActivityDescription,
+  getStatusColor,
+  getStatusIcon,
+  getStatusText,
+} from '@/utils/activityHelpers';
+import { ActivityType } from '@/utils/common';
+import { type Currency, formatActivityAmount, shouldShowConvertedAmount } from '@/utils/currency';
 
 interface ActivityMainCardProps {
   serviceName: string;

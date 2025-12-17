@@ -1,29 +1,28 @@
+import { FontAwesome6 } from '@expo/vector-icons';
+import { router, useLocalSearchParams } from 'expo-router';
+import { CircleX, Hourglass } from 'lucide-react-native';
+import { parseCalendar } from 'portal-app-lib';
 import React, { useEffect, useState } from 'react';
 import {
-  StyleSheet,
-  View,
-  ScrollView,
   ActivityIndicator,
-  TouchableOpacity,
   Alert,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, router } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Colors } from '@/constants/Colors';
-import { formatDayAndDate } from '@/utils/common';
-import { FontAwesome6 } from '@expo/vector-icons';
 import { useActivities } from '@/context/ActivitiesContext';
-import { parseCalendar } from 'portal-app-lib';
-
-import { fromUnixSeconds, type SubscriptionWithDates } from '@/services/DatabaseService';
-import { useThemeColor } from '@/hooks/useThemeColor';
-import { PortalAppManager } from '@/services/PortalAppManager';
-import { CircleX, Hourglass } from 'lucide-react-native';
 import { useDatabaseContext } from '@/context/DatabaseContext';
-import { Currency, shouldShowConvertedAmount, formatActivityAmount } from '@/utils/currency';
+import { useThemeColor } from '@/hooks/useThemeColor';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import { fromUnixSeconds, type SubscriptionWithDates } from '@/services/DatabaseService';
+import { PortalAppManager } from '@/services/PortalAppManager';
+import { formatDayAndDate } from '@/utils/common';
+import { type Currency, formatActivityAmount, shouldShowConvertedAmount } from '@/utils/currency';
 
 // Mock payment history for a subscription
 interface PaymentHistory {

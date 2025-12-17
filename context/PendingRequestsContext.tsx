@@ -1,15 +1,3 @@
-import type React from 'react';
-import {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  type ReactNode,
-  useMemo,
-  useCallback,
-  useRef,
-} from 'react';
-import { Platform } from 'react-native';
 import type {
   KeyHandshakeUrl,
   NostrConnectRequestEvent,
@@ -17,32 +5,43 @@ import type {
   SinglePaymentRequest,
 } from 'portal-app-lib';
 import {
-  PaymentStatus,
-  RecurringPaymentStatus,
   AuthResponseStatus,
   CashuResponseStatus,
   Currency_Tags,
-  NostrConnectResponseStatus,
   keyToHex,
+  NostrConnectResponseStatus,
+  PaymentStatus,
+  RecurringPaymentStatus,
 } from 'portal-app-lib';
-
-import { fromUnixSeconds } from '@/services/DatabaseService';
-import { useDatabaseContext } from '@/context/DatabaseContext';
+import type React from 'react';
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { Platform } from 'react-native';
 import { useActivities } from '@/context/ActivitiesContext';
 import { useCurrency } from '@/context/CurrencyContext';
-import { CurrencyConversionService } from '@/services/CurrencyConversionService';
-import { normalizeCurrencyForComparison } from '@/utils/currency';
-import { NostrServiceContextType, useNostrService } from '@/context/NostrServiceContext';
+import { useDatabaseContext } from '@/context/DatabaseContext';
 import { useECash } from '@/context/ECashContext';
+import { type NostrServiceContextType, useNostrService } from '@/context/NostrServiceContext';
+import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
+import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import { fromUnixSeconds } from '@/services/DatabaseService';
+import { PortalAppManager } from '@/services/PortalAppManager';
+import { getServiceNameFromMintUrl, globalEvents } from '@/utils/common';
+import { normalizeCurrencyForComparison } from '@/utils/currency';
 import type {
+  PendingActivity,
   PendingRequest,
   PendingRequestType,
-  PendingActivity,
   PendingSubscription,
 } from '@/utils/types';
-import { PortalAppManager } from '@/services/PortalAppManager';
-import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
-import { globalEvents, getServiceNameFromMintUrl } from '@/utils/common';
 import { usePortalApp } from './PortalAppContext';
 import { useWalletManager } from './WalletManagerContext';
 
@@ -308,7 +307,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
       await executeOperation(db => db.storePendingRequest(id, true), null);
 
       switch (request.type) {
-        case 'login':
+        case 'login': {
           // Create AuthResponseStatus for approved login using type assertion
           const approvedAuthResponse = new AuthResponseStatus.Approved({
             grantedPermissions: [],
@@ -340,7 +339,8 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             });
           });
           break;
-        case 'payment':
+        }
+        case 'payment': {
           const notifier = request.result as (status: PaymentStatus) => Promise<void>;
           const metadata = request.metadata as SinglePaymentRequest;
 
@@ -492,6 +492,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             console.error('Error processing payment:', err);
           });
           break;
+        }
         case 'subscription':
           // Add subscription activity
           try {
@@ -717,7 +718,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             );
           }
           break;
-        case 'nostrConnect':
+        case 'nostrConnect': {
           const connectEvent = request.metadata as NostrConnectRequestEvent;
 
           const requestedPermissions = connectEvent.params.at(2) ?? null;
@@ -765,6 +766,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             status: 'positive',
           });
           break;
+        }
       }
     },
     [
@@ -789,7 +791,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
       await executeOperation(db => db.storePendingRequest(id, false), null);
 
       switch (request?.type) {
-        case 'login':
+        case 'login': {
           // Create AuthResponseStatus for denied login using type assertion
           const deniedAuthResponse = new AuthResponseStatus.Declined({
             reason: 'Not approved by user',
@@ -817,7 +819,8 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             });
           });
           break;
-        case 'payment':
+        }
+        case 'payment': {
           const notifier = request.result as (status: PaymentStatus) => Promise<void>;
 
           // Add denied payment activity to database
@@ -899,6 +902,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             console.error('Error adding denied payment activity:', err);
           }
           break;
+        }
         case 'subscription':
           request.result({
             status: new RecurringPaymentStatus.Rejected({

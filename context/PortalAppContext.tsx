@@ -1,46 +1,46 @@
-import { PortalAppManager } from '@/services/PortalAppManager';
-import React, { createContext, useCallback, useEffect, useState } from 'react';
-import { useNostrService } from './NostrServiceContext';
 import {
-  AuthChallengeEvent,
-  AuthChallengeListener,
-  AuthResponseStatus,
-  CashuDirectContentWithKey,
-  CashuDirectListener,
-  CashuRequestContentWithKey,
-  CashuRequestListener,
+  type AuthChallengeEvent,
+  type AuthChallengeListener,
+  type AuthResponseStatus,
+  type CashuDirectContentWithKey,
+  type CashuDirectListener,
+  type CashuRequestContentWithKey,
+  type CashuRequestListener,
   CashuResponseStatus,
-  ClosedRecurringPaymentListener,
-  CloseRecurringPaymentResponse,
+  type ClosedRecurringPaymentListener,
+  type CloseRecurringPaymentResponse,
   keyToHex,
-  NostrConnectRequestEvent,
-  NostrConnectRequestListener,
-  NostrConnectResponseStatus,
+  type NostrConnectRequestEvent,
+  type NostrConnectRequestListener,
+  type NostrConnectResponseStatus,
+  type PaymentRequestListener,
+  type PaymentStatus,
+  type PaymentStatusNotifier,
   parseCashuToken,
-  PaymentRequestListener,
-  PaymentStatus,
-  PaymentStatusNotifier,
-  RecurringPaymentRequest,
-  RecurringPaymentResponseContent,
-  SinglePaymentRequest,
+  type RecurringPaymentRequest,
+  type RecurringPaymentResponseContent,
+  type SinglePaymentRequest,
 } from 'portal-app-lib';
+import React, { createContext, useCallback, useEffect, useState } from 'react';
+import { AppState } from 'react-native';
 import {
   handleAuthChallenge,
-  handleSinglePaymentRequest,
-  handleRecurringPaymentRequest,
   handleCloseRecurringPaymentResponse,
   handleNostrConnectRequest,
+  handleRecurringPaymentRequest,
+  handleSinglePaymentRequest,
 } from '@/services/EventFilters';
-import { showToast, handleErrorWithToastAndReinit } from '@/utils/Toast';
-import { PendingRequest } from '@/utils/types';
-import { useDatabaseContext } from './DatabaseContext';
-import { useWalletManager } from './WalletManagerContext';
-import { useECash } from './ECashContext';
-import { useCurrency } from './CurrencyContext';
+import { PortalAppManager } from '@/services/PortalAppManager';
 import { globalEvents } from '@/utils/common';
-import { AppState } from 'react-native';
-import { useKey } from './KeyContext';
 import { getKeypairFromKey } from '@/utils/keyHelpers';
+import { handleErrorWithToastAndReinit, showToast } from '@/utils/Toast';
+import type { PendingRequest } from '@/utils/types';
+import { useCurrency } from './CurrencyContext';
+import { useDatabaseContext } from './DatabaseContext';
+import { useECash } from './ECashContext';
+import { useKey } from './KeyContext';
+import { useNostrService } from './NostrServiceContext';
+import { useWalletManager } from './WalletManagerContext';
 
 export class LocalCashuDirectListener implements CashuDirectListener {
   private callback: (event: CashuDirectContentWithKey) => Promise<void>;

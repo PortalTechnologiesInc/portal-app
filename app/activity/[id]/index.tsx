@@ -1,44 +1,43 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, router } from 'expo-router';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
-import { formatDayAndDate, ActivityType } from '@/utils/common';
+import * as Clipboard from 'expo-clipboard';
+import { router, useLocalSearchParams } from 'expo-router';
 import {
-  Calendar,
   AlertCircle,
-  Shield,
   BanknoteIcon,
+  Calendar,
+  Coins,
   DollarSign,
   Hash,
-  Server,
-  Coins,
   Info,
   Link,
+  Server,
+  Shield,
   Ticket,
 } from 'lucide-react-native';
-import { useDatabaseContext } from '@/context/DatabaseContext';
-import type { ActivityWithDates } from '@/services/DatabaseService';
-import { CurrencyConversionService } from '@/services/CurrencyConversionService';
-import {
-  Currency,
-  shouldShowConvertedAmount as shouldShowConvertedAmountUtil,
-  formatActivityAmount,
-} from '@/utils/currency';
-
-import { useThemeColor } from '@/hooks/useThemeColor';
-import { getActivityStatus } from '@/utils/activityHelpers';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { ActivityDetailRow } from '@/components/ActivityDetail/ActivityDetailRow';
 import { ActivityHeader } from '@/components/ActivityDetail/ActivityHeader';
 import { ActivityMainCard } from '@/components/ActivityDetail/ActivityMainCard';
-import { ActivityDetailRow } from '@/components/ActivityDetail/ActivityDetailRow';
 import {
-  PaymentStatusProgress,
-  PaymentStep,
   convertPaymentStatusToSteps,
+  PaymentStatusProgress,
+  type PaymentStep,
 } from '@/components/ActivityDetail/PaymentStatusProgress';
-import * as Clipboard from 'expo-clipboard';
+import { ThemedText } from '@/components/ThemedText';
+import { ThemedView } from '@/components/ThemedView';
 import { useActivities } from '@/context/ActivitiesContext';
+import { useDatabaseContext } from '@/context/DatabaseContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import type { ActivityWithDates } from '@/services/DatabaseService';
+import { getActivityStatus } from '@/utils/activityHelpers';
+import { ActivityType, formatDayAndDate } from '@/utils/common';
+import {
+  type Currency,
+  formatActivityAmount,
+  shouldShowConvertedAmount as shouldShowConvertedAmountUtil,
+} from '@/utils/currency';
 
 // Helper functions to generate activity description text
 function getRequestDescriptionText(
@@ -135,7 +134,10 @@ export default function ActivityDetailScreen() {
           setActivity(activityData);
 
           // If this is a payment activity, fetch payment status entries
-          if (activityData.type === ActivityType.Pay || activityData.type === ActivityType.Receive && activityData.invoice) {
+          if (
+            activityData.type === ActivityType.Pay ||
+            (activityData.type === ActivityType.Receive && activityData.invoice)
+          ) {
             try {
               const paymentStatusEntries = await executeOperation(
                 db => db.getPaymentStatusEntries(activityData.invoice!),

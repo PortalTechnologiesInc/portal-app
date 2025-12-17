@@ -1,20 +1,19 @@
+import Clipboard from '@react-native-clipboard/clipboard';
+import { router, useFocusEffect } from 'expo-router';
+import { AlertCircle, ArrowLeft, Copy, Lock } from 'lucide-react-native';
+import { keyToHex } from 'portal-app-lib';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { AlertCircle, ArrowLeft, Copy, Lock } from 'lucide-react-native';
-
-import { ThemedView } from '@/components/ThemedView';
+import uuid from 'react-native-uuid';
 import { ThemedText } from '@/components/ThemedText';
-import { useThemeColor } from '@/hooks/useThemeColor';
-import { router, useFocusEffect } from 'expo-router';
+import { ThemedView } from '@/components/ThemedView';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import { useNostrService } from '@/context/NostrServiceContext';
-import { keyToHex } from 'portal-app-lib';
-import uuid from 'react-native-uuid';
-import { showToast } from '@/utils/Toast';
-import Clipboard from '@react-native-clipboard/clipboard';
-import { AllowedBunkerClientWithDates } from '@/services/DatabaseService';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import type { AllowedBunkerClientWithDates } from '@/services/DatabaseService';
 import { formatRelativeTime } from '@/utils/common';
+import { showToast } from '@/utils/Toast';
 
 const RemoteSigningScreen = () => {
   const { executeOperation } = useDatabaseContext();

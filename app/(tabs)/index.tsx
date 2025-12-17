@@ -1,32 +1,32 @@
-import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import {
-  StyleSheet,
-  View,
-  TouchableOpacity,
-  ScrollView,
-  Image,
-  Dimensions,
-  ActivityIndicator,
-  RefreshControl,
-} from 'react-native';
 import { router } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
+import { ArrowRight, Nfc, QrCode, User } from 'lucide-react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Dimensions,
+  Image,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { ConnectionStatusIndicator } from '@/components/ConnectionStatusIndicator';
+import { PendingRequestsList } from '@/components/PendingRequestsList';
+import { RecentActivitiesList } from '@/components/RecentActivitiesList';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { PendingRequestsList } from '@/components/PendingRequestsList';
 import { UpcomingPaymentsList } from '@/components/UpcomingPaymentsList';
-import { RecentActivitiesList } from '@/components/RecentActivitiesList';
-import { ConnectionStatusIndicator } from '@/components/ConnectionStatusIndicator';
-import { useOnboarding } from '@/context/OnboardingContext';
-import { useUserProfile } from '@/context/UserProfileContext';
-import { useNostrService } from '@/context/NostrServiceContext';
-import { QrCode, ArrowRight, User, Nfc } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import * as SecureStore from 'expo-secure-store';
-import { formatAvatarUri } from '@/utils/common';
-import { useThemeColor } from '@/hooks/useThemeColor';
-import { useWalletManager } from '@/context/WalletManagerContext';
+import { useNostrService } from '@/context/NostrServiceContext';
+import { useOnboarding } from '@/context/OnboardingContext';
 import { usePortalApp } from '@/context/PortalAppContext';
+import { useUserProfile } from '@/context/UserProfileContext';
+import { useWalletManager } from '@/context/WalletManagerContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import { formatAvatarUri } from '@/utils/common';
 
 const FIRST_LAUNCH_KEY = 'portal_first_launch_completed';
 

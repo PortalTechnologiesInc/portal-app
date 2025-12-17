@@ -1,16 +1,16 @@
-import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { View, FlatList, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { ThemedText } from '../../components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import type { ActivityWithDates } from '@/services/DatabaseService';
-import { useActivities } from '@/context/ActivitiesContext';
-import { ActivityRow } from '@/components/ActivityRow';
-import { router } from 'expo-router';
-import { useThemeColor } from '@/hooks/useThemeColor';
 import { useFocusEffect } from '@react-navigation/native';
-import { ActivityType } from '@/utils/common';
+import { router } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { FlatList, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { ActivityRow } from '@/components/ActivityRow';
+import { ThemedView } from '@/components/ThemedView';
 import type { ActivityFilterType } from '@/context/ActivitiesContext';
+import { useActivities } from '@/context/ActivitiesContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import type { ActivityWithDates } from '@/services/DatabaseService';
+import { ActivityType } from '@/utils/common';
+import { ThemedText } from '../../components/ThemedText';
 
 const ItemList: React.FC = () => {
   const {

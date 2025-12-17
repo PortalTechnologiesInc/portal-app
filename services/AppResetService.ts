@@ -1,10 +1,10 @@
-import { DatabaseService } from './DatabaseService';
-import { SecureStorageService } from './SecureStorageServiceV2';
-import { resetAllContexts } from './ContextResetService';
-import type { SQLiteDatabase } from 'expo-sqlite';
-import { router } from 'expo-router';
-import { PortalAppManager } from './PortalAppManager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router } from 'expo-router';
+import type { SQLiteDatabase } from 'expo-sqlite';
+import { resetAllContexts } from './ContextResetService';
+import { DatabaseService } from './DatabaseService';
+import { PortalAppManager } from './PortalAppManager';
+import { SecureStorageService } from './SecureStorageServiceV2';
 
 /**
  * Global reset flag to coordinate reset process

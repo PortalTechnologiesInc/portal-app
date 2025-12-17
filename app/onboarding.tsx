@@ -1,44 +1,42 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Clipboard from 'expo-clipboard';
+import * as SecureStore from 'expo-secure-store';
 import {
-  StyleSheet,
-  View,
-  Image,
-  TouchableOpacity,
-  TextInput,
-  BackHandler,
-  ScrollView,
-  Alert,
-  Platform,
-  KeyboardAvoidingView,
-  Keyboard,
-  useWindowDimensions,
-} from 'react-native';
-import { ThemedView } from '@/components/ThemedView';
-import { ThemedText } from '@/components/ThemedText';
-import { PINKeypad } from '@/components/PINKeypad';
-import { useOnboarding } from '@/context/OnboardingContext';
-import { useKey } from '@/context/KeyContext';
-import { useAppLock } from '@/context/AppLockContext';
-import { useThemeColor } from '@/hooks/useThemeColor';
-import {
-  Shield,
-  Key,
-  Zap,
   AlertTriangle,
+  ArrowLeft,
   ArrowRight,
   CheckCircle,
-  ArrowLeft,
+  Key,
   Lock,
+  Shield,
+  Zap,
 } from 'lucide-react-native';
-
-import * as Clipboard from 'expo-clipboard';
-
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { generateMnemonic, Mnemonic, Nsec } from 'portal-app-lib';
-import * as SecureStore from 'expo-secure-store';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  Alert,
+  BackHandler,
+  Image,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { PINKeypad } from '@/components/PINKeypad';
+import { ThemedText } from '@/components/ThemedText';
+import { ThemedView } from '@/components/ThemedView';
+import { useAppLock } from '@/context/AppLockContext';
+import { useKey } from '@/context/KeyContext';
+import { useOnboarding } from '@/context/OnboardingContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
 import { WALLET_TYPE } from '@/models/WalletType';
-import { PIN_MIN_LENGTH, PIN_MAX_LENGTH } from '@/services/AppLockService';
+import { PIN_MAX_LENGTH, PIN_MIN_LENGTH } from '@/services/AppLockService';
 
 // Preload all required assets
 const onboardingLogo = require('../assets/images/appLogo.png');

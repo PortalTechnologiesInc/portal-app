@@ -1,7 +1,7 @@
-import type React from 'react';
-import { createContext, useContext, useState, useEffect } from 'react';
-import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
+import type React from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 
 const ONBOARDING_KEY = 'portal_onboarding_complete';

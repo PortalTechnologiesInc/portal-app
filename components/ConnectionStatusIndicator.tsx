@@ -1,21 +1,22 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
-import {
-  View,
-  TouchableOpacity,
-  Modal,
-  StyleSheet,
-  ScrollView,
-  Animated,
-  AppState,
-} from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { useRouter } from 'expo-router';
+import { CheckCircle, Wallet, Wifi, X, XCircle } from 'lucide-react-native';
+import type React from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Animated,
+  AppState,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { useNostrService } from '@/context/NostrServiceContext';
-import type { RelayInfo } from '@/utils/types';
-import { Wifi, Wallet, X, CheckCircle, XCircle } from 'lucide-react-native';
-import { useThemeColor } from '@/hooks/useThemeColor';
 import { useWalletManager } from '@/context/WalletManagerContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import type { RelayInfo } from '@/utils/types';
 
 type ConnectionStatus = 'connected' | 'partial' | 'disconnected';
 

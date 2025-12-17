@@ -1,17 +1,17 @@
 import React, {
   createContext,
-  useContext,
-  useState,
-  useEffect,
-  ReactNode,
+  type ReactNode,
   useCallback,
+  useContext,
+  useEffect,
   useRef,
+  useState,
 } from 'react';
-import { AppState, AppStateStatus, Platform } from 'react-native';
+import { AppState, type AppStateStatus, Platform } from 'react-native';
 import {
   AppLockService,
-  AuthMethod,
-  LockTimerDuration,
+  type AuthMethod,
+  type LockTimerDuration,
   TIMER_OPTIONS,
 } from '@/services/AppLockService';
 import { authenticateAsync, isBiometricPromptInProgress } from '@/services/BiometricAuthService';
