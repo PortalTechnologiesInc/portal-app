@@ -1,21 +1,21 @@
-import React, { useMemo } from 'react';
+import Constants from 'expo-constants';
 import { Tabs } from 'expo-router';
 import {
+  Bug,
   Home,
   List,
   Receipt,
+  Settings,
   Ticket,
   UserSquare2,
-  Settings,
-  Bug,
   Wallet,
 } from 'lucide-react-native';
-import { Colors } from '@/constants/Colors';
-import { View, Platform, ToastAndroid } from 'react-native';
+import React, { useMemo } from 'react';
+import { Platform, ToastAndroid, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HapticTab } from '@/components/HapticTab';
+import { Colors } from '@/constants/Colors';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import Constants from 'expo-constants';
 
 // Memoized tab icons to prevent unnecessary re-rendering
 const HomeIcon = React.memo(({ color }: { color: string }) => <Home size={24} color={color} />);

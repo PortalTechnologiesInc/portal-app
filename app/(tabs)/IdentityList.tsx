@@ -1,27 +1,27 @@
-import React, { useState, useEffect } from 'react';
+import { requestMediaLibraryPermissionsAsync } from 'expo-image-picker';
+import { useRouter } from 'expo-router';
+import { ArrowLeft, Edit, Pencil, User } from 'lucide-react-native';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  Image,
   Alert,
-  ScrollView,
+  Image,
   RefreshControl,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import type { Identity } from '@/utils/types';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { useRouter } from 'expo-router';
-import { Edit, User, Pencil, ArrowLeft } from 'lucide-react-native';
-import { useThemeColor } from '@/hooks/useThemeColor';
-import { useUserProfile } from '@/context/UserProfileContext';
 import { useNostrService } from '@/context/NostrServiceContext';
-import { requestMediaLibraryPermissionsAsync } from 'expo-image-picker';
-import { showToast } from '@/utils/Toast';
-import { formatAvatarUri } from '@/utils/common';
+import { useUserProfile } from '@/context/UserProfileContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
 import { launchImagePickerWithAutoCancel } from '@/services/FilePickerService';
+import { formatAvatarUri } from '@/utils/common';
+import { showToast } from '@/utils/Toast';
+import type { Identity } from '@/utils/types';
 
 export type IdentityListProps = {
   onManageIdentity: (identity: Identity) => void;

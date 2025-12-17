@@ -1,21 +1,21 @@
+import { Fingerprint } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import {
   AppState,
   type AppStateStatus,
   Keyboard,
   StyleSheet,
-  View,
   TouchableOpacity,
   useWindowDimensions,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ThemedText } from './ThemedText';
-import { PINKeypad } from './PINKeypad';
-import { useThemeColor } from '@/hooks/useThemeColor';
 import { useAppLock } from '@/context/AppLockContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import { PIN_MAX_LENGTH, PIN_MIN_LENGTH } from '@/services/AppLockService';
 import { authenticateAsync } from '@/services/BiometricAuthService';
-import { PIN_MIN_LENGTH, PIN_MAX_LENGTH } from '@/services/AppLockService';
-import { Fingerprint } from 'lucide-react-native';
+import { PINKeypad } from './PINKeypad';
+import { ThemedText } from './ThemedText';
 
 const CANCELABLE_BIOMETRIC_ERRORS = new Set(['user_cancel', 'system_cancel', 'app_cancel']);
 

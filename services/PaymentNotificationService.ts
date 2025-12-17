@@ -1,4 +1,4 @@
-import type { SinglePaymentRequest, PortalAppInterface } from 'portal-app-lib';
+import type { PortalAppInterface, SinglePaymentRequest } from 'portal-app-lib';
 import type { DatabaseService } from './DatabaseService';
 import {
   AMOUNT_MISMATCH_REJECTION_REASON,

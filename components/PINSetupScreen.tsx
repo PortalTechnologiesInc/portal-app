@@ -1,18 +1,18 @@
+import { Shield, X } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
-  StyleSheet,
-  View,
   Modal,
-  TouchableOpacity,
   ScrollView,
+  StyleSheet,
+  TouchableOpacity,
   useWindowDimensions,
+  View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ThemedText } from './ThemedText';
-import { PINKeypad } from './PINKeypad';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { Shield, X } from 'lucide-react-native';
-import { PIN_MIN_LENGTH, PIN_MAX_LENGTH } from '@/services/AppLockService';
+import { PIN_MAX_LENGTH, PIN_MIN_LENGTH } from '@/services/AppLockService';
+import { PINKeypad } from './PINKeypad';
+import { ThemedText } from './ThemedText';
 
 interface PINSetupScreenProps {
   visible: boolean;

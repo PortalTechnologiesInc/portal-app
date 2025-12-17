@@ -1,14 +1,13 @@
-import { createContext, useContext, useCallback, type ReactNode, useRef } from 'react';
-import { useEffect } from 'react';
 import * as Linking from 'expo-linking';
-import { parseCashuToken, parseKeyHandshakeUrl } from 'portal-app-lib';
-import { usePendingRequests } from '@/context/PendingRequestsContext';
-import { useNostrService } from '@/context/NostrServiceContext';
-import { Alert } from 'react-native';
 import { router } from 'expo-router';
-import { globalEvents, getServiceNameFromMintUrl } from '@/utils/common';
-import { useECash } from './ECashContext';
+import { parseCashuToken, parseKeyHandshakeUrl } from 'portal-app-lib';
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useRef } from 'react';
+import { Alert } from 'react-native';
+import { useNostrService } from '@/context/NostrServiceContext';
+import { usePendingRequests } from '@/context/PendingRequestsContext';
+import { getServiceNameFromMintUrl, globalEvents } from '@/utils/common';
 import { useDatabaseContext } from './DatabaseContext';
+import { useECash } from './ECashContext';
 import { useOnboarding } from './OnboardingContext';
 
 // Define the context type

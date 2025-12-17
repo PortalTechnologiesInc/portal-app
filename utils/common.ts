@@ -397,7 +397,7 @@ export function getServiceNameFromMintUrl(mintUrl: string): string {
     return cleanHostname;
   } catch (error) {
     // If URL parsing fails, try to extract domain manually
-    const match = mintUrl.match(/https?:\/\/([^\/]+)/);
+    const match = mintUrl.match(/https?:\/\/([^/]+)/);
     if (match && match[1]) {
       return match[1].replace(/^www\./, '');
     }

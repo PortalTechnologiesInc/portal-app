@@ -1,21 +1,21 @@
+import { useRouter } from 'expo-router';
+import { AlertCircle, ArrowLeft, Plus, RotateCcw, X } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
   StyleSheet,
+  TextInput,
   TouchableOpacity,
   View,
-  ScrollView,
-  Alert,
-  TextInput,
-  ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { useRouter } from 'expo-router';
-import { ArrowLeft, RotateCcw, Plus, AlertCircle, X } from 'lucide-react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useThemeColor } from '@/hooks/useThemeColor';
-import { useECash } from '@/context/ECashContext';
 import { useDatabaseContext } from '@/context/DatabaseContext';
+import { useECash } from '@/context/ECashContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
 import { globalEvents } from '@/utils/common';
 import { showToast } from '@/utils/Toast';
 
@@ -121,10 +121,10 @@ export default function RecoverTicketsScreen() {
 
         if (!mintKeys.keysets) {
           console.warn(
-            `Mint response of ${url} does not match the expected standard.\nPlease check the URL and try again if it\'s wrong.`
+            `Mint response of ${url} does not match the expected standard.\nPlease check the URL and try again if it's wrong.`
           );
           Alert.alert(
-            `Mint response of ${url} does not match the expected standard.\nPlease check the URL and try again if it\'s wrong.`
+            `Mint response of ${url} does not match the expected standard.\nPlease check the URL and try again if it's wrong.`
           );
           continue;
         } else if (mintKeys.keysets.length == 0) {

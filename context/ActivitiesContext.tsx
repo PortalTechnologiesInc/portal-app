@@ -1,16 +1,16 @@
 import {
   createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-  useMemo,
   type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
   useRef,
+  useState,
 } from 'react';
-import { type ActivityWithDates, type SubscriptionWithDates } from '@/services/DatabaseService';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
+import type { ActivityWithDates, SubscriptionWithDates } from '@/services/DatabaseService';
 import { ActivityType, globalEvents } from '@/utils/common';
 
 export type ActivityFilterType = 'logins' | 'payments' | 'subscriptions' | 'tickets';

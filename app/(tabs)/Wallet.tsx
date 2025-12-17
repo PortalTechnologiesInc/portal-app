@@ -1,30 +1,30 @@
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
-import { useThemeColor } from '@/hooks/useThemeColor';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Send, User } from 'lucide-react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useCallback, useEffect, useState } from 'react';
 import {
-  StyleSheet,
+  ActivityIndicator,
+  Image,
   ScrollView,
+  StyleSheet,
+  TextInput,
   TouchableOpacity,
   View,
-  Image,
-  TextInput,
-  ActivityIndicator,
 } from 'react-native';
 import { Colors } from 'react-native/Libraries/NewAppScreen';
-import { useCallback, useEffect, useState } from 'react';
-import { useWalletManager } from '@/context/WalletManagerContext';
-import { WALLET_TYPE } from '@/models/WalletType';
-import { BreezService } from '@/services/BreezService';
-import { WalletInfo } from '@/utils/types';
-import { Nip05Contact } from '@/services/DatabaseService';
-import { useDatabaseContext } from '@/context/DatabaseContext';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDebouncedCallback } from 'use-debounce';
-import { useNostrService } from '@/context/NostrServiceContext';
+import { ThemedText } from '@/components/ThemedText';
+import { ThemedView } from '@/components/ThemedView';
 import { useCurrency } from '@/context/CurrencyContext';
+import { useDatabaseContext } from '@/context/DatabaseContext';
+import { useNostrService } from '@/context/NostrServiceContext';
+import { useWalletManager } from '@/context/WalletManagerContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import { WALLET_TYPE } from '@/models/WalletType';
+import type { BreezService } from '@/services/BreezService';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import type { Nip05Contact } from '@/services/DatabaseService';
+import type { WalletInfo } from '@/utils/types';
 
 interface ContactWithProfile extends Nip05Contact {
   displayName?: string | null;

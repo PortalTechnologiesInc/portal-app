@@ -1,25 +1,25 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import * as Linking from 'expo-linking';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { ArrowLeft, CheckCircle, Nfc, Settings, XCircle } from 'lucide-react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  StyleSheet,
-  View,
-  TouchableOpacity,
-  Dimensions,
-  Alert,
-  Platform,
   ActivityIndicator,
-  AppState,
+  Alert,
   Animated,
+  AppState,
   BackHandler,
+  Dimensions,
+  Platform,
+  StyleSheet,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import NfcManager, { NfcEvents, NfcTech, Ndef } from 'react-native-nfc-manager';
+import NfcManager, { Ndef, NfcEvents, NfcTech } from 'react-native-nfc-manager';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useFocusEffect } from 'expo-router';
-import { ArrowLeft, Nfc, CheckCircle, XCircle, Settings } from 'lucide-react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { useThemeColor } from '@/hooks/useThemeColor';
-import * as Linking from 'expo-linking';
 import { useDeeplink } from '@/context/DeeplinkContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
 import { AppLockService } from '@/services/AppLockService';
 
 type ErrorType =

@@ -1,7 +1,7 @@
-import React, { useCallback } from 'react';
 import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import { PlatformPressable } from '@react-navigation/elements';
 import * as Haptics from 'expo-haptics';
+import React, { useCallback } from 'react';
 import { Platform } from 'react-native';
 
 // Only import haptics on iOS for better performance

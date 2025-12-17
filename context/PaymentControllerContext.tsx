@@ -1,25 +1,23 @@
-import React, { createContext, useContext, ReactNode, useEffect } from 'react';
+import React, { createContext, type ReactNode, useContext, useEffect } from 'react';
 import { globalEvents } from '@/utils/common';
+import { useActivities } from './ActivitiesContext';
 import { useDatabaseContext } from './DatabaseContext';
 import { useNostrService } from './NostrServiceContext';
-import { useActivities } from './ActivitiesContext';
 
-interface PaymentControllerContextType {
-  // Empty for now, can be expanded later
-}
+type PaymentControllerContextType = {};
 
 const PaymentControllerContext = createContext<PaymentControllerContextType | undefined>(undefined);
 
 export function PaymentControllerProvider({ children }: { children: ReactNode }) {
-  let { executeOperation } = useDatabaseContext();
-  let { nwcWallet } = useNostrService();
+  const { executeOperation } = useDatabaseContext();
+  const { nwcWallet } = useNostrService();
 
   useEffect(() => {
     if (!nwcWallet) return;
     executeOperation(async db => {
       const pendingPayments = await db.getPendingPayments();
       for (const element of pendingPayments) {
-        let invoice = element.invoice;
+        const invoice = element.invoice;
         if (!invoice) {
           console.error(`Activity invoice is null!`);
           continue;

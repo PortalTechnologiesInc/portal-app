@@ -1,8 +1,8 @@
-import React from 'react';
-import { View, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import type React from 'react';
+import { Image, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { Ticket } from '@/utils/common';
+import type { Ticket } from '@/utils/common';
 
 const TicketCard: React.FC<{
   ticket: Ticket | null | undefined;

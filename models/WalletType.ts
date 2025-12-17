@@ -1,6 +1,6 @@
-import { BreezService } from '@/services/BreezService';
-import { NwcService } from '@/services/NwcService';
-import { WalletInfo } from '@/utils/types';
+import type { BreezService } from '@/services/BreezService';
+import type { NwcService } from '@/services/NwcService';
+import type { WalletInfo } from '@/utils/types';
 
 export const WALLET_TYPE = {
   BREEZ: 'BREEZ',

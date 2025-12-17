@@ -1,51 +1,53 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  StyleSheet,
-  TouchableOpacity,
-  Alert,
-  View,
-  ScrollView,
-  RefreshControl,
-  Switch,
-  Modal,
-  FlatList,
-  Platform,
-  useWindowDimensions,
-} from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
 import { useRouter } from 'expo-router';
 import {
   ArrowLeft,
-  ChevronRight,
-  Fingerprint,
-  Shield,
-  X,
   Check,
+  ChevronRight,
+  Clock,
+  Fingerprint,
+  KeyRound,
+  Moon,
+  RotateCcw,
+  Shield,
+  Smartphone,
+  Sun,
   Wallet,
   Wifi,
-  RotateCcw,
-  Clock,
-  KeyRound,
+  X,
 } from 'lucide-react-native';
-import { Moon, Sun, Smartphone } from 'lucide-react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Alert,
+  FlatList,
+  Modal,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { walletUrlEvents, getMnemonic, getWalletUrl } from '@/services/SecureStorageService';
-import { useNostrService } from '@/context/NostrServiceContext';
-import { showToast } from '@/utils/Toast';
-import { authenticateAsync } from '@/services/BiometricAuthService';
-import { useTheme, ThemeMode } from '@/context/ThemeContext';
+import { PINKeypad } from '@/components/PINKeypad';
+import { PINSetupScreen } from '@/components/PINSetupScreen';
+import { ThemedText } from '@/components/ThemedText';
+import { ThemedView } from '@/components/ThemedView';
+import { useAppLock, useOnAppLock } from '@/context/AppLockContext';
 import { useCurrency } from '@/context/CurrencyContext';
-import { Currency, CurrencyHelpers } from '@/utils/currency';
-import { useThemeColor } from '@/hooks/useThemeColor';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import { useKey } from '@/context/KeyContext';
+import { useNostrService } from '@/context/NostrServiceContext';
+import { type ThemeMode, useTheme } from '@/context/ThemeContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import { type LockTimerDuration, PIN_MAX_LENGTH, PIN_MIN_LENGTH } from '@/services/AppLockService';
+import { authenticateAsync } from '@/services/BiometricAuthService';
+import { getMnemonic, getWalletUrl, walletUrlEvents } from '@/services/SecureStorageService';
+import { Currency, CurrencyHelpers } from '@/utils/currency';
 import { getNsecStringFromKey } from '@/utils/keyHelpers';
-import { useAppLock, useOnAppLock } from '@/context/AppLockContext';
-import { LockTimerDuration, PIN_MIN_LENGTH, PIN_MAX_LENGTH } from '@/services/AppLockService';
-import { PINSetupScreen } from '@/components/PINSetupScreen';
-import { PINKeypad } from '@/components/PINKeypad';
+import { showToast } from '@/utils/Toast';
 
 type PinVerificationConfig = {
   title: string;
