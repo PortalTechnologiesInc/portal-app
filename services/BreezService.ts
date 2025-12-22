@@ -3,7 +3,6 @@ import {
   connect,
   defaultConfig,
   type EventListener,
-  initLogging,
   Network,
   OnchainConfirmationSpeed,
   type PrepareSendPaymentResponse,
@@ -32,13 +31,6 @@ export class BreezService implements Wallet {
   ): Promise<BreezService> {
     const instance = new BreezService();
     instance.onStatusChange = onStatusChange || null;
-    initLogging(
-      undefined,
-      {
-        log: line => console.log(`[Breez SDK] [${line.level}] ${line.line}`),
-      },
-      undefined
-    );
     await instance.init(nsec);
     return instance;
   }
