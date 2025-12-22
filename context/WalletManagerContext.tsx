@@ -291,7 +291,7 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
 
         setIsWalletManagerInitialized(true);
       } catch (error) {
-        console.error('Failed to initialize wallet manager:', error);
+        console.error('Failed to initialize wallet manager:', JSON.stringify(error, null, 2));
       }
     };
 
