@@ -2,6 +2,7 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import { useRouter } from 'expo-router';
 import {
   ArrowLeft,
+  Bug,
   Check,
   ChevronRight,
   Clock,
@@ -176,6 +177,10 @@ export default function SettingsScreen() {
 
   const handleRecoverTicketsPress = () => {
     router.push('/recoverTickets');
+  };
+
+  const handleDebugPress = () => {
+    router.push('/(tabs)/Debug');
   };
 
   const resetPinVerificationConfig = useCallback(() => {
@@ -1042,6 +1047,34 @@ export default function SettingsScreen() {
               </View>
             </View>
           </TouchableOpacity>
+
+          {/* Debug Section - Dev Only */}
+          {__DEV__ && (
+            <TouchableOpacity
+              style={[styles.card, { backgroundColor: cardBackgroundColor, marginTop: 24 }]}
+              onPress={handleDebugPress}
+              activeOpacity={0.7}
+            >
+              <View style={styles.cardContent}>
+                <View style={styles.cardLeft}>
+                  <View style={styles.cardHeader}>
+                    <View style={[styles.iconContainer]}>
+                      <Bug size={20} color={buttonPrimaryColor} />
+                    </View>
+                    <View style={styles.cardText}>
+                      <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
+                        Debug
+                      </ThemedText>
+                      <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
+                        Developer tools and diagnostics
+                      </ThemedText>
+                    </View>
+                  </View>
+                </View>
+                <ChevronRight size={24} color={secondaryTextColor} />
+              </View>
+            </TouchableOpacity>
+          )}
         </ScrollView>
       </ThemedView>
 
