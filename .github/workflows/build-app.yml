@@ -8,8 +8,28 @@ on:
   workflow_dispatch:
 
 jobs:
+  lint:
+    runs-on: [self-hosted, nixos]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          nix develop --command npm ci --foreground-scripts=true
+
+      - name: Run TypeScript type check
+        run: |
+          nix develop --command npm run typecheck
+
+      - name: Run Biome lint
+        run: |
+          nix develop --command npm run check
+
   build-bundle:
     runs-on: [self-hosted, nixos]
+    needs: lint
 
     steps:
       - name: Checkout code
