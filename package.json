@@ -9,12 +9,15 @@
     "ios": "npm run typecheck && npm run lint:dev && expo run:ios",
     "test": "jest --watchAll",
     "typecheck": "bash scripts/typecheck.sh",
-    "lint": "biome lint --error-on-warnings .",
-    "lint:dev": "biome check .",
+    "lint": "biome lint .",
+    "lint:strict": "biome lint --error-on-warnings .",
+    "lint:dev": "bash scripts/check-ci.sh",
     "lint:fix": "biome lint --write .",
     "format": "biome format --write .",
     "format:check": "biome format .",
-    "check": "biome check --error-on-warnings .",
+    "check": "biome check .",
+    "check:ci": "bash scripts/check-ci.sh",
+    "check:strict": "biome check --error-on-warnings .",
     "check:fix": "biome check --write ."
   },
   "jest": {

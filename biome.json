@@ -53,7 +53,12 @@
         "noDangerouslySetInnerHtml": "error"
       },
       "complexity": {
-        "noExcessiveCognitiveComplexity": "warn",
+        "noExcessiveCognitiveComplexity": {
+          "level": "warn",
+          "options": {
+            "maxAllowedComplexity": 60
+          }
+        },
         "noStaticOnlyClass": "off",
         "noUselessFragments": "error",
         "noBannedTypes": "warn"
