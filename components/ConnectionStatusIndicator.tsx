@@ -213,7 +213,7 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
         clearTimeout(expandTimer.current);
       }
     };
-  }, [overallConnectionStatus, expandDuration, pillWidthValue, textOpacityValue, size]);
+  }, [overallConnectionStatus, expandDuration, size]);
 
   // Optimized animation effect with proper cleanup (for pulsing when not connected)
   useEffect(() => {
@@ -237,7 +237,7 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
     } else {
       opacityValue.setValue(1);
     }
-  }, [overallConnectionStatus, opacityValue, isExpanded]);
+  }, [overallConnectionStatus, isExpanded]);
 
   // Optimized press handler with better animation sequence
   const handlePress = () => {

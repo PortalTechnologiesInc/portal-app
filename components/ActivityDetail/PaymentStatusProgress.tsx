@@ -151,6 +151,7 @@ export function PaymentStatusProgress({ steps, onRetry }: PaymentStatusProgressP
   const hasActivePending = currentSteps.some(step => step.status === 'pending');
   const showRetry = lastStepIsError && !hasActivePending;
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: rotateAnim is a stable Animated.Value ref that doesn't need to be in dependencies
   useEffect(() => {
     // Create rotating animation for the loading dot
     const rotateAnimation = Animated.loop(
@@ -167,9 +168,10 @@ export function PaymentStatusProgress({ steps, onRetry }: PaymentStatusProgressP
     return () => {
       rotateAnimation.stop();
     };
-  }, [rotateAnim]);
+  }, []);
 
   // Ensure animation continues for all pending steps
+  // biome-ignore lint/correctness/useExhaustiveDependencies: rotateAnim is a stable Animated.Value ref that doesn't need to be in dependencies
   useEffect(() => {
     const hasPendingSteps = currentSteps.some(step => step.status === 'pending');
     if (hasPendingSteps) {
@@ -189,7 +191,7 @@ export function PaymentStatusProgress({ steps, onRetry }: PaymentStatusProgressP
         rotateAnimation.stop();
       };
     }
-  }, [currentSteps, rotateAnim]);
+  }, [currentSteps]);
 
   const rotateInterpolate = rotateAnim.interpolate({
     inputRange: [0, 1],
