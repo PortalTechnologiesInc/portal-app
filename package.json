@@ -8,7 +8,7 @@
     "android": "npm run typecheck && npm run lint:dev && expo run:android",
     "ios": "npm run typecheck && npm run lint:dev && expo run:ios",
     "test": "jest --watchAll",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit --skipLibCheck",
     "lint": "biome lint --error-on-warnings .",
     "lint:dev": "biome check .",
     "lint:fix": "biome lint --write .",
