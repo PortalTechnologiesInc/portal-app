@@ -5,7 +5,10 @@
     "paths": {
       "@/*": ["./*"]
     },
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "skipDefaultLibCheck": true,
+    "maxNodeModuleJsDepth": 0,
+    "types": []
   },
   "include": [
     "app/**/*.ts",
@@ -35,6 +38,9 @@
   "exclude": [
     "node_modules",
     "**/node_modules/**",
+    "node_modules/**",
+    "**/node_modules/**/*.ts",
+    "**/node_modules/**/*.tsx",
     ".expo",
     ".expo/**",
     "android",
