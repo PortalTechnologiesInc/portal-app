@@ -25,7 +25,7 @@ jobs:
 
       - name: Run Biome lint
         run: |
-          nix develop --command npm run check
+          nix develop --command npm run check:ci
 
   build-bundle:
     runs-on: [self-hosted, nixos]
