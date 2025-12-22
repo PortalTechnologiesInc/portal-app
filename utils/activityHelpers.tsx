@@ -61,7 +61,7 @@ export const getStatusIcon = (
     statusError: string;
     textSecondary: string;
   },
-  size: number = 16
+  size = 16
 ): React.ReactElement => {
   switch (status) {
     case 'success':
@@ -162,6 +162,6 @@ export const getActivityDescription = (
   }
 };
 
-export const formatSatsToUSD = (sats: number, conversionRate: number = 0.0004): string => {
+export const formatSatsToUSD = (sats: number, conversionRate = 0.0004): string => {
   return `≈ $${(sats * conversionRate).toFixed(2)} USD`;
 };

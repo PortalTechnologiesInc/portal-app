@@ -74,7 +74,7 @@ export class AppLockService {
       if (duration === null) {
         return null;
       }
-      const parsed = parseInt(duration, 10);
+      const parsed = Number.parseInt(duration, 10);
       return isNaN(parsed) ? null : (parsed as LockTimerDuration);
     } catch (error) {
       console.error('Error getting lock timer duration:', error);

@@ -89,7 +89,7 @@ export async function handleSinglePaymentRequest(
   preferredCurrency: Currency,
   executeOperation: <T>(operation: (db: DatabaseService) => Promise<T>, fallback?: T) => Promise<T>,
   resolve: (status: PaymentStatus) => void,
-  sendNotification: boolean = false
+  sendNotification = false
 ): Promise<boolean> {
   const subId = request.content.subscriptionId;
   try {

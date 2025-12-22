@@ -1294,7 +1294,7 @@ export class DatabaseService {
     }
   }
 
-  async getRecentNip05Contacts(limit: number = 5): Promise<Array<Nip05Contact>> {
+  async getRecentNip05Contacts(limit = 5): Promise<Array<Nip05Contact>> {
     try {
       const contacts = await this.db.getAllAsync<Nip05Contact>(
         `SELECT * FROM nip05_contacts ORDER BY created_at DESC LIMIT ?`,

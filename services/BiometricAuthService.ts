@@ -48,7 +48,7 @@ export const getAvailableAuthTypes = async (): Promise<
  * Authenticate user with biometric or device passcode
  */
 export const authenticateAsync = async (
-  reason: string = 'Please authenticate to continue'
+  reason = 'Please authenticate to continue'
 ): Promise<BiometricAuthResult> => {
   try {
     // Check if biometric auth is available
@@ -106,7 +106,7 @@ export const authenticateAsync = async (
  */
 export const authenticateForSensitiveAction = async (
   action: () => Promise<void> | void,
-  reason: string = 'Please authenticate to perform this action'
+  reason = 'Please authenticate to perform this action'
 ): Promise<void> => {
   try {
     const isAvailable = await isBiometricAuthAvailable();
