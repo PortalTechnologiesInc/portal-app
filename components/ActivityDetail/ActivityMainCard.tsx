@@ -70,7 +70,7 @@ export const ActivityMainCard: React.FC<ActivityMainCardProps> = ({
   };
 
   // Format ticket title with quantity if amount > 1
-  const formatTicketTitle = () => {
+  const _formatTicketTitle = () => {
     if (isTicket && amount && amount > 1) {
       return `${detail} x ${amount}`;
     }

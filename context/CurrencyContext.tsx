@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { createContext, type ReactNode, useContext, useEffect, useState } from 'react';
+import { createContext, type ReactNode, useContext, useEffect, useState } from 'react';
 import { Currency, CurrencyHelpers } from '../utils/currency';
 
 interface CurrencyContextType {
@@ -24,9 +24,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         if (savedCurrency && CurrencyHelpers.isValidCurrency(savedCurrency)) {
           setPreferredCurrency(savedCurrency as Currency);
         }
-      } catch (error) {
-        console.error('Error loading currency preference:', error);
-      }
+      } catch (_error) {}
     };
     loadCurrencyPreference();
   }, []);
@@ -36,9 +34,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     try {
       setPreferredCurrency(currency);
       await AsyncStorage.setItem('preferred_currency', currency);
-    } catch (error) {
-      console.error('Error saving currency preference:', error);
-    }
+    } catch (_error) {}
   };
 
   // Get the next currency in the cycle

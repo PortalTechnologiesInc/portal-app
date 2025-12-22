@@ -49,25 +49,18 @@ export const unregisterContextReset = (resetFn: () => void): void => {
  * are cleared and will properly reinitialize on next access.
  */
 export const resetAllContexts = (): void => {
-  console.log('🔄 Resetting all application contexts...');
-
   const errors: Array<{ contextIndex: number; error: any }> = [];
 
   contextResetFunctions.forEach((resetFn, index) => {
     try {
       resetFn();
     } catch (error) {
-      console.error(`❌ Failed to reset context at index ${index}:`, error);
       errors.push({ contextIndex: index, error });
     }
   });
 
   if (errors.length === 0) {
-    console.log(`✅ Successfully reset ${contextResetFunctions.length} contexts`);
   } else {
-    console.warn(
-      `⚠️ Reset ${contextResetFunctions.length - errors.length}/${contextResetFunctions.length} contexts (${errors.length} errors)`
-    );
   }
 };
 

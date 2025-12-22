@@ -1,5 +1,5 @@
 import { Shield, X } from 'lucide-react-native';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   Modal,
   ScrollView,
@@ -34,7 +34,7 @@ export function PINSetupScreen({
   const { width, height } = useWindowDimensions();
   const [step, setStep] = useState<'enter' | 'confirm'>('enter');
   const [enteredPIN, setEnteredPIN] = useState('');
-  const [confirmPIN, setConfirmPIN] = useState('');
+  const [_confirmPIN, setConfirmPIN] = useState('');
   const [error, setError] = useState(false);
 
   const insets = useSafeAreaInsets();
@@ -120,7 +120,7 @@ export function PINSetupScreen({
               style={[
                 styles.iconContainer,
                 {
-                  backgroundColor: buttonPrimaryColor + '20',
+                  backgroundColor: `${buttonPrimaryColor}20`,
                   width: iconSize,
                   height: iconSize,
                   borderRadius: iconSize / 2,

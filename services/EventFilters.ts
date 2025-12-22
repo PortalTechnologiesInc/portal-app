@@ -69,16 +69,16 @@ async function sendPaymentNotification(
       },
       trigger: null, // Show immediately
     });
-  } catch (error) {
-    // Silently fail - notification errors shouldn't break payment flow
-    console.error('Failed to send payment notification:', error);
-  }
+  } catch (_error) {}
 }
 
 export async function handleAuthChallenge(
-  event: AuthChallengeEvent,
-  executeOperation: <T>(operation: (db: DatabaseService) => Promise<T>, fallback?: T) => Promise<T>,
-  resolve: (status: AuthResponseStatus) => void
+  _event: AuthChallengeEvent,
+  _executeOperation: <T>(
+    operation: (db: DatabaseService) => Promise<T>,
+    fallback?: T
+  ) => Promise<T>,
+  _resolve: (status: AuthResponseStatus) => void
 ): Promise<boolean> {
   return true;
 }
@@ -139,9 +139,6 @@ export async function handleSinglePaymentRequest(
           reason: `Invoice amount does not match the requested amount.`,
         })
       );
-      console.warn(
-        `🚫 Payment rejected! The invoice amount do not match the requested amount.\nReceived ${invoiceData.amountMsat}\nRequired ${request.content.amount}`
-      );
       return false;
     }
     // Deduplication guard: skip if an activity with the same request/event id already exists
@@ -151,15 +148,9 @@ export async function handleSinglePaymentRequest(
         false
       );
       if (alreadyExists) {
-        console.warn(
-          `🔁 Skipping duplicate payment activity for request_id/eventId: ${request.eventId}`
-        );
         return false;
       }
-    } catch (e) {
-      // If the check fails, proceed without blocking, but log the error
-      console.error('Failed to check duplicate activity:', e);
-    }
+    } catch (_e) {}
 
     let amount =
       typeof request.content.amount === 'bigint'
@@ -238,16 +229,13 @@ export async function handleSinglePaymentRequest(
           preferredCurrency // Currency enum values are already strings
         );
         convertedCurrency = preferredCurrency;
-      } catch (error) {
-        console.error('Currency conversion error during payment:', error);
+      } catch (_error) {
         // Continue without conversion - convertedAmount will remain null
         return false;
       }
     }
 
     if (!subId) {
-      console.log(`👤 Not a subscription, required user interaction!`);
-
       if (sendNotification) {
         // Use converted amount/currency if available, otherwise use original
         const notificationAmount =
@@ -273,20 +261,13 @@ export async function handleSinglePaymentRequest(
       const lockAcquired =
         (await executeOperation(db => db.markSubscriptionAsProcessing(subId))) > 0;
       if (lockAcquired) {
-        console.log(`💂 Lock acquired!. Processing subscription with id ${subId}`);
         break;
       } else if (lockTry > 4) {
-        console.warn(`💂 Execution terminated. Could not acquire lock on subscription processing`);
         return false;
       }
       lockTry++;
-      console.warn(`💂 Execution delayed. Subscription with id ${subId} is already processing`);
       await new Promise(resolve => setTimeout(resolve, 600));
     }
-
-    console.log(
-      `🤖 The request is from a subscription with id ${subId}. Checking to make automatic action.`
-    );
     let subscription: SubscriptionWithDates;
     let subscriptionServiceName: string;
     try {
@@ -297,32 +278,25 @@ export async function handleSinglePaymentRequest(
             reason: `Subscription with ID ${subId} not found in database`,
           })
         );
-        console.warn(
-          `🚫 Payment rejected! The request is a subscription payment, but no subscription found with id ${subId}`
-        );
         return false;
       }
       subscription = subscriptionFromDb;
       subscriptionServiceName = subscriptionFromDb.service_name;
-    } catch (e) {
+    } catch (_e) {
       resolve(
         new PaymentStatus.Rejected({
           reason:
             'Failed to retrieve subscription from database. Please try again or contact support if the issue persists.',
         })
       );
-      console.warn(`🚫 Payment rejected! Failing to connect to database.`);
       return false;
     }
 
-    if (amount != subscription.amount || currency != subscription.currency) {
+    if (amount !== subscription.amount || currency !== subscription.currency) {
       resolve(
         new PaymentStatus.Rejected({
           reason: `Payment amount does not match subscription amount.\nExpected: ${subscription.amount} ${subscription.currency}\nReceived: ${amount} ${request.content.currency}`,
         })
-      );
-      console.warn(
-        `🚫 Payment rejected! Amount does not match subscription amount.\nExpected: ${subscription.amount} ${subscription.currency}\nReceived: ${amount} ${request.content.currency}`
       );
       return false;
     }
@@ -414,7 +388,6 @@ export async function handleSinglePaymentRequest(
       try {
         // const preimage = await wallet.payInvoice(request.content.invoice);
         const preimage = await wallet.sendPayment(request.content.invoice, BigInt(amount));
-        console.log('🧾 Invoice paid!');
 
         // Send notification to user about successful payment
         // Use converted amount/currency if available, otherwise use original
@@ -453,11 +426,6 @@ export async function handleSinglePaymentRequest(
           })
         );
       } catch (error: any) {
-        console.error(
-          'Error paying invoice:',
-          JSON.stringify(error, Object.getOwnPropertyNames(error))
-        );
-
         await executeOperation(
           db => db.addPaymentStatusEntry(request.content.invoice, 'payment_failed'),
           null
@@ -473,10 +441,9 @@ export async function handleSinglePaymentRequest(
 
         resolve(
           new PaymentStatus.Failed({
-            reason: 'Payment failed: ' + error,
+            reason: `Payment failed: ${error}`,
           })
         );
-        console.warn(`🚫 Payment failed! Error is: ${error}`);
       }
     } else {
       const id = await executeOperation(
@@ -505,7 +472,6 @@ export async function handleSinglePaymentRequest(
           reason: 'Recurring payment failed: user has no linked wallet',
         })
       );
-      console.warn(`🚫 Payment rejected! No wallet.`);
 
       return false;
     }
@@ -517,22 +483,21 @@ export async function handleSinglePaymentRequest(
         reason: `An unexpected error occurred while processing the payment: ${e}.\nPlease try again or contact support if the issue persists.`,
       })
     );
-    console.warn(`🚫 Payment rejected! Error is: ${e}`);
     return false;
   } finally {
     if (subId) {
       await executeOperation(db => db.deleteProcessingSubscription(subId));
-      console.log(
-        `💂 Lock is freed. Subscription with id ${subId} is removed from processing list.`
-      );
     }
   }
 }
 
 export async function handleRecurringPaymentRequest(
-  request: RecurringPaymentRequest,
-  executeOperation: <T>(operation: (db: DatabaseService) => Promise<T>, fallback?: T) => Promise<T>,
-  resolve: (status: RecurringPaymentResponseContent) => void
+  _request: RecurringPaymentRequest,
+  _executeOperation: <T>(
+    operation: (db: DatabaseService) => Promise<T>,
+    fallback?: T
+  ) => Promise<T>,
+  _resolve: (status: RecurringPaymentResponseContent) => void
 ): Promise<boolean> {
   return true;
 }
@@ -547,17 +512,12 @@ export async function handleCloseRecurringPaymentResponse(
       db => db.updateSubscriptionStatus(response.content.subscriptionId, 'cancelled'),
       null
     );
-
-    // Refresh UI to reflect the subscription status change
-    console.log('Refreshing subscriptions UI after subscription closure');
     // Use the global event emitter to notify ActivitiesProvider
     globalEvents.emit('subscriptionStatusChanged', {
       subscriptionId: response.content.subscriptionId,
       status: 'cancelled',
     });
-  } catch (error) {
-    console.error('Error setting closed recurring payment', error);
-  }
+  } catch (_error) {}
 
   resolve();
   return false;
@@ -569,11 +529,9 @@ export async function handleNostrConnectRequest(
   executeOperation: <T>(operation: (db: DatabaseService) => Promise<T>, fallback?: T) => Promise<T>,
   resolve: (status: NostrConnectResponseStatus) => void
 ): Promise<boolean> {
-  console.log(event);
-  if (event.method == NostrConnectMethod.Connect) {
+  if (event.method === NostrConnectMethod.Connect) {
     const eventSignerPubkey = event.params.at(0);
     if (!eventSignerPubkey) {
-      console.log('Automatically declining request. No params');
       resolve(
         new NostrConnectResponseStatus.Declined({
           reason: 'No params',
@@ -583,9 +541,6 @@ export async function handleNostrConnectRequest(
     }
 
     if (eventSignerPubkey !== signerPubkey) {
-      console.log(
-        'Automatically declining request. Connect request contains a pubkey different from this signer'
-      );
       resolve(
         new NostrConnectResponseStatus.Declined({
           reason: 'Connect request contains a pubkey different from this signer',
@@ -596,7 +551,6 @@ export async function handleNostrConnectRequest(
 
     const secret = event.params.at(1);
     if (!secret) {
-      console.log('Automatically declining request. Secret param is undefined');
       resolve(
         new NostrConnectResponseStatus.Declined({
           reason: 'Secret param is undefined',
@@ -608,7 +562,6 @@ export async function handleNostrConnectRequest(
     const isSecretInvalid: boolean = secretRecord?.used ?? true;
 
     if (isSecretInvalid) {
-      console.log('Automatically declining request. Secret param is invalid');
       resolve(
         new NostrConnectResponseStatus.Declined({
           reason: 'Secret param is invalid',
@@ -627,9 +580,6 @@ export async function handleNostrConnectRequest(
     const nostrClient = await executeOperation(db => db.getBunkerClientOrNull(hexPubkey));
     // check that the key is abilitated and not revoked
     if (!nostrClient || nostrClient.revoked) {
-      console.log(
-        'Automatically declining request. Nostr client is not whitelisted or is revoked.'
-      );
       resolve(
         new NostrConnectResponseStatus.Declined({
           reason: 'Nostr client is not whitelisted or is revoked.',
@@ -650,7 +600,6 @@ export async function handleNostrConnectRequest(
 
     // rejecting if there's none
     if (eventSpecificPermissions.length === 0) {
-      console.log(`Automatically declining request. '${methodString}' permission not granted.`);
       resolve(
         new NostrConnectResponseStatus.Declined({
           reason: `'${methodString}' permission not granted`,
@@ -661,18 +610,15 @@ export async function handleNostrConnectRequest(
 
     // given that this method has a permission granted continue with specific logic for sign_event
     // sign_event is special because we also need to check that we can sign that specific event kind
-    if (event.method == NostrConnectMethod.SignEvent) {
+    if (event.method === NostrConnectMethod.SignEvent) {
       // Check if permission is exactly "sign_event" (allows all kinds) or has specific kinds like "sign_event:1"
       const isUnrestricted =
         eventSpecificPermissions.length === 1 && eventSpecificPermissions[0] === methodString;
       if (!isUnrestricted) {
         // grabbing the event to sign and checking if exists
         const serializedEventToSign = event.params.at(0);
-        console.log('Permission to sign event is granted. The event is:');
-        console.log(serializedEventToSign);
 
         if (!serializedEventToSign) {
-          console.log('Automatically declining request. No event to sign in the parameters.');
           resolve(
             new NostrConnectResponseStatus.Declined({
               reason: 'No event to sign in the parameters.',
@@ -685,7 +631,6 @@ export async function handleNostrConnectRequest(
         const eventToSignObj = JSON.parse(serializedEventToSign);
         const eventToSignKind = eventToSignObj.kind;
         if (!eventToSignKind) {
-          console.log('Automatically declining request. Event to sign has no kind');
           resolve(
             new NostrConnectResponseStatus.Declined({
               reason: 'No event to sign in the parameters. Event to sign has no kind',
@@ -699,9 +644,6 @@ export async function handleNostrConnectRequest(
 
         const eventToSignKindStr = String(eventToSignKind);
         if (!allowedKinds.includes(eventToSignKindStr)) {
-          console.log(
-            `Automatically declining request. Event kind ${eventToSignKind} is not in allowed kinds: ${allowedKinds.join(', ')}`
-          );
           resolve(
             new NostrConnectResponseStatus.Declined({
               reason: `Event kind ${eventToSignKind} is not permitted. Allowed kinds: ${allowedKinds.join(', ')}`,
@@ -729,11 +671,8 @@ export async function handleNostrConnectRequest(
         status: 'positive',
       });
     }, null);
-    // Nostr client is whitelisted, automatically approving the request.
-    console.log(`Approving the request for method: ${event.method}`);
     resolve(new NostrConnectResponseStatus.Approved());
-  } catch (e) {
-    console.error(`Error while checking client permissions: ${e}`);
+  } catch (_e) {
     resolve(
       new NostrConnectResponseStatus.Declined({
         reason: 'Error while checking client permissions',

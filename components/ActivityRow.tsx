@@ -4,16 +4,10 @@ import type React from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useCurrency } from '@/context/CurrencyContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 import type { ActivityWithDates } from '@/services/DatabaseService';
 import { getActivityStatus, getStatusColor } from '@/utils/activityHelpers';
 import { ActivityType, formatRelativeTime } from '@/utils/common';
-import {
-  Currency,
-  CurrencyHelpers,
-  formatActivityAmount,
-  shouldShowConvertedAmount,
-} from '@/utils/currency';
+import { formatActivityAmount, shouldShowConvertedAmount } from '@/utils/currency';
 import { ThemedText } from './ThemedText';
 
 interface ActivityRowProps {
@@ -25,7 +19,7 @@ export const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
     router.push(`/activity/${activity.id}`);
   };
 
-  const { preferredCurrency } = useCurrency();
+  const { preferredCurrency: _preferredCurrency } = useCurrency();
 
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');
   const iconBackgroundColor = useThemeColor({}, 'surfaceSecondary');

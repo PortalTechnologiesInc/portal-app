@@ -1,5 +1,5 @@
 import { Redirect } from 'expo-router';
-import { ActivityIndicator, AppState, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { Colors } from '@/constants/Colors';
 import { useOnboarding } from '@/context/OnboardingContext';
 

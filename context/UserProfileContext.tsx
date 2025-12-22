@@ -2,7 +2,7 @@ import * as FileSystem from 'expo-file-system';
 import * as SecureStore from 'expo-secure-store';
 import { keyToHex } from 'portal-app-lib';
 import type React from 'react';
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 import { generateRandomGamertag } from '@/utils/common';
 import type { ProfileSyncStatus } from '@/utils/types';
@@ -169,6 +169,281 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   }, [syncStatus]);
 
+  const setUsername = useCallback(async (newUsername: string) => {
+    try {
+      await SecureStore.setItemAsync(USERNAME_KEY, newUsername);
+      setUsernameState(newUsername);
+      // Note: We no longer call registerNip05 here
+      // Profile setting is now handled by setProfile method
+    } catch (_e) {}
+  }, []);
+
+  const setDisplayName = useCallback(async (newDisplayName: string) => {
+    try {
+      if (newDisplayName === '') {
+        // If display name is empty, remove it from storage
+        await SecureStore.deleteItemAsync(DISPLAY_NAME_KEY);
+      } else {
+        // Store non-empty display name
+        await SecureStore.setItemAsync(DISPLAY_NAME_KEY, newDisplayName);
+      }
+      setDisplayNameState(newDisplayName);
+    } catch (_e) {}
+  }, []);
+
+  const fetchProfile = useCallback(
+    async (
+      publicKey: string
+    ): Promise<{ found: boolean; username?: string; displayName?: string; avatarUri?: string }> => {
+      if (!publicKey || syncStatus === 'syncing') {
+        return { found: false };
+      }
+
+      // Check if NostrService is ready
+      if (!nostrService.isInitialized) {
+        setSyncStatus('failed');
+        return { found: false };
+      }
+
+      setSyncStatus('syncing');
+
+      try {
+        const { found, avatarUri, displayName, username } =
+          await nostrService.fetchProfile(publicKey);
+
+        if (found) {
+          // Save the fetched data to local storage
+          if (username) {
+            await setUsername(username);
+          }
+
+          // Always set display name, even if empty (user might have intentionally cleared it)
+          await setDisplayName(displayName ?? '');
+
+          // Always update avatar to match network profile (even if null/empty)
+          setAvatarUriState(avatarUri ?? '');
+
+          // Force avatar refresh to bust cache
+          setAvatarRefreshKey(Date.now());
+
+          if (avatarUri) {
+            // Cache the avatar URL in SecureStore
+            await SecureStore.setItemAsync(AVATAR_URI_KEY, avatarUri);
+          } else {
+            // No avatar in profile - clear cached avatar
+            await SecureStore.deleteItemAsync(AVATAR_URI_KEY);
+          }
+
+          // Update network state to reflect what was fetched
+          setNetworkUsername(username ?? '');
+          setNetworkDisplayName(displayName ?? '');
+          setNetworkAvatarUri(avatarUri || null);
+
+          setSyncStatus('completed');
+
+          // Return the fetched data directly
+          return {
+            found: true,
+            username: username || undefined,
+            displayName: displayName || undefined,
+            avatarUri: avatarUri || undefined,
+          };
+        } else {
+          setSyncStatus('completed');
+          return { found: false }; // No profile found
+        }
+      } catch (error) {
+        // Handle specific connection errors more gracefully
+        const errorMessage = error instanceof Error ? error.message : String(error);
+
+        if (
+          errorMessage.includes('ListenerDisconnected') ||
+          errorMessage.includes('AppError.ListenerDisconnected')
+        ) {
+          setSyncStatus('failed');
+          return { found: false };
+        }
+        setSyncStatus('failed');
+        return { found: false };
+      }
+    },
+    [syncStatus, nostrService, setUsername, setDisplayName]
+  );
+
+  const setProfile = useCallback(
+    async (newUsername: string, newDisplayName?: string, newAvatarUri?: string | null) => {
+      try {
+        if (!nostrService.publicKey) {
+          throw new Error('Public key not initialized');
+        }
+
+        // Validate and normalize username
+        const normalizedUsername = newUsername.trim().toLowerCase();
+
+        // Check for invalid characters
+        if (normalizedUsername.includes(' ')) {
+          throw new Error('Username cannot contain spaces');
+        }
+
+        // Additional validation for username format (optional - portal.cc specific rules)
+        if (normalizedUsername && !/^[a-z0-9._-]+$/.test(normalizedUsername)) {
+          throw new Error(
+            'Username can only contain lowercase letters, numbers, dots, underscores, and hyphens'
+          );
+        }
+
+        setSyncStatus('syncing');
+
+        // Determine what has actually changed (compare against network state, not local state)
+        const usernameChanged = normalizedUsername !== networkUsername;
+        const displayNameChanged = newDisplayName !== networkDisplayName;
+        const avatarChanged = newAvatarUri !== networkAvatarUri;
+
+        if (!usernameChanged && !displayNameChanged && !avatarChanged) {
+          setSyncStatus('completed');
+          return;
+        }
+
+        // Step 1: Handle username changes (submitNip05)
+        let nip05Error: string | null = null;
+        let actualUsernameToUse = networkUsername; // Default to current network username
+
+        if (usernameChanged) {
+          try {
+            await nostrService.submitNip05(normalizedUsername);
+            actualUsernameToUse = normalizedUsername; // Use new username if successful
+          } catch (error: any) {
+            // Store the error but don't throw - continue with other updates
+            let errorMessage = '';
+
+            // Extract error from portal app response
+            if (error.inner && Array.isArray(error.inner) && error.inner.length > 0) {
+              errorMessage = error.inner[0];
+            }
+
+            if (errorMessage.includes('409')) {
+              nip05Error = `Username "${normalizedUsername}" is already taken. Please choose a different name.`;
+            } else {
+              nip05Error = `Registration service offline. Please try again later.`;
+            }
+
+            // Keep actualUsernameToUse as networkUsername (previous valid username)
+          }
+        }
+
+        // Step 2: Handle avatar changes (submitImage)
+        let imageUrl = '';
+        if (avatarChanged && newAvatarUri) {
+          let cleanBase64 = '';
+
+          // Check if the avatar is already base64 (from network fetch)
+          if (isBase64String(newAvatarUri)) {
+            cleanBase64 = newAvatarUri;
+          } else {
+            // Validate the image file
+            const validation = await validateImage(newAvatarUri);
+            if (!validation.isValid) {
+              throw new Error(validation.error || 'Invalid image');
+            }
+
+            // Read image as base64
+            try {
+              cleanBase64 = await FileSystem.readAsStringAsync(newAvatarUri, {
+                encoding: FileSystem.EncodingType.Base64,
+              });
+            } catch (_error) {
+              throw new Error('Failed to process image file');
+            }
+          }
+
+          // Remove data URL prefix if present (submitImage expects clean base64)
+          if (cleanBase64.startsWith('data:image/')) {
+            const commaIndex = cleanBase64.indexOf(',');
+            if (commaIndex !== -1) {
+              cleanBase64 = cleanBase64.substring(commaIndex + 1);
+            }
+          }
+
+          try {
+            await nostrService.submitImage(cleanBase64);
+
+            // Generate portal image URL using hex pubkey
+            const hexPubkey = keyToHex(nostrService.publicKey);
+            imageUrl = `https://profile.getportal.cc/${hexPubkey}`;
+          } catch (error: any) {
+            // Extract error from portal app response
+            let errorMessage = '';
+            if (error.inner && Array.isArray(error.inner) && error.inner.length > 0) {
+              errorMessage = error.inner[0];
+            } else {
+              errorMessage = error instanceof Error ? error.message : String(error);
+            }
+
+            throw new Error(`Failed to upload image: ${errorMessage}`);
+          }
+        } else if (!avatarChanged && networkAvatarUri) {
+          // Keep existing image URL if avatar didn't change
+          if (networkAvatarUri.startsWith('https://profile.getportal.cc/')) {
+            imageUrl = networkAvatarUri;
+          }
+        }
+
+        // Step 3: Set complete profile (setUserProfile)
+
+        const profileUpdate = {
+          nip05: `${actualUsernameToUse}@getportal.cc`,
+          name: actualUsernameToUse,
+          displayName: newDisplayName !== undefined ? newDisplayName : actualUsernameToUse,
+          picture: imageUrl, // Use the portal image URL or empty string
+        };
+
+        await nostrService.setUserProfile(profileUpdate);
+
+        // Update local state - use the actual username that worked
+        await setUsername(actualUsernameToUse);
+        await setDisplayName(newDisplayName !== undefined ? newDisplayName : actualUsernameToUse);
+        if (avatarChanged) {
+          // Store the portal image URL, not the local file URI
+          setAvatarUriState(imageUrl || null);
+
+          // Force avatar refresh to bust cache when avatar changes
+          setAvatarRefreshKey(Date.now());
+
+          // Cache the image URL in SecureStore after successful upload
+          if (imageUrl) {
+            await SecureStore.setItemAsync(AVATAR_URI_KEY, imageUrl);
+          } else {
+            await SecureStore.deleteItemAsync(AVATAR_URI_KEY);
+          }
+        }
+
+        // Update network state to reflect what was actually saved
+        setNetworkUsername(actualUsernameToUse);
+        setNetworkDisplayName(newDisplayName !== undefined ? newDisplayName : actualUsernameToUse);
+        setNetworkAvatarUri(imageUrl || null);
+
+        if (nip05Error) {
+          // Profile was partially updated but NIP05 failed
+          setSyncStatus('completed'); // Still mark as completed so user can edit again
+          throw new Error(nip05Error); // Throw the NIP05 error to show to user
+        } else {
+          setSyncStatus('completed');
+        }
+      } catch (error) {
+        setSyncStatus('failed');
+        throw error;
+      }
+    },
+    [
+      nostrService,
+      networkUsername,
+      networkDisplayName,
+      networkAvatarUri,
+      setUsername,
+      setDisplayName,
+    ]
+  );
+
   // Auto-fetch profile on app load when NostrService is ready
   useEffect(() => {
     const autoFetchProfile = async () => {
@@ -220,111 +495,14 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
 
     autoFetchProfile();
-  }, [nostrService.isInitialized, nostrService.publicKey, syncStatus]);
-
-  const fetchProfile = async (
-    publicKey: string
-  ): Promise<{ found: boolean; username?: string; displayName?: string; avatarUri?: string }> => {
-    if (!publicKey || syncStatus === 'syncing') {
-      return { found: false };
-    }
-
-    // Check if NostrService is ready
-    if (!nostrService.isInitialized) {
-      setSyncStatus('failed');
-      return { found: false };
-    }
-
-    setSyncStatus('syncing');
-
-    try {
-      const { found, avatarUri, displayName, username } =
-        await nostrService.fetchProfile(publicKey);
-
-      if (found) {
-        // Save the fetched data to local storage
-        if (username) {
-          await setUsername(username);
-        }
-
-        // Always set display name, even if empty (user might have intentionally cleared it)
-        await setDisplayName(displayName ?? '');
-
-        // Always update avatar to match network profile (even if null/empty)
-        setAvatarUriState(avatarUri ?? '');
-
-        // Force avatar refresh to bust cache
-        setAvatarRefreshKey(Date.now());
-
-        if (avatarUri) {
-          // Cache the avatar URL in SecureStore
-          await SecureStore.setItemAsync(AVATAR_URI_KEY, avatarUri);
-        } else {
-          // No avatar in profile - clear cached avatar
-          await SecureStore.deleteItemAsync(AVATAR_URI_KEY);
-        }
-
-        // Update network state to reflect what was fetched
-        setNetworkUsername(username ?? '');
-        setNetworkDisplayName(displayName ?? '');
-        setNetworkAvatarUri(avatarUri || null);
-
-        setSyncStatus('completed');
-
-        // Return the fetched data directly
-        return {
-          found: true,
-          username: username || undefined,
-          displayName: displayName || undefined,
-          avatarUri: avatarUri || undefined,
-        };
-      } else {
-        setSyncStatus('completed');
-        return { found: false }; // No profile found
-      }
-    } catch (error) {
-      // Handle specific connection errors more gracefully
-      const errorMessage = error instanceof Error ? error.message : String(error);
-
-      if (
-        errorMessage.includes('ListenerDisconnected') ||
-        errorMessage.includes('AppError.ListenerDisconnected')
-      ) {
-        setSyncStatus('failed');
-        return { found: false };
-      }
-
-      console.error('Failed to fetch profile:', error);
-      setSyncStatus('failed');
-      return { found: false };
-    }
-  };
-
-  const setUsername = async (newUsername: string) => {
-    try {
-      await SecureStore.setItemAsync(USERNAME_KEY, newUsername);
-      setUsernameState(newUsername);
-      // Note: We no longer call registerNip05 here
-      // Profile setting is now handled by setProfile method
-    } catch (e) {
-      console.error('Failed to save username:', e);
-    }
-  };
-
-  const setDisplayName = async (newDisplayName: string) => {
-    try {
-      if (newDisplayName === '') {
-        // If display name is empty, remove it from storage
-        await SecureStore.deleteItemAsync(DISPLAY_NAME_KEY);
-      } else {
-        // Store non-empty display name
-        await SecureStore.setItemAsync(DISPLAY_NAME_KEY, newDisplayName);
-      }
-      setDisplayNameState(newDisplayName);
-    } catch (e) {
-      console.error('Failed to save display name:', e);
-    }
-  };
+  }, [
+    nostrService.isInitialized,
+    nostrService.publicKey,
+    syncStatus,
+    fetchProfile,
+    setProfile,
+    setUsername,
+  ]);
 
   const setAvatarUri = async (uri: string | null) => {
     try {
@@ -343,181 +521,6 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
     } catch (e) {
       console.error('Failed to set avatar URI:', e);
       throw e; // Re-throw so the UI can handle the error
-    }
-  };
-
-  const setProfile = async (
-    newUsername: string,
-    newDisplayName?: string,
-    newAvatarUri?: string | null
-  ) => {
-    try {
-      if (!nostrService.publicKey) {
-        throw new Error('Public key not initialized');
-      }
-
-      // Validate and normalize username
-      const normalizedUsername = newUsername.trim().toLowerCase();
-
-      // Check for invalid characters
-      if (normalizedUsername.includes(' ')) {
-        throw new Error('Username cannot contain spaces');
-      }
-
-      // Additional validation for username format (optional - portal.cc specific rules)
-      if (normalizedUsername && !/^[a-z0-9._-]+$/.test(normalizedUsername)) {
-        throw new Error(
-          'Username can only contain lowercase letters, numbers, dots, underscores, and hyphens'
-        );
-      }
-
-      setSyncStatus('syncing');
-
-      // Determine what has actually changed (compare against network state, not local state)
-      const usernameChanged = normalizedUsername !== networkUsername;
-      const displayNameChanged = newDisplayName !== networkDisplayName;
-      const avatarChanged = newAvatarUri !== networkAvatarUri;
-
-      if (!usernameChanged && !displayNameChanged && !avatarChanged) {
-        setSyncStatus('completed');
-        return;
-      }
-
-      // Step 1: Handle username changes (submitNip05)
-      let nip05Error: string | null = null;
-      let actualUsernameToUse = networkUsername; // Default to current network username
-
-      if (usernameChanged) {
-        try {
-          await nostrService.submitNip05(normalizedUsername);
-          actualUsernameToUse = normalizedUsername; // Use new username if successful
-        } catch (error: any) {
-          console.error('NIP05 registration failed');
-
-          // Store the error but don't throw - continue with other updates
-          let errorMessage = '';
-
-          // Extract error from portal app response
-          if (error.inner && Array.isArray(error.inner) && error.inner.length > 0) {
-            errorMessage = error.inner[0];
-          }
-
-          if (errorMessage.includes('409')) {
-            nip05Error = `Username "${normalizedUsername}" is already taken. Please choose a different name.`;
-          } else {
-            nip05Error = `Registration service offline. Please try again later.`;
-          }
-
-          // Keep actualUsernameToUse as networkUsername (previous valid username)
-        }
-      }
-
-      // Step 2: Handle avatar changes (submitImage)
-      let imageUrl = '';
-      if (avatarChanged && newAvatarUri) {
-        let cleanBase64 = '';
-
-        // Check if the avatar is already base64 (from network fetch)
-        if (isBase64String(newAvatarUri)) {
-          cleanBase64 = newAvatarUri;
-        } else {
-          // Validate the image file
-          const validation = await validateImage(newAvatarUri);
-          if (!validation.isValid) {
-            console.error('Image validation failed:', validation.error);
-            throw new Error(validation.error || 'Invalid image');
-          }
-
-          // Read image as base64
-          try {
-            cleanBase64 = await FileSystem.readAsStringAsync(newAvatarUri, {
-              encoding: FileSystem.EncodingType.Base64,
-            });
-          } catch (error) {
-            console.error('Failed to read image as base64:', error);
-            throw new Error('Failed to process image file');
-          }
-        }
-
-        // Remove data URL prefix if present (submitImage expects clean base64)
-        if (cleanBase64.startsWith('data:image/')) {
-          const commaIndex = cleanBase64.indexOf(',');
-          if (commaIndex !== -1) {
-            cleanBase64 = cleanBase64.substring(commaIndex + 1);
-          }
-        }
-
-        try {
-          await nostrService.submitImage(cleanBase64);
-
-          // Generate portal image URL using hex pubkey
-          const hexPubkey = keyToHex(nostrService.publicKey);
-          imageUrl = `https://profile.getportal.cc/${hexPubkey}`;
-        } catch (error: any) {
-          console.error('Image upload failed');
-
-          // Extract error from portal app response
-          let errorMessage = '';
-          if (error.inner && Array.isArray(error.inner) && error.inner.length > 0) {
-            errorMessage = error.inner[0];
-          } else {
-            errorMessage = error instanceof Error ? error.message : String(error);
-          }
-
-          throw new Error(`Failed to upload image: ${errorMessage}`);
-        }
-      } else if (!avatarChanged && networkAvatarUri) {
-        // Keep existing image URL if avatar didn't change
-        if (networkAvatarUri.startsWith('https://profile.getportal.cc/')) {
-          imageUrl = networkAvatarUri;
-        }
-      }
-
-      // Step 3: Set complete profile (setUserProfile)
-
-      const profileUpdate = {
-        nip05: `${actualUsernameToUse}@getportal.cc`,
-        name: actualUsernameToUse,
-        displayName: newDisplayName !== undefined ? newDisplayName : actualUsernameToUse,
-        picture: imageUrl, // Use the portal image URL or empty string
-      };
-
-      await nostrService.setUserProfile(profileUpdate);
-
-      // Update local state - use the actual username that worked
-      await setUsername(actualUsernameToUse);
-      await setDisplayName(newDisplayName !== undefined ? newDisplayName : actualUsernameToUse);
-      if (avatarChanged) {
-        // Store the portal image URL, not the local file URI
-        setAvatarUriState(imageUrl || null);
-
-        // Force avatar refresh to bust cache when avatar changes
-        setAvatarRefreshKey(Date.now());
-
-        // Cache the image URL in SecureStore after successful upload
-        if (imageUrl) {
-          await SecureStore.setItemAsync(AVATAR_URI_KEY, imageUrl);
-        } else {
-          await SecureStore.deleteItemAsync(AVATAR_URI_KEY);
-        }
-      }
-
-      // Update network state to reflect what was actually saved
-      setNetworkUsername(actualUsernameToUse);
-      setNetworkDisplayName(newDisplayName !== undefined ? newDisplayName : actualUsernameToUse);
-      setNetworkAvatarUri(imageUrl || null);
-
-      if (nip05Error) {
-        // Profile was partially updated but NIP05 failed
-        setSyncStatus('completed'); // Still mark as completed so user can edit again
-        throw new Error(nip05Error); // Throw the NIP05 error to show to user
-      } else {
-        setSyncStatus('completed');
-      }
-    } catch (error) {
-      setSyncStatus('failed');
-      console.error('Profile update failed:', error);
-      throw error;
     }
   };
 

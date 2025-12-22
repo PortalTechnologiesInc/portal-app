@@ -14,7 +14,6 @@ export const getActivityStatus = (activity: ActivityWithDates): ActivityStatus =
       return 'failed';
     case 'pending':
       return 'pending';
-    case 'neutral':
     default:
       // For ticket activities, determine status based on type
       if (activity.type === 'ticket_received') {

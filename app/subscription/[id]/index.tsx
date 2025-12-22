@@ -2,7 +2,7 @@ import { FontAwesome6 } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { CircleX, Hourglass } from 'lucide-react-native';
 import { parseCalendar } from 'portal-app-lib';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -77,9 +77,7 @@ export default function SubscriptionDetailScreen() {
               date: payment.date.getTime(),
             }))
           );
-        } catch (error) {
-          console.error('Error fetching subscription payments:', error);
-        }
+        } catch (_error) {}
       }
 
       setLoading(false);
@@ -116,9 +114,7 @@ export default function SubscriptionDetailScreen() {
                 subscription.service_key,
                 subscription.id
               );
-            } catch (error) {
-              console.error(error);
-            }
+            } catch (_error) {}
             // In a real app, this would call an API to cancel the subscription
             Alert.alert(
               'Subscription Cancelled',
@@ -278,7 +274,7 @@ export default function SubscriptionDetailScreen() {
             </View>
           </View>
 
-          {subscription.status != 'cancelled' && (
+          {subscription.status !== 'cancelled' && (
             <TouchableOpacity
               style={[styles.stopButton, { backgroundColor: buttonDangerColor }]}
               onPress={handleStopSubscription}

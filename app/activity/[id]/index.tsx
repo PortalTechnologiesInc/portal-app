@@ -13,7 +13,7 @@ import {
   Shield,
   Ticket,
 } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ActivityDetailRow } from '@/components/ActivityDetail/ActivityDetailRow';
@@ -76,7 +76,7 @@ function getSuccessStatusText(isAuth: boolean, isTicket: boolean, activityType: 
 function getFailedStatusText(
   isAuth: boolean,
   isTicket: boolean,
-  detail: string,
+  _detail: string,
   isDenied: boolean
 ): string {
   if (isDenied) {
@@ -105,7 +105,7 @@ export default function ActivityDetailScreen() {
   const [error, setError] = useState<string | null>(null);
   const [paymentSteps, setPaymentSteps] = useState<PaymentStep[]>([]);
   const { executeOperation } = useDatabaseContext();
-  const { activities } = useActivities();
+  const { activities: _activities } = useActivities();
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -143,19 +143,16 @@ export default function ActivityDetailScreen() {
                 db => db.getPaymentStatusEntries(activityData.invoice!),
                 []
               );
-              console.log('paymentStatusEntries', paymentStatusEntries);
               const steps = convertPaymentStatusToSteps(paymentStatusEntries);
               setPaymentSteps(steps);
-            } catch (err) {
-              console.error('Error fetching payment status entries:', err);
+            } catch (_err) {
               setPaymentSteps([]);
             }
           }
         } else {
           setError('Activity not found');
         }
-      } catch (err) {
-        console.error('Error fetching activity:', err);
+      } catch (_err) {
         setError('Failed to load activity');
       } finally {
         setLoading(false);
@@ -165,7 +162,7 @@ export default function ActivityDetailScreen() {
     if (id) {
       fetchActivity();
     }
-  }, [id, executeOperation, activities]);
+  }, [id, executeOperation]);
 
   const handleBackPress = () => {
     router.back();

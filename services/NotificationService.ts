@@ -23,7 +23,7 @@ import {
   type RelayStatusListener,
   type SinglePaymentRequest,
 } from 'portal-app-lib';
-import { AppState, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import {
   LocalAuthChallengeListener,
   LocalClosedRecurringPaymentListener,
@@ -50,13 +50,12 @@ const EXPO_PUSH_TOKEN_KEY = 'expo_push_token_key';
 
 async function subscribeToNotificationService(expoPushToken: string, pubkeys: string[]) {
   const lastExpoPushNotificationToken = await SecureStore.getItemAsync(EXPO_PUSH_TOKEN_KEY);
-  if (expoPushToken == lastExpoPushNotificationToken) {
+  if (expoPushToken === lastExpoPushNotificationToken) {
     return;
   }
 
   // right now the api accept only one pubkey, in the future it should accept a list of pubkeys
   try {
-    // eslint-disable-next-line no-undef
     await fetch('https://notifications.getportal.cc/', {
       method: 'POST',
       headers: {
@@ -67,21 +66,13 @@ async function subscribeToNotificationService(expoPushToken: string, pubkeys: st
         expo_push_token: expoPushToken,
       }),
     });
-  } catch (e) {
-    console.error('Failed to send push token to server', e);
+  } catch (_e) {
     return;
   }
   try {
     await SecureStore.deleteItemAsync(EXPO_PUSH_TOKEN_KEY);
     await SecureStore.setItemAsync(EXPO_PUSH_TOKEN_KEY, expoPushToken);
-    console.log('new expoPushToken setted: ', expoPushToken);
-  } catch (e) {
-    // Silent fail - this is not critical
-    console.error(
-      'Failed to update the new expoPushToken in the app storage. The subscription to the notification service will be triggered again in the next app startup. The error is:',
-      e
-    );
-  }
+  } catch (_e) {}
 }
 
 Notifications.setNotificationHandler({
@@ -112,9 +103,7 @@ Notifications.setNotificationHandler({
   },
 });
 
-function handleRegistrationError(errorMessage: string) {
-  console.error(errorMessage);
-}
+function handleRegistrationError(_errorMessage: string) {}
 
 /**
  * Formats the expected amount from a payment request for display in notifications
@@ -163,18 +152,11 @@ async function getServiceNameForNotification(
         await executeOperation(db => db.setCachedServiceName(serviceKey, serviceName), null);
         return serviceName;
       }
-    } catch (fetchError) {
-      // Network fetch failed, continue to fallback
-      console.error(
-        'Failed to fetch service name from network for auto-reject notification:',
-        fetchError
-      );
-    }
+    } catch (_fetchError) {}
 
     // Step 3: Fallback to default
     return 'Unknown Service';
-  } catch (error) {
-    console.error('Failed to resolve service name for auto-reject notification:', error);
+  } catch (_error) {
     return 'Unknown Service';
   }
 }
@@ -200,12 +182,7 @@ export async function sendPaymentAmountMismatchNotification(
     let serviceName = 'Unknown Service';
     try {
       serviceName = await getServiceNameForNotification(request.serviceKey, app, executeOperation);
-    } catch (error) {
-      console.error(
-        'Failed to resolve service name for payment amount mismatch notification:',
-        error
-      );
-    }
+    } catch (_error) {}
 
     const body = formattedAmount
       ? `${serviceName} requested more than the expected amount (${formattedAmount.amount} ${formattedAmount.currency}). The request was automatically rejected.`
@@ -230,9 +207,7 @@ export async function sendPaymentAmountMismatchNotification(
       },
       trigger: null,
     });
-  } catch (error) {
-    console.error('Failed to send auto-reject notification for payment amount mismatch:', error);
-  }
+  } catch (_error) {}
 }
 
 export default async function registerPubkeysForPushNotificationsAsync(pubkeys: string[]) {
@@ -269,16 +244,13 @@ export default async function registerPubkeysForPushNotificationsAsync(pubkeys: 
       ).data;
       subscribeToNotificationService(pushTokenString, pubkeys);
     } catch (e: unknown) {
-      console.error('Error while subscribing for notifications: ', e);
       handleRegistrationError(`${e}`);
     }
   } else {
-    // Silently skip push notification registration on emulator/simulator
-    console.log('Skipping push notification registration (emulator/simulator detected)');
   }
 }
 
-export async function handleHeadlessNotification(event: string, databaseName: string) {
+export async function handleHeadlessNotification(_event: string, databaseName: string) {
   try {
     const abortController = new AbortController();
     const mnemonic = await getMnemonic();
@@ -343,25 +315,15 @@ export async function handleHeadlessNotification(event: string, databaseName: st
     try {
       const walletUrl = (await getWalletUrl()).trim();
       if (walletUrl) {
-        const nwcRelayListener: RelayStatusListener = {
-          onRelayStatusChange: async (relay_url: string, status: number): Promise<void> => {
-            const statusString = mapNumericStatusToString(status);
-            console.log(
-              '💰 [NWC STATUS UPDATE] Relay:',
-              relay_url,
-              '→',
-              statusString,
-              `(${status})`
-            );
+        const _nwcRelayListener: RelayStatusListener = {
+          onRelayStatusChange: async (_relay_url: string, status: number): Promise<void> => {
+            const _statusString = mapNumericStatusToString(status);
           },
         };
 
         nwcWallet = await NwcService.create(walletUrl);
         // const walletInstance = new Nwc(walletUrl, nwcRelayListener);
       } else {
-        console.log(
-          'Skipping NWC initialization during headless notification: no wallet URL configured'
-        );
       }
     } catch (error) {
       await notifyBackgroundError('NWC initialization failed', error);
@@ -374,7 +336,6 @@ export async function handleHeadlessNotification(event: string, databaseName: st
     app
       .listenClosedRecurringPayment(
         new LocalClosedRecurringPaymentListener(async (response: CloseRecurringPaymentResponse) => {
-          console.log('Closed subscription received', response);
           const resolver = async () => {
             /* NOOP */
           };
@@ -403,8 +364,6 @@ export async function handleHeadlessNotification(event: string, databaseName: st
             if (alreadyTracked) {
               return;
             }
-
-            console.log(`Single payment request with id ${id} received`, request);
 
             const resolver = async (status: PaymentStatus) => {
               await notifier.notify({
@@ -438,12 +397,10 @@ export async function handleHeadlessNotification(event: string, databaseName: st
               false
             );
             if (alreadyTracked) {
-              return new Promise<RecurringPaymentResponseContent>(resolve => {
+              return new Promise<RecurringPaymentResponseContent>(_resolve => {
                 // Ignore
               });
             }
-
-            console.log(`Recurring payment request with id ${id} received`, request);
 
             return new Promise<RecurringPaymentResponseContent>(resolve => {
               handleRecurringPaymentRequest(request, executeOperationForNotification, resolve)
@@ -486,16 +443,14 @@ export async function handleHeadlessNotification(event: string, databaseName: st
             false
           );
           if (alreadyTracked) {
-            return new Promise<AuthResponseStatus>(resolve => {
+            return new Promise<AuthResponseStatus>(_resolve => {
               // Ignore
             });
           }
 
-          console.log(`Auth challenge with id ${id} received`, event);
-
           return new Promise<AuthResponseStatus>(resolve => {
             handleAuthChallenge(event, executeOperationForNotification, resolve)
-              .then(askUser => {
+              .then(_askUser => {
                 Notifications.scheduleNotificationAsync({
                   content: {
                     title: 'Authentication Request',
@@ -551,12 +506,8 @@ export async function handleHeadlessNotification(event: string, databaseName: st
           });
         })
       )
-      .catch(e => {
-        console.error('Error listening for nip46 requests.', e);
-      });
-  } catch (e) {
-    console.error(e);
-  }
+      .catch(_e => {});
+  } catch (_e) {}
 }
 class NotificationRelayStatusListener implements RelayStatusListener {
   db: DatabaseService;
@@ -596,17 +547,8 @@ class NotificationRelayStatusListener implements RelayStatusListener {
       const statusString = mapNumericStatusToString(status);
 
       if (!relays.map(r => r.ws_uri).includes(relay_url)) {
-        console.log(
-          '📡😒 [STATUS UPDATE IGNORED] Relay:',
-          relay_url,
-          '→',
-          statusString,
-          `(${status})`
-        );
         return;
       }
-
-      console.log('📡 [STATUS UPDATE] Relay:', relay_url, '→', statusString, `(${status})`);
 
       // Check if this relay has been marked as removed by user
       if (this.removedRelays.has(relay_url)) {
@@ -637,9 +579,7 @@ class NotificationRelayStatusListener implements RelayStatusListener {
           setTimeout(async () => {
             try {
               await PortalAppManager.tryGetInstance().reconnectRelay(relay_url);
-            } catch (error) {
-              console.error('❌ Auto-reconnect failed for relay:', relay_url, error);
-            }
+            } catch (_error) {}
           }, 2000);
         }
       }

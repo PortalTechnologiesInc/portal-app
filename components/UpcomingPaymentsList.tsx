@@ -9,12 +9,7 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 import { fromUnixSeconds } from '@/services/DatabaseService';
 import { formatRelativeTime } from '@/utils/common';
-import {
-  type Currency,
-  CurrencyHelpers,
-  formatActivityAmount,
-  shouldShowConvertedAmount,
-} from '@/utils/currency';
+import { type Currency, formatActivityAmount, shouldShowConvertedAmount } from '@/utils/currency';
 import type { UpcomingPayment } from '@/utils/types';
 import { ThemedText } from './ThemedText';
 

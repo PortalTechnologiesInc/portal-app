@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { LogLevel, parseKeyHandshakeUrl } from 'portal-app-lib';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Alert,
   ScrollView,
@@ -87,8 +87,7 @@ export default function DebugScreen() {
         setIsFingerprintSupported(fingerprintSupported);
 
         setIsInitialized(true);
-      } catch (error) {
-        console.error('Failed to load debug settings:', error);
+      } catch (_error) {
         setIsInitialized(true);
       }
     };
@@ -100,21 +99,13 @@ export default function DebugScreen() {
   // This debug screen is for future implementation
   useEffect(() => {
     if (!isInitialized) return;
-
-    // For now, just log the intended settings
-    console.log(
-      `Debug settings updated: enabled=${isLoggerEnabled}, level=${LogLevel[currentLogLevel]}`
-    );
-    console.log('ℹ️ Note: Logger control will be implemented in future versions');
-  }, [isLoggerEnabled, currentLogLevel, isInitialized]);
+  }, [isInitialized]);
 
   const handleLoggerToggle = async (enabled: boolean) => {
     setIsLoggerEnabled(enabled);
     try {
       await AsyncStorage.setItem(STORAGE_KEYS.LOGGER_ENABLED, JSON.stringify(enabled));
-    } catch (error) {
-      console.error('Failed to save logger enabled state:', error);
-    }
+    } catch (_error) {}
   };
 
   const handleLogLevelChange = async (value: any) => {
@@ -124,16 +115,11 @@ export default function DebugScreen() {
       setCurrentLogLevel(selectedValue as LogLevel);
       try {
         await AsyncStorage.setItem(STORAGE_KEYS.LOG_LEVEL, selectedValue.toString());
-      } catch (error) {
-        console.error('Failed to save log level:', error);
-      }
+      } catch (_error) {}
     }
   };
 
-  const handleClearLogs = () => {
-    console.clear();
-    console.log('🧹 Console cleared from Debug screen');
-  };
+  const handleClearLogs = () => {};
 
   const handleInvertFingerprintSupport = async () => {
     if (isFingerprintSupported === null) return;
@@ -142,9 +128,7 @@ export default function DebugScreen() {
       const newValue = !isFingerprintSupported;
       await AppLockService.setFingerprintSupported(newValue);
       setIsFingerprintSupported(newValue);
-      console.log(`Fingerprint support inverted to: ${newValue}`);
-    } catch (error) {
-      console.error('Failed to invert fingerprint support:', error);
+    } catch (_error) {
       Alert.alert('Error', 'Failed to invert fingerprint support value.');
     }
   };
@@ -160,7 +144,7 @@ export default function DebugScreen() {
     }
 
     const amount = Number.parseFloat(conversionAmount);
-    if (isNaN(amount) || amount <= 0) {
+    if (Number.isNaN(amount) || amount <= 0) {
       Alert.alert('Invalid Amount', 'Please enter a valid positive number.');
       return;
     }
@@ -169,17 +153,13 @@ export default function DebugScreen() {
     setConvertedAmount(null);
 
     try {
-      console.log(`Converting ${amount} ${sourceCurrency} to ${destinationCurrency}`);
       const result = await CurrencyConversionService.convertAmount(
         amount,
         sourceCurrency.trim(),
         destinationCurrency.trim()
       );
-
-      console.log(`Conversion result: ${result}`);
       setConvertedAmount(result);
-    } catch (error) {
-      console.error('Currency conversion failed:', error);
+    } catch (_error) {
       Alert.alert(
         'Conversion Failed',
         'Unable to convert currencies. Please check your inputs and try again.'
@@ -210,7 +190,7 @@ export default function DebugScreen() {
       // Main mode: validate that parseKeyHandshakeUrl can handle it
       try {
         parseKeyHandshakeUrl(data);
-      } catch (error) {
+      } catch (_error) {
         return {
           isValid: false,
           error: 'Invalid QR code. Please scan a valid Portal authentication QR code.',
@@ -226,8 +206,6 @@ export default function DebugScreen() {
       Alert.alert('Empty Input', 'Please enter a QR code payload to test.');
       return;
     }
-
-    console.log(`Processing QR code payload: ${qrCodeInput}`);
 
     // Validate the QR code first
     const validation = validateQRCode(qrCodeInput);
@@ -256,8 +234,7 @@ export default function DebugScreen() {
         showSkeletonLoader(parsedUrl);
         nostrService.sendKeyHandshake(parsedUrl);
         Alert.alert('Success', 'QR code processed successfully. Check for pending requests.');
-      } catch (error) {
-        console.error('Failed to process QR code:', error);
+      } catch (_error) {
         Alert.alert('Processing Error', 'Failed to process QR code. Please try again.');
         return;
       }

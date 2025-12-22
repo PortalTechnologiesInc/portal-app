@@ -13,8 +13,6 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
       return;
     }
 
-    console.log(`Migrating database from version ${currentDbVersion} to ${DATABASE_VERSION}`);
-
     if (currentDbVersion <= 0) {
       await db.execAsync(`
         PRAGMA journal_mode = 'wal';
@@ -375,8 +373,7 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
             GROUP BY request_id
           );
         `);
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      } catch (_error) {
+      } catch {
         // Best-effort cleanup; continue even if this fails
       }
 
@@ -445,7 +442,6 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
         CREATE INDEX IF NOT EXISTS idx_nip05_contacts_created_at ON nip05_contacts(created_at DESC);
       `);
       currentDbVersion = 20;
-      console.log('Created nip05_contacts table- now at version 20');
     }
 
     if (currentDbVersion <= 20) {
@@ -487,16 +483,8 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
         CREATE UNIQUE INDEX IF NOT EXISTS idx_activities_request_id_unique ON activities(request_id);
       `);
       currentDbVersion = 21;
-      console.log('Updated activities table to support receive type - now at version 21');
     }
 
     await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
-    console.log(`Database migration completed to version ${DATABASE_VERSION}`);
-  } catch (error) {
-    console.error('Database migration failed:', error);
-    // Even if migration fails, try to set as initialized to prevent blocking the app
-    console.warn(
-      'Setting database as initialized despite migration errors to prevent app blocking'
-    );
-  }
+  } catch (_error) {}
 }

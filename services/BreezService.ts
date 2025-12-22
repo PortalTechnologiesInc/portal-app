@@ -47,7 +47,7 @@ export class BreezService implements Wallet {
     config.apiKey = process.env.EXPO_PUBLIC_BREEZ_API_KEY;
     config.preferSparkOverLightning = false;
 
-    const dirUri = FileSystem.documentDirectory + 'breez-wallet';
+    const dirUri = `${FileSystem.documentDirectory}breez-wallet`;
     const storageDir = dirUri.replace('file://', '');
     await FileSystem.makeDirectoryAsync(dirUri, { intermediates: true });
 
@@ -93,38 +93,31 @@ export class BreezService implements Wallet {
     if (!this.client) {
       throw new Error('Breez SDK is not initialized');
     }
-    console.log('Sending payment:', { paymentRequest, amountSats });
-    try {
-      const prepareResponse = await this.client.prepareSendPayment({
-        amount: amountSats,
-        paymentRequest,
-        tokenIdentifier: undefined,
+    const prepareResponse = await this.client.prepareSendPayment({
+      amount: amountSats,
+      paymentRequest,
+      tokenIdentifier: undefined,
+    });
+    let sendOptions: SendPaymentOptions | undefined;
+
+    if (prepareResponse.paymentMethod instanceof SendPaymentMethod.Bolt11Invoice) {
+      sendOptions = new SendPaymentOptions.Bolt11Invoice({
+        preferSpark: false,
+        completionTimeoutSecs: 30,
       });
-      console.log('Prepare send payment response:', prepareResponse);
-      let sendOptions: SendPaymentOptions | undefined;
-
-      if (prepareResponse.paymentMethod instanceof SendPaymentMethod.Bolt11Invoice) {
-        sendOptions = new SendPaymentOptions.Bolt11Invoice({
-          preferSpark: false,
-          completionTimeoutSecs: 30,
-        });
-      } else if (prepareResponse.paymentMethod instanceof SendPaymentMethod.BitcoinAddress) {
-        sendOptions = new SendPaymentOptions.BitcoinAddress({
-          confirmationSpeed: OnchainConfirmationSpeed.Medium,
-        });
-      }
-
-      const response = await this.client.sendPayment({
-        prepareResponse,
-        options: sendOptions,
-        idempotencyKey: undefined,
+    } else if (prepareResponse.paymentMethod instanceof SendPaymentMethod.BitcoinAddress) {
+      sendOptions = new SendPaymentOptions.BitcoinAddress({
+        confirmationSpeed: OnchainConfirmationSpeed.Medium,
       });
-
-      return response.payment.id;
-    } catch (error) {
-      console.error('Error sending payment:', JSON.stringify(error));
-      throw error;
     }
+
+    const response = await this.client.sendPayment({
+      prepareResponse,
+      options: sendOptions,
+      idempotencyKey: undefined,
+    });
+
+    return response.payment.id;
   }
 
   async prepareSendPayment(

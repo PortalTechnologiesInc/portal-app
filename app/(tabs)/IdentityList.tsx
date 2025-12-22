@@ -1,7 +1,7 @@
 import { requestMediaLibraryPermissionsAsync } from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Edit, Pencil, User } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Alert,
   Image,
@@ -109,8 +109,7 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
           Alert.alert('Error', errorMessage);
         }
       }
-    } catch (error) {
-      console.error('Error selecting image:', error);
+    } catch (_error) {
       Alert.alert('Error', 'Failed to select image. Please try again.');
     }
   };
@@ -162,7 +161,6 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
       // Show success message
       showToast('Updated profile', 'success');
     } catch (error) {
-      console.error('Error saving profile:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to save profile';
       showToast(errorMessage, 'error');
 
@@ -180,13 +178,13 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
       if (nostrService.publicKey) {
         await fetchProfile(nostrService.publicKey);
       }
-    } catch (error) {
+    } catch (_error) {
       // Silently handle errors
     }
     setRefreshing(false);
   };
 
-  const renderItem = ({ item }: { item: Identity }) => (
+  const _renderItem = ({ item }: { item: Identity }) => (
     <TouchableOpacity style={[styles.identityCard, { backgroundColor: cardBackground }]}>
       <View style={styles.identityCardContent}>
         <View style={styles.identityInfo}>

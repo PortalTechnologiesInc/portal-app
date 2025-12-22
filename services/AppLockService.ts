@@ -25,7 +25,7 @@ export const TIMER_OPTIONS: Array<{ label: string; value: LockTimerDuration }> =
 let backgroundTimestamp: number | null = null;
 let lastUnlockTimestamp: number | null = null;
 let lockSuppressionCount = 0;
-let lockSuppressionReason: string | null = null;
+let _lockSuppressionReason: string | null = null;
 
 // Minimum background duration to trigger lock (ignores brief system transitions)
 // Require at least 1 second in background before locking
@@ -59,8 +59,7 @@ export class AppLockService {
     try {
       const enabled = await SecureStore.getItemAsync(SECURE_STORE_KEYS.APP_LOCK_ENABLED);
       return enabled === 'true';
-    } catch (error) {
-      console.error('Error checking app lock enabled status:', error);
+    } catch (_error) {
       return false;
     }
   }
@@ -75,9 +74,8 @@ export class AppLockService {
         return null;
       }
       const parsed = Number.parseInt(duration, 10);
-      return isNaN(parsed) ? null : (parsed as LockTimerDuration);
-    } catch (error) {
-      console.error('Error getting lock timer duration:', error);
+      return Number.isNaN(parsed) ? null : (parsed as LockTimerDuration);
+    } catch (_error) {
       return null;
     }
   }
@@ -89,8 +87,7 @@ export class AppLockService {
     try {
       const method = await SecureStore.getItemAsync(SECURE_STORE_KEYS.APP_LOCK_AUTH_METHOD);
       return (method as AuthMethod) || null;
-    } catch (error) {
-      console.error('Error getting auth method:', error);
+    } catch (_error) {
       return null;
     }
   }
@@ -99,26 +96,21 @@ export class AppLockService {
    * Set app lock enabled state
    */
   static async setAppLockEnabled(enabled: boolean): Promise<void> {
-    try {
-      if (enabled) {
-        await SecureStore.setItemAsync(SECURE_STORE_KEYS.APP_LOCK_ENABLED, 'true');
-        // Ensure a default lock timer is set (Immediate) so the app actually locks
-        const existingTimer = await SecureStore.getItemAsync(
-          SECURE_STORE_KEYS.APP_LOCK_TIMER_DURATION
-        );
-        if (existingTimer === null) {
-          await AppLockService.setLockTimerDuration(0);
-        }
-        // Don't mark as authenticated when enabling - let the app lock on next check
-        // This ensures the lock actually works when first enabled
-      } else {
-        await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.APP_LOCK_ENABLED);
-        // Retain auth method and PIN so global security preferences remain available
-        AppLockService.resetSessionState();
+    if (enabled) {
+      await SecureStore.setItemAsync(SECURE_STORE_KEYS.APP_LOCK_ENABLED, 'true');
+      // Ensure a default lock timer is set (Immediate) so the app actually locks
+      const existingTimer = await SecureStore.getItemAsync(
+        SECURE_STORE_KEYS.APP_LOCK_TIMER_DURATION
+      );
+      if (existingTimer === null) {
+        await AppLockService.setLockTimerDuration(0);
       }
-    } catch (error) {
-      console.error('Error setting app lock enabled:', error);
-      throw error;
+      // Don't mark as authenticated when enabling - let the app lock on next check
+      // This ensures the lock actually works when first enabled
+    } else {
+      await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.APP_LOCK_ENABLED);
+      // Retain auth method and PIN so global security preferences remain available
+      AppLockService.resetSessionState();
     }
   }
 
@@ -126,18 +118,13 @@ export class AppLockService {
    * Set lock timer duration
    */
   static async setLockTimerDuration(duration: LockTimerDuration): Promise<void> {
-    try {
-      if (duration === null) {
-        await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.APP_LOCK_TIMER_DURATION);
-      } else {
-        await SecureStore.setItemAsync(
-          SECURE_STORE_KEYS.APP_LOCK_TIMER_DURATION,
-          duration.toString()
-        );
-      }
-    } catch (error) {
-      console.error('Error setting lock timer duration:', error);
-      throw error;
+    if (duration === null) {
+      await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.APP_LOCK_TIMER_DURATION);
+    } else {
+      await SecureStore.setItemAsync(
+        SECURE_STORE_KEYS.APP_LOCK_TIMER_DURATION,
+        duration.toString()
+      );
     }
   }
 
@@ -145,15 +132,10 @@ export class AppLockService {
    * Set authentication method
    */
   static async setAuthMethod(method: AuthMethod): Promise<void> {
-    try {
-      if (method === null) {
-        await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.APP_LOCK_AUTH_METHOD);
-      } else {
-        await SecureStore.setItemAsync(SECURE_STORE_KEYS.APP_LOCK_AUTH_METHOD, method);
-      }
-    } catch (error) {
-      console.error('Error setting auth method:', error);
-      throw error;
+    if (method === null) {
+      await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.APP_LOCK_AUTH_METHOD);
+    } else {
+      await SecureStore.setItemAsync(SECURE_STORE_KEYS.APP_LOCK_AUTH_METHOD, method);
     }
   }
 
@@ -161,16 +143,11 @@ export class AppLockService {
    * Setup PIN for non-biometric devices
    */
   static async setupPIN(pin: string): Promise<void> {
-    try {
-      if (pin.length < PIN_MIN_LENGTH || pin.length > PIN_MAX_LENGTH) {
-        throw new Error(`PIN must be between ${PIN_MIN_LENGTH} and ${PIN_MAX_LENGTH} digits`);
-      }
-      const hashedPIN = hashPIN(pin);
-      await SecureStore.setItemAsync(SECURE_STORE_KEYS.APP_LOCK_PIN_HASH, hashedPIN);
-    } catch (error) {
-      console.error('Error setting up PIN:', error);
-      throw error;
+    if (pin.length < PIN_MIN_LENGTH || pin.length > PIN_MAX_LENGTH) {
+      throw new Error(`PIN must be between ${PIN_MIN_LENGTH} and ${PIN_MAX_LENGTH} digits`);
     }
+    const hashedPIN = hashPIN(pin);
+    await SecureStore.setItemAsync(SECURE_STORE_KEYS.APP_LOCK_PIN_HASH, hashedPIN);
   }
 
   /**
@@ -185,8 +162,7 @@ export class AppLockService {
 
       const enteredHash = hashPIN(pin);
       return storedHash === enteredHash;
-    } catch (error) {
-      console.error('Error verifying PIN:', error);
+    } catch (_error) {
       return false;
     }
   }
@@ -195,19 +171,13 @@ export class AppLockService {
     try {
       const storedHash = await SecureStore.getItemAsync(SECURE_STORE_KEYS.APP_LOCK_PIN_HASH);
       return !!storedHash;
-    } catch (error) {
-      console.error('Error checking PIN presence:', error);
+    } catch (_error) {
       return false;
     }
   }
 
   static async clearPIN(): Promise<void> {
-    try {
-      await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.APP_LOCK_PIN_HASH);
-    } catch (error) {
-      console.error('Error clearing PIN:', error);
-      throw error;
-    }
+    await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.APP_LOCK_PIN_HASH);
   }
 
   /**
@@ -216,11 +186,6 @@ export class AppLockService {
   static async shouldLockApp(): Promise<boolean> {
     try {
       if (AppLockService.isLockSuppressed()) {
-        console.log(
-          `[AppLock] Suppressed - skipping lock${
-            lockSuppressionReason ? ` (${lockSuppressionReason})` : ''
-          }`
-        );
         return false;
       }
 
@@ -251,10 +216,6 @@ export class AppLockService {
       // This prevents false locks from brief system transitions (e.g., NFC)
       // Normal backgrounding will be longer and will lock per timer setting
       if (timeSinceBackground < MIN_BACKGROUND_DURATION_MS) {
-        // Very brief background - likely system transition (NFC), don't lock
-        console.log(
-          `[AppLock] Background too brief (likely system transition): ${timeSinceBackground}ms < ${MIN_BACKGROUND_DURATION_MS}ms - not locking`
-        );
         return false;
       }
 
@@ -262,18 +223,10 @@ export class AppLockService {
       // For immediate lock (timerDuration === 0), lock immediately since background is >= 5 seconds
       // For other timers, check if timer duration has passed
       if (timerDuration === 0) {
-        console.log(
-          `[AppLock] Immediate lock: background duration ${timeSinceBackground}ms >= ${MIN_BACKGROUND_DURATION_MS}ms - locking`
-        );
         return true;
       }
-
-      console.log(
-        `[AppLock] Background duration: ${timeSinceBackground}ms, timerDuration: ${timerDuration}ms`
-      );
       return timeSinceBackground >= timerDuration;
-    } catch (error) {
-      console.error('Error checking if app should lock:', error);
+    } catch (_error) {
       // On error, err on the side of security - lock the app
       return true;
     }
@@ -311,25 +264,15 @@ export class AppLockService {
   static enableLockSuppression(reason?: string): void {
     lockSuppressionCount += 1;
     if (reason) {
-      lockSuppressionReason = reason;
+      _lockSuppressionReason = reason;
     }
-    console.log(
-      `[AppLock] Lock suppression enabled (count=${lockSuppressionCount}${
-        reason ? `, reason=${reason}` : ''
-      })`
-    );
   }
 
-  static disableLockSuppression(reason?: string): void {
+  static disableLockSuppression(_reason?: string): void {
     lockSuppressionCount = Math.max(0, lockSuppressionCount - 1);
     if (lockSuppressionCount === 0) {
-      lockSuppressionReason = null;
+      _lockSuppressionReason = null;
     }
-    console.log(
-      `[AppLock] Lock suppression disabled (count=${lockSuppressionCount}${
-        reason ? `, reason=${reason}` : ''
-      })`
-    );
   }
 
   static isLockSuppressed(): boolean {
@@ -352,7 +295,7 @@ export class AppLockService {
     backgroundTimestamp = null;
     lastUnlockTimestamp = null;
     lockSuppressionCount = 0;
-    lockSuppressionReason = null;
+    _lockSuppressionReason = null;
   }
 
   /**
@@ -376,8 +319,7 @@ export class AppLockService {
       const isSupported = await isBiometricAuthAvailable();
       await AsyncStorage.setItem(FINGERPRINT_SUPPORTED_KEY, isSupported ? 'true' : 'false');
       return isSupported;
-    } catch (error) {
-      console.error('Error getting fingerprint support status:', error);
+    } catch (_error) {
       // On error, check directly and return
       return await isBiometricAuthAvailable();
     }
@@ -391,8 +333,7 @@ export class AppLockService {
       const isSupported = await isBiometricAuthAvailable();
       await AsyncStorage.setItem(FINGERPRINT_SUPPORTED_KEY, isSupported ? 'true' : 'false');
       return isSupported;
-    } catch (error) {
-      console.error('Error refreshing fingerprint support status:', error);
+    } catch (_error) {
       return await isBiometricAuthAvailable();
     }
   }
@@ -401,11 +342,6 @@ export class AppLockService {
    * Set fingerprint support status (for testing/manual override)
    */
   static async setFingerprintSupported(supported: boolean): Promise<void> {
-    try {
-      await AsyncStorage.setItem(FINGERPRINT_SUPPORTED_KEY, supported ? 'true' : 'false');
-    } catch (error) {
-      console.error('Error setting fingerprint support status:', error);
-      throw error;
-    }
+    await AsyncStorage.setItem(FINGERPRINT_SUPPORTED_KEY, supported ? 'true' : 'false');
   }
 }

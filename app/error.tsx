@@ -67,8 +67,8 @@ export default function ErrorScreen() {
       ? 'Android'
       : 'N/A';
   const osVersion = safe(deviceInfo.osVersion || deviceInfo.systemVersion);
-  const expoVersion = safe(deviceInfo.expoVersion);
-  const rnVersion = deviceInfo.reactNativeVersion
+  const _expoVersion = safe(deviceInfo.expoVersion);
+  const _rnVersion = deviceInfo.reactNativeVersion
     ? JSON.stringify(deviceInfo.reactNativeVersion)
     : 'N/A';
   const platform = deviceInfo.platform ? JSON.stringify(deviceInfo.platform) : 'N/A';
@@ -115,7 +115,7 @@ export default function ErrorScreen() {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]}>
       <ThemedView style={styles.container}>
-        <View style={styles.iconContainer}>{iconMap[iconKey] || iconMap['error']}</View>
+        <View style={styles.iconContainer}>{iconMap[iconKey] || iconMap.error}</View>
         <ThemedText style={[styles.errorText, { color: statusErrorColor }]}>Error</ThemedText>
         <ThemedText style={styles.messageText}>{errorMessage}</ThemedText>
         <ThemedText style={styles.instructionText}>
@@ -135,7 +135,7 @@ export default function ErrorScreen() {
                   'Please configure an email app to send the report.'
                 );
               }
-            } catch (e) {
+            } catch (_e) {
               Alert.alert(
                 'Failed to open email',
                 'Please copy the error details and send them to support manually.'

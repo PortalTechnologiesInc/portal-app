@@ -27,7 +27,6 @@ export function mapNumericStatusToString(numericStatus: number): RelayConnection
     case 6:
       return 'Banned';
     default:
-      console.warn(`🔍 NostrService: Unknown numeric RelayStatus: ${numericStatus}`);
       return 'Unknown';
   }
 }

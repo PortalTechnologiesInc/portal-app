@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { useThemeColor } from '@/hooks/useThemeColor';
@@ -123,7 +123,7 @@ export function PaymentStatusProgress({ steps, onRetry }: PaymentStatusProgressP
   const primaryColor = useThemeColor({}, 'tint');
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
-  const surfaceSecondaryColor = useThemeColor({}, 'surfaceSecondary');
+  const _surfaceSecondaryColor = useThemeColor({}, 'surfaceSecondary');
   const statusConnectedColor = useThemeColor({}, 'statusConnected');
   const statusErrorColor = useThemeColor({}, 'statusError');
   const buttonSecondaryColor = useThemeColor({}, 'buttonSecondary');
@@ -258,8 +258,6 @@ export function PaymentStatusProgress({ steps, onRetry }: PaymentStatusProgressP
             )}
           </View>
         );
-
-      case 'pending':
       default:
         return (
           <View style={styles.dotContainer}>

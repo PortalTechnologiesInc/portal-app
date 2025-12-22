@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { parseCalendar } from 'portal-app-lib';
-import React, { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { FlatList, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ThemedText';
@@ -94,7 +94,7 @@ export default function SubscriptionsScreen() {
               {parsedCalendar.toHumanReadable(false)}
             </ThemedText>
 
-            {item.status == 'active' ? (
+            {item.status === 'active' ? (
               <ThemedText style={[styles.nextPayment, { color: secondaryTextColor }]}>
                 Next payment: {formatDayAndDate(nextPayment)}
               </ThemedText>

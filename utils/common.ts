@@ -343,7 +343,7 @@ class EventEmitter {
     if (!this.events.has(eventName)) {
       this.events.set(eventName, []);
     }
-    this.events.get(eventName)!.push(callback);
+    this.events.get(eventName)?.push(callback);
   }
 
   off(eventName: string, callback: EventCallback): void {
@@ -359,7 +359,9 @@ class EventEmitter {
   emit(eventName: string, data?: any): void {
     const callbacks = this.events.get(eventName);
     if (callbacks) {
-      callbacks.forEach(callback => callback(data));
+      for (const callback of callbacks) {
+        callback(data);
+      }
     }
   }
 
@@ -392,13 +394,13 @@ export function getServiceNameFromMintUrl(mintUrl: string): string {
     if (parts.length >= 2) {
       // Use the main domain name (second-to-last part)
       const mainDomain = parts[parts.length - 2];
-      return mainDomain.charAt(0).toUpperCase() + mainDomain.slice(1) + ' Mint';
+      return `${mainDomain.charAt(0).toUpperCase() + mainDomain.slice(1)} Mint`;
     }
     return cleanHostname;
-  } catch (error) {
+  } catch (_error) {
     // If URL parsing fails, try to extract domain manually
     const match = mintUrl.match(/https?:\/\/([^/]+)/);
-    if (match && match[1]) {
+    if (match?.[1]) {
       return match[1].replace(/^www\./, '');
     }
     return 'Ticket Mint';

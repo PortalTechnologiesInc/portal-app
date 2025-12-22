@@ -1,4 +1,3 @@
-import Constants from 'expo-constants';
 import { Tabs } from 'expo-router';
 import {
   Bug,
@@ -11,7 +10,7 @@ import {
   Wallet,
 } from 'lucide-react-native';
 import React, { useMemo } from 'react';
-import { Platform, ToastAndroid, View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HapticTab } from '@/components/HapticTab';
 import { Colors } from '@/constants/Colors';
