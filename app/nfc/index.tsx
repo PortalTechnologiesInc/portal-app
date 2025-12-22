@@ -200,7 +200,7 @@ export default function NFCScanScreen() {
         }),
       ])
     ).start();
-  }, [glowAnimation]);
+  }, []);
 
   // Start scan line animation
   const startScanLineAnimation = useCallback(() => {
@@ -221,7 +221,7 @@ export default function NFCScanScreen() {
         }),
       ])
     ).start();
-  }, [scanLineAnimation]);
+  }, []);
 
   // Stop glowing animation
   const stopGlowAnimation = useCallback(() => {
@@ -231,7 +231,7 @@ export default function NFCScanScreen() {
       duration: 300,
       useNativeDriver: true,
     }).start();
-  }, [glowAnimation]);
+  }, []);
 
   // Stop scan line animation
   const stopScanLineAnimation = useCallback(() => {
@@ -241,7 +241,7 @@ export default function NFCScanScreen() {
       duration: 300,
       useNativeDriver: true,
     }).start();
-  }, [scanLineAnimation]);
+  }, []);
 
   // Validate NDEF records for portal protocol
   const validatePortalProtocol = useCallback(

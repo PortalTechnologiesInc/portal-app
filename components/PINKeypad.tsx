@@ -151,7 +151,7 @@ export function PINKeypad({
     if (!error && pin.length > 0) {
       setPin('');
     }
-  }, [error, pin.length]);
+  }, [error]);
 
   const renderDots = () => {
     if (!showDots) {

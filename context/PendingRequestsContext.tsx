@@ -107,7 +107,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
   // Reset all PendingRequests state to initial values
   // This is called during app reset to ensure clean state
-  const resetPendingRequests = () => {
+  const resetPendingRequests = useCallback(() => {
     // Reset all state to initial values
     setIsLoadingRequest(false);
     setPendingUrl(undefined);
@@ -119,7 +119,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
       timeoutRef.current = null;
       setTimeoutId(null);
     }
-  };
+  }, []);
 
   // Register/unregister context reset function
   useEffect(() => {
