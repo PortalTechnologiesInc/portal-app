@@ -4,8 +4,46 @@
     "strict": true,
     "paths": {
       "@/*": ["./*"]
-    }
+    },
+    "skipLibCheck": true
   },
-  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts", "app.config.ts"],
-  "exclude": ["node_modules"]
+  "include": [
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "components/**/*.ts",
+    "components/**/*.tsx",
+    "context/**/*.ts",
+    "context/**/*.tsx",
+    "services/**/*.ts",
+    "services/**/*.tsx",
+    "utils/**/*.ts",
+    "utils/**/*.tsx",
+    "models/**/*.ts",
+    "models/**/*.tsx",
+    "hooks/**/*.ts",
+    "hooks/**/*.tsx",
+    "constants/**/*.ts",
+    "constants/**/*.tsx",
+    "migrations/**/*.ts",
+    "migrations/**/*.tsx",
+    "*.ts",
+    "*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts",
+    "app.config.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "**/node_modules/**",
+    ".expo",
+    ".expo/**",
+    "android",
+    "ios",
+    "build",
+    "dist",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx"
+  ]
 }
