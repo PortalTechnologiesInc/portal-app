@@ -8,6 +8,7 @@ export const SkeletonPulse = ({ style }: { style: StyleProp<ViewStyle> }) => {
   const translateX = useRef(new Animated.Value(-100)).current;
   const skeletonHighlightColor = useThemeColor({}, 'skeletonHighlight');
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: translateX is a stable Animated.Value ref that doesn't need to be in dependencies
   useEffect(() => {
     const animation = Animated.loop(
       Animated.timing(translateX, {
@@ -22,7 +23,7 @@ export const SkeletonPulse = ({ style }: { style: StyleProp<ViewStyle> }) => {
     return () => {
       animation.stop();
     };
-  }, [translateX]);
+  }, []);
 
   return (
     <View style={[styles.skeletonContainer, style]}>
