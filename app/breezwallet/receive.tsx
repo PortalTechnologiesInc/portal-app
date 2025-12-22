@@ -38,11 +38,11 @@ import { showToast } from '@/utils/Toast';
 const portalLogo = require('../../assets/images/iosLight.png');
 
 enum PageState {
-  GetInvoiceInfo,
-  InvoiceCreating,
-  ShowInvoiceInfo,
-  ShowPaymentSent,
-  PaymentReceived,
+  GetInvoiceInfo = 0,
+  InvoiceCreating = 1,
+  ShowInvoiceInfo = 2,
+  ShowPaymentSent = 3,
+  PaymentReceived = 4,
 }
 
 export default function MyWalletManagementSecret() {

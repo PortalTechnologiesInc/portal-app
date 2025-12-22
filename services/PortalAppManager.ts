@@ -16,7 +16,7 @@ export class PortalAppManager {
     keypair: KeypairInterface,
     relays: string[],
     relayStatusCallback: RelayStatusListener,
-    logRust: boolean = false
+    logRust = false
   ): Promise<PortalAppInterface> {
     if (!PortalAppManager.instance) {
       console.log('📚 Initializing the lib!');

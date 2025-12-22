@@ -9,7 +9,7 @@ import type { RelayConnectionStatus, WalletInfo } from '@/utils/types';
 
 export class NwcService implements Wallet {
   private client!: Nwc;
-  private lastReconnectAttempt: number = 0;
+  private lastReconnectAttempt = 0;
   private relayStatuses: Map<string, RelayConnectionStatus> = new Map();
   private onStatusChange: ((status: WalletConnectionStatus) => void) | null = null;
 
