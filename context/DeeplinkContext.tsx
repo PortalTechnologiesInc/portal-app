@@ -87,7 +87,7 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
                   currency: null,
                   request_id: `cashu-direct-${Date.now()}`,
                   subscription_id: null,
-                  status: 'neutral' as 'neutral',
+                  status: 'neutral' as const,
                   converted_amount: null,
                   converted_currency: null,
                 };

@@ -79,7 +79,7 @@ export default function DebugScreen() {
         }
 
         if (savedLogLevel !== null) {
-          setCurrentLogLevel(parseInt(savedLogLevel, 10));
+          setCurrentLogLevel(Number.parseInt(savedLogLevel, 10));
         }
 
         // Load fingerprint support status
@@ -159,7 +159,7 @@ export default function DebugScreen() {
       return;
     }
 
-    const amount = parseFloat(conversionAmount);
+    const amount = Number.parseFloat(conversionAmount);
     if (isNaN(amount) || amount <= 0) {
       Alert.alert('Invalid Amount', 'Please enter a valid positive number.');
       return;

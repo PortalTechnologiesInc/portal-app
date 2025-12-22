@@ -25,8 +25,8 @@ import { CurrencyConversionService } from '@/services/CurrencyConversionService'
 import { ActivityType, globalEvents } from '@/utils/common';
 
 enum PageState {
-  PaymentRecap,
-  PaymentSent,
+  PaymentRecap = 0,
+  PaymentSent = 1,
 }
 
 export default function MyWalletManagementSecret() {
