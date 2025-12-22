@@ -62,7 +62,7 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
 
   // Reset all Activities state to initial values
   // This is called during app reset to ensure clean state
-  const resetActivities = () => {
+  const resetActivities = useCallback(() => {
     // Reset all state to initial values
     setActivities([]);
     setSubscriptions([]);
@@ -74,7 +74,7 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
     setActiveFilters(new Set());
     // Reset the current offset ref as well
     currentOffsetRef.current = 0;
-  };
+  }, []);
 
   // Register/unregister context reset function
   useEffect(() => {
@@ -83,7 +83,7 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
     return () => {
       unregisterContextReset(resetActivities);
     };
-  }, []);
+  }, [resetActivities]);
 
   const fetchActivities = useCallback(
     async (reset = false) => {
@@ -170,7 +170,7 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
       const allActivities = await executeOperation(db => db.getActivities(countOptions), []);
       setTotalActivities(allActivities.length);
     },
-    [executeOperation, ACTIVITIES_PER_PAGE]
+    [executeOperation]
   );
 
   const fetchSubscriptions = useCallback(async () => {
@@ -186,9 +186,9 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
   const previousFiltersRef = useRef<string>('');
 
   // Helper to serialize Set for comparison
-  const serializeFilters = (filters: Set<ActivityFilterType>): string => {
+  const serializeFilters = useCallback((filters: Set<ActivityFilterType>): string => {
     return Array.from(filters).sort().join(',');
-  };
+  }, []);
 
   // Update refs when state changes
   useEffect(() => {
@@ -207,7 +207,7 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
       // Use refs to avoid dependency on functions
       const fetchInitial = async () => {
         const offset = 0;
-        const filters = activeFiltersRef.current;
+        const _filters = activeFiltersRef.current;
 
         // Build filter options (no filters on initial load)
         const filterOptions = { limit: ACTIVITIES_PER_PAGE, offset: offset };
@@ -228,11 +228,9 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
         setTotalActivities(allActivities.length);
       };
 
-      fetchInitial().catch(error => {
-        console.error('Initial data fetch failed:', error);
-      });
+      fetchInitial().catch(_error => {});
     }
-  }, []); // Only run on mount
+  }, [activeFilters, executeOperation, serializeFilters]); // Only run on mount
 
   // Reset and reload when filter changes
   useEffect(() => {
@@ -319,13 +317,11 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
       .then(allActivities => {
         setTotalActivities(allActivities.length);
       })
-      .catch(error => {
-        console.error('Failed to fetch activities with filter:', error);
-      })
+      .catch(_error => {})
       .finally(() => {
         setIsLoadingMore(false);
       });
-  }, [activeFilters, executeOperation, ACTIVITIES_PER_PAGE]);
+  }, [activeFilters, executeOperation, serializeFilters]);
 
   const loadMoreActivities = useCallback(async () => {
     if (!hasMoreActivities || isLoadingMore) {
@@ -336,8 +332,7 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
 
     try {
       await fetchActivities(false); // false = don't reset, append to existing
-    } catch (error) {
-      console.error('Failed to load more activities:', error);
+    } catch (_error) {
     } finally {
       setIsLoadingMore(false);
     }
@@ -349,19 +344,16 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
       currentOffsetRef.current = 0;
       setHasMoreActivities(true);
       await Promise.all([fetchActivities(true), fetchSubscriptions()]);
-    } catch (error) {
-      console.error('Failed to refresh data:', error);
-    }
+    } catch (_error) {}
   }, [fetchActivities, fetchSubscriptions]);
 
   // Listen for activity events to refresh activities list
   useEffect(() => {
-    const handleActivityAdded = (activity: ActivityWithDates) => {
+    const handleActivityAdded = (_activity: ActivityWithDates) => {
       refreshData();
     };
 
     const handleActivityUpdated = () => {
-      console.log('ActivitiesContext: activityUpdated event received, refreshing activities');
       refreshData();
     };
 

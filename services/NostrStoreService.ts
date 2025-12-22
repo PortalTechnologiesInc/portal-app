@@ -28,8 +28,7 @@ export default class NostrStoreService {
         ),
       ]);
       return JSON.parse(mintsJson);
-    } catch (error) {
-      console.warn('Reding on nostrStore generated the following error: ', error);
+    } catch (_error) {
       return [];
     }
   }

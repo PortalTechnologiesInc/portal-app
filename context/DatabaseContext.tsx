@@ -1,5 +1,4 @@
 import { useSQLiteContext } from 'expo-sqlite';
-import { Mnemonic } from 'portal-app-lib';
 import { createContext, type ReactNode, useContext } from 'react';
 import NostrStoreService from '@/services/NostrStoreService';
 import { getKeypairFromKey, hasKey } from '@/utils/keyHelpers';
@@ -42,8 +41,6 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
       const db = new DatabaseService(sqliteContext);
       return await operation(db);
     } catch (error: any) {
-      // Handle "Access to closed resource" errors gracefully
-      console.error('Database operation failed:', error?.message || error);
       if (fallback !== undefined) return fallback;
       throw error;
     }
@@ -77,8 +74,7 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
           relays = [...defaultRelayList];
           await executeOperation(db => db.updateRelays(defaultRelayList), null);
         }
-      } catch (error) {
-        console.warn('Failed to get relays from database, using defaults:', error);
+      } catch (_error) {
         // Fallback to default relays if database access fails
         relays = [...defaultRelayList];
         await executeOperation(db => db.updateRelays(defaultRelayList), null);
@@ -87,7 +83,6 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
       const nostrStore = await NostrStoreService.create(keypair, relays);
       return await operation(nostrStore);
     } catch (e) {
-      console.error('NostrStore operation failed:', e);
       if (fallback !== undefined) return fallback;
       throw e;
     }

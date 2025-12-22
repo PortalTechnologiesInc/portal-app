@@ -19,68 +19,42 @@ const BACKGROUND_NOTIFICATION_TASK = 'BACKGROUND-NOTIFICATION-TASK';
  */
 TaskManager.defineTask<Notifications.NotificationTaskPayload>(
   BACKGROUND_NOTIFICATION_TASK,
-  async ({ data, error, executionInfo }) => {
+  async ({ data: _data, error: _error, executionInfo: _executionInfo }) => {
     // Enhanced logging for background task execution
-    const timestamp = new Date().toISOString();
-    console.log('================================================');
-    console.log('🔔 BACKGROUND NOTIFICATION TASK TRIGGERED');
-    console.log('Time:', timestamp);
-    console.log('App State:', AppState.currentState);
-    console.log('Execution Info:', executionInfo);
-    console.log('================================================');
+    const _timestamp = new Date().toISOString();
 
     // Check if the app is currently in the foreground (active state)
     if (AppState.currentState === 'active') {
-      console.log('⚠️ App is in foreground, skipping background logic');
-
       return; // Do not execute background logic if the app is active
     }
 
-    console.log('📦 Received notification data:', JSON.stringify(data, null, 2));
-
-    const isNotificationResponse = 'data' in data;
+    const isNotificationResponse = 'data' in _data;
 
     if (isNotificationResponse) {
       try {
-        console.log('🔍 Parsing notification payload...');
-
-        const payload = data as Record<string, any>;
+        const payload = _data as Record<string, any>;
         const rawBody =
           payload?.data?.body ??
           payload?.data?.UIApplicationLaunchOptionsRemoteNotificationKey?.body ??
           payload?.notification?.request?.content?.data?.body;
 
         if (!rawBody) {
-          console.warn('⚠️ Notification payload missing body field');
         } else {
           const parsedBody =
             typeof rawBody === 'string'
               ? (JSON.parse(rawBody) as Record<string, unknown>)
               : (rawBody as Record<string, unknown>);
 
-          const eventContentValue = parsedBody?.['event_content'] ?? parsedBody?.['eventContent'];
+          const eventContentValue = parsedBody?.event_content ?? parsedBody?.eventContent;
 
           if (typeof eventContentValue !== 'string') {
-            console.warn('⚠️ Notification body missing Nostr event content');
           } else {
-            console.log('✅ Successfully parsed Nostr event content');
-
-            console.log('🚀 Starting headless notification processing...');
             await handleHeadlessNotification(eventContentValue, DATABASE_NAME);
-            console.log('✅ Headless notification processing completed successfully');
           }
         }
-      } catch (e) {
-        console.error('❌ Error processing headless notification:', e);
-        console.error('Error details:', JSON.stringify(e, null, 2));
-      }
+      } catch (_e) {}
     } else {
-      console.warn('⚠️ Notification response structure unexpected:', data);
     }
-
-    console.log('================================================');
-    console.log('🔔 BACKGROUND NOTIFICATION TASK COMPLETED');
-    console.log('================================================');
   }
 );
 // Register background notification handler

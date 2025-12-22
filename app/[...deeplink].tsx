@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { View } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { useKey } from '@/context/KeyContext';
@@ -7,7 +7,7 @@ import { useNostrService } from '@/context/NostrServiceContext';
 import { useOnboarding } from '@/context/OnboardingContext';
 
 export default function DeeplinkHandler() {
-  const params = useLocalSearchParams();
+  const _params = useLocalSearchParams();
   const { isOnboardingComplete } = useOnboarding();
   const { mnemonic } = useKey();
   const { isInitialized } = useNostrService();
@@ -23,7 +23,7 @@ export default function DeeplinkHandler() {
       return;
     }
     router.replace('/(tabs)');
-  }, [params, isOnboardingComplete, mnemonic, isInitialized]);
+  }, [isOnboardingComplete, mnemonic, isInitialized]);
 
   return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>

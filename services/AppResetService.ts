@@ -39,7 +39,6 @@ export class AppResetService {
    * @returns Promise that resolves when reset is complete
    */
   static async performCompleteReset(database?: SQLiteDatabase): Promise<void> {
-    console.log('🔄 Starting complete app reset...');
     // Set global reset flag
     isAppResetting = true;
 
@@ -49,7 +48,6 @@ export class AppResetService {
       // Step 1: Clear all SecureStore data
       await SecureStorageService.resetAll();
     } catch (error) {
-      console.error('❌ Failed to clear SecureStore:', error);
       errors.push({ step: 'SecureStore', error });
     }
 
@@ -62,7 +60,6 @@ export class AppResetService {
         await dbService.resetAndReinitializeDatabase();
       }
     } catch (error) {
-      console.error('❌ Failed to reset database:', error);
       errors.push({ step: 'Database', error });
     }
 
@@ -70,7 +67,6 @@ export class AppResetService {
       // Step 3: Reset all application contexts
       resetAllContexts();
     } catch (error) {
-      console.error('❌ Failed to reset contexts:', error);
       errors.push({ step: 'Contexts', error });
     }
 
@@ -78,16 +74,13 @@ export class AppResetService {
       // Step 4: Reset navigation to onboarding
       router.replace('/onboarding');
     } catch (error) {
-      console.error('❌ Failed to reset navigation:', error);
       errors.push({ step: 'Navigation', error });
     }
 
     // Step 5: Clear AsyncStorage
     try {
-      console.log('Step 5/5: Clearing storage...');
       await AsyncStorage.clear();
     } catch (error) {
-      console.error('❌ Failed to clear storage:', error);
       errors.push({ step: 'Storage', error });
     }
 
@@ -101,9 +94,7 @@ export class AppResetService {
 
     // Report results
     if (errors.length === 0) {
-      console.log('✅ Complete app reset successful!');
     } else {
-      console.warn(`⚠️ App reset completed with ${errors.length} non-critical errors:`, errors);
     }
 
     // Even if there were errors, the reset likely succeeded enough to be functional

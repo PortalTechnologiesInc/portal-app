@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { ArrowRight, Nfc, QrCode, User } from 'lucide-react-native';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
@@ -60,9 +60,7 @@ export default function Home() {
         await SecureStore.setItemAsync(FIRST_LAUNCH_KEY, 'true');
         setIsFirstLaunch(false);
       }
-    } catch (e) {
-      console.error('Failed to mark welcome as viewed:', e);
-    }
+    } catch (_e) {}
   }, []);
 
   useEffect(() => {
@@ -72,7 +70,7 @@ export default function Home() {
     if (sortedRequests.length > 0) {
       markWelcomeAsViewed();
     }
-  }, [appService.pendingRequests]);
+  }, [appService.pendingRequests, isFirstLaunch, markWelcomeAsViewed]);
 
   useEffect(() => {
     // Cleanup function to set mounted state to false
@@ -92,9 +90,7 @@ export default function Home() {
         const firstLaunchCompleted = await SecureStore.getItemAsync(FIRST_LAUNCH_KEY);
         setIsFirstLaunch(firstLaunchCompleted !== 'true');
         // We no longer set the flag here - we'll set it after user interaction
-      } catch (e) {
-        console.error('Failed to check first launch status:', e);
-      }
+      } catch (_e) {}
     };
 
     checkFirstLaunch();
@@ -110,9 +106,7 @@ export default function Home() {
 
       // Trigger ConnectionStatusIndicator update
       setRefreshTrigger(prev => prev + 1);
-    } catch (error) {
-      console.error('Error refreshing wallet info:', error);
-    }
+    } catch (_error) {}
     setRefreshing(false);
   };
 

@@ -5,7 +5,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { SQLiteProvider } from 'expo-sqlite';
 import { StatusBar } from 'expo-status-bar';
 import { keyToHex } from 'portal-app-lib';
-import React, { Suspense, useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { SafeAreaView, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AppLifecycleHandler } from '@/components/AppLifecycleHandler';
@@ -41,18 +41,12 @@ const NotificationConfigurator = () => {
 
   useEffect(() => {
     if (publicKey) {
-      registerPubkeysForPushNotificationsAsync([keyToHex(publicKey)]).catch((error: any) => {
-        console.error('Error registering for push notifications:', error);
-      });
+      registerPubkeysForPushNotificationsAsync([keyToHex(publicKey)]).catch((_error: any) => {});
     }
 
-    const notificationListener = Notifications.addNotificationReceivedListener(notification => {
-      console.log('Notification received:', notification);
-    });
+    const notificationListener = Notifications.addNotificationReceivedListener(_notification => {});
 
-    const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log('Notification response received:', response);
-    });
+    const responseListener = Notifications.addNotificationResponseReceivedListener(_response => {});
 
     return () => {
       notificationListener.remove();
@@ -73,10 +67,7 @@ const preloadImages = async () => {
     ];
 
     await Promise.all(assetPromises);
-    console.log('Assets preloaded successfully');
-  } catch (error) {
-    console.error('Error preloading assets:', error);
-  }
+  } catch (_error) {}
 };
 
 // Status bar wrapper that respects theme
@@ -176,8 +167,7 @@ export default function RootLayout() {
           : [[key, String(value)] as [string, string]];
       });
       const queryString = new URLSearchParams(entries).toString();
-      const fullPath = queryString ? `${pathname}?${queryString}` : pathname;
-      console.log('[Route]', fullPath);
+      const _fullPath = queryString ? `${pathname}?${queryString}` : pathname;
     }
   }, [pathname, globalParams]);
 
@@ -189,8 +179,7 @@ export default function RootLayout() {
 
         // Increase delay to ensure all SecureStore operations complete on first launch
         await new Promise(resolve => setTimeout(resolve, 500));
-      } catch (error) {
-        console.error('Error preparing app:', error);
+      } catch (_error) {
         // Set ready to true even on error to prevent infinite loading
       } finally {
         await SplashScreen.hideAsync();

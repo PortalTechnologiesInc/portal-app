@@ -84,8 +84,6 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
   const setupBreezEventListener = useCallback(
     (breezWallet: BreezService) => {
       const handler = async (event: SdkEvent) => {
-        console.log('[BREEZ EVENT]:', event);
-
         // Extract event type and payment data
         let paymentData: Payment;
 
@@ -135,7 +133,7 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
               ? 'succeeded'
               : 'failed';
         const { status, statusEntry } = statusMap[eventType];
-        const typeConfig = activityTypeMap['receive'];
+        const typeConfig = activityTypeMap.receive;
 
         if (!typeConfig) return;
 
@@ -182,18 +180,12 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
           if (statusEntry && invoice) {
             try {
               await executeOperation(db => db.addPaymentStatusEntry(invoice, statusEntry), null);
-            } catch (statusError) {
-              console.error('Failed to add payment status entry:', statusError);
-            }
+            } catch (_statusError) {}
           }
-        } catch (error) {
-          console.error('Failed to handle Breez payment event:', error);
-        }
+        } catch (_error) {}
       };
 
-      breezWallet.addEventListener({ onEvent: handler }).catch(error => {
-        console.error('Failed to setup Breez event listener:', error);
-      });
+      breezWallet.addEventListener({ onEvent: handler }).catch(_error => {});
     },
     [executeOperation, preferredCurrency]
   );
@@ -290,9 +282,7 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
         }
 
         setIsWalletManagerInitialized(true);
-      } catch (error) {
-        console.error('Failed to initialize wallet manager:', JSON.stringify(error, null, 2));
-      }
+      } catch (_error) {}
     };
 
     init();
@@ -321,7 +311,7 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
    */
   useEffect(() => {
     refreshWalletInfo();
-  }, [activeWallet, refreshWalletInfo]);
+  }, [refreshWalletInfo]);
 
   /**
    * Forwarded wallet actions

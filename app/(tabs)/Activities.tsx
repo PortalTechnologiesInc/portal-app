@@ -1,6 +1,7 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
-import React, { useCallback, useMemo, useRef } from 'react';
+import type React from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { FlatList, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ActivityRow } from '@/components/ActivityRow';
@@ -136,9 +137,7 @@ const Activities: React.FC = () => {
             onPress={() => handleLinkPress(activity)}
             key={`${activity.id}-${item.title}-${index}`}
           >
-            <React.Fragment>
-              <ActivityRow activity={activity} />
-            </React.Fragment>
+            <ActivityRow activity={activity} />
           </TouchableOpacity>
         ))}
       </>

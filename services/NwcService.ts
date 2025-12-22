@@ -27,17 +27,12 @@ export class NwcService implements Wallet {
 
   private async init(walletUrl: string) {
     try {
-      console.log('Initializing NWC service with URL:', walletUrl);
-
       this.client = new Nwc(walletUrl, this.createRelayStatusListener());
 
       await new Promise(resolve => setTimeout(resolve, 1000));
 
       await this.getWalletInfo();
-
-      console.log('NWC service initialized successfully');
     } catch (error) {
-      console.error('Failed to initialize NWC service:', JSON.stringify(error));
       throw new Error(
         `Failed to initialize wallet: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
@@ -48,7 +43,6 @@ export class NwcService implements Wallet {
     return {
       onRelayStatusChange: async (relay_url: string, status: number): Promise<void> => {
         const statusString = mapNumericStatusToString(status);
-        console.log(`[NWC STATUS] Relay: ${relay_url} - ${statusString} (${status})`);
         this.relayStatuses.set(relay_url, statusString);
         // Reset reconnection attempts on successful connection
         if (status === 3) {
@@ -67,13 +61,9 @@ export class NwcService implements Wallet {
             setTimeout(async () => {
               try {
                 if (this.client && typeof this.client.reconnectRelay === 'function') {
-                  console.log(`Attempting NWC relay reconnection: ${relay_url}`);
                   await this.client.reconnectRelay(relay_url);
-                  console.log(`NWC relay reconnected successfully: ${relay_url}`);
                 }
-              } catch (error) {
-                console.error(`NWC auto-reconnect failed for relay ${relay_url}:`, error);
-              }
+              } catch (_error) {}
             }, 2000);
           }
         }
@@ -95,8 +85,6 @@ export class NwcService implements Wallet {
     if (!this.client) {
       throw new Error('NWC client not initialized');
     }
-
-    console.log('Fetching wallet info...');
     const info: GetInfoResponse = await this.client.getInfo();
     const balance = await this.client.getBalance();
 
@@ -106,18 +94,16 @@ export class NwcService implements Wallet {
     };
   }
 
-  async sendPayment(paymentRequest: string, amountSats: bigint): Promise<string> {
+  async sendPayment(paymentRequest: string, _amountSats: bigint): Promise<string> {
     if (!this.client) {
       throw new Error('NWC client not initialized');
     }
 
     try {
-      console.log(`Sending payment of ${amountSats} sats for invoice: ${paymentRequest}`);
       const preimage = await this.client.payInvoice(paymentRequest);
 
       return preimage;
-    } catch (error) {
-      console.error('Error sending payment:', error);
+    } catch (_error) {
       throw new Error('Failed to send payment');
     }
   }
@@ -136,18 +122,15 @@ export class NwcService implements Wallet {
       });
 
       return invoice.invoice;
-    } catch (error) {
-      console.error('Error receiving payment:', error);
+    } catch (_error) {
       throw new Error('Failed to create invoice');
     }
   }
 
-  async prepareSendPayment(paymentRequest: string, amountSats: bigint): Promise<string> {
+  async prepareSendPayment(paymentRequest: string, _amountSats: bigint): Promise<string> {
     if (!this.client) {
       throw new Error('NWC client not initialized');
     }
-
-    console.log('Preparing to send payment for invoice:', amountSats);
 
     const response = await this.client.lookupInvoice(paymentRequest);
 
@@ -156,5 +139,13 @@ export class NwcService implements Wallet {
     }
 
     return '';
+  }
+
+  async lookupInvoice(paymentRequest: string) {
+    if (!this.client) {
+      throw new Error('NWC client not initialized');
+    }
+
+    return await this.client.lookupInvoice(paymentRequest);
   }
 }

@@ -88,80 +88,50 @@ export class SecureStorageService {
    * Save mnemonic phrase to secure storage
    */
   static async saveMnemonic(mnemonic: string): Promise<void> {
-    try {
-      await SecureStore.setItemAsync(SECURE_STORE_KEYS.MNEMONIC, mnemonic);
-      mnemonicEvents.emit('mnemonicChanged', mnemonic);
-    } catch (error) {
-      console.error('Failed to save mnemonic:', error);
-      throw error;
-    }
+    await SecureStore.setItemAsync(SECURE_STORE_KEYS.MNEMONIC, mnemonic);
+    mnemonicEvents.emit('mnemonicChanged', mnemonic);
   }
 
   /**
    * Get mnemonic phrase from secure storage
    */
   static async getMnemonic(): Promise<string | null> {
-    try {
-      return await SecureStore.getItemAsync(SECURE_STORE_KEYS.MNEMONIC);
-    } catch (error) {
-      console.error('Failed to get mnemonic:', error);
-      throw error;
-    }
+    return await SecureStore.getItemAsync(SECURE_STORE_KEYS.MNEMONIC);
   }
 
   /**
    * Delete mnemonic phrase from secure storage
    */
   static async deleteMnemonic(): Promise<void> {
-    try {
-      await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.MNEMONIC);
-      mnemonicEvents.emit('mnemonicChanged', null);
-    } catch (error) {
-      console.error('Failed to delete mnemonic:', error);
-      throw error;
-    }
+    await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.MNEMONIC);
+    mnemonicEvents.emit('mnemonicChanged', null);
   }
 
   /**
    * Save wallet URL to secure storage
    */
   static async saveWalletUrl(url: string): Promise<void> {
-    try {
-      if (url.trim()) {
-        await SecureStore.setItemAsync(SECURE_STORE_KEYS.WALLET_URL, url);
-      } else {
-        await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.WALLET_URL);
-      }
-      walletUrlEvents.emit('walletUrlChanged', url.trim() || null);
-    } catch (error) {
-      console.error('Failed to save wallet URL:', error);
-      throw error;
+    if (url.trim()) {
+      await SecureStore.setItemAsync(SECURE_STORE_KEYS.WALLET_URL, url);
+    } else {
+      await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.WALLET_URL);
     }
+    walletUrlEvents.emit('walletUrlChanged', url.trim() || null);
   }
 
   /**
    * Get wallet URL from secure storage
    */
   static async getWalletUrl(): Promise<string | null> {
-    try {
-      return await SecureStore.getItemAsync(SECURE_STORE_KEYS.WALLET_URL);
-    } catch (error) {
-      console.error('Failed to get wallet URL:', error);
-      throw error;
-    }
+    return await SecureStore.getItemAsync(SECURE_STORE_KEYS.WALLET_URL);
   }
 
   /**
    * Delete wallet URL from secure storage
    */
   static async deleteWalletUrl(): Promise<void> {
-    try {
-      await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.WALLET_URL);
-      walletUrlEvents.emit('walletUrlChanged', null);
-    } catch (error) {
-      console.error('Failed to delete wallet URL:', error);
-      throw error;
-    }
+    await SecureStore.deleteItemAsync(SECURE_STORE_KEYS.WALLET_URL);
+    walletUrlEvents.emit('walletUrlChanged', null);
   }
 }
 

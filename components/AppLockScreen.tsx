@@ -84,8 +84,7 @@ export function AppLockScreen() {
         }
       }
       // If user cancels, just reset authenticating state - don't retry
-    } catch (error) {
-      console.error('Biometric authentication error:', error);
+    } catch (_error) {
       setBiometricFailureCount(MAX_BIOMETRIC_ATTEMPTS);
       setBiometricError('Biometric attempts exceeded. Enter your PIN to continue.');
     } finally {
@@ -163,8 +162,7 @@ export function AppLockScreen() {
           errorResetTimeoutRef.current = null;
         }, 2000);
       }
-    } catch (error) {
-      console.error('PIN verification error:', error);
+    } catch (_error) {
       setPinError(true);
       if (errorResetTimeoutRef.current) {
         clearTimeout(errorResetTimeoutRef.current);

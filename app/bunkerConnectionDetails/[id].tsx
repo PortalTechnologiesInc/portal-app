@@ -1,11 +1,9 @@
-import Clipboard from '@react-native-clipboard/clipboard';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, Copy } from 'lucide-react-native';
+import { ArrowLeft } from 'lucide-react-native';
 import { keyToHex } from 'portal-app-lib';
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Switch, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import uuid from 'react-native-uuid';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useDatabaseContext } from '@/context/DatabaseContext';
@@ -30,18 +28,17 @@ const BunkerConnectionDetailsScreen = () => {
   const [editableName, setEditableName] = useState('');
   const [grantedPermissions, setGrantedPermissions] = useState('');
 
-  const remoteSignerPubkey = useMemo(() => {
+  const _remoteSignerPubkey = useMemo(() => {
     if (!nostrService.publicKey) {
       return '';
     }
 
     try {
       return keyToHex(nostrService.publicKey);
-    } catch (error) {
+    } catch (_error) {
       try {
         return nostrService.publicKey.toString();
-      } catch (innerError) {
-        console.warn('Failed to format remote signer pubkey:', innerError);
+      } catch (_innerError) {
         return typeof nostrService.publicKey === 'string' ? nostrService.publicKey : '';
       }
     }
@@ -54,9 +51,7 @@ const BunkerConnectionDetailsScreen = () => {
         const allowedClient = await executeOperation(db => db.getBunkerClientOrNull(id));
         if (!allowedClient) throw Error(`No allowed nostr client with this pubkey: ${id}`);
         setClient(allowedClient);
-      } catch (error) {
-        console.error('Failed to load relays for bunker connection:', error);
-      }
+      } catch (_error) {}
     };
 
     loadClient();
@@ -116,8 +111,7 @@ const BunkerConnectionDetailsScreen = () => {
       });
       showToast('Connection updated', 'success');
       router.back();
-    } catch (error) {
-      console.error('Failed to update bunker client:', error);
+    } catch (_error) {
       showToast('Unable to update connection. Please try again.', 'error');
     }
   };
@@ -173,8 +167,8 @@ const BunkerConnectionDetailsScreen = () => {
               <ThemedText style={[styles.label, { color: textSecondary }]}>
                 Requested permissions
               </ThemedText>
-              {requestedPermissions.map((permission, index) => (
-                <View key={`${permission}-${index}`} style={styles.permissionRow}>
+              {requestedPermissions.map(permission => (
+                <View key={permission} style={styles.permissionRow}>
                   <ThemedText style={[styles.permissionLabel, { color: textPrimary }]}>
                     {permission}
                   </ThemedText>
