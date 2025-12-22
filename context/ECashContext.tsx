@@ -1,5 +1,5 @@
 import { type CashuLocalStore, CashuWallet, type CashuWalletInterface } from 'portal-app-lib';
-import React, { createContext, type ReactNode, useContext, useEffect, useState } from 'react';
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from 'react';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 import type { DatabaseService } from '@/services/DatabaseService';
@@ -42,9 +42,62 @@ export function ECashProvider({
 
   // Reset all ECash state to initial values
   // This is called during app reset to ensure clean state
-  const resetECash = () => {
+  const resetECash = useCallback(() => {
     setWallets({});
     setIsLoading(false);
+  }, []);
+
+  // Add a new wallet with simplified error handling
+  const addWallet = useCallback(
+    async (mintUrl: string, unit: string): Promise<CashuWalletInterface> => {
+      const normalizedUnit = unit.toLowerCase();
+      const walletKey = createWalletKey(mintUrl, unit);
+
+      // Check if wallet already exists
+      const existingWallet = wallets[walletKey];
+      if (existingWallet) {
+        return existingWallet;
+      }
+
+      // Use new keyHelpers to validate key material existence
+      if (!hasKey({ mnemonic, nsec })) {
+        throw new Error('Cannot create wallet: key material not available');
+      }
+
+      const seed = getCashuSeedFromKey({ mnemonic, nsec });
+      const storage = await executeOperation(db => Promise.resolve(new CashuStorage(db)));
+
+      // Create wallet with single timeout (no retry complexity)
+      const wallet = await Promise.race([
+        CashuWallet.create(mintUrl, normalizedUnit, seed, storage),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Wallet creation timeout')), 8000)
+        ),
+      ]);
+
+      await wallet.restoreProofs().catch(_error => {});
+
+      setWallets(prev => ({ ...prev, [walletKey]: wallet }));
+      return wallet;
+    },
+    [wallets, mnemonic, nsec, executeOperation]
+  );
+
+  // Remove a wallet
+  const removeWallet = async (mintUrl: string, unit: string) => {
+    try {
+      const walletKey = createWalletKey(mintUrl, unit);
+      setWallets(prev => {
+        const newMap = { ...prev };
+        delete newMap[walletKey];
+        return newMap;
+      });
+    } catch (_error) {}
+  };
+
+  const getWallet = (mintUrl: string, unit: string): CashuWalletInterface | null => {
+    const walletKey = createWalletKey(mintUrl, unit);
+    return wallets[walletKey] || null;
   };
 
   // Register/unregister context reset function
@@ -54,7 +107,7 @@ export function ECashProvider({
     return () => {
       unregisterContextReset(resetECash);
     };
-  }, []);
+  }, [resetECash]);
 
   useEffect(() => {
     const fetchWallets = async () => {
@@ -92,72 +145,15 @@ export function ECashProvider({
         // Log only failures for debugging
         results.forEach((result, index) => {
           if (result.status === 'rejected') {
-            const [mintUrl, unit] = uniquePairs[index];
-            console.error(`Failed to create wallet ${mintUrl}-${unit}:`, result.reason);
+            const [_mintUrl, _unit] = uniquePairs[index];
           }
         });
-      } catch (error) {
-        console.error('ECashContext: Error fetching wallets:', error);
-      }
+      } catch (_error) {}
       setIsLoading(false);
     };
 
     fetchWallets();
-  }, [executeOperation, mnemonic, nsec]);
-
-  // Add a new wallet with simplified error handling
-  const addWallet = async (mintUrl: string, unit: string): Promise<CashuWalletInterface> => {
-    const normalizedUnit = unit.toLowerCase();
-    const walletKey = createWalletKey(mintUrl, unit);
-
-    // Check if wallet already exists
-    const existingWallet = wallets[walletKey];
-    if (existingWallet) {
-      return existingWallet;
-    }
-
-    // Use new keyHelpers to validate key material existence
-    if (!hasKey({ mnemonic, nsec })) {
-      throw new Error('Cannot create wallet: key material not available');
-    }
-
-    const seed = getCashuSeedFromKey({ mnemonic, nsec });
-    const storage = await executeOperation(db => Promise.resolve(new CashuStorage(db)));
-
-    // Create wallet with single timeout (no retry complexity)
-    const wallet = await Promise.race([
-      CashuWallet.create(mintUrl, normalizedUnit, seed, storage),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Wallet creation timeout')), 8000)
-      ),
-    ]);
-
-    await wallet
-      .restoreProofs()
-      .catch(error => console.warn(`Proof restoration failed for ${walletKey}:`, error.message));
-
-    setWallets(prev => ({ ...prev, [walletKey]: wallet }));
-    return wallet;
-  };
-
-  // Remove a wallet
-  const removeWallet = async (mintUrl: string, unit: string) => {
-    try {
-      const walletKey = createWalletKey(mintUrl, unit);
-      setWallets(prev => {
-        const newMap = { ...prev };
-        delete newMap[walletKey];
-        return newMap;
-      });
-    } catch (error) {
-      console.error('Error removing wallet:', error);
-    }
-  };
-
-  const getWallet = (mintUrl: string, unit: string): CashuWalletInterface | null => {
-    const walletKey = createWalletKey(mintUrl, unit);
-    return wallets[walletKey] || null;
-  };
+  }, [executeOperation, mnemonic, nsec, addWallet]);
 
   return (
     <ECashContext.Provider
@@ -194,44 +190,27 @@ class CashuStorage implements CashuLocalStore {
     try {
       const proofs = await this.db.getCashuProofs(mintUrl, unit, state, spendingCondition);
       return proofs;
-    } catch (error) {
-      console.error('[CashuStorage] Error getting proofs:', error);
+    } catch (_error) {
       return [];
     }
   }
 
   async updateProofs(added: Array<string>, removedYs: Array<string>): Promise<void> {
-    try {
-      await this.db.updateCashuProofs(added, removedYs);
-    } catch (error) {
-      console.error('[CashuStorage] Error updating proofs:', error);
-      throw error;
-    }
+    await this.db.updateCashuProofs(added, removedYs);
   }
 
   async updateProofsState(ys: Array<string>, state: string): Promise<void> {
-    try {
-      await this.db.updateCashuProofsState(ys, state);
-    } catch (error) {
-      console.error('[CashuStorage] Error updating proof states:', error);
-      throw error;
-    }
+    await this.db.updateCashuProofsState(ys, state);
   }
 
   async addTransaction(transaction: string): Promise<void> {
-    try {
-      await this.db.addCashuTransaction(transaction);
-    } catch (error) {
-      console.error('[CashuStorage] Error adding transaction:', error);
-      throw error;
-    }
+    await this.db.addCashuTransaction(transaction);
   }
 
   async getTransaction(transactionId: string): Promise<string | undefined> {
     try {
       return await this.db.getCashuTransaction(transactionId);
-    } catch (error) {
-      console.error('[CashuStorage] Error getting transaction:', error);
+    } catch (_error) {
       return undefined;
     }
   }
@@ -243,44 +222,27 @@ class CashuStorage implements CashuLocalStore {
   ): Promise<Array<string>> {
     try {
       return await this.db.listCashuTransactions(mintUrl, direction, unit);
-    } catch (error) {
-      console.error('[CashuStorage] Error listing transactions:', error);
+    } catch (_error) {
       return [];
     }
   }
 
   async removeTransaction(transactionId: string): Promise<void> {
-    try {
-      await this.db.removeCashuTransaction(transactionId);
-    } catch (error) {
-      console.error('[CashuStorage] Error removing transaction:', error);
-      throw error;
-    }
+    await this.db.removeCashuTransaction(transactionId);
   }
 
   async addMint(mintUrl: string, mintInfo: string | undefined): Promise<void> {
-    try {
-      await this.db.addCashuMint(mintUrl, mintInfo);
-    } catch (error) {
-      console.error('[CashuStorage] Error adding mint:', error);
-      throw error;
-    }
+    await this.db.addCashuMint(mintUrl, mintInfo);
   }
 
   async removeMint(mintUrl: string): Promise<void> {
-    try {
-      await this.db.removeCashuMint(mintUrl);
-    } catch (error) {
-      console.error('[CashuStorage] Error removing mint:', error);
-      throw error;
-    }
+    await this.db.removeCashuMint(mintUrl);
   }
 
   async getMint(mintUrl: string): Promise<string | undefined> {
     try {
       return await this.db.getCashuMint(mintUrl);
-    } catch (error) {
-      console.error('[CashuStorage] Error getting mint:', error);
+    } catch (_error) {
       return undefined;
     }
   }
@@ -288,35 +250,23 @@ class CashuStorage implements CashuLocalStore {
   async getMints(): Promise<Array<string>> {
     try {
       return await this.db.getCashuMints();
-    } catch (error) {
-      console.error('[CashuStorage] Error getting mints:', error);
+    } catch (_error) {
       return [];
     }
   }
 
   async updateMintUrl(oldMintUrl: string, newMintUrl: string): Promise<void> {
-    try {
-      await this.db.updateCashuMintUrl(oldMintUrl, newMintUrl);
-    } catch (error) {
-      console.error('[CashuStorage] Error updating mint URL:', error);
-      throw error;
-    }
+    await this.db.updateCashuMintUrl(oldMintUrl, newMintUrl);
   }
 
   async addMintKeysets(mintUrl: string, keysets: Array<string>): Promise<void> {
-    try {
-      await this.db.addCashuMintKeysets(mintUrl, keysets);
-    } catch (error) {
-      console.error('[CashuStorage] Error adding mint keysets:', error);
-      throw error;
-    }
+    await this.db.addCashuMintKeysets(mintUrl, keysets);
   }
 
   async getMintKeysets(mintUrl: string): Promise<Array<string> | undefined> {
     try {
       return await this.db.getCashuMintKeysets(mintUrl);
-    } catch (error) {
-      console.error('[CashuStorage] Error getting mint keysets:', error);
+    } catch (_error) {
       return undefined;
     }
   }
@@ -324,53 +274,35 @@ class CashuStorage implements CashuLocalStore {
   async getKeysetById(keysetId: string): Promise<string | undefined> {
     try {
       return await this.db.getCashuKeysetById(keysetId);
-    } catch (error) {
-      console.error('[CashuStorage] Error getting keyset by ID:', error);
+    } catch (_error) {
       return undefined;
     }
   }
 
   async addKeys(keyset: string): Promise<void> {
-    try {
-      await this.db.addCashuKeys(keyset);
-    } catch (error) {
-      console.error('[CashuStorage] Error adding keys:', error);
-      throw error;
-    }
+    await this.db.addCashuKeys(keyset);
   }
 
   async getKeys(id: string): Promise<string | undefined> {
     try {
       return await this.db.getCashuKeys(id);
-    } catch (error) {
-      console.error('[CashuStorage] Error getting keys:', error);
+    } catch (_error) {
       return undefined;
     }
   }
 
   async removeKeys(id: string): Promise<void> {
-    try {
-      await this.db.removeCashuKeys(id);
-    } catch (error) {
-      console.error('[CashuStorage] Error removing keys:', error);
-      throw error;
-    }
+    await this.db.removeCashuKeys(id);
   }
 
   async incrementKeysetCounter(keysetId: string, count: number): Promise<void> {
-    try {
-      await this.db.incrementCashuKeysetCounter(keysetId, count);
-    } catch (error) {
-      console.error('[CashuStorage] Error incrementing keyset counter:', error);
-      throw error;
-    }
+    await this.db.incrementCashuKeysetCounter(keysetId, count);
   }
 
   async getKeysetCounter(keysetId: string): Promise<number | undefined> {
     try {
       return await this.db.getCashuKeysetCounter(keysetId);
-    } catch (error) {
-      console.error('[CashuStorage] Error getting keyset counter:', error);
+    } catch (_error) {
       return undefined;
     }
   }

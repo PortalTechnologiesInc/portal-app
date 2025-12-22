@@ -1,7 +1,7 @@
 import * as Linking from 'expo-linking';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { ArrowLeft, CheckCircle, Nfc, Settings, XCircle } from 'lucide-react-native';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -34,7 +34,7 @@ type ErrorType =
 export default function NFCScanScreen() {
   const router = useRouter();
   const [isNFCEnabled, setIsNFCEnabled] = useState<boolean | null>(null);
-  const [isCheckingNFC, setIsCheckingNFC] = useState(false);
+  const [_isCheckingNFC, setIsCheckingNFC] = useState(false);
   const [scanState, setScanState] = useState<'ready' | 'scanning' | 'success' | 'error'>('ready');
   const [errorType, setErrorType] = useState<ErrorType>(null);
   const [isPageFocused, setIsPageFocused] = useState(false);
@@ -53,7 +53,7 @@ export default function NFCScanScreen() {
   const scanTimeouts = useRef<number[]>([]);
 
   // Helper function to manage timeouts
-  const addTimeout = (callback: () => void, delay: number) => {
+  const addTimeout = useCallback((callback: () => void, delay: number) => {
     const timeoutId = setTimeout(() => {
       // Remove this timeout from tracking array when it executes
       scanTimeouts.current = scanTimeouts.current.filter(id => id !== timeoutId);
@@ -66,13 +66,15 @@ export default function NFCScanScreen() {
     // Track the timeout ID for cleanup
     scanTimeouts.current.push(timeoutId);
     return timeoutId;
-  };
+  }, []);
 
   // Helper function to clear all timeouts
-  const clearAllTimeouts = () => {
-    scanTimeouts.current.forEach(timeoutId => clearTimeout(timeoutId as any));
+  const clearAllTimeouts = useCallback(() => {
+    for (const timeoutId of scanTimeouts.current) {
+      clearTimeout(timeoutId as unknown as NodeJS.Timeout);
+    }
     scanTimeouts.current = [];
-  };
+  }, []);
 
   const getErrorMessage = (): string => {
     if (!errorType) return 'Scan failed. Use retry button below to scan again.';
@@ -88,7 +90,6 @@ export default function NFCScanScreen() {
         return 'Scan was cancelled. Tap retry to scan again.';
       case 'scan_timeout':
         return 'Scan timed out. Hold your device closer to the tag and try again.';
-      case 'scan_failed':
       default:
         return 'Scan failed. Use retry button below to scan again.';
     }
@@ -122,7 +123,7 @@ export default function NFCScanScreen() {
   const { handleDeepLink } = useDeeplink();
 
   // Screen dimensions
-  const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+  const { width: screenWidth } = Dimensions.get('window');
   // Account for container padding (16px on each side = 32px total)
   const containerPadding = 32;
   const availableWidth = screenWidth - containerPadding;
@@ -130,23 +131,21 @@ export default function NFCScanScreen() {
   const scanAreaSize = Math.max(200, Math.min(availableWidth * 0.7, 280, screenWidth - 40));
 
   // Real NFC Status Checking using react-native-nfc-manager
-  const checkNFCStatus = async (): Promise<boolean> => {
+  const checkNFCStatus = useCallback(async (): Promise<boolean> => {
     try {
       // Initialize NFC Manager if not already done
       const isStarted = await NfcManager.isSupported();
       if (!isStarted) {
-        console.log('NFC not supported on this device');
         return false;
       }
 
       // Check if NFC is enabled
       const isEnabled = await NfcManager.isEnabled();
       return isEnabled;
-    } catch (error) {
-      console.error('NFC check error:', error);
+    } catch (_error) {
       return false;
     }
-  };
+  }, []);
 
   const openNFCSettings = async () => {
     try {
@@ -165,9 +164,7 @@ export default function NFCScanScreen() {
         // For iOS, open general settings (NFC can't be controlled by user)
         await Linking.openSettings();
       }
-    } catch (error) {
-      console.error('Error opening settings:', error);
-    }
+    } catch (_error) {}
   };
 
   const showNFCEnableDialog = () => {
@@ -188,7 +185,7 @@ export default function NFCScanScreen() {
   };
 
   // Start glowing animation
-  const startGlowAnimation = () => {
+  const startGlowAnimation = useCallback(() => {
     Animated.loop(
       Animated.sequence([
         Animated.timing(glowAnimation, {
@@ -203,10 +200,10 @@ export default function NFCScanScreen() {
         }),
       ])
     ).start();
-  };
+  }, [glowAnimation]);
 
   // Start scan line animation
-  const startScanLineAnimation = () => {
+  const startScanLineAnimation = useCallback(() => {
     // Reset position
     scanLineAnimation.setValue(0);
 
@@ -224,262 +221,94 @@ export default function NFCScanScreen() {
         }),
       ])
     ).start();
-  };
+  }, [scanLineAnimation]);
 
   // Stop glowing animation
-  const stopGlowAnimation = () => {
+  const stopGlowAnimation = useCallback(() => {
     glowAnimation.stopAnimation();
     Animated.timing(glowAnimation, {
       toValue: 1,
       duration: 300,
       useNativeDriver: true,
     }).start();
-  };
+  }, [glowAnimation]);
 
   // Stop scan line animation
-  const stopScanLineAnimation = () => {
+  const stopScanLineAnimation = useCallback(() => {
     scanLineAnimation.stopAnimation();
     Animated.timing(scanLineAnimation, {
       toValue: 0,
       duration: 300,
       useNativeDriver: true,
     }).start();
-  };
-
-  // NFC Status Change Handler
-  const handleNFCStatusChange = useCallback(
-    async (newStatus?: boolean) => {
-      const enabled = newStatus !== undefined ? newStatus : await checkNFCStatus();
-
-      if (enabled !== isNFCEnabled) {
-        setIsNFCEnabled(enabled);
-        setIsCheckingNFC(false);
-
-        if (enabled) {
-          // Only show toast if page is focused to prevent navigation issues
-          // if (isPageFocusedRef.current && !isLeavingPageRef.current) {
-          //   showToast('NFC enabled! Starting scan...', 'success');
-          // }
-          setScanState('ready');
-          setErrorType(null);
-          // Auto-start scanning when NFC becomes enabled
-          addTimeout(() => {
-            startScan();
-          }, 100); // Start almost immediately
-        } else {
-          setScanState('ready');
-          setErrorType(null);
-          stopGlowAnimation();
-        }
-      }
-    },
-    [isNFCEnabled]
-  );
-
-  // NFC page focus management - only active when page is visible
-  useFocusEffect(
-    useCallback(() => {
-      AppLockService.enableLockSuppression('nfc-scan');
-
-      let isListenerActive = false;
-      let appStateListener: any = null;
-      let scanningActive = false;
-
-      const initializeNFC = async () => {
-        try {
-          // Initialize NFC Manager
-          await NfcManager.start();
-
-          // Initial status check
-          const enabled = await checkNFCStatus();
-          setIsNFCEnabled(enabled);
-
-          // Auto-start scanning if NFC is already enabled
-          if (enabled) {
-            scanningActive = true;
-            addTimeout(() => {
-              startScan();
-            }, 100); // Start almost immediately
-          }
-
-          // Set up real-time NFC state change listener
-          isListenerActive = true;
-          NfcManager.setEventListener(NfcEvents.StateChanged, (event: any) => {
-            const isEnabled = event.state === 'on' || event.state === 'turning_on';
-            handleNFCStatusChange(isEnabled);
-          });
-        } catch (error) {
-          console.error('NFC initialization error:', error);
-          // Fallback to basic status check
-          const enabled = await checkNFCStatus();
-          setIsNFCEnabled(enabled);
-
-          // Auto-start scanning if NFC is already enabled (fallback)
-          if (enabled) {
-            scanningActive = true;
-            addTimeout(() => {
-              startScan();
-            }, 100); // Start almost immediately
-          }
-        }
-      };
-
-      // App state listener for returning from settings
-      const handleAppStateChange = (nextAppState: string) => {
-        if (nextAppState === 'active') {
-          // Check NFC status when returning to app (e.g., from settings)
-          addTimeout(() => handleNFCStatusChange(), 300);
-        }
-      };
-
-      appStateListener = AppState.addEventListener('change', handleAppStateChange);
-
-      // Set page as focused and initialize NFC
-      setIsPageFocused(true);
-      isPageFocusedRef.current = true; // Set ref immediately for synchronous access
-      isLeavingPageRef.current = false; // Reset leaving page flag
-      initializeNFC();
-
-      // Cleanup when page loses focus
-      return () => {
-        AppLockService.disableLockSuppression('nfc-scan');
-
-        // Mark that we're intentionally leaving the page
-        isLeavingPageRef.current = true;
-
-        // Stop any ongoing scanning
-        if (scanningActive) {
-          NfcManager.cancelTechnologyRequest().catch(e =>
-            console.error('Error canceling NFC request during cleanup:', e)
-          );
-          scanningActive = false;
-        }
-
-        // Stop glow animation
-        stopGlowAnimation();
-
-        // Remove NFC state listener
-        if (isListenerActive) {
-          NfcManager.setEventListener(NfcEvents.StateChanged, null);
-          isListenerActive = false;
-        }
-
-        // Remove app state listener
-        appStateListener?.remove();
-
-        // Reset states
-        setScanState('ready');
-        setErrorType(null);
-        setIsCheckingNFC(false);
-        setIsPageFocused(false);
-        isPageFocusedRef.current = false; // Reset ref immediately
-        isLeavingPageRef.current = false; // Reset leaving page flag
-
-        // Clear all timeouts
-        clearAllTimeouts();
-      };
-    }, [handleNFCStatusChange])
-  );
-
-  // Real-time monitoring effect (lighter polling as backup) - only when page is focused
-  useEffect(() => {
-    if (isNFCEnabled === false && isPageFocused) {
-      setIsCheckingNFC(true);
-
-      // Reduced polling frequency since we have listeners
-      const interval = setInterval(() => {
-        if (isPageFocused) {
-          handleNFCStatusChange();
-        }
-      }, 5000); // Check every 5 seconds as backup
-
-      return () => {
-        clearInterval(interval);
-        setIsCheckingNFC(false);
-      };
-    } else {
-      setIsCheckingNFC(false);
-    }
-  }, [isNFCEnabled, isPageFocused, handleNFCStatusChange]);
-
-  // Handle Android hardware back button
-  useEffect(() => {
-    const handleBackPress = () => {
-      isLeavingPageRef.current = true;
-      return false; // Let the default behavior handle navigation
-    };
-
-    if (Platform.OS === 'android') {
-      const backHandler = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
-      return () => backHandler.remove();
-    }
-  }, []);
+  }, [scanLineAnimation]);
 
   // Validate NDEF records for portal protocol
-  const validatePortalProtocol = (ndefRecords: any[]): { isValid: boolean; portalUrl?: string } => {
-    try {
-      for (const record of ndefRecords) {
-        if (record.tnf === Ndef.TNF_WELL_KNOWN && record.type) {
-          // Check if it's a URI record
-          const typeArray = new Uint8Array(record.type);
-          const typeString = String.fromCharCode.apply(null, Array.from(typeArray));
+  const validatePortalProtocol = useCallback(
+    (ndefRecords: any[]): { isValid: boolean; portalUrl?: string } => {
+      try {
+        for (const record of ndefRecords) {
+          if (record.tnf === Ndef.TNF_WELL_KNOWN && record.type) {
+            const typeArray = new Uint8Array(record.type);
+            const typeString = String.fromCharCode.apply(null, Array.from(typeArray));
 
-          if (typeString === 'U') {
-            // URI record type
-            const payload = new Uint8Array(record.payload);
-            const identifierCode = payload[0];
+            if (typeString === 'U') {
+              // URI record type
+              const payload = new Uint8Array(record.payload);
+              const identifierCode = payload[0];
 
-            // Decode the URI based on identifier code
-            let uri = '';
-            if (identifierCode === 0x00) {
-              // No prepending - full URI in payload
-              uri = String.fromCharCode.apply(null, Array.from(payload.slice(1)));
-            } else {
-              // Other identifier codes would need different handling
-              uri = String.fromCharCode.apply(null, Array.from(payload.slice(1)));
-            }
+              // Decode the URI based on identifier code
+              let uri = '';
+              if (identifierCode === 0x00) {
+                // No prepending - full URI in payload
+                uri = String.fromCharCode.apply(null, Array.from(payload.slice(1)));
+              } else {
+                // Other identifier codes would need different handling
+                uri = String.fromCharCode.apply(null, Array.from(payload.slice(1)));
+              }
 
-            // Check if URI starts with portal://
-            if (uri.startsWith('portal://')) {
-              return { isValid: true, portalUrl: uri };
+              // Check if URI starts with portal://
+              if (uri.startsWith('portal://')) {
+                return { isValid: true, portalUrl: uri };
+              }
             }
           }
-        }
 
-        // Also check for text records that might contain portal URLs
-        if (record.tnf === Ndef.TNF_WELL_KNOWN && record.type) {
-          const typeArray = new Uint8Array(record.type);
-          const typeString = String.fromCharCode.apply(null, Array.from(typeArray));
+          // Also check for text records that might contain portal URLs
+          if (record.tnf === Ndef.TNF_WELL_KNOWN && record.type) {
+            const typeArray = new Uint8Array(record.type);
+            const typeString = String.fromCharCode.apply(null, Array.from(typeArray));
 
-          if (typeString === 'T') {
-            // Text record type
-            const payload = new Uint8Array(record.payload);
-            const languageCodeLength = payload[0] & 0x3f;
-            const text = String.fromCharCode.apply(
-              null,
-              Array.from(payload.slice(1 + languageCodeLength))
-            );
+            if (typeString === 'T') {
+              // Text record type
+              const payload = new Uint8Array(record.payload);
+              const languageCodeLength = payload[0] & 0x3f;
+              const text = String.fromCharCode.apply(
+                null,
+                Array.from(payload.slice(1 + languageCodeLength))
+              );
 
-            // Check if text contains portal:// URL
-            if (text.includes('portal://')) {
-              const match = text.match(/portal:\/\/[^\s]+/);
-              if (match) {
-                return { isValid: true, portalUrl: match[0] };
+              // Check if text contains portal:// URL
+              if (text.includes('portal://')) {
+                const match = text.match(/portal:\/\/[^\s]+/);
+                if (match) {
+                  return { isValid: true, portalUrl: match[0] };
+                }
               }
             }
           }
         }
-      }
 
-      return { isValid: false };
-    } catch (error) {
-      console.error('Error validating NDEF records:', error);
-      return { isValid: false };
-    }
-  };
+        return { isValid: false };
+      } catch (_error) {
+        return { isValid: false };
+      }
+    },
+    []
+  );
 
   // NFC scanning using requestTechnology - Android manifest handles system chooser prevention
-  const startScan = async () => {
+  const startScan = useCallback(async () => {
     if (!isNFCEnabled || !isPageFocusedRef.current) {
       return;
     }
@@ -525,7 +354,6 @@ export default function NFCScanScreen() {
         setErrorType(null);
         stopGlowAnimation();
         stopScanLineAnimation();
-        console.log('Valid portal URL detected:', validation.portalUrl);
 
         // Stop scanning
         await NfcManager.cancelTechnologyRequest();
@@ -546,15 +374,11 @@ export default function NFCScanScreen() {
         await NfcManager.cancelTechnologyRequest();
       }
     } catch (error) {
-      console.error('NFC scan error:', error);
-
       // Don't show error if we're intentionally leaving the page or page is not focused
       if (isLeavingPageRef.current || !isPageFocusedRef.current) {
         try {
           await NfcManager.cancelTechnologyRequest();
-        } catch (e) {
-          console.error('Error canceling NFC request:', e);
-        }
+        } catch (_e) {}
         return;
       }
 
@@ -576,13 +400,200 @@ export default function NFCScanScreen() {
       // Stop scanning and reset state
       try {
         await NfcManager.cancelTechnologyRequest();
-      } catch (e) {
-        console.error('Error canceling NFC request:', e);
-      }
+      } catch (_e) {}
 
       // Don't auto-retry - let user manually retry
     }
-  };
+  }, [
+    isNFCEnabled,
+    handleDeepLink,
+    addTimeout,
+    router,
+    startGlowAnimation,
+    startScanLineAnimation,
+    stopGlowAnimation,
+    stopScanLineAnimation,
+    validatePortalProtocol,
+  ]);
+
+  // NFC Status Change Handler
+  const handleNFCStatusChange = useCallback(
+    async (newStatus?: boolean) => {
+      const enabled = newStatus !== undefined ? newStatus : await checkNFCStatus();
+
+      if (enabled !== isNFCEnabled) {
+        setIsNFCEnabled(enabled);
+        setIsCheckingNFC(false);
+
+        if (enabled) {
+          // Only show toast if page is focused to prevent navigation issues
+          // if (isPageFocusedRef.current && !isLeavingPageRef.current) {
+          //   showToast('NFC enabled! Starting scan...', 'success');
+          // }
+          setScanState('ready');
+          setErrorType(null);
+          // Auto-start scanning when NFC becomes enabled
+          addTimeout(() => {
+            startScan();
+          }, 100); // Start almost immediately
+        } else {
+          setScanState('ready');
+          setErrorType(null);
+          stopGlowAnimation();
+        }
+      }
+    },
+    [
+      isNFCEnabled, // Auto-start scanning when NFC becomes enabled
+      addTimeout,
+      checkNFCStatus,
+      startScan,
+      stopGlowAnimation,
+    ]
+  );
+
+  // NFC page focus management - only active when page is visible
+  useFocusEffect(
+    useCallback(() => {
+      AppLockService.enableLockSuppression('nfc-scan');
+
+      let isListenerActive = false;
+      let appStateListener: any = null;
+      let scanningActive = false;
+
+      const initializeNFC = async () => {
+        try {
+          // Initialize NFC Manager
+          await NfcManager.start();
+
+          // Initial status check
+          const enabled = await checkNFCStatus();
+          setIsNFCEnabled(enabled);
+
+          // Auto-start scanning if NFC is already enabled
+          if (enabled) {
+            scanningActive = true;
+            addTimeout(() => {
+              startScan();
+            }, 100); // Start almost immediately
+          }
+
+          // Set up real-time NFC state change listener
+          isListenerActive = true;
+          NfcManager.setEventListener(NfcEvents.StateChanged, (event: any) => {
+            const isEnabled = event.state === 'on' || event.state === 'turning_on';
+            handleNFCStatusChange(isEnabled);
+          });
+        } catch (_error) {
+          // Fallback to basic status check
+          const enabled = await checkNFCStatus();
+          setIsNFCEnabled(enabled);
+
+          // Auto-start scanning if NFC is already enabled (fallback)
+          if (enabled) {
+            scanningActive = true;
+            addTimeout(() => {
+              startScan();
+            }, 100); // Start almost immediately
+          }
+        }
+      };
+
+      // App state listener for returning from settings
+      const handleAppStateChange = (nextAppState: string) => {
+        if (nextAppState === 'active') {
+          // Check NFC status when returning to app (e.g., from settings)
+          addTimeout(() => handleNFCStatusChange(), 300);
+        }
+      };
+
+      appStateListener = AppState.addEventListener('change', handleAppStateChange);
+
+      // Set page as focused and initialize NFC
+      setIsPageFocused(true);
+      isPageFocusedRef.current = true; // Set ref immediately for synchronous access
+      isLeavingPageRef.current = false; // Reset leaving page flag
+      initializeNFC();
+
+      // Cleanup when page loses focus
+      return () => {
+        AppLockService.disableLockSuppression('nfc-scan');
+
+        // Mark that we're intentionally leaving the page
+        isLeavingPageRef.current = true;
+
+        // Stop any ongoing scanning
+        if (scanningActive) {
+          NfcManager.cancelTechnologyRequest().catch(_e => {});
+          scanningActive = false;
+        }
+
+        // Stop glow animation
+        stopGlowAnimation();
+
+        // Remove NFC state listener
+        if (isListenerActive) {
+          NfcManager.setEventListener(NfcEvents.StateChanged, null);
+          isListenerActive = false;
+        }
+
+        // Remove app state listener
+        appStateListener?.remove();
+
+        // Reset states
+        setScanState('ready');
+        setErrorType(null);
+        setIsCheckingNFC(false);
+        setIsPageFocused(false);
+        isPageFocusedRef.current = false; // Reset ref immediately
+        isLeavingPageRef.current = false; // Reset leaving page flag
+
+        // Clear all timeouts
+        clearAllTimeouts();
+      };
+    }, [
+      handleNFCStatusChange, // Check NFC status when returning to app (e.g., from settings)
+      addTimeout,
+      checkNFCStatus, // Clear all timeouts
+      clearAllTimeouts,
+      startScan, // Stop glow animation
+      stopGlowAnimation,
+    ])
+  );
+
+  // Real-time monitoring effect (lighter polling as backup) - only when page is focused
+  useEffect(() => {
+    if (isNFCEnabled === false && isPageFocused) {
+      setIsCheckingNFC(true);
+
+      // Reduced polling frequency since we have listeners
+      const interval = setInterval(() => {
+        if (isPageFocused) {
+          handleNFCStatusChange();
+        }
+      }, 5000); // Check every 5 seconds as backup
+
+      return () => {
+        clearInterval(interval);
+        setIsCheckingNFC(false);
+      };
+    } else {
+      setIsCheckingNFC(false);
+    }
+  }, [isNFCEnabled, isPageFocused, handleNFCStatusChange]);
+
+  // Handle Android hardware back button
+  useEffect(() => {
+    const handleBackPress = () => {
+      isLeavingPageRef.current = true;
+      return false; // Let the default behavior handle navigation
+    };
+
+    if (Platform.OS === 'android') {
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+      return () => backHandler.remove();
+    }
+  }, []);
 
   const getScanAreaColor = () => {
     if (isNFCEnabled === null) return borderPrimaryColor;

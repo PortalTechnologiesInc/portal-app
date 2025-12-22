@@ -73,7 +73,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const [isConvertingCurrency, setIsConvertingCurrency] = useState(false);
     const [isPermissionsExpanded, setIsPermissionsExpanded] = useState(false);
     const isMounted = useRef(true);
-    const { activeWallet, walletInfo } = useWalletManager();
+    const { activeWallet, walletInfo: _walletInfo } = useWalletManager();
 
     // Theme colors
     const cardBackgroundColor = useThemeColor({}, 'cardBackground');
@@ -85,9 +85,8 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const warningColor = useThemeColor({}, 'statusError');
     const tertiaryColor = useThemeColor({}, 'textTertiary');
     const buttonSuccessColor = useThemeColor({}, 'buttonSuccessText');
-
-    // Add debug logging when a card is rendered
-    console.log(`Rendering card ${id} of type ${type}`);
+    const buttonSecondaryColor = useThemeColor({}, 'buttonSecondary');
+    const buttonSuccessBgColor = useThemeColor({}, 'buttonSuccess');
 
     const calendarObj =
       type === 'subscription'
@@ -111,17 +110,8 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
           // Check both mainKey and serviceKey as the structure might vary
           const requestorServiceKey = (metadata as any)?.mainKey || (metadata as any)?.serviceKey;
           if (!requestorServiceKey) {
-            console.warn(
-              '[PendingRequestCard] No requestor pubkey found in ticket request. Metadata keys:',
-              metadata ? Object.keys(metadata) : 'metadata is null/undefined'
-            );
             return;
           }
-
-          console.log(
-            '[PendingRequestCard] Fetching requestor name for ticket with pubkey:',
-            requestorServiceKey
-          );
 
           try {
             setIsRequestorNameLoading(true);
@@ -130,12 +120,10 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
               requestorServiceKey
             );
             if (isMounted.current) {
-              console.log('[PendingRequestCard] Successfully fetched requestor name:', name);
               setRequestorName(name);
               setIsRequestorNameLoading(false);
             }
-          } catch (error) {
-            console.error('[PendingRequestCard] Failed to fetch requestor name:', error);
+          } catch (_error) {
             if (isMounted.current) {
               setRequestorName(null);
               setIsRequestorNameLoading(false);
@@ -160,8 +148,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
               setServiceName(name);
               setIsServiceNameLoading(false);
             }
-          } catch (error) {
-            console.error('Failed to fetch service name:', error);
+          } catch (_error) {
             if (isMounted.current) {
               setServiceName(null);
               setIsServiceNameLoading(false);
@@ -175,7 +162,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
       return () => {
         isMounted.current = false;
       };
-    }, [nostrService.relayStatuses, type, metadata, wallets, request.ticketTitle]);
+    }, [type, metadata, request.ticketTitle, nostrService.getServiceName]);
 
     // Extract payment information - needed for balance checking
     const recipientPubkey = (metadata as SinglePaymentRequest).recipient;
@@ -189,7 +176,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const amount = content?.amount ?? (isTicketRequest ? (metadata as any)?.inner?.amount : null);
 
     // For ticket requests, get the requestor's pubkey from mainKey (CashuRequestContentWithKey structure)
-    const ticketRequestorPubkey = isTicketRequest
+    const _ticketRequestorPubkey = isTicketRequest
       ? (metadata as any)?.mainKey || (metadata as any)?.serviceKey
       : null;
 
@@ -233,39 +220,33 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
               );
 
               requestedMsats = Math.round(amountInMsat);
-            } catch (error) {
-              console.error('Error converting fiat amount for balance check:', error);
+            } catch (_error) {
               setHasInsufficientBalance(false);
             }
           }
 
           const requiredSats = Math.ceil(requestedMsats / 1000); // Convert msats to sats for eCash
           let canPay = false;
-
-          console.log('Checking balances for requested sats:', requiredSats);
           const walletInfo = await activeWallet?.getWalletInfo();
           const walletBalance = Number(walletInfo?.balanceInSats) || 0;
           // 1) Consider NWC LN wallet balance (msats)
           // const walletBalance = Number(walletInfo?.balanceInSats);
-          if (!isNaN(walletBalance) && walletBalance >= requiredSats) {
+          if (!Number.isNaN(walletBalance) && walletBalance >= requiredSats) {
             canPay = true;
           }
 
-          for (const [walletKey, wallet] of Object.entries(wallets)) {
+          for (const [_walletKey, wallet] of Object.entries(wallets)) {
             try {
               const balance = await wallet.getBalance();
               if (balance >= requiredSats) {
                 canPay = true;
                 break;
               }
-            } catch (error) {
-              console.error('Error checking wallet balance:', error);
-            }
+            } catch (_error) {}
           }
 
           setHasInsufficientBalance(!canPay);
-        } catch (error) {
-          console.error('Error checking payment balance:', error);
+        } catch (_error) {
           setHasInsufficientBalance(false);
         }
       };
@@ -278,7 +259,6 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
       metadata,
       amount,
       wallets,
-      walletInfo,
       activeWallet,
     ]);
 
@@ -346,8 +326,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
             setConvertedAmount(converted);
             setIsConvertingCurrency(false);
           }
-        } catch (error) {
-          console.error('Currency conversion error:', error);
+        } catch (_error) {
           if (isMounted.current) {
             setConvertedAmount(null);
             setIsConvertingCurrency(false);
@@ -440,6 +419,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
       hasECashWallets,
       activeWallet,
       hasInsufficientBalance,
+      eCashLoading,
     ]);
 
     // Determine if approve button should be disabled
@@ -584,7 +564,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
           <View style={[styles.nostrConnectContainer, { borderColor }]}>
             {(() => {
               // For Connect method (nip46), show requested permissions
-              if (nostrConnectMethod == NostrConnectMethod.Connect) {
+              if (nostrConnectMethod === NostrConnectMethod.Connect) {
                 const requestedPermissions = nostrConnectParams.at(2);
 
                 if (!requestedPermissions) return null;
@@ -624,8 +604,8 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
                         ))}
                     </TouchableOpacity>
                     <View style={styles.permissionsList}>
-                      {displayedPermissions.map((permission: string, index: number) => (
-                        <View key={index} style={styles.permissionItem}>
+                      {displayedPermissions.map((permission: string) => (
+                        <View key={permission} style={styles.permissionItem}>
                           <Text style={[styles.permissionText, { color: primaryTextColor }]}>
                             {permission}
                           </Text>
@@ -656,7 +636,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
           <View
             style={[
               styles.warningContainer,
-              { backgroundColor: warningColor + '15', borderColor: warningColor + '40' },
+              { backgroundColor: `${warningColor}15`, borderColor: `${warningColor}40` },
             ]}
           >
             <AlertTriangle size={16} color={warningColor} />
@@ -677,9 +657,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
               styles.button,
               styles.approveButton,
               {
-                backgroundColor: approveDisabled
-                  ? useThemeColor({}, 'buttonSecondary')
-                  : useThemeColor({}, 'buttonSuccess'),
+                backgroundColor: approveDisabled ? buttonSecondaryColor : buttonSuccessBgColor,
               },
             ]}
             onPress={() => !approveDisabled && approve(id)}

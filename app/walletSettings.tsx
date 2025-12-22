@@ -1,6 +1,5 @@
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Star, StarOff, Wallet, Zap } from 'lucide-react-native';
-import React from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ThemedText';

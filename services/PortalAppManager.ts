@@ -19,17 +19,13 @@ export class PortalAppManager {
     logRust = false
   ): Promise<PortalAppInterface> {
     if (!PortalAppManager.instance) {
-      console.log('📚 Initializing the lib!');
       PortalAppManager.instance = await PortalApp.create(keypair, relays, relayStatusCallback);
     }
 
     if (logRust) {
       try {
         initLogger(new Logger(), LogLevel.Error);
-        console.log('Logger initialized');
-      } catch (error) {
-        console.error('Error initializing logger:', error);
-      }
+      } catch (_error) {}
     }
 
     return PortalAppManager.instance!;
@@ -50,22 +46,17 @@ export class PortalAppManager {
 
 class Logger implements LogCallback {
   log(entry: LogEntry) {
-    const message = `[${entry.target}] ${entry.message}`;
+    const _message = `[${entry.target}] ${entry.message}`;
     switch (entry.level) {
       case LogLevel.Trace:
-        console.trace(message);
         break;
       case LogLevel.Debug:
-        console.debug(message);
         break;
       case LogLevel.Info:
-        console.info(message);
         break;
       case LogLevel.Warn:
-        console.warn(message);
         break;
       case LogLevel.Error:
-        console.error(message);
         break;
     }
   }

@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import type React from 'react';
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 
 const ONBOARDING_KEY = 'portal_onboarding_complete';
@@ -21,15 +21,10 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Reset onboarding state to initial values
   // This is called during app reset to ensure clean state
-  const resetOnboardingState = () => {
-    console.log('🔄 Resetting Onboarding state...');
-
+  const resetOnboardingState = useCallback(() => {
     // Reset local state to initial values (SecureStore is cleared by AppResetService)
     setIsOnboardingComplete(false);
-    // Note: isLoading is not reset as it will be managed by data loading
-
-    console.log('✅ Onboarding state reset completed');
-  };
+  }, []);
 
   // Register/unregister context reset function
   useEffect(() => {
@@ -38,7 +33,7 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return () => {
       unregisterContextReset(resetOnboardingState);
     };
-  }, []);
+  }, [resetOnboardingState]);
 
   // Load the value on mount
   useEffect(() => {
@@ -46,8 +41,7 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       try {
         const value = await SecureStore.getItemAsync(ONBOARDING_KEY);
         setIsOnboardingComplete(value === 'true');
-      } catch (e) {
-        console.error('Failed to load onboarding state:', e);
+      } catch (_e) {
         // On error, assume onboarding not complete for safety
         setIsOnboardingComplete(false);
       } finally {
@@ -75,7 +69,6 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       // Navigate to home
       router.replace('/');
     } catch (e) {
-      console.error('Failed to complete onboarding:', e);
       // Revert state on error
       setIsOnboardingComplete(false);
       throw e;

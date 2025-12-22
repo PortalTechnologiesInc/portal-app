@@ -162,8 +162,6 @@ export default function MyWalletManagementSecret() {
 
         let listenerId: string;
         const handler = async (event: SdkEvent) => {
-          console.log('[BREEZ EVENT]:', event);
-
           let isPaid = false;
           if (event.tag === SdkEvent_Tags.PaymentSucceeded) {
             const { amount: paymentAmount, paymentType } = event.inner.payment;
@@ -201,9 +199,7 @@ export default function MyWalletManagementSecret() {
         db => db.addPaymentStatusEntry(createdInvoice, 'payment_started'),
         null
       );
-    } catch (error) {
-      console.error('Failed to add payment_started status entry:', error);
-    }
+    } catch (_error) {}
 
     setInvoice(createdInvoice);
     setPageState(PageState.ShowInvoiceInfo);
@@ -250,8 +246,7 @@ export default function MyWalletManagementSecret() {
       });
 
       await executeOperation(db => db.saveNip05Contact(contactNpub));
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Error while sendig the request. Retry.');
       return;
     } finally {

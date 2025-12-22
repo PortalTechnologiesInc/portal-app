@@ -178,9 +178,6 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
             if (isProcessed === true) {
               return;
             } else if (isProcessed === null) {
-              console.warn(
-                'Failed to check token processing status due to database issues, proceeding cautiously'
-              );
               // Continue processing but log a warning
             }
 
@@ -200,14 +197,11 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
               db.storeMints(mintsList);
             });
 
-            console.log('Cashu token processed successfully');
-
             // Emit event to notify that wallet balances have changed
             globalEvents.emit('walletBalancesChanged', {
               mintUrl: tokenInfo.mintUrl,
               unit: tokenInfo.unit.toLowerCase(),
             });
-            console.log('walletBalancesChanged event emitted');
 
             // Record activity for token receipt
             try {
@@ -242,21 +236,15 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
                 const amountStr = tokenInfo.amount ? ` x${Number(tokenInfo.amount)}` : '';
                 showToast(`Ticket received: ${ticketTitle}${amountStr}`, 'success');
               } else {
-                console.warn('Failed to record Cashu token activity due to database issues');
               }
-            } catch (activityError) {
-              console.error('Error recording Cashu direct activity:', activityError);
-            }
-          } catch (error: any) {
-            console.error('Error processing Cashu token:', error.inner);
-          }
+            } catch (_activityError) {}
+          } catch (_error: any) {}
 
           // Return void for direct processing
           return;
         })
       )
-      .catch(e => {
-        console.error('Error listening for Cashu direct', e);
+      .catch(_e => {
         handleErrorWithToastAndReinit(
           'Failed to listen for Cashu direct. Retrying...',
           initializeApp
@@ -285,7 +273,7 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
         }
 
         // Declare wallet in outer scope
-        let wallet;
+        let wallet: any;
         // Check if we have the required unit before creating pending request
         try {
           const requiredMintUrl = event.inner.mintUrl;
@@ -299,9 +287,7 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
           if (!wallet) {
             try {
               wallet = await eCashContext.addWallet(requiredMintUrl, requiredUnit);
-            } catch (error) {
-              console.error(`Error creating wallet for ${requiredMintUrl}-${requiredUnit}:`, error);
-            }
+            } catch (_error) {}
           }
 
           if (!wallet) {
@@ -313,15 +299,14 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
           if (balance < requiredAmount) {
             return new CashuResponseStatus.InsufficientFunds();
           }
-        } catch (error) {
-          console.error('Error checking wallet availability:', error);
+        } catch (_error) {
           return new CashuResponseStatus.InsufficientFunds();
         }
 
         // Get the ticket title for pending requests
         let ticketTitle = 'Unknown Ticket';
         if (wallet) {
-          let unitInfo;
+          let unitInfo: any;
           try {
             unitInfo = wallet.getUnitInfo ? await wallet.getUnitInfo() : undefined;
           } catch {
@@ -384,8 +369,7 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
           });
         })
       )
-      .catch(e => {
-        console.error('Error listening for auth challenge', e);
+      .catch(_e => {
         handleErrorWithToastAndReinit(
           'Failed to listen for authentication challenge. Retrying...',
           initializeApp
@@ -434,7 +418,6 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
                   setPendingRequests(prev => {
                     // Check if request already exists to prevent duplicates
                     if (prev[id]) {
-                      console.log(`Request ${id} already exists, skipping duplicate`);
                       return prev;
                     }
                     const newPendingRequests = { ...prev };
@@ -464,7 +447,6 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
                   setPendingRequests(prev => {
                     // Check if request already exists to prevent duplicates
                     if (prev[id]) {
-                      console.log(`Request ${id} already exists, skipping duplicate`);
                       return prev;
                     }
                     const newPendingRequests = { ...prev };
@@ -477,8 +459,7 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
           }
         )
       )
-      .catch(e => {
-        console.error('Error listening for payment request', e);
+      .catch(_e => {
         handleErrorWithToastAndReinit(
           'Failed to listen for payment request. Retrying...',
           initializeApp
@@ -489,15 +470,12 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
     app
       .listenClosedRecurringPayment(
         new LocalClosedRecurringPaymentListener((event: CloseRecurringPaymentResponse) => {
-          console.log('Closed subscription received', event);
           return new Promise<void>(resolve => {
             handleCloseRecurringPaymentResponse(event, executeOperation, resolve);
           });
         })
       )
-      .catch(e => {
-        console.error('Error listening for recurring payments closing.', e);
-      });
+      .catch(_e => {});
 
     app
       .listenForNip46Request(
@@ -531,10 +509,18 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
           });
         })
       )
-      .catch(e => {
-        console.error('Error listening for nip46 requests.', e);
-      });
-  }, [executeOperation, executeOnNostr, activeWallet, preferredCurrency]);
+      .catch(_e => {});
+  }, [
+    executeOperation,
+    executeOnNostr,
+    activeWallet,
+    preferredCurrency,
+    eCashContext.addWallet,
+    eCashContext.getWallet,
+    mnemonic,
+    nsec,
+    pendingRequests,
+  ]);
 
   const dismissPendingRequest = useCallback((id: string) => {
     setPendingRequests(prev => {

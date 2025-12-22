@@ -12,7 +12,7 @@ import {
   Zap,
 } from 'lucide-react-native';
 import { generateMnemonic, Mnemonic, Nsec } from 'portal-app-lib';
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   BackHandler,
@@ -73,8 +73,8 @@ export default function Onboarding() {
   const [enteredPin, setEnteredPin] = useState('');
   const [pinError, setPinError] = useState('');
   const [isSavingPin, setIsSavingPin] = useState(false);
-  const [isBiometricSupported, setIsBiometricSupported] = useState(false);
-  const [pinSetupPreviousStep, setPinSetupPreviousStep] = useState<OnboardingStep>('import');
+  const [_isBiometricSupported, setIsBiometricSupported] = useState(false);
+  const [pinSetupPreviousStep, _setPinSetupPreviousStep] = useState<OnboardingStep>('import');
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -125,11 +125,11 @@ export default function Onboarding() {
     };
   }, [isBiometricAvailable]);
 
-  const resetPinState = () => {
+  const resetPinState = useCallback(() => {
     setPinStep('enter');
     setEnteredPin('');
     setPinError('');
-  };
+  }, []);
 
   const goToPreviousStep = useCallback(() => {
     const previousSteps: Record<OnboardingStep, OnboardingStep | null> = {
@@ -147,7 +147,7 @@ export default function Onboarding() {
     if (previousStep) {
       setCurrentStep(previousStep);
     }
-  }, [setCurrentStep, currentStep]);
+  }, [currentStep, pinSetupPreviousStep]);
 
   // Add this function to your component
   const okBack = useCallback(
@@ -219,7 +219,7 @@ export default function Onboarding() {
       const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
       return () => backHandler.remove();
     }
-  }, [currentStep, okBack]);
+  }, [currentStep, okBack, resetPinState]);
 
   const handleGenerate = async () => {
     const mnemonic = generateMnemonic().toString();
@@ -337,8 +337,7 @@ export default function Onboarding() {
 
       // Go to dashboard
       handleSkipWalletSetup();
-    } catch (error) {
-      console.error('Failed to save mnemonic:', error);
+    } catch (_error) {
       // Still go to dashboard even if saving fails
       handleSkipWalletSetup();
     }
@@ -356,8 +355,7 @@ export default function Onboarding() {
 
         // Go to dashboard
         handleSkipWalletSetup();
-      } catch (error) {
-        console.error('Failed to save mnemonic in dev mode:', error);
+      } catch (_error) {
         // Still go to dashboard even if saving fails
         handleSkipWalletSetup();
       }
@@ -404,8 +402,7 @@ export default function Onboarding() {
 
       // Proceed to Dashboard
       handleSkipWalletSetup();
-    } catch (error) {
-      console.error('Failed to save imported mnemonic:', error);
+    } catch (_error) {
       Alert.alert('Error', 'Failed to save your seed phrase. Please try again.');
     }
   };
@@ -426,8 +423,7 @@ export default function Onboarding() {
       await SecureStore.setItemAsync(SEED_ORIGIN_KEY, 'imported');
       // Go to wallet setup step
       handleSkipWalletSetup();
-    } catch (error) {
-      console.error('Failed to save imported nsec:', error);
+    } catch (_error) {
       Alert.alert('Error', 'Failed to save your Nsec. Please try again.');
     }
   };
@@ -477,8 +473,7 @@ export default function Onboarding() {
       setTimeout(() => {
         completeOnboarding();
       }, 2000);
-    } catch (error) {
-      console.error('Failed to save PIN:', error);
+    } catch (_error) {
       setPinError('Unable to save PIN. Please try again.');
     } finally {
       setIsSavingPin(false);
@@ -943,7 +938,7 @@ export default function Onboarding() {
         {currentStep === 'pin-setup' && (
           <View style={[styles.stepWrapper, styles.pinSetupFull]}>
             <View style={styles.pinSetupContent}>
-              <View style={[styles.pinIconContainer, { backgroundColor: buttonPrimary + '20' }]}>
+              <View style={[styles.pinIconContainer, { backgroundColor: `${buttonPrimary}20` }]}>
                 <Shield size={32} color={buttonPrimary} />
               </View>
               <ThemedText type="title" style={styles.title}>

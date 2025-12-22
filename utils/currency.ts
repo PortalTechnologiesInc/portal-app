@@ -201,7 +201,7 @@ export const shouldShowConvertedAmount = (params: {
  */
 export const formatActivityAmount = (amount: number | null, currency: string | null): string => {
   // Handle null/undefined cases
-  if (amount === null || amount === undefined || isNaN(amount)) {
+  if (amount === null || amount === undefined || Number.isNaN(amount)) {
     return 'N/A';
   }
 

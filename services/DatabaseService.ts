@@ -139,95 +139,79 @@ export class DatabaseService {
    * Runs the full migration process to recreate all tables
    */
   async resetAndReinitializeDatabase(): Promise<void> {
-    try {
-      const resetSQL = generateResetSQL();
+    const resetSQL = generateResetSQL();
 
-      // Set user_version to 0 to force migration
-      await this.db.execAsync(resetSQL);
-      await migrateDbIfNeeded(this.db);
-    } catch (error) {
-      console.error('❌ Failed to reinitialize database:', error);
-      throw error;
-    }
+    // Set user_version to 0 to force migration
+    await this.db.execAsync(resetSQL);
+    await migrateDbIfNeeded(this.db);
   }
 
   // Activity methods
   async addActivity(activity: Omit<ActivityWithDates, 'id' | 'created_at'>): Promise<string> {
-    try {
-      if (!this.db) {
-        throw new Error('Database connection not available');
-      }
+    if (!this.db) {
+      throw new Error('Database connection not available');
+    }
 
-      const id = uuid.v4();
-      const now = toUnixSeconds(Date.now());
-
-      try {
-        const result = await this.db.runAsync(
-          `INSERT OR IGNORE INTO activities (
+    const id = uuid.v4();
+    const now = toUnixSeconds(Date.now());
+    const result = await this.db.runAsync(
+      `INSERT OR IGNORE INTO activities (
             id, type, service_name, service_key, detail, date, amount, currency, converted_amount, converted_currency, request_id, created_at, subscription_id, status, invoice
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            id,
-            activity.type,
-            activity.service_name,
-            activity.service_key,
-            activity.detail,
-            toUnixSeconds(activity.date),
-            activity.amount,
-            activity.currency,
-            activity.converted_amount,
-            activity.converted_currency,
-            activity.request_id,
-            now,
-            activity.subscription_id,
-            activity.status || 'neutral',
-            activity.invoice || null,
-          ]
-        );
-        if (result.changes && result.changes > 0) {
-          return id;
-        }
-        // If insert was ignored (likely due to unique request_id), update existing row instead
-        const existing = await this.db.getFirstAsync<{ id: string }>(
-          'SELECT id FROM activities WHERE request_id = ? LIMIT 1',
-          [activity.request_id]
-        );
-        if (existing?.id) {
-          // Update the existing activity with new data
-          await this.db.runAsync(
-            `UPDATE activities SET
+      [
+        id,
+        activity.type,
+        activity.service_name,
+        activity.service_key,
+        activity.detail,
+        toUnixSeconds(activity.date),
+        activity.amount,
+        activity.currency,
+        activity.converted_amount,
+        activity.converted_currency,
+        activity.request_id,
+        now,
+        activity.subscription_id,
+        activity.status || 'neutral',
+        activity.invoice || null,
+      ]
+    );
+    if (result.changes && result.changes > 0) {
+      return id;
+    }
+    // If insert was ignored (likely due to unique request_id), update existing row instead
+    const existing = await this.db.getFirstAsync<{ id: string }>(
+      'SELECT id FROM activities WHERE request_id = ? LIMIT 1',
+      [activity.request_id]
+    );
+    if (existing?.id) {
+      // Update the existing activity with new data
+      await this.db.runAsync(
+        `UPDATE activities SET
               type = ?, service_name = ?, service_key = ?, detail = ?, date = ?,
               amount = ?, currency = ?, converted_amount = ?, converted_currency = ?,
               subscription_id = ?, status = ?, invoice = ?
             WHERE request_id = ?`,
-            [
-              activity.type,
-              activity.service_name,
-              activity.service_key,
-              activity.detail,
-              toUnixSeconds(activity.date),
-              activity.amount,
-              activity.currency,
-              activity.converted_amount,
-              activity.converted_currency,
-              activity.subscription_id,
-              activity.status || 'neutral',
-              activity.invoice || null,
-              activity.request_id,
-            ]
-          );
-          return existing.id;
-        }
-        // Fallback: return generated id (shouldn't happen if IGNORE occurred and existing found)
-        return id;
-      } catch (dbError) {
-        console.error('Database operation failed when adding activity:', dbError);
-        throw dbError;
-      }
-    } catch (error) {
-      console.error('Failed to add activity:', error);
-      throw error;
+        [
+          activity.type,
+          activity.service_name,
+          activity.service_key,
+          activity.detail,
+          toUnixSeconds(activity.date),
+          activity.amount,
+          activity.currency,
+          activity.converted_amount,
+          activity.converted_currency,
+          activity.subscription_id,
+          activity.status || 'neutral',
+          activity.invoice || null,
+          activity.request_id,
+        ]
+      );
+      return existing.id;
     }
+    // Fallback: return generated id (shouldn't happen if IGNORE occurred and existing found)
+    return id;
   }
 
   /**
@@ -240,8 +224,7 @@ export class DatabaseService {
         [requestId]
       );
       return !!existing?.id;
-    } catch (error) {
-      console.error('Database error checking activity by request_id:', error);
+    } catch (_error) {
       return false;
     }
   }
@@ -266,16 +249,11 @@ export class DatabaseService {
     status: 'neutral' | 'positive' | 'negative' | 'pending',
     statusDetail: string
   ): Promise<void> {
-    try {
-      await this.db.runAsync('UPDATE activities SET status = ?, detail = ? WHERE id = ?', [
-        status,
-        statusDetail,
-        id,
-      ]);
-    } catch (error) {
-      console.error('Error updating activity status:', error);
-      throw error;
-    }
+    await this.db.runAsync('UPDATE activities SET status = ?, detail = ? WHERE id = ?', [
+      status,
+      statusDetail,
+      id,
+    ]);
   }
 
   async getActivities(
@@ -699,7 +677,7 @@ export class DatabaseService {
         WHERE event_id = ?`,
       [eventId]
     );
-    return records ? true : false;
+    return !!records;
   }
 
   // Check if a pending request was approved (completed)
@@ -733,7 +711,7 @@ export class DatabaseService {
       }
       if (state) {
         const states = JSON.parse(state);
-        query += ' AND state IN (' + states.map(() => '?').join(',') + ')';
+        query += ` AND state IN (${states.map(() => '?').join(',')})`;
         params.push(...states);
       }
       if (spendingCondition) {
@@ -759,89 +737,73 @@ export class DatabaseService {
           unit: proof.unit,
         })
       );
-    } catch (error) {
-      console.error('[DatabaseService] Error getting proofs:', error);
+    } catch (_error) {
       return [];
     }
   }
 
   async updateCashuProofs(added: Array<string>, removedYs: Array<string>): Promise<void> {
-    try {
-      // Remove proofs
-      for (const y of removedYs) {
-        await this.db.runAsync('DELETE FROM cashu_proofs WHERE y = ?', [y]);
-      }
+    // Remove proofs
+    for (const y of removedYs) {
+      await this.db.runAsync('DELETE FROM cashu_proofs WHERE y = ?', [y]);
+    }
 
-      // Add proofs (assuming added contains serialized proof data)
-      for (const proofData of added) {
-        const proof = JSON.parse(proofData);
-        const dleq = proof.proof.dleq;
-        await this.db.runAsync(
-          `INSERT OR REPLACE INTO cashu_proofs 
+    // Add proofs (assuming added contains serialized proof data)
+    for (const proofData of added) {
+      const proof = JSON.parse(proofData);
+      const dleq = proof.proof.dleq;
+      await this.db.runAsync(
+        `INSERT OR REPLACE INTO cashu_proofs 
            (y, mint_url, state, spending_condition, unit, amount, keyset_id, secret, c, witness, dleq_e, dleq_s, dleq_r) 
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            proof.y,
-            proof.mint_url,
-            proof.state,
-            proof.spending_condition,
-            proof.unit,
-            proof.proof.amount,
-            proof.proof.id,
-            proof.proof.secret,
-            proof.proof.C,
-            proof.proof.witness || null,
-            dleq?.e || null,
-            dleq?.s || null,
-            dleq?.r || null,
-          ]
-        );
-      }
-    } catch (error) {
-      console.error('[DatabaseService] Error updating proofs:', error);
-      throw error;
+        [
+          proof.y,
+          proof.mint_url,
+          proof.state,
+          proof.spending_condition,
+          proof.unit,
+          proof.proof.amount,
+          proof.proof.id,
+          proof.proof.secret,
+          proof.proof.C,
+          proof.proof.witness || null,
+          dleq?.e || null,
+          dleq?.s || null,
+          dleq?.r || null,
+        ]
+      );
     }
   }
 
   async updateCashuProofsState(ys: Array<string>, state: string): Promise<void> {
-    try {
-      for (const y of ys) {
-        await this.db.runAsync('UPDATE cashu_proofs SET state = ? WHERE y = ?', [
-          state.replace(/"/g, ''),
-          y,
-        ]);
-      }
-    } catch (error) {
-      console.error('[DatabaseService] Error updating proof states:', error);
-      throw error;
+    for (const y of ys) {
+      await this.db.runAsync('UPDATE cashu_proofs SET state = ? WHERE y = ?', [
+        state.replace(/"/g, ''),
+        y,
+      ]);
     }
   }
 
   // Transaction methods
   async addCashuTransaction(transaction: string): Promise<void> {
-    try {
-      const txData = JSON.parse(transaction);
-      const metadata = JSON.stringify(txData.metadata);
-      const ys = JSON.stringify(txData.ys);
-      await this.db.runAsync(
-        'INSERT OR REPLACE INTO cashu_transactions (id, mint_url, direction, amount, fee, unit, ys, timestamp, memo, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [
-          txData.id,
-          txData.mint_url,
-          txData.direction,
-          txData.amount,
-          txData.fee,
-          txData.unit,
-          ys,
-          txData.timestamp,
-          txData.memo,
-          metadata,
-        ]
-      );
-    } catch (error) {
-      console.error('[DatabaseService] Error adding transaction:', error);
-      throw error;
-    }
+    const txData = JSON.parse(transaction);
+    const metadata = JSON.stringify(txData.metadata);
+    const ys = JSON.stringify(txData.ys);
+    await this.db.runAsync(
+      'INSERT OR REPLACE INTO cashu_transactions (id, mint_url, direction, amount, fee, unit, ys, timestamp, memo, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        txData.id,
+        txData.mint_url,
+        txData.direction,
+        txData.amount,
+        txData.fee,
+        txData.unit,
+        ys,
+        txData.timestamp,
+        txData.memo,
+        metadata,
+      ]
+    );
   }
 
   async getCashuTransaction(transactionId: string): Promise<string | undefined> {
@@ -866,8 +828,7 @@ export class DatabaseService {
             metadata: tx.metadata ? JSON.parse(tx.metadata) : null,
           })
         : undefined;
-    } catch (error) {
-      console.error('[DatabaseService] Error getting transaction:', error);
+    } catch (_error) {
       return undefined;
     }
   }
@@ -919,19 +880,13 @@ export class DatabaseService {
           metadata: tx.metadata ? JSON.parse(tx.metadata) : null,
         })
       );
-    } catch (error) {
-      console.error('[DatabaseService] Error listing transactions:', error);
+    } catch (_error) {
       return [];
     }
   }
 
   async removeCashuTransaction(transactionId: string): Promise<void> {
-    try {
-      await this.db.runAsync('DELETE FROM cashu_transactions WHERE id = ?', [transactionId]);
-    } catch (error) {
-      console.error('[DatabaseService] Error removing transaction:', error);
-      throw error;
-    }
+    await this.db.runAsync('DELETE FROM cashu_transactions WHERE id = ?', [transactionId]);
   }
 
   // Keyset methods
@@ -942,23 +897,17 @@ export class DatabaseService {
         [keysetId]
       );
       return keyset ? keyset.keyset : undefined;
-    } catch (error) {
-      console.error('[DatabaseService] Error getting keyset by ID:', error);
+    } catch (_error) {
       return undefined;
     }
   }
 
   async addCashuKeys(keyset: string): Promise<void> {
-    try {
-      const keysData = JSON.parse(keyset);
-      await this.db.runAsync('INSERT OR REPLACE INTO cashu_keys (id, keys) VALUES (?, ?)', [
-        keysData.id,
-        JSON.stringify(keysData.keys),
-      ]);
-    } catch (error) {
-      console.error('[DatabaseService] Error adding keys:', error);
-      throw error;
-    }
+    const keysData = JSON.parse(keyset);
+    await this.db.runAsync('INSERT OR REPLACE INTO cashu_keys (id, keys) VALUES (?, ?)', [
+      keysData.id,
+      JSON.stringify(keysData.keys),
+    ]);
   }
 
   async getCashuKeys(id: string): Promise<string | undefined> {
@@ -968,32 +917,21 @@ export class DatabaseService {
         [id]
       );
       return keys ? keys.keys : undefined;
-    } catch (error) {
-      console.error('[DatabaseService] Error getting keys:', error);
+    } catch (_error) {
       return undefined;
     }
   }
 
   async removeCashuKeys(id: string): Promise<void> {
-    try {
-      await this.db.runAsync('DELETE FROM cashu_keys WHERE id = ?', [id]);
-    } catch (error) {
-      console.error('[DatabaseService] Error removing keys:', error);
-      throw error;
-    }
+    await this.db.runAsync('DELETE FROM cashu_keys WHERE id = ?', [id]);
   }
 
   // Counter methods
   async incrementCashuKeysetCounter(keysetId: string, count: number): Promise<void> {
-    try {
-      await this.db.runAsync(
-        'INSERT OR REPLACE INTO cashu_keyset_counters (keyset_id, counter) VALUES (?, COALESCE((SELECT counter FROM cashu_keyset_counters WHERE keyset_id = ?), 0) + ?)',
-        [keysetId, keysetId, count]
-      );
-    } catch (error) {
-      console.error('[DatabaseService] Error incrementing keyset counter:', error);
-      throw error;
-    }
+    await this.db.runAsync(
+      'INSERT OR REPLACE INTO cashu_keyset_counters (keyset_id, counter) VALUES (?, COALESCE((SELECT counter FROM cashu_keyset_counters WHERE keyset_id = ?), 0) + ?)',
+      [keysetId, keysetId, count]
+    );
   }
 
   async getCashuKeysetCounter(keysetId: string): Promise<number | undefined> {
@@ -1003,32 +941,21 @@ export class DatabaseService {
         [keysetId]
       );
       return result?.counter;
-    } catch (error) {
-      console.error('[DatabaseService] Error getting keyset counter:', error);
+    } catch (_error) {
       return undefined;
     }
   }
 
   // Mint methods
   async addCashuMint(mintUrl: string, mintInfo: string | undefined): Promise<void> {
-    try {
-      await this.db.runAsync(
-        'INSERT OR REPLACE INTO cashu_mints (mint_url, mint_info) VALUES (?, ?)',
-        [mintUrl, mintInfo || null]
-      );
-    } catch (error) {
-      console.error('[DatabaseService] Error adding mint:', error);
-      throw error;
-    }
+    await this.db.runAsync(
+      'INSERT OR REPLACE INTO cashu_mints (mint_url, mint_info) VALUES (?, ?)',
+      [mintUrl, mintInfo || null]
+    );
   }
 
   async removeCashuMint(mintUrl: string): Promise<void> {
-    try {
-      await this.db.runAsync('DELETE FROM cashu_mints WHERE mint_url = ?', [mintUrl]);
-    } catch (error) {
-      console.error('[DatabaseService] Error removing mint:', error);
-      throw error;
-    }
+    await this.db.runAsync('DELETE FROM cashu_mints WHERE mint_url = ?', [mintUrl]);
   }
 
   async getCashuMint(mintUrl: string): Promise<string | undefined> {
@@ -1038,8 +965,7 @@ export class DatabaseService {
         [mintUrl]
       );
       return mint?.mint_info;
-    } catch (error) {
-      console.error('[DatabaseService] Error getting mint:', error);
+    } catch (_error) {
       return undefined;
     }
   }
@@ -1050,36 +976,25 @@ export class DatabaseService {
         'SELECT mint_url FROM cashu_mints'
       );
       return mints.map(mint => mint.mint_url);
-    } catch (error) {
-      console.error('[DatabaseService] Error getting mints:', error);
+    } catch (_error) {
       return [];
     }
   }
 
   async updateCashuMintUrl(oldMintUrl: string, newMintUrl: string): Promise<void> {
-    try {
-      await this.db.runAsync('UPDATE cashu_mints SET mint_url = ? WHERE mint_url = ?', [
-        newMintUrl,
-        oldMintUrl,
-      ]);
-    } catch (error) {
-      console.error('[DatabaseService] Error updating mint URL:', error);
-      throw error;
-    }
+    await this.db.runAsync('UPDATE cashu_mints SET mint_url = ? WHERE mint_url = ?', [
+      newMintUrl,
+      oldMintUrl,
+    ]);
   }
 
   async addCashuMintKeysets(mintUrl: string, keysets: Array<string>): Promise<void> {
-    try {
-      for (const keyset of keysets) {
-        const parsed = JSON.parse(keyset);
-        await this.db.runAsync(
-          'INSERT OR REPLACE INTO cashu_mint_keysets (mint_url, keyset_id, keyset) VALUES (?, ?, ?)',
-          [mintUrl, parsed.id, keyset]
-        );
-      }
-    } catch (error) {
-      console.error('[DatabaseService] Error adding mint keysets:', error);
-      throw error;
+    for (const keyset of keysets) {
+      const parsed = JSON.parse(keyset);
+      await this.db.runAsync(
+        'INSERT OR REPLACE INTO cashu_mint_keysets (mint_url, keyset_id, keyset) VALUES (?, ?, ?)',
+        [mintUrl, parsed.id, keyset]
+      );
     }
   }
 
@@ -1090,8 +1005,7 @@ export class DatabaseService {
         [mintUrl]
       );
       return keysets.length > 0 ? keysets.map(ks => ks.keyset) : undefined;
-    } catch (error) {
-      console.error('[DatabaseService] Error getting mint keysets:', error);
+    } catch (_error) {
       return undefined;
     }
   }
@@ -1102,8 +1016,7 @@ export class DatabaseService {
       const rows = await this.db.getAllAsync<{ mint_url: string; unit: string }>(query);
       const result: [string, string][] = rows.map(row => [row.mint_url, row.unit]);
       return result;
-    } catch (error) {
-      console.error('Database: Error getting mint-unit pairs:', error);
+    } catch (_error) {
       return [];
     }
   }
@@ -1128,8 +1041,7 @@ export class DatabaseService {
       );
       // result.changes === 0 means it was already present
       return result.changes === 0;
-    } catch (error) {
-      console.error('Error marking Cashu token as processed:', error);
+    } catch (_error) {
       // Don't throw - this is not critical for the app to function
       return false;
     }
@@ -1148,8 +1060,7 @@ export class DatabaseService {
         [eventId, now]
       );
       return result.changes === 0;
-    } catch (error) {
-      console.error('Error recording processed notification event:', error);
+    } catch (_error) {
       return false;
     }
   }
@@ -1167,8 +1078,7 @@ export class DatabaseService {
         [subscriptionId, now]
       );
       return result.changes;
-    } catch (error) {
-      console.error('Error marking subscription as processing:', error);
+    } catch (_error) {
       return 0;
     }
   }
@@ -1183,8 +1093,7 @@ export class DatabaseService {
         [subscriptionId]
       );
       return result.changes;
-    } catch (error) {
-      console.error('Error deleting processing subscription:', error);
+    } catch (_error) {
       return 0;
     }
   }
@@ -1200,8 +1109,7 @@ export class DatabaseService {
         [tenMinutesAgo]
       );
       return result.changes ?? 0;
-    } catch (error) {
-      console.error('Error deleting stale processing subscriptions:', error);
+    } catch (_error) {
       return 0;
     }
   }
@@ -1211,19 +1119,14 @@ export class DatabaseService {
     invoice: string,
     actionType: 'payment_started' | 'payment_completed' | 'payment_failed'
   ): Promise<number> {
-    try {
-      const now = toUnixSeconds(Date.now());
-      const result = await this.db.runAsync(
-        `INSERT INTO payment_status (
+    const now = toUnixSeconds(Date.now());
+    const result = await this.db.runAsync(
+      `INSERT INTO payment_status (
           invoice, action_type, created_at
         ) VALUES (?, ?, ?)`,
-        [invoice, actionType, now]
-      );
-      return result.lastInsertRowId;
-    } catch (error) {
-      console.error('Error adding payment status entry:', error);
-      throw error;
-    }
+      [invoice, actionType, now]
+    );
+    return result.lastInsertRowId;
   }
 
   async getPaymentStatusEntries(invoice: string): Promise<
@@ -1250,8 +1153,7 @@ export class DatabaseService {
           | 'payment_failed',
         created_at: fromUnixSeconds(record.created_at),
       }));
-    } catch (error) {
-      console.error('Error getting payment status entries:', error);
+    } catch (_error) {
       return [];
     }
   }
@@ -1277,8 +1179,7 @@ export class DatabaseService {
         action_type: 'payment_started' as const, // All pending payments are started
         created_at: fromUnixSeconds(record.created_at),
       }));
-    } catch (error) {
-      console.error('Error getting pending payments:', error);
+    } catch (_error) {
       return [];
     }
   }
@@ -1288,8 +1189,7 @@ export class DatabaseService {
       const contacts = await this.db.getAllAsync<Nip05Contact>(`SELECT * FROM nip05_contacts`);
 
       return contacts;
-    } catch (error) {
-      console.error('Error getting nip05 contacts:', error);
+    } catch (_error) {
       return [];
     }
   }
@@ -1302,8 +1202,7 @@ export class DatabaseService {
       );
 
       return contacts;
-    } catch (error) {
-      console.error('Error getting recent nip05 contacts:', error);
+    } catch (_error) {
       return [];
     }
   }
@@ -1336,8 +1235,7 @@ export class DatabaseService {
       );
 
       return newContact;
-    } catch (error) {
-      console.error('Error saving nip05 contact', error);
+    } catch (_error) {
       return null;
     }
   }
@@ -1350,69 +1248,47 @@ export class DatabaseService {
          WHERE id = ?`,
         [npub, id]
       );
-    } catch (error) {
-      console.error('Error updating nip05 contact', error);
-    }
+    } catch (_error) {}
   }
 
   // get last unused created secret
   async getUnusedSecretOrNull(): Promise<string | null> {
-    try {
-      const secret_obj = await this.db.getFirstAsync<{ secret: string }>(
-        'SELECT secret FROM bunker_secrets WHERE used = 0'
-      );
-      return secret_obj?.secret ?? null;
-    } catch (error) {
-      console.error('Database error while getting an unused secret:', error);
-      throw error;
-    }
+    const secret_obj = await this.db.getFirstAsync<{ secret: string }>(
+      'SELECT secret FROM bunker_secrets WHERE used = 0'
+    );
+    return secret_obj?.secret ?? null;
   }
   // Add newly created bunker secret
   async addBunkerSecret(secret: string): Promise<number> {
-    try {
-      const result = await this.db.runAsync(
-        `INSERT INTO bunker_secrets (
+    const result = await this.db.runAsync(
+      `INSERT INTO bunker_secrets (
           secret
         ) VALUES (?)`,
-        [secret]
-      );
-      return result.lastInsertRowId;
-    } catch (error) {
-      console.error('Error adding bunker secret entry:', error);
-      throw error;
-    }
+      [secret]
+    );
+    return result.lastInsertRowId;
   }
 
   async getBunkerSecretOrNull(secret: string): Promise<{ secret: string; used: boolean } | null> {
-    try {
-      const record = await this.db.getFirstAsync<{ secret: string; used: number }>(
-        'SELECT secret, used FROM bunker_secrets WHERE secret = ?',
-        [secret]
-      );
-      if (!record) return null;
-      // Convert INTEGER (0 or 1) to boolean
-      return {
-        secret: record.secret,
-        used: record.used === 1,
-      };
-    } catch (error) {
-      console.error('Database error while getting secret record:', error);
-      throw error;
-    }
+    const record = await this.db.getFirstAsync<{ secret: string; used: number }>(
+      'SELECT secret, used FROM bunker_secrets WHERE secret = ?',
+      [secret]
+    );
+    if (!record) return null;
+    // Convert INTEGER (0 or 1) to boolean
+    return {
+      secret: record.secret,
+      used: record.used === 1,
+    };
   }
 
   async markBunkerSecretAsUsed(secret: string): Promise<void> {
-    try {
-      await this.db.runAsync(
-        `UPDATE bunker_secrets
+    await this.db.runAsync(
+      `UPDATE bunker_secrets
         SET used = ?
         WHERE secret = ?`,
-        [secret, 1]
-      );
-    } catch (error) {
-      console.error('Database error while getting an unused secret:', error);
-      throw error;
-    }
+      [secret, 1]
+    );
   }
 
   // Add newly allowed nostr clients
@@ -1421,10 +1297,9 @@ export class DatabaseService {
     nip_05: string | null = null,
     requested_permissions: string | null
   ): Promise<number> {
-    try {
-      const now = toUnixSeconds(Date.now());
-      const result = await this.db.runAsync(
-        `INSERT OR REPLACE INTO bunker_allowed_clients (
+    const now = toUnixSeconds(Date.now());
+    const result = await this.db.runAsync(
+      `INSERT OR REPLACE INTO bunker_allowed_clients (
           client_pubkey,
           client_name,
           requested_permissions,
@@ -1433,13 +1308,9 @@ export class DatabaseService {
           last_seen,
           revoked
         ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [pubkey, nip_05, requested_permissions, requested_permissions, now, now, false]
-      );
-      return result.lastInsertRowId;
-    } catch (error) {
-      console.error('Error adding bunker_allowed_client:', error);
-      throw error;
-    }
+      [pubkey, nip_05, requested_permissions, requested_permissions, now, now, false]
+    );
+    return result.lastInsertRowId;
   }
 
   async getAllowedBunkerClients(): Promise<AllowedBunkerClientWithDates[]> {
@@ -1473,62 +1344,42 @@ export class DatabaseService {
   }
 
   async updateBunkerClientLastSeen(pubkey: string): Promise<void> {
-    try {
-      const now = toUnixSeconds(Date.now());
-      await this.db.runAsync(
-        `UPDATE bunker_allowed_clients
+    const now = toUnixSeconds(Date.now());
+    await this.db.runAsync(
+      `UPDATE bunker_allowed_clients
         SET last_seen = ?
         WHERE client_pubkey = ?`,
-        [now, pubkey]
-      );
-    } catch (error) {
-      console.error('Database error while updating client last_seen:', error);
-      throw error;
-    }
+      [now, pubkey]
+    );
   }
 
   async updateBunkerClientGrantedPermissions(
     pubkey: string,
     grantedPermissions: string
   ): Promise<void> {
-    try {
-      await this.db.runAsync(
-        `UPDATE bunker_allowed_clients
+    await this.db.runAsync(
+      `UPDATE bunker_allowed_clients
         SET granted_permissions = ?
         WHERE client_pubkey = ?`,
-        [grantedPermissions, pubkey]
-      );
-    } catch (error) {
-      console.error('Database error while updating client last_seen:', error);
-      throw error;
-    }
+      [grantedPermissions, pubkey]
+    );
   }
 
   async revokeBunkerClient(pubkey: string): Promise<void> {
-    try {
-      await this.db.runAsync(
-        `UPDATE bunker_allowed_clients
+    await this.db.runAsync(
+      `UPDATE bunker_allowed_clients
         SET revoked = ?
         WHERE client_pubkey = ?`,
-        [true, pubkey]
-      );
-    } catch (error) {
-      console.error('Database error while revoking bunker client:', error);
-      throw error;
-    }
+      [true, pubkey]
+    );
   }
 
   async updateBunkerClientName(pubkey: string, name: string | null): Promise<void> {
-    try {
-      await this.db.runAsync(
-        `UPDATE bunker_allowed_clients
+    await this.db.runAsync(
+      `UPDATE bunker_allowed_clients
         SET client_name = ?
         WHERE client_pubkey = ?`,
-        [name, pubkey]
-      );
-    } catch (error) {
-      console.error('Database error while updating client name:', error);
-      throw error;
-    }
+      [name, pubkey]
+    );
   }
 }

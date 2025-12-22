@@ -3,7 +3,6 @@ import React, { useMemo, useState } from 'react';
 import { StyleSheet, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { ThemedText } from './ThemedText';
-import { ThemedView } from './ThemedView';
 
 interface PINKeypadProps {
   onPINComplete: (pin: string) => void;
@@ -27,7 +26,7 @@ export function PINKeypad({
   maxLength = 5,
   showDots = true,
   error = false,
-  onError,
+  onError: _onError,
   autoSubmit = true,
   submitLabel = 'Enter',
   showSubmitButton = true,
@@ -105,7 +104,7 @@ export function PINKeypad({
     [buttonSize, deleteSize, dotSize, dotsMarginBottom, keypadMaxWidth, rem, rowGap, verticalRem]
   );
 
-  const backgroundColor = useThemeColor({}, 'background');
+  const _backgroundColor = useThemeColor({}, 'background');
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
@@ -152,7 +151,7 @@ export function PINKeypad({
     if (!error && pin.length > 0) {
       setPin('');
     }
-  }, [error]);
+  }, [error, pin.length]);
 
   const renderDots = () => {
     if (!showDots) {

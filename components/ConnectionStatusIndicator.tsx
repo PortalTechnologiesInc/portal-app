@@ -38,7 +38,7 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
   const [opacityValue] = useState(new Animated.Value(1));
   const [pillWidthValue] = useState(new Animated.Value(size)); // For pill expansion - start with dot size for perfect fit
   const [textOpacityValue] = useState(new Animated.Value(0)); // For text fade in/out
-  const [borderOpacityValue] = useState(new Animated.Value(0)); // For border and background fade in/out
+  const [_borderOpacityValue] = useState(new Animated.Value(0)); // For border and background fade in/out
   const [isOnline, setIsOnline] = useState(true);
   const [showRelayDetails, setShowRelayDetails] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -56,13 +56,6 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
 
     // Debug logging for relay filtering
     if (relayStatuses.length !== filtered.length) {
-      console.log(
-        '🔍 [CONNECTION INDICATOR] Filtering relays:\n' +
-          `  - Total relays: ${relayStatuses.length}\n` +
-          `  - Removed relays: ${JSON.stringify(Array.from(removedRelays))}\n` +
-          `  - Filtered relays: ${filtered.length}\n` +
-          `  - Visible relays: ${filtered.map(r => `${r.url} (${r.status})`).join(', ')}`
-      );
     }
 
     return filtered;
@@ -80,14 +73,10 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
   useEffect(() => {
     const handleAppStateChange = (nextAppState: string) => {
       if (nextAppState === 'active') {
-        console.log('🔄 ConnectionStatusIndicator: App became active - refreshing wallet info');
         // Trigger immediate refresh when app becomes active
         refreshWalletInfo();
       }
     };
-
-    // Initial immediate refresh on mount
-    console.log('🔄 ConnectionStatusIndicator: Component mounted - refreshing wallet info');
     refreshWalletInfo();
 
     // Listen for app state changes
@@ -101,7 +90,6 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
   // Handle external refresh triggers (e.g., from homepage focus)
   useEffect(() => {
     if (triggerRefresh !== undefined) {
-      console.log('🔄 ConnectionStatusIndicator: External refresh triggered');
       refreshWalletInfo();
     }
   }, [triggerRefresh, refreshWalletInfo]);
@@ -162,13 +150,13 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
   const getSofterInnerColor = (status: ConnectionStatus): string => {
     switch (status) {
       case 'connected':
-        return statusConnectedColor + '20'; // Add 20% opacity
+        return `${statusConnectedColor}20`; // Add 20% opacity
       case 'partial':
-        return statusConnectingColor + '20';
+        return `${statusConnectingColor}20`;
       case 'disconnected':
-        return statusDisconnectedColor + '20';
+        return `${statusDisconnectedColor}20`;
       default:
-        return statusDisconnectedColor + '20';
+        return `${statusDisconnectedColor}20`;
     }
   };
 
@@ -225,15 +213,7 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
         clearTimeout(expandTimer.current);
       }
     };
-  }, [
-    overallConnectionStatus,
-    expandDuration,
-    pillWidthValue,
-    textOpacityValue,
-    borderOpacityValue,
-    pillHeight,
-    size,
-  ]);
+  }, [overallConnectionStatus, expandDuration, pillWidthValue, textOpacityValue, size]);
 
   // Optimized animation effect with proper cleanup (for pulsing when not connected)
   useEffect(() => {

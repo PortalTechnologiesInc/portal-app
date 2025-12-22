@@ -64,9 +64,7 @@ export default function MyWalletManagementSecret() {
         enriched.displayName = fullProfile.displayName ?? null;
         enriched.avatarUri = fullProfile.avatarUri ?? null;
         enriched.username = fullProfile.username;
-      } catch (error) {
-        console.error('Failed to fetch profile for contact:', contact.npub, error);
-      }
+      } catch (_error) {}
       enrichedContacts.push(enriched);
     }
     setContacts(enrichedContacts);
@@ -81,33 +79,27 @@ export default function MyWalletManagementSecret() {
   type Nip05Contacts = Record<string, string>;
   const fetchNip05Contacts = async () => {
     const url = `https://getportal.cc/.well-known/nostr.json`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+      },
+    });
 
-    try {
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error ${response.status}`);
-      }
-
-      const data = await response.json();
-      if (data.names && typeof data.names === 'object') {
-        return data.names as Nip05Contacts;
-      }
-
-      if (typeof data === 'object') {
-        return data as Nip05Contacts;
-      }
-
-      throw new Error('Unexpected NIP05 response format');
-    } catch (err) {
-      console.error('Failed to fetch NIP05 contacts:', err);
-      throw err;
+    if (!response.ok) {
+      throw new Error(`HTTP error ${response.status}`);
     }
+
+    const data = await response.json();
+    if (data.names && typeof data.names === 'object') {
+      return data.names as Nip05Contacts;
+    }
+
+    if (typeof data === 'object') {
+      return data as Nip05Contacts;
+    }
+
+    throw new Error('Unexpected NIP05 response format');
   };
 
   const debouncedSearch = useDebouncedCallback(async (filter: string) => {
@@ -140,8 +132,7 @@ export default function MyWalletManagementSecret() {
       }
 
       setContacts(contactsToShow);
-    } catch (error) {
-      console.error('Search failed:', error);
+    } catch (_error) {
     } finally {
       setAreContactsLoading(false);
     }
@@ -177,9 +168,7 @@ export default function MyWalletManagementSecret() {
         .then(wallet => {
           if (active) setBreezWallet(wallet);
         })
-        .catch(error => {
-          console.error('Failed to get wallet:', JSON.stringify(error));
-        });
+        .catch(_error => {});
     }
 
     return () => {
@@ -258,8 +247,10 @@ export default function MyWalletManagementSecret() {
                 </ThemedView>
               ) : (
                 <ScrollView style={{ flex: 1 }}>
-                  {contacts?.map((contact, i) => {
-                    let firstLine, secondLine, fistLineSecondary;
+                  {contacts?.map((contact, _i) => {
+                    let firstLine: string,
+                      secondLine: string,
+                      fistLineSecondary: string = '';
 
                     if (contact.displayName) {
                       firstLine = contact.displayName;
@@ -271,13 +262,12 @@ export default function MyWalletManagementSecret() {
 
                     return (
                       <TouchableOpacity
-                        key={i}
+                        key={contact.npub}
                         onPress={() => {
                           router.push(`/breezwallet/receive?npub=${contact.npub}`);
                         }}
                       >
                         <ThemedView
-                          key={i}
                           style={{ justifyContent: 'space-between', flexDirection: 'row' }}
                         >
                           <View style={{ flexDirection: 'row', gap: 10 }}>

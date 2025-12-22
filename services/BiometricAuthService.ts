@@ -24,8 +24,7 @@ export const isBiometricAuthAvailable = async (): Promise<boolean> => {
     const hasHardware = await LocalAuthentication.hasHardwareAsync();
     const isEnrolled = await LocalAuthentication.isEnrolledAsync();
     return hasHardware && isEnrolled;
-  } catch (error) {
-    console.error('Error checking biometric availability:', error);
+  } catch (_error) {
     return false;
   }
 };
@@ -38,8 +37,7 @@ export const getAvailableAuthTypes = async (): Promise<
 > => {
   try {
     return await LocalAuthentication.supportedAuthenticationTypesAsync();
-  } catch (error) {
-    console.error('Error getting auth types:', error);
+  } catch (_error) {
     return [];
   }
 };
@@ -86,7 +84,6 @@ export const authenticateAsync = async (
       };
     }
   } catch (error) {
-    console.error('Biometric authentication error:', error);
     const errorCode =
       typeof error === 'object' && error !== null && 'code' in error
         ? String((error as { code?: unknown }).code ?? 'unknown')
@@ -139,8 +136,7 @@ export const authenticateForSensitiveAction = async (
         { text: 'OK' },
       ]);
     }
-  } catch (error) {
-    console.error('Error in authenticateForSensitiveAction:', error);
+  } catch (_error) {
     Alert.alert('Error', 'An error occurred during authentication');
   }
 };

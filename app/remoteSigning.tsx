@@ -2,7 +2,7 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import { router, useFocusEffect } from 'expo-router';
 import { AlertCircle, ArrowLeft, Copy, Lock } from 'lucide-react-native';
 import { keyToHex } from 'portal-app-lib';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import uuid from 'react-native-uuid';
@@ -42,8 +42,7 @@ const RemoteSigningScreen = () => {
 
     try {
       return keyToHex(nostrService.publicKey);
-    } catch (e) {
-      console.warn('Failed to format remote signer pubkey:', e);
+    } catch (_e) {
       return '';
     }
   }, [nostrService.publicKey]);
@@ -74,9 +73,7 @@ const RemoteSigningScreen = () => {
     try {
       const allowedClients = await executeOperation(db => db.getAllowedBunkerClients(), []);
       setConnections(allowedClients);
-    } catch (err) {
-      console.error('Failed to load bunker connections:', err);
-    }
+    } catch (_err) {}
   }, [executeOperation]);
 
   useEffect(() => {
@@ -107,7 +104,6 @@ const RemoteSigningScreen = () => {
         await loadConnections();
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to load bunker configuration';
-        console.error('Failed to fetch data for bunker URL:', err);
         setError(`Unable to initialize remote signing: ${message}. Please try again.`);
         setRemoteRelays([]);
       } finally {
@@ -277,7 +273,6 @@ const RemoteSigningScreen = () => {
             activeOpacity={0.9}
             onPress={() => {
               if (!item.client_pubkey) {
-                console.error('Cannot navigate: public_key is missing');
                 return;
               }
               router.push(`/bunkerConnectionDetails/${item.client_pubkey}`);

@@ -151,9 +151,7 @@ export default function MyWalletManagementSecret() {
       );
       await executeOperation(db => db.addPaymentStatusEntry(invoice, 'payment_completed'), null);
       globalEvents.emit('activityUpdated', { activityId });
-    } catch (error) {
-      console.error('Failed to add payment_started status entry:', error);
-    }
+    } catch (_error) {}
 
     setIsSendPaymentLoading(false);
 
@@ -162,7 +160,16 @@ export default function MyWalletManagementSecret() {
     setTimeout(() => {
       router.dismissTo('/Wallet');
     }, 2000);
-  }, [breezWallet, prepareSendPaymentResponse, invoice, router, executeOperation, amountMillisats]);
+  }, [
+    breezWallet,
+    prepareSendPaymentResponse,
+    invoice,
+    router,
+    executeOperation,
+    amountMillisats,
+    convertedAmount,
+    preferredCurrency,
+  ]);
 
   useEffect(() => {
     let active = true;
@@ -189,8 +196,6 @@ export default function MyWalletManagementSecret() {
 
     let listenerId: string;
     const handler = async (event: SdkEvent) => {
-      console.log('[BREEZ EVENT]:', event);
-
       let isPaid = false;
       if (
         event.tag === SdkEvent_Tags.PaymentSucceeded ||
@@ -213,7 +218,7 @@ export default function MyWalletManagementSecret() {
       .then(id => {
         listenerId = id;
       });
-  }, [breezWallet, executeOperation, preferredCurrency, description, invoice]);
+  }, [breezWallet]);
 
   useEffect(() => {
     if (breezWallet == null) return;

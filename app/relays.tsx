@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Plus, X } from 'lucide-react-native';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -46,7 +46,7 @@ export default function NostrRelayManagementScreen() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [filterText, setFilterText] = useState<string>('');
   const [showCustomRelayInput, setShowCustomRelayInput] = useState<boolean>(false);
-  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const updateTimeoutRef = useRef<number | null>(null);
   const isInitialLoadRef = useRef(true);
 
   // Theme colors
@@ -85,100 +85,13 @@ export default function NostrRelayManagementScreen() {
         setActiveRelaysList(activeRelays);
         setSelectedRelays(activeRelays);
         setPopularRelayList(Array.from(relaysSet));
-      } catch (error) {
-        console.error('Error loading relays data:', error);
+      } catch (_error) {
       } finally {
         setIsLoading(false);
       }
     };
     loadRelaysList();
   }, [executeOperation]); // Simplified dependency
-
-  // Auto-update relays when selectedRelays changes (debounced)
-  // This ensures rapid clicks only trigger one update after the user stops clicking
-  useEffect(() => {
-    // Skip update on initial load - check if still loading or if activeRelaysList is empty
-    // This prevents the debounce effect from running when selectedRelays is set during initial load
-    // We check activeRelaysList.length === 0 because during initial load, activeRelaysList is empty
-    // until the state updates are processed, so this ensures we skip the first update cycle
-    if (isInitialLoadRef.current || isLoading || activeRelaysList.length === 0) {
-      // Mark initial load as complete once we have data and are not loading
-      // Use setTimeout to ensure this runs after React has fully processed state updates
-      if (!isLoading && activeRelaysList.length > 0 && isInitialLoadRef.current) {
-        const timeoutId = setTimeout(() => {
-          isInitialLoadRef.current = false;
-        }, 0);
-        return () => clearTimeout(timeoutId);
-      }
-      return;
-    }
-
-    // Clear existing timeout to reset the debounce timer
-    // This means if user clicks rapidly, we keep resetting the timer
-    // and only execute once after they stop clicking for DEBOUNCE_DELAY_MS
-    if (updateTimeoutRef.current) {
-      clearTimeout(updateTimeoutRef.current);
-      updateTimeoutRef.current = null;
-    }
-
-    // Set new timeout - will only execute if user stops clicking for DEBOUNCE_DELAY_MS
-    updateTimeoutRef.current = setTimeout(() => {
-      updateRelays();
-      updateTimeoutRef.current = null;
-    }, DEBOUNCE_DELAY_MS);
-
-    // Cleanup timeout on unmount or when selectedRelays changes again
-    return () => {
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current);
-        updateTimeoutRef.current = null;
-      }
-    };
-  }, [
-    selectedRelays,
-    isLoading,
-    activeRelaysList,
-    activeRelaysList.length,
-    nostrService,
-    executeOperation,
-  ]);
-
-  const handleAddCustomRelay = () => {
-    const customRelay = customRelayTextFieldValue.trim();
-
-    if (!isWebsocketUri(customRelay)) {
-      ToastAndroid.showWithGravity(
-        'Websocket format is wrong',
-        ToastAndroid.LONG,
-        ToastAndroid.CENTER
-      );
-      return;
-    }
-
-    // Check if limit is reached
-    if (selectedRelays.length >= MAX_RELAY_CONNECTIONS) {
-      ToastAndroid.showWithGravity(
-        `Maximum ${MAX_RELAY_CONNECTIONS} relay connections allowed`,
-        ToastAndroid.LONG,
-        ToastAndroid.CENTER
-      );
-      return;
-    }
-
-    // Add to popular relays list if not already present
-    if (!popularRelayList.includes(customRelay)) {
-      setPopularRelayList([customRelay, ...popularRelayList]);
-    }
-
-    // Add to selected relays if not already selected
-    if (!selectedRelays.includes(customRelay)) {
-      setSelectedRelays([customRelay, ...selectedRelays]);
-    }
-
-    // Clear input and hide the input field
-    setCustomRelayTextFieldValue('');
-    setShowCustomRelayInput(false);
-  };
 
   const updateRelays = useCallback(async () => {
     // Enforce minimum relay connections limit
@@ -216,8 +129,7 @@ export default function NostrRelayManagementScreen() {
         const promise = PortalAppManager.tryGetInstance().removeRelay(oldRelay);
         if (promise) {
           removePromises.push(
-            promise.catch(error => {
-              console.error('❌ Failed to remove relay:', oldRelay, error.inner || error.message);
+            promise.catch(_error => {
               // Don't throw - allow other operations to continue
             })
           );
@@ -234,8 +146,7 @@ export default function NostrRelayManagementScreen() {
         const promise = PortalAppManager.tryGetInstance().addRelay(newRelay);
         if (promise) {
           addPromises.push(
-            promise.catch(error => {
-              console.error('❌ Failed to add relay:', newRelay, error.inner || error.message);
+            promise.catch(_error => {
               // Don't throw - allow other operations to continue
             })
           );
@@ -244,22 +155,12 @@ export default function NostrRelayManagementScreen() {
     }
 
     try {
-      // Wait for all removal operations first
-      console.log('🗑️ Processing relay removals...');
       await Promise.all(removePromises);
-
-      // Then handle additions
-      console.log('➕ Processing relay additions...');
       await Promise.all(addPromises);
-
-      // Finally update the database
-      console.log('💾 Updating database...');
       await executeOperation(db => db.updateRelays(newlySelectedRelays), null);
 
       setActiveRelaysList(newlySelectedRelays);
-      console.log('✅ Relay update completed successfully');
-    } catch (error: any) {
-      console.error('❌ Critical error during relay update:', error.inner || error.message);
+    } catch (_error: any) {
       ToastAndroid.showWithGravity(
         'Failed to update relays. Please try again.',
         ToastAndroid.LONG,
@@ -269,6 +170,85 @@ export default function NostrRelayManagementScreen() {
       setIsUpdating(false);
     }
   }, [selectedRelays, activeRelaysList, nostrService, executeOperation]);
+
+  // Auto-update relays when selectedRelays changes (debounced)
+  // This ensures rapid clicks only trigger one update after the user stops clicking
+  useEffect(() => {
+    // Skip update on initial load - check if still loading or if activeRelaysList is empty
+    // This prevents the debounce effect from running when selectedRelays is set during initial load
+    // We check activeRelaysList.length === 0 because during initial load, activeRelaysList is empty
+    // until the state updates are processed, so this ensures we skip the first update cycle
+    if (isInitialLoadRef.current || isLoading || activeRelaysList.length === 0) {
+      // Mark initial load as complete once we have data and are not loading
+      // Use setTimeout to ensure this runs after React has fully processed state updates
+      if (!isLoading && activeRelaysList.length > 0 && isInitialLoadRef.current) {
+        const timeoutId = setTimeout(() => {
+          isInitialLoadRef.current = false;
+        }, 0);
+        return () => clearTimeout(timeoutId);
+      }
+      return;
+    }
+
+    // Clear existing timeout to reset the debounce timer
+    // This means if user clicks rapidly, we keep resetting the timer
+    // and only execute once after they stop clicking for DEBOUNCE_DELAY_MS
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current);
+      updateTimeoutRef.current = null;
+    }
+
+    // Set new timeout - will only execute if user stops clicking for DEBOUNCE_DELAY_MS
+    updateTimeoutRef.current = setTimeout(() => {
+      updateRelays();
+      updateTimeoutRef.current = null;
+    }, DEBOUNCE_DELAY_MS) as unknown as number;
+
+    // Cleanup timeout on unmount or when selectedRelays changes again
+    return () => {
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+        updateTimeoutRef.current = null;
+      }
+    };
+  }, [isLoading, activeRelaysList, activeRelaysList.length, updateRelays]);
+
+  const handleAddCustomRelay = () => {
+    const customRelay = customRelayTextFieldValue.trim();
+
+    if (!isWebsocketUri(customRelay)) {
+      ToastAndroid.showWithGravity(
+        'Websocket format is wrong',
+        ToastAndroid.LONG,
+        ToastAndroid.CENTER
+      );
+      return;
+    }
+
+    // Check if limit is reached
+    if (selectedRelays.length >= MAX_RELAY_CONNECTIONS) {
+      ToastAndroid.showWithGravity(
+        `Maximum ${MAX_RELAY_CONNECTIONS} relay connections allowed`,
+        ToastAndroid.LONG,
+        ToastAndroid.CENTER
+      );
+      return;
+    }
+
+    // Add to popular relays list if not already present
+    if (!popularRelayList.includes(customRelay)) {
+      setPopularRelayList([customRelay, ...popularRelayList]);
+    }
+
+    // Add to selected relays if not already selected
+    if (!selectedRelays.includes(customRelay)) {
+      setSelectedRelays([customRelay, ...selectedRelays]);
+    }
+
+    // Clear input and hide the input field
+    setCustomRelayTextFieldValue('');
+    setShowCustomRelayInput(false);
+  };
 
   if (isLoading) {
     return (
@@ -350,7 +330,7 @@ export default function NostrRelayManagementScreen() {
             >
               <View style={styles.relayListContainer}>
                 {itemRows.map((row, rowIndex) => (
-                  <View key={`row-${rowIndex}`} style={styles.relayRow}>
+                  <View key={`row-${row.join('-')}`} style={styles.relayRow}>
                     {row.map((relay, index) => (
                       <TouchableOpacity
                         key={`relay-${rowIndex}-${index}-${relay}`}
