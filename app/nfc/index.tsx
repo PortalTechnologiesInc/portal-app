@@ -185,6 +185,7 @@ export default function NFCScanScreen() {
   };
 
   // Start glowing animation
+  // biome-ignore lint/correctness/useExhaustiveDependencies: glowAnimation is a stable Animated.Value ref
   const startGlowAnimation = useCallback(() => {
     Animated.loop(
       Animated.sequence([
@@ -203,6 +204,7 @@ export default function NFCScanScreen() {
   }, []);
 
   // Start scan line animation
+  // biome-ignore lint/correctness/useExhaustiveDependencies: scanLineAnimation is a stable Animated.Value ref
   const startScanLineAnimation = useCallback(() => {
     // Reset position
     scanLineAnimation.setValue(0);
@@ -224,6 +226,7 @@ export default function NFCScanScreen() {
   }, []);
 
   // Stop glowing animation
+  // biome-ignore lint/correctness/useExhaustiveDependencies: glowAnimation is a stable Animated.Value ref
   const stopGlowAnimation = useCallback(() => {
     glowAnimation.stopAnimation();
     Animated.timing(glowAnimation, {
@@ -234,6 +237,7 @@ export default function NFCScanScreen() {
   }, []);
 
   // Stop scan line animation
+  // biome-ignore lint/correctness/useExhaustiveDependencies: scanLineAnimation is a stable Animated.Value ref
   const stopScanLineAnimation = useCallback(() => {
     scanLineAnimation.stopAnimation();
     Animated.timing(scanLineAnimation, {

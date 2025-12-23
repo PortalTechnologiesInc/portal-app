@@ -105,6 +105,8 @@ type UserProfileContextType = {
     publicKey: string
   ) => Promise<{ found: boolean; username?: string; displayName?: string; avatarUri?: string }>;
   resetProfile: () => void; // Add reset method to clear all profile state
+  hasProfileAssigned: () => boolean; // Check if nip-05 is assigned (networkUsername is set)
+  waitForProfileSetup: (timeoutMs: number) => Promise<boolean>; // Wait for profile setup with timeout
 };
 
 const UserProfileContext = createContext<UserProfileContextType | null>(null);
@@ -547,6 +549,48 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   }, []);
 
+  // Check if profile (nip-05) is assigned
+  const hasProfileAssigned = useCallback(() => {
+    return networkUsername.length > 0;
+  }, [networkUsername]);
+
+  // Wait for profile setup to complete with timeout
+  const waitForProfileSetup = useCallback(
+    async (timeoutMs: number): Promise<boolean> => {
+      const startTime = Date.now();
+      const pollInterval = 500; // Check every 500ms
+
+      return new Promise(resolve => {
+        const checkProfile = () => {
+          // Check if profile is assigned
+          if (networkUsername.length > 0) {
+            resolve(true);
+            return;
+          }
+
+          // Check if timeout exceeded
+          if (Date.now() - startTime >= timeoutMs) {
+            resolve(false);
+            return;
+          }
+
+          // Check if sync failed
+          if (syncStatus === 'failed') {
+            resolve(false);
+            return;
+          }
+
+          // Continue polling
+          setTimeout(checkProfile, pollInterval);
+        };
+
+        // Start checking immediately
+        checkProfile();
+      });
+    },
+    [networkUsername, syncStatus]
+  );
+
   return (
     <UserProfileContext.Provider
       value={{
@@ -566,6 +610,8 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setProfile,
         fetchProfile,
         resetProfile,
+        hasProfileAssigned,
+        waitForProfileSetup,
       }}
     >
       {children}
