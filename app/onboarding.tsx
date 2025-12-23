@@ -352,7 +352,7 @@ export default function Onboarding() {
       const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
       return () => backHandler.remove();
     }
-  }, [currentStep, okBack, resetPinState, handleProfileSetup]);
+  }, [currentStep, okBack, resetPinState, handleProfileSetup, completeOnboarding]);
 
   const handleGenerate = async () => {
     const mnemonic = generateMnemonic().toString();
