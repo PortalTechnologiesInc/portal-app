@@ -52,7 +52,7 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     loadOnboardingState();
   }, []);
 
-  const completeOnboarding = async () => {
+  const completeOnboarding = useCallback(async () => {
     try {
       // Update local state FIRST to prevent flash
       setIsOnboardingComplete(true);
@@ -73,7 +73,7 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setIsOnboardingComplete(false);
       throw e;
     }
-  };
+  }, []);
 
   return (
     <OnboardingContext.Provider value={{ isOnboardingComplete, isLoading, completeOnboarding }}>

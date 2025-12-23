@@ -22,13 +22,15 @@ const validateImage = async (uri: string): Promise<{ isValid: boolean; error?: s
       return { isValid: false, error: 'GIF images are not supported' };
     }
 
-    // For certain URI schemes (content://, ph://, assets-library://), FileSystem.getInfoAsync might fail
+    // For certain URI schemes (content://, ph://, assets-library://, http/https), FileSystem.getInfoAsync might fail
     // but React Native Image can still handle them, so we'll skip file system validation for these
     const skipFileSystemCheck =
       uri.startsWith('content:') ||
       uri.startsWith('ph:') ||
       uri.startsWith('assets-library:') ||
-      uri.startsWith('data:');
+      uri.startsWith('data:') ||
+      uri.startsWith('http://') ||
+      uri.startsWith('https://');
 
     if (skipFileSystemCheck) {
       // For these URI schemes, just do basic validation
@@ -343,10 +345,16 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
               errorMessage = error.inner[0];
             }
 
-            if (errorMessage.includes('403')) {
-              nip05Error = `Username "${normalizedUsername}" is already taken. Please choose a different name.`;
-            } else {
-              nip05Error = `Registration service offline. Please try again later.`;
+            switch (true) {
+              case errorMessage.includes('403'):
+                nip05Error = `Username "${normalizedUsername}" is already taken. Please choose a different name.`;
+                break;
+              case errorMessage.includes('409'):
+                nip05Error = `This username is reserved or requires a premium account.`;
+                break;
+              default:
+                nip05Error = `Registration service offline. Please try again later.`;
+                break;
             }
 
             // Keep actualUsernameToUse as networkUsername (previous valid username)
