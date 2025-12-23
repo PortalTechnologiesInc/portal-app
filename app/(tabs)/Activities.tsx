@@ -5,14 +5,14 @@ import { useCallback, useMemo, useRef } from 'react';
 import { FlatList, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ActivityRow } from '@/components/ActivityRow';
+import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import type { ActivityFilterType } from '@/context/ActivitiesContext';
 import { useActivities } from '@/context/ActivitiesContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import type { ActivityWithDates } from '@/services/DatabaseService';
-import { ThemedText } from '../../components/ThemedText';
 
-const ItemList: React.FC = () => {
+const Activities: React.FC = () => {
   const {
     activities,
     refreshData,
@@ -375,4 +375,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ItemList;
+export default Activities;

@@ -1,32 +1,32 @@
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
-import { useThemeColor } from '@/hooks/useThemeColor';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Send } from 'lucide-react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity } from 'react-native';
-import { Colors } from 'react-native/Libraries/NewAppScreen';
-import { useCallback, useEffect, useState } from 'react';
-import bolt11 from 'light-bolt11-decoder';
-import { CurrencyConversionService } from '@/services/CurrencyConversionService';
-import { useCurrency } from '@/context/CurrencyContext';
 import {
   PaymentType,
-  PrepareSendPaymentResponse,
-  SdkEvent,
+  type PrepareSendPaymentResponse,
+  type SdkEvent,
   SdkEvent_Tags,
   SendPaymentMethod,
 } from '@breeztech/breez-sdk-spark-react-native';
-import { useWalletManager } from '@/context/WalletManagerContext';
-import { BreezService } from '@/services/BreezService';
-import { WALLET_TYPE } from '@/models/WalletType';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import bolt11 from 'light-bolt11-decoder';
 import LottieView from 'lottie-react-native';
+import { ArrowLeft, Send } from 'lucide-react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { Colors } from 'react-native/Libraries/NewAppScreen';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { ThemedText } from '@/components/ThemedText';
+import { ThemedView } from '@/components/ThemedView';
+import { useCurrency } from '@/context/CurrencyContext';
 import { useDatabaseContext } from '@/context/DatabaseContext';
+import { useWalletManager } from '@/context/WalletManagerContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import { WALLET_TYPE } from '@/models/WalletType';
+import type { BreezService } from '@/services/BreezService';
+import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 import { ActivityType, globalEvents } from '@/utils/common';
 
 enum PageState {
-  PaymentRecap,
-  PaymentSent,
+  PaymentRecap = 0,
+  PaymentSent = 1,
 }
 
 export default function MyWalletManagementSecret() {
@@ -109,9 +109,7 @@ export default function MyWalletManagementSecret() {
       );
       await executeOperation(db => db.addPaymentStatusEntry(invoice, 'payment_completed'), null);
       globalEvents.emit('activityUpdated', { activityId });
-    } catch (error) {
-      console.error('Failed to add payment_started status entry:', error);
-    }
+    } catch (_error) {}
 
     setIsSendPaymentLoading(false);
 
@@ -120,7 +118,16 @@ export default function MyWalletManagementSecret() {
     setTimeout(() => {
       router.dismissTo('/Wallet');
     }, 2000);
-  }, [breezWallet, prepareSendPaymentResponse, invoice, router, executeOperation, amountMillisats]);
+  }, [
+    breezWallet,
+    prepareSendPaymentResponse,
+    invoice,
+    router,
+    executeOperation,
+    amountMillisats,
+    convertedAmount,
+    preferredCurrency,
+  ]);
 
   useEffect(() => {
     let active = true;
@@ -139,8 +146,6 @@ export default function MyWalletManagementSecret() {
 
     let listenerId: string;
     const handler = async (event: SdkEvent) => {
-      console.log('[BREEZ EVENT]:', event);
-
       let isPaid = false;
       if (
         event.tag === SdkEvent_Tags.PaymentSucceeded ||
@@ -163,7 +168,7 @@ export default function MyWalletManagementSecret() {
       .then(id => {
         listenerId = id;
       });
-  }, [breezWallet, executeOperation, preferredCurrency, description, invoice]);
+  }, [breezWallet]);
 
   useEffect(() => {
     if (breezWallet == null) return;

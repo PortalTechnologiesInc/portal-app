@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createContext, type ReactNode, useContext, useEffect, useState } from 'react';
+import { useColorScheme } from 'react-native';
 import type { ThemeMode } from '@/utils/types';
 
 export type { ThemeMode };
@@ -25,9 +25,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         if (savedTheme && ['auto', 'light', 'dark'].includes(savedTheme)) {
           setThemeMode(savedTheme as ThemeMode);
         }
-      } catch (error) {
-        console.error('Error loading theme preference:', error);
-      }
+      } catch (_error) {}
     };
     loadThemePreference();
   }, []);
@@ -37,9 +35,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     try {
       setThemeMode(mode);
       await AsyncStorage.setItem('theme_preference', mode);
-    } catch (error) {
-      console.error('Error saving theme preference:', error);
-    }
+    } catch (_error) {}
   };
 
   // Determine current theme based on mode and system preference

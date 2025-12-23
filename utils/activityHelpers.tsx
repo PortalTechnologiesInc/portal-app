@@ -1,7 +1,7 @@
-import React from 'react';
-import { CheckCircle, Clock, XCircle, AlertCircle, Info } from 'lucide-react-native';
-import { ActivityType } from '@/utils/common';
+import { AlertCircle, CheckCircle, Clock, Info, XCircle } from 'lucide-react-native';
+import type React from 'react';
 import type { ActivityWithDates } from '@/services/DatabaseService';
+import { ActivityType } from '@/utils/common';
 
 export type ActivityStatus = 'success' | 'failed' | 'pending' | 'received';
 
@@ -14,7 +14,6 @@ export const getActivityStatus = (activity: ActivityWithDates): ActivityStatus =
       return 'failed';
     case 'pending':
       return 'pending';
-    case 'neutral':
     default:
       // For ticket activities, determine status based on type
       if (activity.type === 'ticket_received') {
@@ -61,7 +60,7 @@ export const getStatusIcon = (
     statusError: string;
     textSecondary: string;
   },
-  size: number = 16
+  size = 16
 ): React.ReactElement => {
   switch (status) {
     case 'success':
@@ -162,6 +161,6 @@ export const getActivityDescription = (
   }
 };
 
-export const formatSatsToUSD = (sats: number, conversionRate: number = 0.0004): string => {
+export const formatSatsToUSD = (sats: number, conversionRate = 0.0004): string => {
   return `≈ $${(sats * conversionRate).toFixed(2)} USD`;
 };

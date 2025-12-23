@@ -1,9 +1,9 @@
-import React from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
-import { ThemedText } from './ThemedText';
 import { AlertTriangle, RefreshCw } from 'lucide-react-native';
-import { useThemeColor } from '@/hooks/useThemeColor';
+import React from 'react';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Layout } from '@/constants/Layout';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import { ThemedText } from './ThemedText';
 
 interface FailedRequestCardProps {
   onRetry: () => void;

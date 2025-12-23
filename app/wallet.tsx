@@ -1,29 +1,29 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { StyleSheet, TouchableOpacity, Alert, TextInput, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Check,
+  CheckCircle,
+  Pencil,
+  QrCode,
+  Trash2,
+  X,
+  XCircle,
+} from 'lucide-react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Colors } from '@/constants/Colors';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import {
-  ArrowLeft,
-  Pencil,
-  X,
-  QrCode,
-  Check,
-  AlertTriangle,
-  CheckCircle,
-  XCircle,
-  Trash2,
-} from 'lucide-react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { getWalletUrl, saveWalletUrl, walletUrlEvents } from '@/services/SecureStorageService';
-import { useThemeColor } from '@/hooks/useThemeColor';
-import { useWalletManager } from '@/context/WalletManagerContext';
-import { WALLET_CONNECTION_STATUS, WALLET_TYPE } from '@/models/WalletType';
-import { NwcService } from '@/services/NwcService';
 import { useECash } from '@/context/ECashContext';
-import { WalletInfo } from '@/utils/types';
+import { useWalletManager } from '@/context/WalletManagerContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import { WALLET_CONNECTION_STATUS, WALLET_TYPE } from '@/models/WalletType';
+import type { NwcService } from '@/services/NwcService';
+import { getWalletUrl, saveWalletUrl, walletUrlEvents } from '@/services/SecureStorageService';
+import type { WalletInfo } from '@/utils/types';
 
 // Pure function for NWC URL validation - better testability and reusability
 const validateNwcUrl = (url: string): { isValid: boolean; error?: string } => {
@@ -110,8 +110,7 @@ export default function WalletManagementScreen() {
       const url = await getWalletUrl();
       setWalletUrlState(url);
       setInputValue(url);
-    } catch (error) {
-      console.error('Error loading wallet data:', error);
+    } catch (_error) {
       // Error state is handled by connectionState derivation
     }
   }, []);
@@ -123,7 +122,7 @@ export default function WalletManagementScreen() {
 
   // get the nwc wallet instance
   useEffect(() => {
-    let active = true;
+    const active = true;
 
     getWallet(WALLET_TYPE.NWC).then(wallet => {
       if (active) setNwcWallet(wallet);
@@ -135,7 +134,7 @@ export default function WalletManagementScreen() {
     useCallback(() => {
       // Refresh wallet info if we have a wallet configured
       const refreshInfo = async () => {
-        if (walletUrl && walletUrl.trim() && nwcWallet) {
+        if (walletUrl?.trim() && nwcWallet) {
           setWalletInfo(await nwcWallet.getWalletInfo());
         }
       };
@@ -159,8 +158,7 @@ export default function WalletManagementScreen() {
     try {
       await saveWalletUrl('');
       setWalletUrlState('');
-    } catch (error) {
-      console.error('Error clearing wallet URL:', error);
+    } catch (_error) {
       Alert.alert('Error', 'Failed to clear wallet URL. Please try again.');
     }
   }, []);
@@ -187,14 +185,12 @@ export default function WalletManagementScreen() {
         // Set timeout to prevent infinite validating state
         const timeoutId = setTimeout(() => {
           if (isValidating) {
-            console.log('Wallet connection validation timeout');
             setIsValidating(false);
           }
         }, 15000);
 
         return () => clearTimeout(timeoutId);
-      } catch (error) {
-        console.error('Error saving wallet URL:', error);
+      } catch (_error) {
         Alert.alert('Error', 'Failed to save wallet URL. Please try again.');
         return false;
       } finally {
@@ -213,8 +209,7 @@ export default function WalletManagementScreen() {
       handledUrlRef.current = scannedUrlParam;
 
       // Clear the scanned URL parameter
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { scannedUrl, ...restParams } = params;
+      const { scannedUrl: _scannedUrl, ...restParams } = params;
       router.setParams(restParams);
     }
   }, [params, router, validateAndSaveWalletUrl]);
@@ -248,8 +243,7 @@ export default function WalletManagementScreen() {
 
   // Manual refresh function for wallet info
   const handleRefreshConnection = useCallback(async () => {
-    if (walletUrl && walletUrl.trim() && nwcWallet && connectionState.state === 'connected') {
-      console.log('Manual wallet info refresh triggered');
+    if (walletUrl?.trim() && nwcWallet && connectionState.state === 'connected') {
       setWalletInfo(await nwcWallet.getWalletInfo());
     }
   }, [walletUrl, nwcWallet, connectionState]);
@@ -367,7 +361,7 @@ export default function WalletManagementScreen() {
               <ThemedText style={[styles.walletStatusTitle, { color: primaryTextColor }]}>
                 Wallet Status & Information
               </ThemedText>
-              {walletUrl && walletUrl.trim() && connectionState.state !== 'connecting' && (
+              {walletUrl?.trim() && connectionState.state !== 'connecting' && (
                 <TouchableOpacity
                   style={[styles.refreshButton, { backgroundColor: surfaceSecondaryColor }]}
                   onPress={async () => {

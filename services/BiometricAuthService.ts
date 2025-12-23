@@ -24,8 +24,7 @@ export const isBiometricAuthAvailable = async (): Promise<boolean> => {
     const hasHardware = await LocalAuthentication.hasHardwareAsync();
     const isEnrolled = await LocalAuthentication.isEnrolledAsync();
     return hasHardware && isEnrolled;
-  } catch (error) {
-    console.error('Error checking biometric availability:', error);
+  } catch (_error) {
     return false;
   }
 };
@@ -38,8 +37,7 @@ export const getAvailableAuthTypes = async (): Promise<
 > => {
   try {
     return await LocalAuthentication.supportedAuthenticationTypesAsync();
-  } catch (error) {
-    console.error('Error getting auth types:', error);
+  } catch (_error) {
     return [];
   }
 };
@@ -48,7 +46,7 @@ export const getAvailableAuthTypes = async (): Promise<
  * Authenticate user with biometric or device passcode
  */
 export const authenticateAsync = async (
-  reason: string = 'Please authenticate to continue'
+  reason = 'Please authenticate to continue'
 ): Promise<BiometricAuthResult> => {
   try {
     // Check if biometric auth is available
@@ -86,7 +84,6 @@ export const authenticateAsync = async (
       };
     }
   } catch (error) {
-    console.error('Biometric authentication error:', error);
     const errorCode =
       typeof error === 'object' && error !== null && 'code' in error
         ? String((error as { code?: unknown }).code ?? 'unknown')
@@ -106,7 +103,7 @@ export const authenticateAsync = async (
  */
 export const authenticateForSensitiveAction = async (
   action: () => Promise<void> | void,
-  reason: string = 'Please authenticate to perform this action'
+  reason = 'Please authenticate to perform this action'
 ): Promise<void> => {
   try {
     const isAvailable = await isBiometricAuthAvailable();
@@ -139,8 +136,7 @@ export const authenticateForSensitiveAction = async (
         { text: 'OK' },
       ]);
     }
-  } catch (error) {
-    console.error('Error in authenticateForSensitiveAction:', error);
+  } catch (_error) {
     Alert.alert('Error', 'An error occurred during authentication');
   }
 };

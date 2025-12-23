@@ -306,8 +306,25 @@ export function useColorSchemeColor<T>(light: T, dark: T, colorScheme?: 'light' 
 export function formatAvatarUri(avatarUri: string | null, cacheKey?: number): string | null {
   if (!avatarUri) return null;
 
-  // If it's already a data URI or file URI, return as-is
-  if (avatarUri.startsWith('data:') || avatarUri.startsWith('file:')) {
+  // If it's a data URI, return as-is
+  if (avatarUri.startsWith('data:')) {
+    return avatarUri;
+  }
+
+  // For local file URIs (file://, content://, ph://, etc.), append cache key as query parameter
+  // React Native Image doesn't respect URL fragments, so we use query params for cache busting
+  if (
+    avatarUri.startsWith('file:') ||
+    avatarUri.startsWith('content:') ||
+    avatarUri.startsWith('ph:') ||
+    avatarUri.startsWith('assets-library:')
+  ) {
+    if (cacheKey) {
+      // Append timestamp as query param for cache busting
+      // Note: Some URI schemes don't support query params, but React Native Image will still treat it as a new URI
+      const separator = avatarUri.includes('?') ? '&' : '?';
+      return `${avatarUri}${separator}_t=${cacheKey}`;
+    }
     return avatarUri;
   }
 
@@ -343,7 +360,7 @@ class EventEmitter {
     if (!this.events.has(eventName)) {
       this.events.set(eventName, []);
     }
-    this.events.get(eventName)!.push(callback);
+    this.events.get(eventName)?.push(callback);
   }
 
   off(eventName: string, callback: EventCallback): void {
@@ -359,7 +376,9 @@ class EventEmitter {
   emit(eventName: string, data?: any): void {
     const callbacks = this.events.get(eventName);
     if (callbacks) {
-      callbacks.forEach(callback => callback(data));
+      for (const callback of callbacks) {
+        callback(data);
+      }
     }
   }
 
@@ -392,13 +411,13 @@ export function getServiceNameFromMintUrl(mintUrl: string): string {
     if (parts.length >= 2) {
       // Use the main domain name (second-to-last part)
       const mainDomain = parts[parts.length - 2];
-      return mainDomain.charAt(0).toUpperCase() + mainDomain.slice(1) + ' Mint';
+      return `${mainDomain.charAt(0).toUpperCase() + mainDomain.slice(1)} Mint`;
     }
     return cleanHostname;
-  } catch (error) {
+  } catch (_error) {
     // If URL parsing fails, try to extract domain manually
-    const match = mintUrl.match(/https?:\/\/([^\/]+)/);
-    if (match && match[1]) {
+    const match = mintUrl.match(/https?:\/\/([^/]+)/);
+    if (match?.[1]) {
       return match[1].replace(/^www\./, '');
     }
     return 'Ticket Mint';

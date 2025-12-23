@@ -1,14 +1,13 @@
-import { createContext, useContext, useCallback, type ReactNode, useRef } from 'react';
-import { useEffect } from 'react';
 import * as Linking from 'expo-linking';
-import { parseCashuToken, parseKeyHandshakeUrl } from 'portal-app-lib';
-import { usePendingRequests } from '@/context/PendingRequestsContext';
-import { useNostrService } from '@/context/NostrServiceContext';
-import { Alert } from 'react-native';
 import { router } from 'expo-router';
-import { globalEvents, getServiceNameFromMintUrl } from '@/utils/common';
-import { useECash } from './ECashContext';
+import { parseCashuToken, parseKeyHandshakeUrl } from 'portal-app-lib';
+import { createContext, type ReactNode, useCallback, useContext, useEffect } from 'react';
+import { Alert } from 'react-native';
+import { useNostrService } from '@/context/NostrServiceContext';
+import { usePendingRequests } from '@/context/PendingRequestsContext';
+import { getServiceNameFromMintUrl, globalEvents } from '@/utils/common';
 import { useDatabaseContext } from './DatabaseContext';
+import { useECash } from './ECashContext';
 import { useOnboarding } from './OnboardingContext';
 
 // Define the context type
@@ -41,8 +40,7 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
 
               // Send auth init request
               await nostrService.sendKeyHandshake(parsedUrl);
-            } catch (error) {
-              console.error('Failed to process the auth deeplink:', error);
+            } catch (_error) {
               return;
             }
             break;
@@ -88,7 +86,7 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
                   currency: null,
                   request_id: `cashu-direct-${Date.now()}`,
                   subscription_id: null,
-                  status: 'neutral' as 'neutral',
+                  status: 'neutral' as const,
                   converted_amount: null,
                   converted_currency: null,
                 };
@@ -100,17 +98,13 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
                   // Emit event for UI updates
                   globalEvents.emit('activityAdded', activity);
                 } else {
-                  console.warn('Failed to record Cashu token activity due to database issues');
                 }
-              } catch (activityError) {
-                console.error('Error recording Cashu direct activity:', activityError);
-              }
+              } catch (_activityError) {}
               Alert.alert(
                 'Ticket Added Successfully!',
                 `Great! You've received a ${tokenInfo.unit} ticket from ${tokenInfo.mintUrl}.`
               );
-            } catch (error) {
-              console.error('Failed to process ticket deeplink:', error);
+            } catch (_error) {
               Alert.alert(
                 'Ticket Processing Error',
                 'There was a problem redeeming the ticket. The ticket may have already been used.'
@@ -123,11 +117,9 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
           default:
             break;
         }
-      } catch (error: any) {
-        console.error('Failed to handle deeplink URL:', error.inner);
-      }
+      } catch (_error: any) {}
     },
-    [showSkeletonLoader, nostrService, addWallet]
+    [showSkeletonLoader, nostrService, addWallet, executeOnNostr, executeOperation]
   );
 
   // Listen for deeplink events
@@ -140,7 +132,7 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       subscription.remove();
     };
-  }, [handleDeepLink, isOnboardingComplete]);
+  }, [handleDeepLink]);
 
   // // Handle initial URL on cold start
   useEffect(() => {
@@ -152,11 +144,9 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
         if (initialUrl) {
           handleDeepLink(initialUrl);
         }
-      } catch (e) {
-        console.error('Failed to get initial URL:', e);
-      }
+      } catch (_e) {}
     })();
-  }, [isOnboardingComplete]);
+  }, [isOnboardingComplete, handleDeepLink]);
 
   // Provide context value
   const contextValue: DeeplinkContextType = {

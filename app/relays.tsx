@@ -1,25 +1,24 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter } from 'expo-router';
+import { ArrowLeft, Plus, X } from 'lucide-react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  View,
-  ToastAndroid,
-  ScrollView,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  ToastAndroid,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { useRouter } from 'expo-router';
-import { ArrowLeft, X, Plus } from 'lucide-react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDatabaseContext } from '@/context/DatabaseContext';
-import { useThemeColor } from '@/hooks/useThemeColor';
-
-import popularRelayListFile from '../assets/RelayList.json';
 import { useNostrService } from '@/context/NostrServiceContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
 import { PortalAppManager } from '@/services/PortalAppManager';
+import popularRelayListFile from '../assets/RelayList.json';
 
 const MAX_RELAY_CONNECTIONS = 6;
 const MIN_RELAY_CONNECTIONS = 1;
@@ -47,7 +46,7 @@ export default function NostrRelayManagementScreen() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [filterText, setFilterText] = useState<string>('');
   const [showCustomRelayInput, setShowCustomRelayInput] = useState<boolean>(false);
-  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isInitialLoadRef = useRef(true);
 
   // Theme colors
@@ -68,7 +67,7 @@ export default function NostrRelayManagementScreen() {
   useEffect(() => {
     const loadRelaysList = async () => {
       try {
-        let relaysSet: Set<string> = new Set();
+        const relaysSet: Set<string> = new Set();
 
         const activeRelays = await executeOperation(
           db => db.getRelays().then(relays => relays.map(value => value.ws_uri)),
@@ -86,14 +85,91 @@ export default function NostrRelayManagementScreen() {
         setActiveRelaysList(activeRelays);
         setSelectedRelays(activeRelays);
         setPopularRelayList(Array.from(relaysSet));
-      } catch (error) {
-        console.error('Error loading relays data:', error);
+      } catch (_error) {
       } finally {
         setIsLoading(false);
       }
     };
     loadRelaysList();
   }, [executeOperation]); // Simplified dependency
+
+  const updateRelays = useCallback(async () => {
+    // Enforce minimum relay connections limit
+    if (selectedRelays.length < MIN_RELAY_CONNECTIONS) {
+      ToastAndroid.showWithGravity(
+        `At least ${MIN_RELAY_CONNECTIONS} relay ${MIN_RELAY_CONNECTIONS === 1 ? 'connection' : 'connections'} required`,
+        ToastAndroid.LONG,
+        ToastAndroid.CENTER
+      );
+      return;
+    }
+
+    // Enforce maximum relay connections limit
+    if (selectedRelays.length > MAX_RELAY_CONNECTIONS) {
+      ToastAndroid.showWithGravity(
+        `Maximum ${MAX_RELAY_CONNECTIONS} relay connections allowed. Please remove some relays.`,
+        ToastAndroid.LONG,
+        ToastAndroid.CENTER
+      );
+      return;
+    }
+
+    setIsUpdating(true);
+    const newlySelectedRelays = selectedRelays;
+
+    const removePromises: Promise<void>[] = [];
+    const addPromises: Promise<void>[] = [];
+
+    // Handle relay removals
+    for (const oldRelay of activeRelaysList) {
+      if (!newlySelectedRelays.includes(oldRelay)) {
+        // Mark relay as removed in the context to prevent it from showing in connection status
+        nostrService.markRelayAsRemoved(oldRelay);
+
+        const promise = PortalAppManager.tryGetInstance().removeRelay(oldRelay);
+        if (promise) {
+          removePromises.push(
+            promise.catch(_error => {
+              // Don't throw - allow other operations to continue
+            })
+          );
+        }
+      }
+    }
+
+    // Handle relay additions
+    for (const newRelay of newlySelectedRelays) {
+      if (!activeRelaysList.includes(newRelay)) {
+        // Clear from removed list and add to native layer
+        nostrService.clearRemovedRelay(newRelay);
+
+        const promise = PortalAppManager.tryGetInstance().addRelay(newRelay);
+        if (promise) {
+          addPromises.push(
+            promise.catch(_error => {
+              // Don't throw - allow other operations to continue
+            })
+          );
+        }
+      }
+    }
+
+    try {
+      await Promise.all(removePromises);
+      await Promise.all(addPromises);
+      await executeOperation(db => db.updateRelays(newlySelectedRelays), null);
+
+      setActiveRelaysList(newlySelectedRelays);
+    } catch (_error: any) {
+      ToastAndroid.showWithGravity(
+        'Failed to update relays. Please try again.',
+        ToastAndroid.LONG,
+        ToastAndroid.CENTER
+      );
+    } finally {
+      setIsUpdating(false);
+    }
+  }, [selectedRelays, activeRelaysList, nostrService, executeOperation]);
 
   // Auto-update relays when selectedRelays changes (debounced)
   // This ensures rapid clicks only trigger one update after the user stops clicking
@@ -135,14 +211,7 @@ export default function NostrRelayManagementScreen() {
         updateTimeoutRef.current = null;
       }
     };
-  }, [
-    selectedRelays,
-    isLoading,
-    activeRelaysList,
-    activeRelaysList.length,
-    nostrService,
-    executeOperation,
-  ]);
+  }, [isLoading, activeRelaysList, activeRelaysList.length, updateRelays]);
 
   const handleAddCustomRelay = () => {
     const customRelay = customRelayTextFieldValue.trim();
@@ -180,96 +249,6 @@ export default function NostrRelayManagementScreen() {
     setCustomRelayTextFieldValue('');
     setShowCustomRelayInput(false);
   };
-
-  const updateRelays = useCallback(async () => {
-    // Enforce minimum relay connections limit
-    if (selectedRelays.length < MIN_RELAY_CONNECTIONS) {
-      ToastAndroid.showWithGravity(
-        `At least ${MIN_RELAY_CONNECTIONS} relay ${MIN_RELAY_CONNECTIONS === 1 ? 'connection' : 'connections'} required`,
-        ToastAndroid.LONG,
-        ToastAndroid.CENTER
-      );
-      return;
-    }
-
-    // Enforce maximum relay connections limit
-    if (selectedRelays.length > MAX_RELAY_CONNECTIONS) {
-      ToastAndroid.showWithGravity(
-        `Maximum ${MAX_RELAY_CONNECTIONS} relay connections allowed. Please remove some relays.`,
-        ToastAndroid.LONG,
-        ToastAndroid.CENTER
-      );
-      return;
-    }
-
-    setIsUpdating(true);
-    let newlySelectedRelays = selectedRelays;
-
-    let removePromises: Promise<void>[] = [];
-    let addPromises: Promise<void>[] = [];
-
-    // Handle relay removals
-    for (const oldRelay of activeRelaysList) {
-      if (!newlySelectedRelays.includes(oldRelay)) {
-        // Mark relay as removed in the context to prevent it from showing in connection status
-        nostrService.markRelayAsRemoved(oldRelay);
-
-        const promise = PortalAppManager.tryGetInstance().removeRelay(oldRelay);
-        if (promise) {
-          removePromises.push(
-            promise.catch(error => {
-              console.error('❌ Failed to remove relay:', oldRelay, error.inner || error.message);
-              // Don't throw - allow other operations to continue
-            })
-          );
-        }
-      }
-    }
-
-    // Handle relay additions
-    for (const newRelay of newlySelectedRelays) {
-      if (!activeRelaysList.includes(newRelay)) {
-        // Clear from removed list and add to native layer
-        nostrService.clearRemovedRelay(newRelay);
-
-        const promise = PortalAppManager.tryGetInstance().addRelay(newRelay);
-        if (promise) {
-          addPromises.push(
-            promise.catch(error => {
-              console.error('❌ Failed to add relay:', newRelay, error.inner || error.message);
-              // Don't throw - allow other operations to continue
-            })
-          );
-        }
-      }
-    }
-
-    try {
-      // Wait for all removal operations first
-      console.log('🗑️ Processing relay removals...');
-      await Promise.all(removePromises);
-
-      // Then handle additions
-      console.log('➕ Processing relay additions...');
-      await Promise.all(addPromises);
-
-      // Finally update the database
-      console.log('💾 Updating database...');
-      await executeOperation(db => db.updateRelays(newlySelectedRelays), null);
-
-      setActiveRelaysList(newlySelectedRelays);
-      console.log('✅ Relay update completed successfully');
-    } catch (error: any) {
-      console.error('❌ Critical error during relay update:', error.inner || error.message);
-      ToastAndroid.showWithGravity(
-        'Failed to update relays. Please try again.',
-        ToastAndroid.LONG,
-        ToastAndroid.CENTER
-      );
-    } finally {
-      setIsUpdating(false);
-    }
-  }, [selectedRelays, activeRelaysList, nostrService, executeOperation]);
 
   if (isLoading) {
     return (
@@ -351,7 +330,7 @@ export default function NostrRelayManagementScreen() {
             >
               <View style={styles.relayListContainer}>
                 {itemRows.map((row, rowIndex) => (
-                  <View key={`row-${rowIndex}`} style={styles.relayRow}>
+                  <View key={`row-${row.join('-')}`} style={styles.relayRow}>
                     {row.map((relay, index) => (
                       <TouchableOpacity
                         key={`relay-${rowIndex}-${index}-${relay}`}

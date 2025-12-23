@@ -1,9 +1,8 @@
-import React, { useMemo, useState } from 'react';
-import { StyleSheet, TouchableOpacity, View, useWindowDimensions } from 'react-native';
-import { ThemedText } from './ThemedText';
-import { ThemedView } from './ThemedView';
-import { useThemeColor } from '@/hooks/useThemeColor';
 import { Delete } from 'lucide-react-native';
+import React, { useMemo, useRef, useState } from 'react';
+import { StyleSheet, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import { ThemedText } from './ThemedText';
 
 interface PINKeypadProps {
   onPINComplete: (pin: string) => void;
@@ -27,7 +26,7 @@ export function PINKeypad({
   maxLength = 5,
   showDots = true,
   error = false,
-  onError,
+  onError: _onError,
   autoSubmit = true,
   submitLabel = 'Enter',
   showSubmitButton = true,
@@ -37,6 +36,7 @@ export function PINKeypad({
   disabled = false,
 }: PINKeypadProps) {
   const [pin, setPin] = useState('');
+  const prevErrorRef = useRef(error);
   const { width, height } = useWindowDimensions();
   const rem = Math.min(Math.max(width / 390, 0.85), 1);
   const verticalRem = Math.min(Math.max(height / 844, 0.85), 1);
@@ -105,7 +105,7 @@ export function PINKeypad({
     [buttonSize, deleteSize, dotSize, dotsMarginBottom, keypadMaxWidth, rem, rowGap, verticalRem]
   );
 
-  const backgroundColor = useThemeColor({}, 'background');
+  const _backgroundColor = useThemeColor({}, 'background');
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
@@ -118,7 +118,7 @@ export function PINKeypad({
   const canSubmit = pin.length >= Math.max(normalizedMinLength, 4);
 
   const handleNumberPress = (number: string) => {
-    if (disabled) return;
+    if (disabled || error) return;
     if (pin.length < maxLength) {
       const newPin = pin + number;
       setPin(newPin);
@@ -129,7 +129,7 @@ export function PINKeypad({
   };
 
   const handleDelete = () => {
-    if (disabled) return;
+    if (disabled || error) return;
     if (pin.length > 0) {
       setPin(pin.slice(0, -1));
     }
@@ -147,11 +147,13 @@ export function PINKeypad({
     }
   };
 
-  // Clear PIN when error prop changes to false (after showing error)
+  // Clear PIN when error prop changes from true to false (after showing error)
   React.useEffect(() => {
-    if (!error && pin.length > 0) {
-      setPin('');
+    // Only clear if error changed from true to false
+    if (prevErrorRef.current === true && error === false) {
+      setPin(prevPin => (prevPin.length > 0 ? '' : prevPin));
     }
+    prevErrorRef.current = error;
   }, [error]);
 
   const renderDots = () => {
@@ -197,16 +199,16 @@ export function PINKeypad({
             dynamicStyles.deleteButton,
             {
               backgroundColor: cardBackgroundColor,
-              opacity: disabled ? 0.4 : pin.length === 0 ? 0.5 : 1,
+              opacity: disabled || error ? 0.4 : pin.length === 0 ? 0.5 : 1,
             },
           ]}
           onPress={handleDelete}
           onLongPress={handleClear}
           delayLongPress={250}
-          disabled={pin.length === 0 || disabled}
+          disabled={pin.length === 0 || disabled || error}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Delete size={22} color={pin.length > 0 ? primaryTextColor : secondaryTextColor} />
+          <Delete size={22} color={pin.length > 0 && !error ? primaryTextColor : secondaryTextColor} />
         </TouchableOpacity>
       </View>
 
@@ -220,11 +222,11 @@ export function PINKeypad({
               style={[
                 styles.keypadButton,
                 dynamicStyles.keypadButton,
-                { backgroundColor: cardBackgroundColor, opacity: disabled ? 0.4 : 1 },
+                { backgroundColor: cardBackgroundColor, opacity: disabled || error ? 0.4 : 1 },
               ]}
               onPress={() => handleNumberPress(num)}
               activeOpacity={0.7}
-              disabled={disabled}
+              disabled={disabled || error}
             >
               <ThemedText
                 style={[
@@ -247,11 +249,11 @@ export function PINKeypad({
               style={[
                 styles.keypadButton,
                 dynamicStyles.keypadButton,
-                { backgroundColor: cardBackgroundColor, opacity: disabled ? 0.4 : 1 },
+                { backgroundColor: cardBackgroundColor, opacity: disabled || error ? 0.4 : 1 },
               ]}
               onPress={() => handleNumberPress(num)}
               activeOpacity={0.7}
-              disabled={disabled}
+              disabled={disabled || error}
             >
               <ThemedText
                 style={[
@@ -274,11 +276,11 @@ export function PINKeypad({
               style={[
                 styles.keypadButton,
                 dynamicStyles.keypadButton,
-                { backgroundColor: cardBackgroundColor, opacity: disabled ? 0.4 : 1 },
+                { backgroundColor: cardBackgroundColor, opacity: disabled || error ? 0.4 : 1 },
               ]}
               onPress={() => handleNumberPress(num)}
               activeOpacity={0.7}
-              disabled={disabled}
+              disabled={disabled || error}
             >
               <ThemedText
                 style={[
@@ -323,11 +325,11 @@ export function PINKeypad({
             style={[
               styles.keypadButton,
               dynamicStyles.keypadButton,
-              { backgroundColor: cardBackgroundColor, opacity: disabled ? 0.4 : 1 },
+              { backgroundColor: cardBackgroundColor, opacity: disabled || error ? 0.4 : 1 },
             ]}
             onPress={() => handleNumberPress('0')}
             activeOpacity={0.7}
-            disabled={disabled}
+            disabled={disabled || error}
           >
             <ThemedText
               style={[

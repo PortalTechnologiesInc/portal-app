@@ -1,32 +1,27 @@
-import React, { createContext, useContext, ReactNode, useEffect } from 'react';
+import { createContext, type ReactNode, useContext, useEffect } from 'react';
 import { globalEvents } from '@/utils/common';
 import { useDatabaseContext } from './DatabaseContext';
 import { useNostrService } from './NostrServiceContext';
-import { useActivities } from './ActivitiesContext';
 
-interface PaymentControllerContextType {
-  // Empty for now, can be expanded later
-}
+type PaymentControllerContextType = Record<string, never>;
 
 const PaymentControllerContext = createContext<PaymentControllerContextType | undefined>(undefined);
 
 export function PaymentControllerProvider({ children }: { children: ReactNode }) {
-  let { executeOperation } = useDatabaseContext();
-  let { nwcWallet } = useNostrService();
+  const { executeOperation } = useDatabaseContext();
+  const { nwcWallet } = useNostrService();
 
   useEffect(() => {
     if (!nwcWallet) return;
     executeOperation(async db => {
       const pendingPayments = await db.getPendingPayments();
       for (const element of pendingPayments) {
-        let invoice = element.invoice;
+        const invoice = element.invoice;
         if (!invoice) {
-          console.error(`Activity invoice is null!`);
           continue;
         }
 
         try {
-          console.warn('🧾 looking up for invoice: ', invoice);
           const lookupResponse = await nwcWallet.lookupInvoice(invoice);
           if (lookupResponse.settledAt || lookupResponse.preimage) {
             await db.updateActivityStatus(element.id, 'positive', 'Payment completed');
@@ -41,17 +36,13 @@ export function PaymentControllerProvider({ children }: { children: ReactNode })
             globalEvents.emit('activityUpdated', { activityId: element.id });
             await db.addPaymentStatusEntry(invoice, 'payment_failed');
           }
-        } catch (error) {
-          console.error(
-            'Error while looking for invoice:',
-            JSON.stringify(error, Object.getOwnPropertyNames(error))
-          );
+        } catch (_error) {
           await db.updateActivityStatus(element.id, 'negative', 'Payment failed');
           globalEvents.emit('activityUpdated', { activityId: element.id });
         }
       }
     });
-  }, [nwcWallet]);
+  }, [nwcWallet, executeOperation]);
 
   return (
     <PaymentControllerContext.Provider value={{}}>{children}</PaymentControllerContext.Provider>

@@ -1,30 +1,30 @@
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
-import { useThemeColor } from '@/hooks/useThemeColor';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, Send, User } from 'lucide-react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Send, User } from 'lucide-react-native';
+import { useCallback, useEffect, useState } from 'react';
 import {
-  StyleSheet,
+  ActivityIndicator,
+  Image,
   ScrollView,
+  StyleSheet,
+  TextInput,
   TouchableOpacity,
   View,
-  Image,
-  TextInput,
-  ActivityIndicator,
 } from 'react-native';
 import { Colors } from 'react-native/Libraries/NewAppScreen';
-import { useCallback, useEffect, useState } from 'react';
-import { useWalletManager } from '@/context/WalletManagerContext';
-import { WALLET_TYPE } from '@/models/WalletType';
-import { BreezService } from '@/services/BreezService';
-import { WalletInfo } from '@/utils/types';
-import { Nip05Contact } from '@/services/DatabaseService';
-import { useDatabaseContext } from '@/context/DatabaseContext';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDebouncedCallback } from 'use-debounce';
-import { useNostrService } from '@/context/NostrServiceContext';
+import { ThemedText } from '@/components/ThemedText';
+import { ThemedView } from '@/components/ThemedView';
 import { useCurrency } from '@/context/CurrencyContext';
+import { useDatabaseContext } from '@/context/DatabaseContext';
+import { useNostrService } from '@/context/NostrServiceContext';
+import { useWalletManager } from '@/context/WalletManagerContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import { WALLET_TYPE } from '@/models/WalletType';
+import type { BreezService } from '@/services/BreezService';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import type { Nip05Contact } from '@/services/DatabaseService';
+import type { WalletInfo } from '@/utils/types';
 
 interface ContactWithProfile extends Nip05Contact {
   displayName?: string | null;
@@ -64,9 +64,7 @@ export default function MyWalletManagementSecret() {
         enriched.displayName = fullProfile.displayName ?? null;
         enriched.avatarUri = fullProfile.avatarUri ?? null;
         enriched.username = fullProfile.username;
-      } catch (error) {
-        console.error('Failed to fetch profile for contact:', contact.npub, error);
-      }
+      } catch (_error) {}
       enrichedContacts.push(enriched);
     }
     setContacts(enrichedContacts);
@@ -81,33 +79,27 @@ export default function MyWalletManagementSecret() {
   type Nip05Contacts = Record<string, string>;
   const fetchNip05Contacts = async () => {
     const url = `https://getportal.cc/.well-known/nostr.json`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+      },
+    });
 
-    try {
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error ${response.status}`);
-      }
-
-      const data = await response.json();
-      if (data.names && typeof data.names === 'object') {
-        return data.names as Nip05Contacts;
-      }
-
-      if (typeof data === 'object') {
-        return data as Nip05Contacts;
-      }
-
-      throw new Error('Unexpected NIP05 response format');
-    } catch (err) {
-      console.error('Failed to fetch NIP05 contacts:', err);
-      throw err;
+    if (!response.ok) {
+      throw new Error(`HTTP error ${response.status}`);
     }
+
+    const data = await response.json();
+    if (data.names && typeof data.names === 'object') {
+      return data.names as Nip05Contacts;
+    }
+
+    if (typeof data === 'object') {
+      return data as Nip05Contacts;
+    }
+
+    throw new Error('Unexpected NIP05 response format');
   };
 
   const debouncedSearch = useDebouncedCallback(async (filter: string) => {
@@ -140,8 +132,7 @@ export default function MyWalletManagementSecret() {
       }
 
       setContacts(contactsToShow);
-    } catch (error) {
-      console.error('Search failed:', error);
+    } catch (_error) {
     } finally {
       setAreContactsLoading(false);
     }
@@ -176,9 +167,7 @@ export default function MyWalletManagementSecret() {
         .then(wallet => {
           if (active) setBreezWallet(wallet);
         })
-        .catch(error => {
-          console.error('Failed to get wallet:', JSON.stringify(error));
-        });
+        .catch(_error => {});
     }
 
     return () => {
@@ -205,11 +194,8 @@ export default function MyWalletManagementSecret() {
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
       <ThemedView style={[styles.container, { backgroundColor }]}>
         <ThemedView style={[styles.header, { backgroundColor }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <ArrowLeft size={20} color={primaryTextColor} />
-          </TouchableOpacity>
-          <ThemedText style={[styles.headerText, { color: primaryTextColor }]}>
-            Wallet Management
+          <ThemedText type="title" style={{ color: primaryTextColor }}>
+            Your Wallet
           </ThemedText>
         </ThemedView>
         <ThemedView style={{ ...styles.content, gap: 10 }}>
@@ -256,8 +242,10 @@ export default function MyWalletManagementSecret() {
                 </ThemedView>
               ) : (
                 <ScrollView style={{ flex: 1 }}>
-                  {contacts?.map((contact, i) => {
-                    let firstLine, secondLine, fistLineSecondary;
+                  {contacts?.map((contact, _i) => {
+                    let firstLine: string,
+                      secondLine: string,
+                      fistLineSecondary: string = '';
 
                     if (contact.displayName) {
                       firstLine = contact.displayName;
@@ -269,13 +257,12 @@ export default function MyWalletManagementSecret() {
 
                     return (
                       <TouchableOpacity
-                        key={i}
+                        key={contact.npub}
                         onPress={() => {
                           router.push(`/breezwallet/receive?npub=${contact.npub}`);
                         }}
                       >
                         <ThemedView
-                          key={i}
                           style={{ justifyContent: 'space-between', flexDirection: 'row' }}
                         >
                           <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -383,18 +370,11 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingTop: 16,
     paddingBottom: 20,
     // backgroundColor handled by theme
-  },
-  backButton: {
-    marginRight: 15,
-  },
-  headerText: {
-    fontSize: 20,
-    fontWeight: 'bold',
   },
   content: {
     flex: 1,

@@ -1,34 +1,35 @@
-import React, { useEffect, Suspense } from 'react';
-import { Text, View, SafeAreaView } from 'react-native';
-import { Stack, usePathname, useGlobalSearchParams } from 'expo-router';
+import { Asset } from 'expo-asset';
+import * as Notifications from 'expo-notifications';
+import { Stack, useGlobalSearchParams, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import { SQLiteProvider } from 'expo-sqlite';
+import { StatusBar } from 'expo-status-bar';
+import { keyToHex } from 'portal-app-lib';
+import { Suspense, useEffect } from 'react';
+import { SafeAreaView, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { OnboardingProvider, useOnboarding } from '@/context/OnboardingContext';
-import { UserProfileProvider } from '@/context/UserProfileContext';
-import { PendingRequestsProvider } from '@/context/PendingRequestsContext';
-import { DeeplinkProvider } from '@/context/DeeplinkContext';
+import { AppLifecycleHandler } from '@/components/AppLifecycleHandler';
+import { AppLockScreen } from '@/components/AppLockScreen';
+import { DevTag } from '@/components/DevTag';
+import { Colors } from '@/constants/Colors';
 import { ActivitiesProvider } from '@/context/ActivitiesContext';
+import { AppLockProvider } from '@/context/AppLockContext';
+import { CurrencyProvider } from '@/context/CurrencyContext';
 import { DatabaseProvider } from '@/context/DatabaseContext';
+import { DeeplinkProvider } from '@/context/DeeplinkContext';
+import { ECashProvider } from '@/context/ECashContext';
 import { KeyProvider, useKey } from '@/context/KeyContext';
 import NostrServiceProvider, { useNostrService } from '@/context/NostrServiceContext';
-import { StatusBar } from 'expo-status-bar';
-import { Colors } from '@/constants/Colors';
-import { Asset } from 'expo-asset';
-import { ThemeProvider, useTheme } from '@/context/ThemeContext';
-import { CurrencyProvider } from '@/context/CurrencyContext';
-import { useThemeColor } from '@/hooks/useThemeColor';
-import registerPubkeysForPushNotificationsAsync from '@/services/NotificationService';
-import { keyToHex } from 'portal-app-lib';
-import * as Notifications from 'expo-notifications';
-import { ECashProvider } from '@/context/ECashContext';
-import { SQLiteProvider } from 'expo-sqlite';
-import migrateDbIfNeeded from '@/migrations/DatabaseMigrations';
+import { OnboardingProvider, useOnboarding } from '@/context/OnboardingContext';
 import { PaymentControllerProvider } from '@/context/PaymentControllerContext';
+import { PendingRequestsProvider } from '@/context/PendingRequestsContext';
 import { PortalAppProvider } from '@/context/PortalAppContext';
+import { ThemeProvider, useTheme } from '@/context/ThemeContext';
+import { UserProfileProvider } from '@/context/UserProfileContext';
 import WalletManagerContextProvider from '@/context/WalletManagerContext';
-import { AppLockProvider } from '@/context/AppLockContext';
-import { AppLockScreen } from '@/components/AppLockScreen';
-import { AppLifecycleHandler } from '@/components/AppLifecycleHandler';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import migrateDbIfNeeded from '@/migrations/DatabaseMigrations';
+import registerPubkeysForPushNotificationsAsync from '@/services/NotificationService';
 
 // Prevent splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -41,18 +42,12 @@ const NotificationConfigurator = () => {
 
   useEffect(() => {
     if (publicKey) {
-      registerPubkeysForPushNotificationsAsync([keyToHex(publicKey)]).catch((error: any) => {
-        console.error('Error registering for push notifications:', error);
-      });
+      registerPubkeysForPushNotificationsAsync([keyToHex(publicKey)]).catch((_error: any) => {});
     }
 
-    const notificationListener = Notifications.addNotificationReceivedListener(notification => {
-      console.log('Notification received:', notification);
-    });
+    const notificationListener = Notifications.addNotificationReceivedListener(_notification => {});
 
-    const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log('Notification response received:', response);
-    });
+    const responseListener = Notifications.addNotificationResponseReceivedListener(_response => {});
 
     return () => {
       notificationListener.remove();
@@ -73,10 +68,7 @@ const preloadImages = async () => {
     ];
 
     await Promise.all(assetPromises);
-    console.log('Assets preloaded successfully');
-  } catch (error) {
-    console.error('Error preloading assets:', error);
-  }
+  } catch (_error) {}
 };
 
 // Status bar wrapper that respects theme
@@ -159,6 +151,7 @@ const ThemedRootView = () => {
         </OnboardingProvider>
         <AppLockScreen />
       </AppLockProvider>
+      <DevTag />
     </GestureHandlerRootView>
   );
 };
@@ -176,8 +169,7 @@ export default function RootLayout() {
           : [[key, String(value)] as [string, string]];
       });
       const queryString = new URLSearchParams(entries).toString();
-      const fullPath = queryString ? `${pathname}?${queryString}` : pathname;
-      console.log('[Route]', fullPath);
+      const _fullPath = queryString ? `${pathname}?${queryString}` : pathname;
     }
   }, [pathname, globalParams]);
 
@@ -189,8 +181,7 @@ export default function RootLayout() {
 
         // Increase delay to ensure all SecureStore operations complete on first launch
         await new Promise(resolve => setTimeout(resolve, 500));
-      } catch (error) {
-        console.error('Error preparing app:', error);
+      } catch (_error) {
         // Set ready to true even on error to prevent infinite loading
       } finally {
         await SplashScreen.hideAsync();

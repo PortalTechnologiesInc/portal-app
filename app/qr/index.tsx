@@ -1,29 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import Clipboard from '@react-native-clipboard/clipboard';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import { router, useLocalSearchParams } from 'expo-router';
+import { ArrowLeft, ClipboardPaste, Settings } from 'lucide-react-native';
+import { parseCashuToken, parseKeyHandshakeUrl } from 'portal-app-lib';
+import { useCallback, useEffect, useState } from 'react';
 import {
-  StyleSheet,
-  TouchableOpacity,
+  Alert,
   BackHandler,
-  View,
   Linking,
   Platform,
-  Alert,
+  StyleSheet,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { CameraView, useCameraPermissions } from 'expo-camera';
-import { Ionicons } from '@expo/vector-icons';
-import { router, useLocalSearchParams } from 'expo-router';
-import { usePendingRequests } from '@/context/PendingRequestsContext';
-import { parseCashuToken, parseKeyHandshakeUrl } from 'portal-app-lib';
-import { useNostrService } from '@/context/NostrServiceContext';
-import { useThemeColor } from '@/hooks/useThemeColor';
-import { ArrowLeft, ClipboardPaste, Settings } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { useECash } from '@/context/ECashContext';
 import { useDatabaseContext } from '@/context/DatabaseContext';
-import { globalEvents, getServiceNameFromMintUrl } from '@/utils/common';
-import Clipboard from '@react-native-clipboard/clipboard';
-import { showToast } from '@/utils/Toast';
+import { useECash } from '@/context/ECashContext';
+import { useNostrService } from '@/context/NostrServiceContext';
+import { usePendingRequests } from '@/context/PendingRequestsContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import { getServiceNameFromMintUrl, globalEvents } from '@/utils/common';
 
 // Define the type for the barcode scanner result
 type BarcodeResult = {
@@ -80,6 +79,24 @@ export default function QRScannerScreen() {
     }
   }, [permission, requestPermission]);
 
+  const handleBackNavigation = useCallback(() => {
+    if (mode === 'wallet') {
+      // Check if we came from wallet management
+      if (params.returnToWallet === 'true') {
+        router.back(); // Return to wallet management
+      } else {
+        // Return to original source (settings)
+        router.replace({
+          pathname: '/(tabs)/Settings',
+        });
+      }
+    } else {
+      // Use back() instead of replace() to maintain proper navigation stack
+      // Since we came from homepage via push(), we should go back via back()
+      router.back();
+    }
+  }, [mode, params.returnToWallet]);
+
   // Handle hardware back button
   useEffect(() => {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -88,7 +105,7 @@ export default function QRScannerScreen() {
     });
 
     return () => backHandler.remove();
-  }, []);
+  }, [handleBackNavigation]);
 
   const toggleTorch = () => {
     setEnableTorch(!enableTorch);
@@ -114,24 +131,6 @@ export default function QRScannerScreen() {
     await Linking.openSettings();
   };
 
-  const handleBackNavigation = () => {
-    if (mode === 'wallet') {
-      // Check if we came from wallet management
-      if (params.returnToWallet === 'true') {
-        router.back(); // Return to wallet management
-      } else {
-        // Return to original source (settings)
-        router.replace({
-          pathname: '/(tabs)/Settings',
-        });
-      }
-    } else {
-      // Use back() instead of replace() to maintain proper navigation stack
-      // Since we came from homepage via push(), we should go back via back()
-      router.back();
-    }
-  };
-
   const validateQRCode = (data: string): { isValid: boolean; error?: string } => {
     switch (mode) {
       case 'wallet':
@@ -147,7 +146,7 @@ export default function QRScannerScreen() {
         // Main mode: validate that parseKeyHandshakeUrl can handle it
         try {
           parseKeyHandshakeUrl(data);
-        } catch (error) {
+        } catch (_error) {
           return {
             isValid: false,
             error: 'Invalid QR code. Please scan a valid Portal authentication QR code.',
@@ -190,7 +189,7 @@ export default function QRScannerScreen() {
     // Prevent multiple scans
     if (scanned) return;
 
-    const { type, data } = result;
+    const { data } = result;
     setScanned(true);
 
     // Validate the QR code first
@@ -201,7 +200,7 @@ export default function QRScannerScreen() {
     }
 
     switch (mode) {
-      case 'wallet':
+      case 'wallet': {
         // Wallet QR handling - navigate to wallet with scanned URL
         const timestamp = Date.now();
         setTimeout(() => {
@@ -216,24 +215,24 @@ export default function QRScannerScreen() {
           });
         }, 300);
         break;
+      }
 
-      case 'ticket':
+      case 'ticket': {
         // Navigate back with clean history after a brief delay for UX
         setTimeout(() => {
           router.back();
         }, 300);
 
-        let token;
-        let tokenInfo;
-        let wallet;
+        let token: string;
+        let tokenInfo: any;
+        let wallet: any;
 
         try {
           token = data.replace('portal-cashu://', '');
           tokenInfo = await parseCashuToken(token);
           wallet = await eCash.addWallet(tokenInfo.mintUrl, tokenInfo.unit);
         } catch (error) {
-          const jsonErr = JSON.stringify(error, Object.getOwnPropertyNames(error));
-          console.error('Failed to process ticket QR code:', jsonErr);
+          const _jsonErr = JSON.stringify(error, Object.getOwnPropertyNames(error));
           // todo
           Alert.alert(
             'Ticket Processing Error',
@@ -279,7 +278,7 @@ export default function QRScannerScreen() {
               currency: null,
               request_id: `cashu-direct-${Date.now()}`,
               subscription_id: null,
-              status: 'neutral' as 'neutral',
+              status: 'neutral' as const,
               converted_amount: null,
               converted_currency: null,
             };
@@ -291,19 +290,15 @@ export default function QRScannerScreen() {
               // Emit event for UI updates
               globalEvents.emit('activityAdded', activity);
             } else {
-              console.warn('Failed to record Cashu token activity due to database issues');
             }
-          } catch (activityError) {
-            console.error('Error recording Cashu direct activity:', activityError);
-          }
+          } catch (_activityError) {}
 
           Alert.alert(
             'Ticket Added Successfully!',
             `Great! You've received a ${tokenInfo.unit} ticket from ${tokenInfo.mintUrl}.`
           );
         } catch (error) {
-          const jsonErr = JSON.stringify(error, Object.getOwnPropertyNames(error));
-          console.error('Failed to process ticket QR code:', jsonErr);
+          const _jsonErr = JSON.stringify(error, Object.getOwnPropertyNames(error));
           Alert.alert(
             'Ticket Processing Error',
             'There was a problem redeeming the ticket. The ticket may have already been used.'
@@ -311,6 +306,7 @@ export default function QRScannerScreen() {
           return;
         }
         break;
+      }
 
       case 'lightning':
         router.replace({
@@ -327,8 +323,7 @@ export default function QRScannerScreen() {
           const parsedUrl = parseKeyHandshakeUrl(data);
           showSkeletonLoader(parsedUrl);
           await nostrService.sendKeyHandshake(parsedUrl);
-        } catch (error) {
-          console.error('Failed to process QR code:', error);
+        } catch (_error) {
           showErrorMessage('Failed to process QR code. Please try again.');
           return;
         }

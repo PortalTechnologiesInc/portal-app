@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, Animated, Easing, TouchableOpacity } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, Easing, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { useThemeColor } from '@/hooks/useThemeColor';
 
@@ -50,7 +50,7 @@ export const convertPaymentStatusToSteps = (
           timestamp: entry.created_at,
         });
         break;
-      case 'payment_completed':
+      case 'payment_completed': {
         // Update the last pending step to completed
         let lastPendingIndex = -1;
         for (let i = steps.length - 1; i >= 0; i--) {
@@ -78,7 +78,8 @@ export const convertPaymentStatusToSteps = (
           });
         }
         break;
-      case 'payment_failed':
+      }
+      case 'payment_failed': {
         // Update the last pending step to error
         let lastPendingStepIndex = -1;
         for (let i = steps.length - 1; i >= 0; i--) {
@@ -108,6 +109,7 @@ export const convertPaymentStatusToSteps = (
           });
         }
         break;
+      }
     }
   }
 
@@ -121,7 +123,7 @@ export function PaymentStatusProgress({ steps, onRetry }: PaymentStatusProgressP
   const primaryColor = useThemeColor({}, 'tint');
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
-  const surfaceSecondaryColor = useThemeColor({}, 'surfaceSecondary');
+  const _surfaceSecondaryColor = useThemeColor({}, 'surfaceSecondary');
   const statusConnectedColor = useThemeColor({}, 'statusConnected');
   const statusErrorColor = useThemeColor({}, 'statusError');
   const buttonSecondaryColor = useThemeColor({}, 'buttonSecondary');
@@ -149,6 +151,7 @@ export function PaymentStatusProgress({ steps, onRetry }: PaymentStatusProgressP
   const hasActivePending = currentSteps.some(step => step.status === 'pending');
   const showRetry = lastStepIsError && !hasActivePending;
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: rotateAnim is a stable Animated.Value ref that doesn't need to be in dependencies
   useEffect(() => {
     // Create rotating animation for the loading dot
     const rotateAnimation = Animated.loop(
@@ -165,9 +168,10 @@ export function PaymentStatusProgress({ steps, onRetry }: PaymentStatusProgressP
     return () => {
       rotateAnimation.stop();
     };
-  }, [rotateAnim]);
+  }, []);
 
   // Ensure animation continues for all pending steps
+  // biome-ignore lint/correctness/useExhaustiveDependencies: rotateAnim is a stable Animated.Value ref that doesn't need to be in dependencies
   useEffect(() => {
     const hasPendingSteps = currentSteps.some(step => step.status === 'pending');
     if (hasPendingSteps) {
@@ -187,7 +191,7 @@ export function PaymentStatusProgress({ steps, onRetry }: PaymentStatusProgressP
         rotateAnimation.stop();
       };
     }
-  }, [currentSteps, rotateAnim]);
+  }, [currentSteps]);
 
   const rotateInterpolate = rotateAnim.interpolate({
     inputRange: [0, 1],
@@ -256,8 +260,6 @@ export function PaymentStatusProgress({ steps, onRetry }: PaymentStatusProgressP
             )}
           </View>
         );
-
-      case 'pending':
       default:
         return (
           <View style={styles.dotContainer}>

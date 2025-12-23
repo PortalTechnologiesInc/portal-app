@@ -1,4 +1,4 @@
-import { KeypairInterface, PortalDb, PortalDbInterface } from 'portal-app-lib';
+import { type KeypairInterface, PortalDb, type PortalDbInterface } from 'portal-app-lib';
 
 const MINTS_KEY = 'mints_key';
 
@@ -28,8 +28,7 @@ export default class NostrStoreService {
         ),
       ]);
       return JSON.parse(mintsJson);
-    } catch (error) {
-      console.warn('Reding on nostrStore generated the following error: ', error);
+    } catch (_error) {
       return [];
     }
   }

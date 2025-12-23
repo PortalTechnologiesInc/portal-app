@@ -1,10 +1,10 @@
-import { DatabaseService } from './DatabaseService';
-import { SecureStorageService } from './SecureStorageServiceV2';
-import { resetAllContexts } from './ContextResetService';
-import type { SQLiteDatabase } from 'expo-sqlite';
-import { router } from 'expo-router';
-import { PortalAppManager } from './PortalAppManager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router } from 'expo-router';
+import type { SQLiteDatabase } from 'expo-sqlite';
+import { resetAllContexts } from './ContextResetService';
+import { DatabaseService } from './DatabaseService';
+import { PortalAppManager } from './PortalAppManager';
+import { SecureStorageService } from './SecureStorageServiceV2';
 
 /**
  * Global reset flag to coordinate reset process
@@ -39,7 +39,6 @@ export class AppResetService {
    * @returns Promise that resolves when reset is complete
    */
   static async performCompleteReset(database?: SQLiteDatabase): Promise<void> {
-    console.log('🔄 Starting complete app reset...');
     // Set global reset flag
     isAppResetting = true;
 
@@ -49,7 +48,6 @@ export class AppResetService {
       // Step 1: Clear all SecureStore data
       await SecureStorageService.resetAll();
     } catch (error) {
-      console.error('❌ Failed to clear SecureStore:', error);
       errors.push({ step: 'SecureStore', error });
     }
 
@@ -62,7 +60,6 @@ export class AppResetService {
         await dbService.resetAndReinitializeDatabase();
       }
     } catch (error) {
-      console.error('❌ Failed to reset database:', error);
       errors.push({ step: 'Database', error });
     }
 
@@ -70,7 +67,6 @@ export class AppResetService {
       // Step 3: Reset all application contexts
       resetAllContexts();
     } catch (error) {
-      console.error('❌ Failed to reset contexts:', error);
       errors.push({ step: 'Contexts', error });
     }
 
@@ -78,18 +74,25 @@ export class AppResetService {
       // Step 4: Reset navigation to onboarding
       router.replace('/onboarding');
     } catch (error) {
-      console.error('❌ Failed to reset navigation:', error);
       errors.push({ step: 'Navigation', error });
     }
 
     // Step 5: Clear AsyncStorage
     try {
-      console.log('Step 5/5: Clearing storage...');
       await AsyncStorage.clear();
     } catch (error) {
-      console.error('❌ Failed to clear storage:', error);
       errors.push({ step: 'Storage', error });
     }
+
+    // Step 6: Set flag to show toast in onboarding (after clearing AsyncStorage)
+    // Use a small delay to ensure onboarding screen has mounted
+    setTimeout(async () => {
+      try {
+        await AsyncStorage.setItem('app_reset_complete', 'true');
+      } catch (_error) {
+        // Ignore errors setting flag
+      }
+    }, 100);
 
     // Step 6: Deleting app instance
     PortalAppManager.clearInstance();
@@ -101,9 +104,7 @@ export class AppResetService {
 
     // Report results
     if (errors.length === 0) {
-      console.log('✅ Complete app reset successful!');
     } else {
-      console.warn(`⚠️ App reset completed with ${errors.length} non-critical errors:`, errors);
     }
 
     // Even if there were errors, the reset likely succeeded enough to be functional

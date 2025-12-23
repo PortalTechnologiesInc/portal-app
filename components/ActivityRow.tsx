@@ -1,20 +1,14 @@
-import type React from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
-import { Key, BanknoteIcon, Ticket } from 'lucide-react-native';
-import { ThemedText } from './ThemedText';
-import { formatRelativeTime, ActivityType } from '@/utils/common';
-import type { ActivityWithDates } from '@/services/DatabaseService';
 import { router } from 'expo-router';
-import { useThemeColor } from '@/hooks/useThemeColor';
-import { getActivityStatus, getStatusColor } from '@/utils/activityHelpers';
-import { CurrencyConversionService } from '@/services/CurrencyConversionService';
-import {
-  Currency,
-  CurrencyHelpers,
-  shouldShowConvertedAmount,
-  formatActivityAmount,
-} from '@/utils/currency';
+import { BanknoteIcon, Key, Ticket } from 'lucide-react-native';
+import type React from 'react';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useCurrency } from '@/context/CurrencyContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import type { ActivityWithDates } from '@/services/DatabaseService';
+import { getActivityStatus, getStatusColor } from '@/utils/activityHelpers';
+import { ActivityType, formatRelativeTime } from '@/utils/common';
+import { formatActivityAmount, shouldShowConvertedAmount } from '@/utils/currency';
+import { ThemedText } from './ThemedText';
 
 interface ActivityRowProps {
   activity: ActivityWithDates;
@@ -25,7 +19,7 @@ export const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
     router.push(`/activity/${activity.id}`);
   };
 
-  const { preferredCurrency } = useCurrency();
+  const { preferredCurrency: _preferredCurrency } = useCurrency();
 
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');
   const iconBackgroundColor = useThemeColor({}, 'surfaceSecondary');
@@ -117,17 +111,18 @@ export const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
         </ThemedText>
       </View>
       <View style={styles.activityDetails}>
-        {(activity.type === ActivityType.Pay || activity.type === ActivityType.Receive) && activity.amount !== null && (
-          <ThemedText style={[styles.amount, { color: primaryTextColor }]}>
-            {shouldShowConvertedAmount({
-              amount: activity.converted_amount,
-              originalCurrency: activity.currency,
-              convertedCurrency: activity.converted_currency,
-            })
-              ? formatActivityAmount(activity.converted_amount, activity.converted_currency)
-              : formatActivityAmount(activity.amount, activity.currency)}
-          </ThemedText>
-        )}
+        {(activity.type === ActivityType.Pay || activity.type === ActivityType.Receive) &&
+          activity.amount !== null && (
+            <ThemedText style={[styles.amount, { color: primaryTextColor }]}>
+              {shouldShowConvertedAmount({
+                amount: activity.converted_amount,
+                originalCurrency: activity.currency,
+                convertedCurrency: activity.converted_currency,
+              })
+                ? formatActivityAmount(activity.converted_amount, activity.converted_currency)
+                : formatActivityAmount(activity.amount, activity.currency)}
+            </ThemedText>
+          )}
         {(activity.type === 'ticket' ||
           activity.type === 'ticket_approved' ||
           activity.type === 'ticket_denied' ||

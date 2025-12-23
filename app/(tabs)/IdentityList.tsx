@@ -1,27 +1,33 @@
-import React, { useState, useEffect } from 'react';
+import Clipboard from '@react-native-clipboard/clipboard';
+import { requestMediaLibraryPermissionsAsync } from 'expo-image-picker';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { ArrowLeft, Copy, Edit, Pencil, User } from 'lucide-react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View,
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  Image,
   Alert,
-  ScrollView,
+  Image,
   RefreshControl,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import type { Identity } from '@/utils/types';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { useRouter } from 'expo-router';
-import { Edit, User, Pencil, ArrowLeft } from 'lucide-react-native';
-import { useThemeColor } from '@/hooks/useThemeColor';
-import { useUserProfile } from '@/context/UserProfileContext';
 import { useNostrService } from '@/context/NostrServiceContext';
-import { requestMediaLibraryPermissionsAsync } from 'expo-image-picker';
-import { showToast } from '@/utils/Toast';
+import { useUserProfile } from '@/context/UserProfileContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import { AppLockService } from '@/services/AppLockService';
+import {
+  cancelActiveFilePicker,
+  isFilePickerActive,
+  launchImagePickerWithAutoCancel,
+} from '@/services/FilePickerService';
 import { formatAvatarUri } from '@/utils/common';
-import { launchImagePickerWithAutoCancel } from '@/services/FilePickerService';
+import { showToast } from '@/utils/Toast';
+import type { Identity } from '@/utils/types';
 
 export type IdentityListProps = {
   onManageIdentity: (identity: Identity) => void;
@@ -37,7 +43,6 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
     username,
     displayName,
     avatarUri,
-    avatarRefreshKey,
     networkUsername,
     networkDisplayName,
     networkAvatarUri,
@@ -49,8 +54,25 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
   const nostrService = useNostrService();
   const [usernameInput, setUsernameInput] = useState('');
   const [displayNameInput, setDisplayNameInput] = useState('');
+  const [localAvatarUri, setLocalAvatarUri] = useState<string | null>(null);
+  const [localAvatarRefreshKey, setLocalAvatarRefreshKey] = useState<number>(Date.now());
   const [profileIsLoading, setProfileIsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Refs to track current values for cleanup
+  const localAvatarUriRef = useRef<string | null>(null);
+  const networkAvatarUriRef = useRef<string | null>(null);
+  const savedSuccessfullyRef = useRef<boolean>(false);
+  const previousAvatarUriRef = useRef<string | null>(null);
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    localAvatarUriRef.current = localAvatarUri;
+  }, [localAvatarUri]);
+
+  useEffect(() => {
+    networkAvatarUriRef.current = networkAvatarUri;
+  }, [networkAvatarUri]);
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -62,16 +84,27 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
   const inputBorderColor = useThemeColor({}, 'inputBorder');
   const inputPlaceholderColor = useThemeColor({}, 'inputPlaceholder');
   const statusConnectedColor = useThemeColor({}, 'statusConnected');
+  const surfaceSecondary = useThemeColor({}, 'surfaceSecondary');
 
-  // Initialize profile state
-  useEffect(() => {
-    if (username) {
-      setUsernameInput(username);
-    }
-    if (displayName) {
-      setDisplayNameInput(displayName);
-    }
-  }, [username, displayName]);
+  // Reset local state to network values when screen comes into focus
+  // This ensures unsaved changes are discarded when user navigates away and comes back
+  useFocusEffect(
+    useCallback(() => {
+      // Reset all local inputs to match network (saved) values
+      setUsernameInput(networkUsername || username || '');
+      setDisplayNameInput(networkDisplayName || displayName || '');
+      
+      // Only update refresh key if avatar URI actually changed to preserve cache
+      const avatarUriChanged = networkAvatarUri !== previousAvatarUriRef.current;
+      if (avatarUriChanged) {
+        setLocalAvatarRefreshKey(Date.now());
+        previousAvatarUriRef.current = networkAvatarUri;
+      }
+      
+      setLocalAvatarUri(networkAvatarUri);
+      savedSuccessfullyRef.current = false;
+    }, [networkUsername, networkDisplayName, networkAvatarUri, username, displayName])
+  );
 
   const handleAvatarPress = async () => {
     if (!isProfileEditable) {
@@ -82,6 +115,9 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
       return;
     }
 
+    // Enable lock suppression during image picker interaction
+    AppLockService.enableLockSuppression('image-picker');
+
     try {
       const permissionResult = await requestMediaLibraryPermissionsAsync();
 
@@ -90,6 +126,8 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
           'Permission Required',
           'You need to allow access to your photos to change your avatar.'
         );
+        // Disable lock suppression if permission denied
+        AppLockService.disableLockSuppression('image-picker');
         return;
       }
 
@@ -101,17 +139,25 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
         allowsMultipleSelection: false,
       });
 
-      if (!result.canceled) {
-        try {
-          await setAvatarUri(result.assets[0].uri);
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Failed to set avatar';
-          Alert.alert('Error', errorMessage);
-        }
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        // Update local state only, don't update context until save
+        const newUri = result.assets[0].uri;
+        setLocalAvatarUri(newUri);
+        setLocalAvatarRefreshKey(Date.now());
+        previousAvatarUriRef.current = newUri;
       }
-    } catch (error) {
-      console.error('Error selecting image:', error);
+    } catch (_error) {
       Alert.alert('Error', 'Failed to select image. Please try again.');
+    } finally {
+      // Clear file picker active flag and disable lock suppression
+      // Use setTimeout to ensure this happens after app state transitions complete
+      setTimeout(() => {
+        if (isFilePickerActive()) {
+          cancelActiveFilePicker();
+        }
+        // Always disable lock suppression after image picker interaction completes
+        AppLockService.disableLockSuppression('image-picker');
+      }, 300);
     }
   };
 
@@ -125,7 +171,7 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
     // Check if anything has actually changed
     const usernameChanged = normalizedUsername !== networkUsername;
     const displayNameChanged = trimmedDisplayName !== networkDisplayName;
-    const avatarChanged = avatarUri !== networkAvatarUri;
+    const avatarChanged = localAvatarUri !== networkAvatarUri;
 
     if (!usernameChanged && !displayNameChanged && !avatarChanged) {
       showToast('No changes to save', 'success');
@@ -148,27 +194,42 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
 
     setProfileIsLoading(true);
     try {
+      // Update context avatar URI before saving (so setProfile can use it)
+      if (localAvatarUri !== avatarUri) {
+        await setAvatarUri(localAvatarUri);
+      }
+
       // Use the setProfile method to save username, display name, and avatar to the network
       await setProfile(
         normalizedUsername || username || '',
         trimmedDisplayName,
-        avatarUri || undefined
+        localAvatarUri || undefined
       );
 
       // Update local inputs to reflect the normalized values
       setUsernameInput(normalizedUsername || username || '');
       setDisplayNameInput(trimmedDisplayName);
 
+      // Mark that save was successful to prevent cleanup from restoring
+      savedSuccessfullyRef.current = true;
+
+      // Note: After successful save, setProfile updates networkAvatarUri to match localAvatarUri
+      // The useEffect that syncs localAvatarUri from networkAvatarUri will handle the sync
       // Show success message
       showToast('Updated profile', 'success');
     } catch (error) {
-      console.error('Error saving profile:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to save profile';
       showToast(errorMessage, 'error');
 
       // Reset inputs to original network values when save fails
       setUsernameInput(networkUsername);
       setDisplayNameInput(networkDisplayName);
+      const avatarUriChanged = networkAvatarUri !== previousAvatarUriRef.current;
+      if (avatarUriChanged) {
+        setLocalAvatarRefreshKey(Date.now());
+        previousAvatarUriRef.current = networkAvatarUri;
+      }
+      setLocalAvatarUri(networkAvatarUri);
     } finally {
       setProfileIsLoading(false);
     }
@@ -179,14 +240,40 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
     try {
       if (nostrService.publicKey) {
         await fetchProfile(nostrService.publicKey);
+        // Reset all local state to network values after refresh
+        // Note: useFocusEffect will also reset when networkAvatarUri updates, but we do it here
+        // immediately to ensure UI updates right away
+        setUsernameInput(networkUsername || username || '');
+        setDisplayNameInput(networkDisplayName || displayName || '');
+        const avatarUriChanged = networkAvatarUri !== previousAvatarUriRef.current;
+        if (avatarUriChanged) {
+          setLocalAvatarRefreshKey(Date.now());
+          previousAvatarUriRef.current = networkAvatarUri;
+        }
+        setLocalAvatarUri(networkAvatarUri);
       }
-    } catch (error) {
+    } catch (_error) {
       // Silently handle errors
     }
     setRefreshing(false);
   };
 
-  const renderItem = ({ item }: { item: Identity }) => (
+  // Restore original avatar when leaving page without saving
+  useEffect(() => {
+    return () => {
+      // On unmount, restore network avatar if there are unsaved changes and we didn't just save
+      if (
+        !savedSuccessfullyRef.current &&
+        localAvatarUriRef.current !== networkAvatarUriRef.current
+      ) {
+        setAvatarUri(networkAvatarUriRef.current);
+      }
+      // Reset flag for next mount
+      savedSuccessfullyRef.current = false;
+    };
+  }, [setAvatarUri]);
+
+  const _renderItem = ({ item }: { item: Identity }) => (
     <TouchableOpacity style={[styles.identityCard, { backgroundColor: cardBackground }]}>
       <View style={styles.identityCardContent}>
         <View style={styles.identityInfo}>
@@ -247,9 +334,10 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
                 onPress={handleAvatarPress}
                 disabled={!isProfileEditable}
               >
-                {avatarUri ? (
+                {localAvatarUri ? (
                   <Image
-                    source={{ uri: formatAvatarUri(avatarUri, avatarRefreshKey) || '' }}
+                    key={localAvatarUri}
+                    source={{ uri: formatAvatarUri(localAvatarUri, localAvatarRefreshKey) || '' }}
                     style={[styles.avatar, { borderColor: inputBorderColor }]}
                   />
                 ) : (
@@ -325,37 +413,80 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
                 </View>
               </View>
 
-              <TouchableOpacity
-                style={[
-                  styles.saveButton,
-                  { backgroundColor: buttonPrimary },
-                  (!isProfileEditable || profileIsLoading) && {
-                    backgroundColor: inputBorderColor,
-                    opacity: 0.5,
-                  },
-                ]}
-                onPress={handleSaveProfile}
-                disabled={!isProfileEditable || profileIsLoading}
-              >
-                <ThemedText
+              <View style={styles.publicKeyContainer}>
+                <ThemedText style={[styles.inputLabel, { color: textSecondary }]}>
+                  Public key
+                </ThemedText>
+                <View
                   style={[
-                    styles.saveButtonText,
-                    { color: buttonPrimaryText },
-                    (!isProfileEditable || profileIsLoading) && { color: textSecondary },
+                    styles.publicKeyBox,
+                    {
+                      borderColor: inputBorderColor,
+                      backgroundColor: surfaceSecondary,
+                    },
                   ]}
                 >
-                  {profileIsLoading
-                    ? 'Saving...'
-                    : (() => {
-                        const usernameChanged = usernameInput.trim() !== networkUsername;
-                        const displayNameChanged = displayNameInput.trim() !== networkDisplayName;
-                        const avatarChanged = avatarUri !== networkAvatarUri;
-                        const hasChanges = usernameChanged || displayNameChanged || avatarChanged;
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.publicKeyScrollView}
+                  >
+                    <ThemedText
+                      style={[styles.publicKeyText, { color: textPrimary }]}
+                      selectable
+                    >
+                      {nostrService.publicKey || ''}
+                    </ThemedText>
+                  </ScrollView>
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (nostrService.publicKey) {
+                        Clipboard.setString(nostrService.publicKey);
+                        showToast('Public key copied to clipboard', 'success');
+                      }
+                    }}
+                    style={styles.copyPublicKeyButton}
+                    activeOpacity={0.7}
+                  >
+                    <Copy size={16} color={buttonPrimary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
 
-                        return hasChanges ? 'Save Changes' : 'Save Profile';
-                      })()}
-                </ThemedText>
-              </TouchableOpacity>
+              {(() => {
+                const usernameChanged = usernameInput.trim() !== networkUsername;
+                const displayNameChanged = displayNameInput.trim() !== networkDisplayName;
+                const avatarChanged = localAvatarUri !== networkAvatarUri;
+                const hasChanges = usernameChanged || displayNameChanged || avatarChanged;
+                const isDisabled = !isProfileEditable || profileIsLoading || !hasChanges;
+
+                return (
+                  <TouchableOpacity
+                    style={[
+                      styles.saveButton,
+                      { backgroundColor: buttonPrimary },
+                      isDisabled && {
+                        backgroundColor: inputBorderColor,
+                        opacity: 0.5,
+                      },
+                    ]}
+                    onPress={handleSaveProfile}
+                    disabled={isDisabled}
+                  >
+                    <ThemedText
+                      style={[
+                        styles.saveButtonText,
+                        { color: buttonPrimaryText },
+                        isDisabled && { color: textSecondary },
+                      ]}
+                    >
+                      {profileIsLoading
+                        ? 'Saving...'
+                        : 'Save Changes'}
+                    </ThemedText>
+                  </TouchableOpacity>
+                );
+              })()}
             </View>
           </ThemedView>
 
@@ -552,6 +683,29 @@ const styles = StyleSheet.create({
   },
   usernameSuffix: {
     fontSize: 16,
+  },
+  publicKeyContainer: {
+    marginBottom: 24,
+    width: '100%',
+    maxWidth: 500,
+  },
+  publicKeyBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    gap: 12,
+  },
+  publicKeyScrollView: {
+    flex: 1,
+  },
+  publicKeyText: {
+    fontSize: 13,
+    fontFamily: 'monospace',
+  },
+  copyPublicKeyButton: {
+    padding: 4,
   },
   saveButton: {
     padding: 16,

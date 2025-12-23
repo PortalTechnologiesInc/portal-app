@@ -92,7 +92,7 @@
           npmDepsHash = "sha256-ZdkByDr8yh3J2WJOQyFW5hIX5jpaVAptootVipz/eCI=";
           
           nativeBuildInputs = with pkgs; [
-            nodejs_23
+            nodejs_24
           ];
 
           buildPhase = ''
@@ -134,7 +134,7 @@
           name = "portal-android-deps";
           inherit src;
 
-          nativeBuildInputs = with pkgs; [ gradle nodejs_23 zip ];
+          nativeBuildInputs = with pkgs; [ gradle nodejs_24 zip ];
 
           GRADLE_ARGS = "--no-daemon --write-verification-metadata sha512";
           JAVA_HOME = pkgs.openjdk17.home;
@@ -175,7 +175,7 @@
           name = "portal-android-bundle";
           inherit src;
 
-          nativeBuildInputs = with pkgs; [ gradle nodejs_23 zip ];
+          nativeBuildInputs = with pkgs; [ gradle nodejs_24 zip ];
           
           GRADLE_ARGS = "--no-daemon --write-verification-metadata sha512";
           JAVA_HOME = pkgs.openjdk17.home;
@@ -250,11 +250,12 @@
             buildInputs = with pkgs; [
               aider-chat
               curl
-              nodejs_23
+              nodejs_24
               openjdk17
               apksigner
               extractApk
               unzip
+              biome
             ];
 
             ANDROID_SDK_ROOT = "${androidComposition.androidsdk}/libexec/android-sdk";
@@ -268,6 +269,7 @@
 
             # Run when the shell is started up
             shellHook = ''
+              export BIOME_BINARY="${pkgs.biome}/bin/biome"
               export PATH="$HOME/.npm-global/bin:$PATH"
               export PATH="./node_modules/.bin:$PATH"
               npm config set prefix "$HOME/.npm-global"

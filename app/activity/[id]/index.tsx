@@ -1,44 +1,43 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, router } from 'expo-router';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
-import { formatDayAndDate, ActivityType } from '@/utils/common';
+import * as Clipboard from 'expo-clipboard';
+import { router, useLocalSearchParams } from 'expo-router';
 import {
-  Calendar,
   AlertCircle,
-  Shield,
   BanknoteIcon,
+  Calendar,
+  Coins,
   DollarSign,
   Hash,
-  Server,
-  Coins,
   Info,
   Link,
+  Server,
+  Shield,
   Ticket,
 } from 'lucide-react-native';
-import { useDatabaseContext } from '@/context/DatabaseContext';
-import type { ActivityWithDates } from '@/services/DatabaseService';
-import { CurrencyConversionService } from '@/services/CurrencyConversionService';
-import {
-  Currency,
-  shouldShowConvertedAmount as shouldShowConvertedAmountUtil,
-  formatActivityAmount,
-} from '@/utils/currency';
-
-import { useThemeColor } from '@/hooks/useThemeColor';
-import { getActivityStatus } from '@/utils/activityHelpers';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { ActivityDetailRow } from '@/components/ActivityDetail/ActivityDetailRow';
 import { ActivityHeader } from '@/components/ActivityDetail/ActivityHeader';
 import { ActivityMainCard } from '@/components/ActivityDetail/ActivityMainCard';
-import { ActivityDetailRow } from '@/components/ActivityDetail/ActivityDetailRow';
 import {
-  PaymentStatusProgress,
-  PaymentStep,
   convertPaymentStatusToSteps,
+  PaymentStatusProgress,
+  type PaymentStep,
 } from '@/components/ActivityDetail/PaymentStatusProgress';
-import * as Clipboard from 'expo-clipboard';
+import { ThemedText } from '@/components/ThemedText';
+import { ThemedView } from '@/components/ThemedView';
 import { useActivities } from '@/context/ActivitiesContext';
+import { useDatabaseContext } from '@/context/DatabaseContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import type { ActivityWithDates } from '@/services/DatabaseService';
+import { getActivityStatus } from '@/utils/activityHelpers';
+import { ActivityType, formatDayAndDate } from '@/utils/common';
+import {
+  type Currency,
+  formatActivityAmount,
+  shouldShowConvertedAmount as shouldShowConvertedAmountUtil,
+} from '@/utils/currency';
 
 // Helper functions to generate activity description text
 function getRequestDescriptionText(
@@ -77,7 +76,7 @@ function getSuccessStatusText(isAuth: boolean, isTicket: boolean, activityType: 
 function getFailedStatusText(
   isAuth: boolean,
   isTicket: boolean,
-  detail: string,
+  _detail: string,
   isDenied: boolean
 ): string {
   if (isDenied) {
@@ -126,43 +125,69 @@ export default function ActivityDetailScreen() {
 
   useEffect(() => {
     const fetchActivity = async () => {
+      if (!id) return;
+
       try {
         setLoading(true);
 
+        // First, check if activity is already in context (optimization for navigation from list)
+        const cachedActivity = activities.find(a => a.id === id);
+        if (cachedActivity) {
+          setActivity(cachedActivity);
+          setLoading(false);
+
+          // Still fetch payment status entries if needed (these aren't in the cached activity)
+          if (
+            cachedActivity.type === ActivityType.Pay ||
+            (cachedActivity.type === ActivityType.Receive && cachedActivity.invoice)
+          ) {
+            try {
+              const paymentStatusEntries = await executeOperation(
+                db => db.getPaymentStatusEntries(cachedActivity.invoice!),
+                []
+              );
+              const steps = convertPaymentStatusToSteps(paymentStatusEntries);
+              setPaymentSteps(steps);
+            } catch (_err) {
+              setPaymentSteps([]);
+            }
+          }
+          return;
+        }
+
+        // Activity not in context, fetch from database (e.g., deep link or removed from cache)
         const activityData = await executeOperation(db => db.getActivity(id as string), null);
 
         if (activityData) {
           setActivity(activityData);
 
           // If this is a payment activity, fetch payment status entries
-          if (activityData.type === ActivityType.Pay || activityData.type === ActivityType.Receive && activityData.invoice) {
+          if (
+            activityData.type === ActivityType.Pay ||
+            (activityData.type === ActivityType.Receive && activityData.invoice)
+          ) {
             try {
               const paymentStatusEntries = await executeOperation(
                 db => db.getPaymentStatusEntries(activityData.invoice!),
                 []
               );
-              console.log('paymentStatusEntries', paymentStatusEntries);
               const steps = convertPaymentStatusToSteps(paymentStatusEntries);
               setPaymentSteps(steps);
-            } catch (err) {
-              console.error('Error fetching payment status entries:', err);
+            } catch (_err) {
               setPaymentSteps([]);
             }
           }
         } else {
           setError('Activity not found');
         }
-      } catch (err) {
-        console.error('Error fetching activity:', err);
+      } catch (_err) {
         setError('Failed to load activity');
       } finally {
         setLoading(false);
       }
     };
 
-    if (id) {
-      fetchActivity();
-    }
+    fetchActivity();
   }, [id, executeOperation, activities]);
 
   const handleBackPress = () => {

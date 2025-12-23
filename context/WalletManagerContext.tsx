@@ -1,30 +1,31 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Wallet,
-  WalletType,
-  WALLET_TYPE,
-  WalletTypeMap,
-  WalletConnectionStatus,
-  WALLET_CONNECTION_STATUS,
-} from '@/models/WalletType';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { BreezService } from '@/services/BreezService';
-import { NwcService } from '@/services/NwcService';
-import { WalletInfo } from '@/utils/types';
-import { useKey } from './KeyContext';
-import { useDatabaseContext } from './DatabaseContext';
-import { useCurrency } from './CurrencyContext';
-import { ActivityType, globalEvents } from '@/utils/common';
-import {
-  SdkEvent,
-  SdkEvent_Tags,
-  PaymentType,
-  Payment,
-  PaymentStatus,
+  type Payment,
   PaymentDetails_Tags,
+  PaymentStatus,
+  PaymentType,
+  type SdkEvent,
+  SdkEvent_Tags,
 } from '@breeztech/breez-sdk-spark-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import type React from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import {
+  WALLET_CONNECTION_STATUS,
+  WALLET_TYPE,
+  type Wallet,
+  type WalletConnectionStatus,
+  type WalletType,
+  type WalletTypeMap,
+} from '@/models/WalletType';
+import { BreezService } from '@/services/BreezService';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import { NwcService } from '@/services/NwcService';
+import { ActivityType, globalEvents } from '@/utils/common';
 import { deriveNsecFromMnemonic } from '@/utils/keyHelpers';
+import type { WalletInfo } from '@/utils/types';
+import { useCurrency } from './CurrencyContext';
+import { useDatabaseContext } from './DatabaseContext';
+import { useKey } from './KeyContext';
 
 export interface WalletManagerContextType {
   activeWallet?: Wallet;
@@ -83,8 +84,6 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
   const setupBreezEventListener = useCallback(
     (breezWallet: BreezService) => {
       const handler = async (event: SdkEvent) => {
-        console.log('[BREEZ EVENT]:', event);
-
         // Extract event type and payment data
         let paymentData: Payment;
 
@@ -134,7 +133,7 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
               ? 'succeeded'
               : 'failed';
         const { status, statusEntry } = statusMap[eventType];
-        const typeConfig = activityTypeMap['receive'];
+        const typeConfig = activityTypeMap.receive;
 
         if (!typeConfig) return;
 
@@ -181,18 +180,12 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
           if (statusEntry && invoice) {
             try {
               await executeOperation(db => db.addPaymentStatusEntry(invoice, statusEntry), null);
-            } catch (statusError) {
-              console.error('Failed to add payment status entry:', statusError);
-            }
+            } catch (_statusError) {}
           }
-        } catch (error) {
-          console.error('Failed to handle Breez payment event:', error);
-        }
+        } catch (_error) {}
       };
 
-      breezWallet.addEventListener({ onEvent: handler }).catch(error => {
-        console.error('Failed to setup Breez event listener:', error);
-      });
+      breezWallet.addEventListener({ onEvent: handler }).catch(_error => {});
     },
     [executeOperation, preferredCurrency]
   );
@@ -289,9 +282,7 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
         }
 
         setIsWalletManagerInitialized(true);
-      } catch (error) {
-        console.error('Failed to initialize wallet manager:', error);
-      }
+      } catch (_error) {}
     };
 
     init();
@@ -320,7 +311,7 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
    */
   useEffect(() => {
     refreshWalletInfo();
-  }, [activeWallet, refreshWalletInfo]);
+  }, [refreshWalletInfo]);
 
   /**
    * Forwarded wallet actions

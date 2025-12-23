@@ -1,51 +1,54 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  StyleSheet,
-  TouchableOpacity,
-  Alert,
-  View,
-  ScrollView,
-  RefreshControl,
-  Switch,
-  Modal,
-  FlatList,
-  Platform,
-  useWindowDimensions,
-} from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
 import { useRouter } from 'expo-router';
 import {
-  ArrowLeft,
-  ChevronRight,
-  Fingerprint,
-  Shield,
-  X,
   Check,
+  ChevronRight,
+  Clock,
+  Fingerprint,
+  HandCoins,
+  KeyRound,
+  Languages,
+  Moon,
+  RotateCcw,
+  Shield,
+  Smartphone,
+  Sun,
   Wallet,
   Wifi,
-  RotateCcw,
-  Clock,
-  KeyRound,
+  X,
 } from 'lucide-react-native';
-import { Moon, Sun, Smartphone } from 'lucide-react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Alert,
+  Animated,
+  FlatList,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { walletUrlEvents, getMnemonic, getWalletUrl } from '@/services/SecureStorageService';
-import { useNostrService } from '@/context/NostrServiceContext';
-import { showToast } from '@/utils/Toast';
-import { authenticateAsync } from '@/services/BiometricAuthService';
-import { useTheme, ThemeMode } from '@/context/ThemeContext';
+import { PINKeypad } from '@/components/PINKeypad';
+import { PINSetupScreen } from '@/components/PINSetupScreen';
+import { ThemedText } from '@/components/ThemedText';
+import { ThemedView } from '@/components/ThemedView';
+import { useAppLock, useOnAppLock } from '@/context/AppLockContext';
 import { useCurrency } from '@/context/CurrencyContext';
-import { Currency, CurrencyHelpers } from '@/utils/currency';
-import { useThemeColor } from '@/hooks/useThemeColor';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import { useKey } from '@/context/KeyContext';
+import { useNostrService } from '@/context/NostrServiceContext';
+import { type ThemeMode, useTheme } from '@/context/ThemeContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import { type LockTimerDuration, PIN_MAX_LENGTH, PIN_MIN_LENGTH } from '@/services/AppLockService';
+import { authenticateAsync } from '@/services/BiometricAuthService';
+import { getMnemonic } from '@/services/SecureStorageService';
+import { Currency, CurrencyHelpers } from '@/utils/currency';
 import { getNsecStringFromKey } from '@/utils/keyHelpers';
-import { useAppLock, useOnAppLock } from '@/context/AppLockContext';
-import { LockTimerDuration, PIN_MIN_LENGTH, PIN_MAX_LENGTH } from '@/services/AppLockService';
-import { PINSetupScreen } from '@/components/PINSetupScreen';
-import { PINKeypad } from '@/components/PINKeypad';
+import { showToast } from '@/utils/Toast';
 
 type PinVerificationConfig = {
   title: string;
@@ -56,7 +59,7 @@ type PinVerificationConfig = {
 export default function SettingsScreen() {
   const router = useRouter();
   const { resetApp } = useDatabaseContext();
-  const nostrService = useNostrService();
+  const _nostrService = useNostrService();
   const { themeMode, setThemeMode } = useTheme();
   const {
     preferredCurrency,
@@ -80,13 +83,13 @@ export default function SettingsScreen() {
     hasPIN,
     isBiometricAvailable,
   } = useAppLock();
-  const [refreshing, setRefreshing] = useState(false);
+  const [_refreshing, _setRefreshing] = useState(false);
   const [isCurrencyModalVisible, setIsCurrencyModalVisible] = useState(false);
   const [isTimerModalVisible, setIsTimerModalVisible] = useState(false);
   const [isPINSetupVisible, setIsPINSetupVisible] = useState(false);
   const [isPINVerifyVisible, setIsPINVerifyVisible] = useState(false);
   const [pinError, setPinError] = useState(false);
-  const [walletUrl, setWalletUrl] = useState('');
+  const [_walletUrl, _setWalletUrl] = useState('');
   const [pinSetupPurpose, setPinSetupPurpose] = useState<'change' | 'global'>('global');
   const [pinVerificationConfig, setPinVerificationConfig] = useState<PinVerificationConfig>({
     title: 'Verify PIN',
@@ -94,9 +97,14 @@ export default function SettingsScreen() {
     onSuccess: null,
   });
   const [pendingLockEnable, setPendingLockEnable] = useState(false);
-  const [pendingPinEnable, setPendingPinEnable] = useState(false);
+  const [_pendingPinEnable, setPendingPinEnable] = useState(false);
   const [pendingBiometricEnable, setPendingBiometricEnable] = useState(false);
   const { width, height } = useWindowDimensions();
+  
+  // Animated values for drawer slide animations
+  const currencyDrawerSlide = useRef(new Animated.Value(height)).current;
+  const timerDrawerSlide = useRef(new Animated.Value(height)).current;
+  const pinVerifyDrawerSlide = useRef(new Animated.Value(height)).current;
   const insets = useSafeAreaInsets();
   const rem = Math.min(Math.max(width / 390, 0.9), 1);
   const modalMaxHeight = Math.min(height * 0.85, 560);
@@ -176,6 +184,7 @@ export default function SettingsScreen() {
     router.push('/recoverTickets');
   };
 
+
   const resetPinVerificationConfig = useCallback(() => {
     setPinVerificationConfig({
       title: 'Verify PIN',
@@ -238,8 +247,7 @@ export default function SettingsScreen() {
       }
 
       await action();
-    } catch (error) {
-      console.error('Error executing protected action:', error);
+    } catch (_error) {
       showToast('Failed to complete action', 'error');
     }
   };
@@ -247,18 +255,15 @@ export default function SettingsScreen() {
   const handleExportMnemonic = () => {
     executeProtectedAction(
       async () => {
-        console.log('Exporting mnemonic...');
         try {
           const mnemonicValue = await getMnemonic();
-          console.log('Mnemonic:', mnemonicValue);
           if (mnemonicValue) {
             Clipboard.setString(mnemonicValue);
             showToast('Mnemonic copied to clipboard', 'success');
           } else {
             showToast('No mnemonic found', 'error');
           }
-        } catch (error) {
-          console.error('Error exporting mnemonic:', error);
+        } catch (_error) {
           showToast('Failed to export mnemonic', 'error');
         }
       },
@@ -292,7 +297,6 @@ export default function SettingsScreen() {
   const handleExportAppData = () => {
     executeProtectedAction(
       async () => {
-        console.log('Exporting app data...');
         // TODO: Implement app data export logic
         showToast('App data export not yet implemented', 'success');
       },
@@ -317,6 +321,60 @@ export default function SettingsScreen() {
       'success'
     );
   };
+
+  // Animate currency drawer when modal opens/closes
+  useEffect(() => {
+    if (isCurrencyModalVisible) {
+      Animated.spring(currencyDrawerSlide, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start();
+    } else {
+      Animated.timing(currencyDrawerSlide, {
+        toValue: height,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [isCurrencyModalVisible, height, currencyDrawerSlide]);
+
+  // Animate timer drawer when modal opens/closes
+  useEffect(() => {
+    if (isTimerModalVisible) {
+      Animated.spring(timerDrawerSlide, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start();
+    } else {
+      Animated.timing(timerDrawerSlide, {
+        toValue: height,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [isTimerModalVisible, height, timerDrawerSlide]);
+
+  // Animate PIN verification drawer when modal opens/closes
+  useEffect(() => {
+    if (isPINVerifyVisible) {
+      Animated.spring(pinVerifyDrawerSlide, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start();
+    } else {
+      Animated.timing(pinVerifyDrawerSlide, {
+        toValue: height,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [isPINVerifyVisible, height, pinVerifyDrawerSlide]);
 
   const handleCurrencyChange = () => {
     setIsCurrencyModalVisible(true);
@@ -353,8 +411,7 @@ export default function SettingsScreen() {
           pinMessage: 'Enter your PIN to disable app lock',
         }
       );
-    } catch (error) {
-      console.error('Error toggling app lock:', error);
+    } catch (_error) {
       showToast('Failed to update app lock setting', 'error');
     }
   };
@@ -382,8 +439,7 @@ export default function SettingsScreen() {
           showToast(`${biometricLabel} enabled`, 'success');
         }
       }
-    } catch (error) {
-      console.error('Error setting up PIN:', error);
+    } catch (_error) {
       showToast('Failed to set up PIN', 'error');
     } finally {
       setPendingLockEnable(false);
@@ -405,8 +461,7 @@ export default function SettingsScreen() {
         setPinError(true);
         setTimeout(() => setPinError(false), 2000);
       }
-    } catch (error) {
-      console.error('Error verifying PIN:', error);
+    } catch (_error) {
       setPinError(true);
       setTimeout(() => setPinError(false), 2000);
     }
@@ -483,8 +538,7 @@ export default function SettingsScreen() {
           showToast(`${biometricLabel} disabled`, 'success');
         }
         setPendingBiometricEnable(false);
-      } catch (error) {
-        console.error('Error toggling biometrics:', error);
+      } catch (_error) {
         showToast('Failed to update biometric preference', 'error');
       }
     };
@@ -515,9 +569,7 @@ export default function SettingsScreen() {
           return;
         }
       }
-    } catch (error) {
-      console.error('Error authenticating biometrics for toggle:', error);
-    }
+    } catch (_error) {}
 
     if (hasPIN) {
       promptForPIN();
@@ -566,25 +618,17 @@ export default function SettingsScreen() {
             executeProtectedAction(
               async () => {
                 try {
-                  // Show progress to user
-                  showToast('Resetting app data...');
-
                   // Use comprehensive reset service
                   await resetApp();
 
-                  // Reset completed successfully
-                  showToast('App reset successful!', 'success');
-
                   // Navigation to onboarding is handled by AppResetService
-                } catch (error) {
-                  console.error('Error during comprehensive app reset:', error);
-
+                  // Toast will be shown in onboarding screen after reset completes
+                } catch (_error) {
                   // Even if there's an error, try to navigate to onboarding
                   // as the reset likely succeeded partially
                   try {
                     router.replace('/onboarding');
-                    showToast('Reset completed with errors - please check app state', 'error');
-                  } catch (navError) {
+                  } catch (_navError) {
                     Alert.alert(
                       'Reset Error',
                       'Failed to reset app completely. Please restart the app manually.',
@@ -636,60 +680,56 @@ export default function SettingsScreen() {
     <SafeAreaView style={[styles.safeArea, { backgroundColor: backgroundColor }]} edges={['top']}>
       <ThemedView style={styles.container}>
         <ThemedView style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <ArrowLeft size={20} color={primaryTextColor} />
-          </TouchableOpacity>
-          <ThemedText
-            style={styles.headerText}
-            lightColor={primaryTextColor}
-            darkColor={primaryTextColor}
-          >
+          <ThemedText type="title" style={{ color: primaryTextColor }}>
             Settings
           </ThemedText>
         </ThemedView>
 
         <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
           {/* Wallet Section */}
-          <ThemedView style={styles.section}>
-            <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
-              Wallet
-            </ThemedText>
-            <ThemedView style={styles.walletSection}>
-              <TouchableOpacity
-                style={[styles.card, { backgroundColor: cardBackgroundColor }]}
-                onPress={handleWalletCardPress}
-                activeOpacity={0.7}
-              >
-                <View style={styles.cardContent}>
-                  <View style={styles.cardLeft}>
-                    <View style={styles.cardHeader}>
-                      <View style={[styles.iconContainer]}>
-                        <Wallet size={20} color={buttonPrimaryColor} />
-                      </View>
-                      <View style={styles.cardText}>
-                        <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
-                          Wallet Configuration
-                        </ThemedText>
-                        <View style={styles.cardStatusRow}>
-                          <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
-                            Manage your wallet configurations
-                          </ThemedText>
-                        </View>
-                      </View>
+          <ThemedText
+            style={[styles.sectionTitle, { color: primaryTextColor, marginTop: 0 }]}
+          >
+            Wallet
+          </ThemedText>
+          <TouchableOpacity
+            style={[styles.card, { backgroundColor: cardBackgroundColor }]}
+            onPress={handleWalletCardPress}
+            activeOpacity={0.7}
+          >
+            <View style={styles.cardContent}>
+              <View style={styles.cardLeft}>
+                <View style={styles.cardHeader}>
+                  <View style={[styles.iconContainer]}>
+                    <Wallet size={22} color={buttonPrimaryColor} />
+                  </View>
+                  <View style={styles.cardText}>
+                    <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
+                      Wallet Configuration
+                    </ThemedText>
+                    <View style={styles.cardStatusRow}>
+                      <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
+                        Manage your wallet configurations
+                      </ThemedText>
                     </View>
                   </View>
-                  <ChevronRight size={24} color={secondaryTextColor} />
                 </View>
-              </TouchableOpacity>
-            </ThemedView>
-            <ThemedView style={styles.walletSection}>
-              <TouchableOpacity
-                style={[styles.card, { backgroundColor: cardBackgroundColor }]}
-                onPress={handleCurrencyChange}
-                activeOpacity={0.7}
-              >
-                <View style={styles.cardContent}>
-                  <View style={styles.cardLeft}>
+              </View>
+              <ChevronRight size={22} color={secondaryTextColor} />
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.card, { backgroundColor: cardBackgroundColor }]}
+            onPress={handleCurrencyChange}
+            activeOpacity={0.7}
+          >
+            <View style={styles.cardContent}>
+              <View style={styles.cardLeft}>
+                <View style={styles.cardHeader}>
+                  <View style={[styles.iconContainer]}>
+                    <HandCoins size={22} color={buttonPrimaryColor} />
+                  </View>
+                  <View style={styles.cardText}>
                     <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
                       Preferred Currency
                     </ThemedText>
@@ -697,47 +737,18 @@ export default function SettingsScreen() {
                       {getCurrentCurrencyDisplayName()}
                     </ThemedText>
                   </View>
-                  <View style={[styles.currencyIndicator, { backgroundColor: buttonPrimaryColor }]}>
-                    <ThemedText style={[styles.currencySymbol, { color: buttonPrimaryTextColor }]}>
-                      {getCurrentCurrencySymbol()}
-                    </ThemedText>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            </ThemedView>
-          </ThemedView>
-
-          {/* Remote Signing */}
-          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
-            Remote Signing
-          </ThemedText>
-          <TouchableOpacity
-            style={[styles.card, { backgroundColor: cardBackgroundColor }]}
-            onPress={handleRemoteSigningPress}
-            activeOpacity={0.7}
-          >
-            <View style={styles.cardContent}>
-              <View style={styles.cardLeft}>
-                <View style={styles.cardHeader}>
-                  <View style={[styles.iconContainer]}>
-                    <Fingerprint size={20} color={buttonPrimaryColor} />
-                  </View>
-                  <View style={styles.cardText}>
-                    <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
-                      Remote signer setup
-                    </ThemedText>
-                    <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
-                      Configure bunker URLs or respond to nostrconnect requests
-                    </ThemedText>
-                  </View>
                 </View>
               </View>
-              <ChevronRight size={24} color={secondaryTextColor} />
+              <View style={[styles.currencyIndicator, { backgroundColor: buttonPrimaryColor }]}>
+                <ThemedText style={[styles.currencySymbol, { color: buttonPrimaryTextColor }]}>
+                  {getCurrentCurrencySymbol()}
+                </ThemedText>
+              </View>
             </View>
           </TouchableOpacity>
 
-          {/* Nostr Section */}
-          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>Relays</ThemedText>
+          {/* Network Section */}
+          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>Network</ThemedText>
           <TouchableOpacity
             style={[styles.card, { backgroundColor: cardBackgroundColor }]}
             onPress={handleNostrCardPress}
@@ -747,7 +758,7 @@ export default function SettingsScreen() {
               <View style={styles.cardLeft}>
                 <View style={styles.cardHeader}>
                   <View style={[styles.iconContainer]}>
-                    <Wifi size={20} color={buttonPrimaryColor} />
+                    <Wifi size={22} color={buttonPrimaryColor} />
                   </View>
                   <View style={styles.cardText}>
                     <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
@@ -759,9 +770,69 @@ export default function SettingsScreen() {
                   </View>
                 </View>
               </View>
-              <ChevronRight size={24} color={secondaryTextColor} />
+              <ChevronRight size={22} color={secondaryTextColor} />
             </View>
           </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.card, { backgroundColor: cardBackgroundColor }]}
+            onPress={handleRemoteSigningPress}
+            activeOpacity={0.7}
+          >
+            <View style={styles.cardContent}>
+              <View style={styles.cardLeft}>
+                <View style={styles.cardHeader}>
+                  <View style={[styles.iconContainer]}>
+                    <Fingerprint size={22} color={buttonPrimaryColor} />
+                  </View>
+                  <View style={styles.cardText}>
+                    <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
+                      Remote signer setup
+                    </ThemedText>
+                    <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
+                      Configure bunker URLs or respond to nostrconnect requests
+                    </ThemedText>
+                  </View>
+                </View>
+              </View>
+              <ChevronRight size={22} color={secondaryTextColor} />
+            </View>
+          </TouchableOpacity>
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: cardBackgroundColor },
+              { opacity: 0.5 },
+            ]}
+          >
+            <View style={styles.cardContent}>
+              <View style={styles.cardLeft}>
+                <View style={styles.cardHeader}>
+                  <View style={[styles.iconContainer]}>
+                    <Shield size={22} color={secondaryTextColor} />
+                  </View>
+                  <View style={styles.cardText}>
+                    <ThemedText style={[styles.cardTitle, { color: secondaryTextColor }]}>
+                      Enable Tor
+                    </ThemedText>
+                    <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
+                      Route traffic through Tor network
+                    </ThemedText>
+                  </View>
+                </View>
+              </View>
+              <Switch
+                value={false}
+                onValueChange={() => {}}
+                disabled={true}
+                trackColor={{
+                  false: inputBorderColor,
+                  true: inputBorderColor,
+                }}
+                thumbColor="#ffffff"
+                ios_backgroundColor={inputBorderColor}
+              />
+            </View>
+          </View>
 
           {/* Theme Section */}
           <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
@@ -777,11 +848,11 @@ export default function SettingsScreen() {
                 <View style={styles.themeCardLeft}>
                   <View style={styles.iconContainer}>
                     {themeMode === 'auto' ? (
-                      <Smartphone size={24} color={buttonPrimaryColor} />
+                      <Smartphone size={22} color={buttonPrimaryColor} />
                     ) : themeMode === 'light' ? (
-                      <Sun size={24} color={buttonPrimaryColor} />
+                      <Sun size={22} color={buttonPrimaryColor} />
                     ) : (
-                      <Moon size={24} color={buttonPrimaryColor} />
+                      <Moon size={22} color={buttonPrimaryColor} />
                     )}
                   </View>
                   <View style={styles.themeTextContainer}>
@@ -805,17 +876,100 @@ export default function SettingsScreen() {
               </View>
             </TouchableOpacity>
           </ThemedView>
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: cardBackgroundColor },
+              { opacity: 0.5 },
+            ]}
+          >
+            <View style={styles.cardContent}>
+              <View style={styles.cardLeft}>
+                <View style={styles.cardHeader}>
+                  <View style={[styles.iconContainer]}>
+                    <Languages size={22} color={secondaryTextColor} />
+                  </View>
+                  <View style={styles.cardText}>
+                    <ThemedText style={[styles.cardTitle, { color: secondaryTextColor }]}>
+                      Preferred Language
+                    </ThemedText>
+                    <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
+                      Select your preferred language
+                    </ThemedText>
+                  </View>
+                </View>
+              </View>
+              <View style={[styles.currencyIndicator, { backgroundColor: inputBorderColor }]}>
+                <ThemedText style={[styles.currencySymbol, { color: secondaryTextColor }]}>
+                  ENG
+                </ThemedText>
+              </View>
+            </View>
+          </View>
 
           {/* Security Section */}
           <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
             Security
           </ThemedText>
+          <View style={[styles.appLockOption, { backgroundColor: cardBackgroundColor }]}>
+            <View style={styles.appLockLeft}>
+              <View style={styles.appLockIconContainer}>
+                <Shield size={22} color={buttonPrimaryColor} />
+              </View>
+              <View style={styles.appLockTextContainer}>
+                <ThemedText style={[styles.appLockTitle, { color: primaryTextColor }]}>
+                  App Lock
+                </ThemedText>
+                <ThemedText style={[styles.appLockDescription, { color: secondaryTextColor }]}>
+                  Lock your app with biometric or PIN
+                </ThemedText>
+              </View>
+            </View>
+            <Switch
+              value={isLockEnabled}
+              onValueChange={handleAppLockToggle}
+              trackColor={{
+                false: inputBorderColor,
+                true: buttonPrimaryColor,
+              }}
+              thumbColor={isLockEnabled ? buttonPrimaryTextColor : '#ffffff'}
+              ios_backgroundColor={inputBorderColor}
+            />
+          </View>
+
+          {isLockEnabled && (
+            <TouchableOpacity
+              style={[styles.card, { backgroundColor: cardBackgroundColor }]}
+              onPress={() => setIsTimerModalVisible(true)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.cardContent}>
+                <View style={styles.cardLeft}>
+                  <View style={styles.cardHeader}>
+                    <View style={[styles.iconContainer]}>
+                      <Clock size={22} color={buttonPrimaryColor} />
+                    </View>
+                    <View style={styles.cardText}>
+                      <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
+                        Lock Timer
+                      </ThemedText>
+                      <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
+                        {getTimerLabel()}
+                      </ThemedText>
+                    </View>
+                  </View>
+                </View>
+                <ChevronRight size={22} color={secondaryTextColor} />
+              </View>
+            </TouchableOpacity>
+          )}
+
           <View style={[styles.card, { backgroundColor: cardBackgroundColor }]}>
             <View style={styles.cardContent}>
               <View style={styles.cardLeft}>
                 <View style={styles.cardHeader}>
                   <View style={[styles.iconContainer]}>
-                    <KeyRound size={20} color={buttonPrimaryColor} />
+                    <KeyRound size={22} color={buttonPrimaryColor} />
                   </View>
                   <View style={styles.cardText}>
                     <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
@@ -854,107 +1008,52 @@ export default function SettingsScreen() {
           )}
 
           {isFingerprintSupported && (
-            <>
-              <View
-                style={[
-                  styles.card,
-                  { backgroundColor: cardBackgroundColor },
-                  !isFingerprintSupported && styles.cardDisabled,
-                ]}
-              >
-                <View style={styles.cardContent}>
-                  <View style={styles.cardLeft}>
-                    <View style={styles.cardHeader}>
-                      <View style={[styles.iconContainer]}>
-                        <Fingerprint size={20} color={buttonPrimaryColor} />
-                      </View>
-                      <View style={styles.cardText}>
-                        <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
-                          Use {biometricLabel}
-                        </ThemedText>
-                        {isFingerprintSupported && (
-                          <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
-                            {isFingerprintSupported
-                              ? isBiometricPreferred
-                                ? `${biometricLabel} enabled`
-                                : `${biometricLabel} disabled`
-                              : `${biometricLabel} not available`}
-                          </ThemedText>
-                        )}
-                      </View>
-                    </View>
-                  </View>
-                  <Switch
-                    value={isBiometricPreferred}
-                    onValueChange={handleBiometricToggle}
-                    trackColor={{
-                      false: inputBorderColor,
-                      true: buttonPrimaryColor,
-                    }}
-                    thumbColor={isBiometricPreferred ? buttonPrimaryTextColor : '#ffffff'}
-                    ios_backgroundColor={inputBorderColor}
-                  />
-                </View>
-              </View>
-            </>
-          )}
-
-          <View style={[styles.appLockOption, { backgroundColor: cardBackgroundColor }]}>
-            <View style={styles.appLockLeft}>
-              <View style={styles.appLockIconContainer}>
-                <Shield size={24} color={buttonPrimaryColor} />
-              </View>
-              <View style={styles.appLockTextContainer}>
-                <ThemedText style={[styles.appLockTitle, { color: primaryTextColor }]}>
-                  App Lock
-                </ThemedText>
-                <ThemedText style={[styles.appLockDescription, { color: secondaryTextColor }]}>
-                  Lock your app with biometric or PIN
-                </ThemedText>
-              </View>
-            </View>
-            <Switch
-              value={isLockEnabled}
-              onValueChange={handleAppLockToggle}
-              trackColor={{
-                false: inputBorderColor,
-                true: buttonPrimaryColor,
-              }}
-              thumbColor={isLockEnabled ? buttonPrimaryTextColor : '#ffffff'}
-              ios_backgroundColor={inputBorderColor}
-            />
-          </View>
-
-          {isLockEnabled && (
-            <TouchableOpacity
-              style={[styles.card, { backgroundColor: cardBackgroundColor }]}
-              onPress={() => setIsTimerModalVisible(true)}
-              activeOpacity={0.7}
+            <View
+              style={[
+                styles.card,
+                { backgroundColor: cardBackgroundColor },
+                !isFingerprintSupported && styles.cardDisabled,
+              ]}
             >
               <View style={styles.cardContent}>
                 <View style={styles.cardLeft}>
                   <View style={styles.cardHeader}>
                     <View style={[styles.iconContainer]}>
-                      <Clock size={20} color={buttonPrimaryColor} />
+                      <Fingerprint size={22} color={buttonPrimaryColor} />
                     </View>
                     <View style={styles.cardText}>
                       <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
-                        Lock Timer
+                        Use {biometricLabel}
                       </ThemedText>
-                      <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
-                        {getTimerLabel()}
-                      </ThemedText>
+                      {isFingerprintSupported && (
+                        <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
+                          {isFingerprintSupported
+                            ? isBiometricPreferred
+                              ? `${biometricLabel} enabled`
+                              : `${biometricLabel} disabled`
+                            : `${biometricLabel} not available`}
+                        </ThemedText>
+                      )}
                     </View>
                   </View>
                 </View>
-                <ChevronRight size={24} color={secondaryTextColor} />
+                <Switch
+                  value={isBiometricPreferred}
+                  onValueChange={handleBiometricToggle}
+                  trackColor={{
+                    false: inputBorderColor,
+                    true: buttonPrimaryColor,
+                  }}
+                  thumbColor={isBiometricPreferred ? buttonPrimaryTextColor : '#ffffff'}
+                  ios_backgroundColor={inputBorderColor}
+                />
               </View>
-            </TouchableOpacity>
+            </View>
           )}
 
-          {/* Recover Tickets Section */}
+          {/* Backup & Recovery Section */}
           <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
-            Recovery
+            Backup & Recovery
           </ThemedText>
           <TouchableOpacity
             style={[styles.card, { backgroundColor: cardBackgroundColor }]}
@@ -965,7 +1064,7 @@ export default function SettingsScreen() {
               <View style={styles.cardLeft}>
                 <View style={styles.cardHeader}>
                   <View style={[styles.iconContainer]}>
-                    <RotateCcw size={20} color={buttonPrimaryColor} />
+                    <RotateCcw size={22} color={buttonPrimaryColor} />
                   </View>
                   <View style={styles.cardText}>
                     <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
@@ -977,12 +1076,9 @@ export default function SettingsScreen() {
                   </View>
                 </View>
               </View>
-              <ChevronRight size={24} color={secondaryTextColor} />
+              <ChevronRight size={22} color={secondaryTextColor} />
             </View>
           </TouchableOpacity>
-
-          {/* Export Section */}
-          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>Export</ThemedText>
           {mnemonic && (
             <TouchableOpacity
               style={[styles.exportButton, { backgroundColor: buttonPrimaryColor }]}
@@ -1012,21 +1108,28 @@ export default function SettingsScreen() {
             </View>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.exportButton, { backgroundColor: buttonPrimaryColor }]}
+            style={[
+              styles.exportButton,
+              {
+                backgroundColor: inputBorderColor,
+                opacity: 0.5,
+              },
+            ]}
             onPress={handleExportAppData}
+            disabled={true}
           >
             <View style={styles.exportButtonContent}>
-              <ThemedText style={[styles.exportButtonText, { color: buttonPrimaryTextColor }]}>
+              <ThemedText style={[styles.exportButtonText, { color: secondaryTextColor }]}>
                 Export App Data
               </ThemedText>
               <View style={styles.fingerprintIcon}>
-                <Fingerprint size={20} color={buttonPrimaryTextColor} />
+                <Fingerprint size={20} color={secondaryTextColor} />
               </View>
             </View>
           </TouchableOpacity>
 
-          {/* Extra Section */}
-          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>Extra</ThemedText>
+          {/* Advanced Section */}
+          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>Advanced</ThemedText>
           <TouchableOpacity
             style={[styles.clearDataButton, { backgroundColor: buttonDangerColor }]}
             onPress={handleClearAppData}
@@ -1040,6 +1143,7 @@ export default function SettingsScreen() {
               </View>
             </View>
           </TouchableOpacity>
+
         </ScrollView>
       </ThemedView>
 
@@ -1047,19 +1151,30 @@ export default function SettingsScreen() {
       <Modal
         visible={isCurrencyModalVisible}
         transparent
-        animationType="slide"
+        animationType="fade"
         onRequestClose={() => setIsCurrencyModalVisible(false)}
       >
-        <TouchableOpacity
+        <View
           style={[styles.modalOverlay, { paddingTop: Math.max(insets.top, 12) }]}
-          activeOpacity={1}
-          onPress={() => setIsCurrencyModalVisible(false)}
+          pointerEvents="box-none"
         >
-          <TouchableOpacity
-            style={modalSheetStyle}
-            activeOpacity={1}
-            onPress={e => e.stopPropagation()}
+          <View style={StyleSheet.absoluteFill} pointerEvents="auto">
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              activeOpacity={1}
+              onPress={() => setIsCurrencyModalVisible(false)}
+            />
+          </View>
+          <Animated.View
+            style={[
+              modalSheetStyle,
+              {
+                transform: [{ translateY: currencyDrawerSlide }],
+              },
+            ]}
+            pointerEvents="box-none"
           >
+            <View style={{ flex: 1 }} pointerEvents="auto">
             <View style={styles.modalHeader}>
               <ThemedText style={[styles.modalTitle, { color: primaryTextColor }]}>
                 Select Currency
@@ -1068,7 +1183,7 @@ export default function SettingsScreen() {
                 onPress={() => setIsCurrencyModalVisible(false)}
                 style={styles.modalCloseButton}
               >
-                <X size={24} color={secondaryTextColor} />
+                <X size={22} color={secondaryTextColor} />
               </TouchableOpacity>
             </View>
             {currencies.length > 0 ? (
@@ -1079,21 +1194,24 @@ export default function SettingsScreen() {
                 style={modalListStyle}
                 contentContainerStyle={styles.currencyListContent}
                 showsVerticalScrollIndicator={false}
+                scrollEnabled={true}
+                nestedScrollEnabled={true}
               />
             ) : (
               <ThemedText style={[styles.modalEmptyState, { color: primaryTextColor }]}>
                 No currencies available
               </ThemedText>
             )}
-          </TouchableOpacity>
-        </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </View>
       </Modal>
 
       {/* Timer Selector Modal */}
       <Modal
         visible={isTimerModalVisible}
         transparent
-        animationType="slide"
+        animationType="fade"
         onRequestClose={() => setIsTimerModalVisible(false)}
       >
         <TouchableOpacity
@@ -1101,11 +1219,16 @@ export default function SettingsScreen() {
           activeOpacity={1}
           onPress={() => setIsTimerModalVisible(false)}
         >
-          <TouchableOpacity
-            style={modalSheetStyle}
-            activeOpacity={1}
-            onPress={e => e.stopPropagation()}
+          <Animated.View
+            style={[
+              modalSheetStyle,
+              {
+                transform: [{ translateY: timerDrawerSlide }],
+              },
+            ]}
+            onStartShouldSetResponder={() => true}
           >
+            <View style={{ flex: 1 }}>
             <View style={styles.modalHeader}>
               <ThemedText style={[styles.modalTitle, { color: primaryTextColor }]}>
                 Select Lock Timer
@@ -1114,7 +1237,7 @@ export default function SettingsScreen() {
                 onPress={() => setIsTimerModalVisible(false)}
                 style={styles.modalCloseButton}
               >
-                <X size={24} color={secondaryTextColor} />
+                <X size={22} color={secondaryTextColor} />
               </TouchableOpacity>
             </View>
             {timerOptions.length > 0 ? (
@@ -1148,7 +1271,8 @@ export default function SettingsScreen() {
                 No timer options available
               </ThemedText>
             )}
-          </TouchableOpacity>
+            </View>
+          </Animated.View>
         </TouchableOpacity>
       </Modal>
 
@@ -1171,7 +1295,7 @@ export default function SettingsScreen() {
       <Modal
         visible={isPINVerifyVisible}
         transparent={true}
-        animationType="slide"
+        animationType="fade"
         onRequestClose={closePinVerification}
       >
         <TouchableOpacity
@@ -1179,11 +1303,19 @@ export default function SettingsScreen() {
           activeOpacity={1}
           onPress={closePinVerification}
         >
-          <TouchableOpacity
-            style={modalSheetStyle}
-            activeOpacity={1}
-            onPress={e => e.stopPropagation()}
+          <Animated.View
+            style={[
+              modalSheetStyle,
+              {
+                transform: [{ translateY: pinVerifyDrawerSlide }],
+              },
+            ]}
           >
+            <TouchableOpacity
+              activeOpacity={1}
+              onPress={e => e.stopPropagation()}
+              style={{ flex: 1 }}
+            >
             <View style={styles.modalHeader}>
               <ThemedText
                 style={[styles.modalTitle, { color: primaryTextColor, fontSize: 20 * rem }]}
@@ -1191,7 +1323,7 @@ export default function SettingsScreen() {
                 {pinVerificationConfig.title}
               </ThemedText>
               <TouchableOpacity onPress={closePinVerification}>
-                <X size={24} color={secondaryTextColor} />
+                <X size={22} color={secondaryTextColor} />
               </TouchableOpacity>
             </View>
             <View
@@ -1208,16 +1340,31 @@ export default function SettingsScreen() {
               >
                 {pinVerificationConfig.instructions}
               </ThemedText>
-              <PINKeypad
-                onPINComplete={handlePINVerifyComplete}
-                minLength={PIN_MIN_LENGTH}
-                maxLength={PIN_MAX_LENGTH}
-                showDots={true}
-                error={pinError}
-                onError={() => setPinError(false)}
-              />
+              <View style={styles.pinKeypadWrapper}>
+                {pinError && (
+                  <View style={styles.pinErrorContainer}>
+                    <ThemedText
+                      style={[
+                        styles.pinErrorText,
+                        { color: buttonDangerColor, fontSize: 14 * rem },
+                      ]}
+                    >
+                      Incorrect PIN. Please try again.
+                    </ThemedText>
+                  </View>
+                )}
+                <PINKeypad
+                  onPINComplete={handlePINVerifyComplete}
+                  minLength={PIN_MIN_LENGTH}
+                  maxLength={PIN_MAX_LENGTH}
+                  showDots={true}
+                  error={pinError}
+                  onError={() => setPinError(false)}
+                />
+              </View>
             </View>
-          </TouchableOpacity>
+            </TouchableOpacity>
+          </Animated.View>
         </TouchableOpacity>
       </Modal>
     </SafeAreaView>
@@ -1233,17 +1380,10 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 16,
-  },
-  backButton: {
-    marginRight: 15,
-  },
-  headerText: {
-    fontSize: 20,
-    fontWeight: 'bold',
   },
   content: {
     flex: 1,
@@ -1255,6 +1395,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
+    marginTop: 10,
     marginBottom: 12,
   },
   card: {
@@ -1538,5 +1679,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     marginBottom: 24,
+  },
+  pinKeypadWrapper: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  pinErrorContainer: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  pinErrorText: {
+    fontSize: 14,
+    textAlign: 'center',
   },
 });

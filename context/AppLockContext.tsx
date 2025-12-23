@@ -1,20 +1,21 @@
-import React, {
+import {
   createContext,
-  useContext,
-  useState,
-  useEffect,
-  ReactNode,
+  type ReactNode,
   useCallback,
+  useContext,
+  useEffect,
   useRef,
+  useState,
 } from 'react';
-import { AppState, AppStateStatus, Platform } from 'react-native';
+import { AppState, type AppStateStatus, Platform } from 'react-native';
 import {
   AppLockService,
-  AuthMethod,
-  LockTimerDuration,
+  type AuthMethod,
+  type LockTimerDuration,
   TIMER_OPTIONS,
 } from '@/services/AppLockService';
-import { authenticateAsync, isBiometricPromptInProgress } from '@/services/BiometricAuthService';
+import { isBiometricPromptInProgress } from '@/services/BiometricAuthService';
+import { isFilePickerActive } from '@/services/FilePickerService';
 
 interface AppLockContextType {
   isLocked: boolean;
@@ -87,9 +88,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
             }
           }
         }
-      } catch (error) {
-        console.error('Error loading app lock settings:', error);
-      }
+      } catch (_error) {}
     };
 
     loadSettings().finally(() => setIsInitialized(true));
@@ -108,14 +107,16 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
           return;
         }
         // For iOS inactive state: only record background time if biometric prompt is NOT in progress
-        // When FaceID modal appears, app goes to "inactive" but this is not real backgrounding
-        // We should only record background time for actual backgrounding, not system modals
-        if (!isBiometricPromptInProgress()) {
+        // and file picker is NOT active. When FaceID modal or image picker appears, app goes to
+        // "inactive" but this is not real backgrounding. We should only record background time
+        // for actual backgrounding, not system modals or file picker UI.
+        if (!isBiometricPromptInProgress() && !isFilePickerActive()) {
           AppLockService.recordBackgroundTime();
         }
       } else if (nextAppState === 'active') {
-        // Skip lock check if biometric prompt is in progress to avoid race conditions
-        if (isBiometricPromptInProgress()) {
+        // Skip lock check if biometric prompt is in progress or file picker is active
+        // to avoid race conditions and prevent locking while user is selecting images
+        if (isBiometricPromptInProgress() || isFilePickerActive()) {
           return;
         }
 
@@ -147,84 +148,63 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setLockEnabled = useCallback(async (enabled: boolean) => {
-    try {
-      await AppLockService.setAppLockEnabled(enabled);
-      setIsLockEnabled(enabled);
-      if (enabled) {
-        // Determine auth method based on fresh fingerprint support check
-        const fingerprintSupported = await AppLockService.refreshFingerprintSupport();
-        setIsFingerprintSupported(fingerprintSupported);
-        const existingMethod = await AppLockService.getAuthMethod();
-        const fallbackMethod = 'pin';
-        if (!existingMethod) {
-          await AppLockService.setAuthMethod(fallbackMethod);
-        }
-        setAuthMethodState(existingMethod ?? fallbackMethod);
-        const duration = await AppLockService.getLockTimerDuration();
-        setLockTimerDurationState(duration);
-        // Keep current session unlocked until the app backgrounds or restarts
-        AppLockService.unlockApp();
-        setIsLocked(false);
-      } else {
-        setIsLocked(false);
-        const method = await AppLockService.getAuthMethod();
-        setAuthMethodState(method);
-        const pinExists = await AppLockService.hasPIN();
-        setHasPIN(pinExists);
-        const duration = await AppLockService.getLockTimerDuration();
-        setLockTimerDurationState(duration);
+    await AppLockService.setAppLockEnabled(enabled);
+    setIsLockEnabled(enabled);
+    if (enabled) {
+      // Determine auth method based on fresh fingerprint support check
+      const fingerprintSupported = await AppLockService.refreshFingerprintSupport();
+      setIsFingerprintSupported(fingerprintSupported);
+      const existingMethod = await AppLockService.getAuthMethod();
+      const fallbackMethod = 'pin';
+      if (!existingMethod) {
+        await AppLockService.setAuthMethod(fallbackMethod);
       }
-    } catch (error) {
-      console.error('Error setting app lock enabled:', error);
-      throw error;
+      setAuthMethodState(existingMethod ?? fallbackMethod);
+      const duration = await AppLockService.getLockTimerDuration();
+      setLockTimerDurationState(duration);
+      // Keep current session unlocked until the app backgrounds or restarts
+      AppLockService.unlockApp();
+      setIsLocked(false);
+    } else {
+      setIsLocked(false);
+      const method = await AppLockService.getAuthMethod();
+      setAuthMethodState(method);
+      const pinExists = await AppLockService.hasPIN();
+      setHasPIN(pinExists);
+      const duration = await AppLockService.getLockTimerDuration();
+      setLockTimerDurationState(duration);
     }
   }, []);
 
   const setLockTimerDuration = useCallback(async (duration: LockTimerDuration) => {
-    try {
-      await AppLockService.setLockTimerDuration(duration);
-      setLockTimerDurationState(duration);
-    } catch (error) {
-      console.error('Error setting lock timer duration:', error);
-      throw error;
-    }
+    await AppLockService.setLockTimerDuration(duration);
+    setLockTimerDurationState(duration);
   }, []);
 
   const setupPIN = useCallback(
     async (pin: string) => {
-      try {
-        await AppLockService.setupPIN(pin);
-        setHasPIN(true);
-        if (!isFingerprintSupported || authMethod === null) {
-          setAuthMethodState('pin');
-        }
-      } catch (error) {
-        console.error('Error setting up PIN:', error);
-        throw error;
+      await AppLockService.setupPIN(pin);
+      setHasPIN(true);
+      if (!isFingerprintSupported || authMethod === null) {
+        setAuthMethodState('pin');
       }
     },
     [isFingerprintSupported, authMethod]
   );
 
   const clearPIN = useCallback(async () => {
-    try {
-      await AppLockService.clearPIN();
-      setHasPIN(false);
-      if (authMethod === 'pin') {
-        await AppLockService.setAuthMethod(null);
-        setAuthMethodState(null);
-      }
-    } catch (error) {
-      console.error('Error clearing PIN:', error);
-      throw error;
+    await AppLockService.clearPIN();
+    setHasPIN(false);
+    if (authMethod === 'pin') {
+      await AppLockService.setAuthMethod(null);
+      setAuthMethodState(null);
     }
   }, [authMethod]);
 
   const verifyPIN = useCallback(async (pin: string): Promise<boolean> => {
     try {
       return await AppLockService.verifyPIN(pin);
-    } catch (error) {
-      console.error('Error verifying PIN:', error);
+    } catch (_error) {
       return false;
     }
   }, []);
@@ -243,13 +223,8 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setAuthMethodPreference = useCallback(async (method: AuthMethod) => {
-    try {
-      await AppLockService.setAuthMethod(method);
-      setAuthMethodState(method);
-    } catch (error) {
-      console.error('Error setting auth method preference:', error);
-      throw error;
-    }
+    await AppLockService.setAuthMethod(method);
+    setAuthMethodState(method);
   }, []);
 
   return (

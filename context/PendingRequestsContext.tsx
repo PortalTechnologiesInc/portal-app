@@ -1,15 +1,3 @@
-import type React from 'react';
-import {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  type ReactNode,
-  useMemo,
-  useCallback,
-  useRef,
-} from 'react';
-import { Platform } from 'react-native';
 import type {
   KeyHandshakeUrl,
   NostrConnectRequestEvent,
@@ -17,32 +5,43 @@ import type {
   SinglePaymentRequest,
 } from 'portal-app-lib';
 import {
-  PaymentStatus,
-  RecurringPaymentStatus,
   AuthResponseStatus,
   CashuResponseStatus,
   Currency_Tags,
-  NostrConnectResponseStatus,
   keyToHex,
+  NostrConnectResponseStatus,
+  PaymentStatus,
+  RecurringPaymentStatus,
 } from 'portal-app-lib';
-
-import { fromUnixSeconds } from '@/services/DatabaseService';
-import { useDatabaseContext } from '@/context/DatabaseContext';
+import type React from 'react';
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useActivities } from '@/context/ActivitiesContext';
 import { useCurrency } from '@/context/CurrencyContext';
-import { CurrencyConversionService } from '@/services/CurrencyConversionService';
-import { normalizeCurrencyForComparison } from '@/utils/currency';
-import { NostrServiceContextType, useNostrService } from '@/context/NostrServiceContext';
+import { useDatabaseContext } from '@/context/DatabaseContext';
 import { useECash } from '@/context/ECashContext';
+import { type NostrServiceContextType, useNostrService } from '@/context/NostrServiceContext';
+import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
+import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import { fromUnixSeconds } from '@/services/DatabaseService';
+import { PortalAppManager } from '@/services/PortalAppManager';
+import { getServiceNameFromMintUrl, globalEvents } from '@/utils/common';
+import { normalizeCurrencyForComparison } from '@/utils/currency';
+import { logError } from '@/utils/errorLogger';
 import type {
+  PendingActivity,
   PendingRequest,
   PendingRequestType,
-  PendingActivity,
   PendingSubscription,
 } from '@/utils/types';
-import { PortalAppManager } from '@/services/PortalAppManager';
-import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
-import { globalEvents, getServiceNameFromMintUrl } from '@/utils/common';
 import { usePortalApp } from './PortalAppContext';
 import { useWalletManager } from './WalletManagerContext';
 
@@ -67,10 +66,7 @@ const getServiceNameWithFallback = async (
     if (serviceName) {
       return serviceName;
     }
-  } catch (error) {
-    // If resolution fails, fall through to return Unknown Service
-    console.error('Failed to fetch service name:', error);
-  }
+  } catch (_error) {}
 
   return 'Unknown Service';
 };
@@ -112,7 +108,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
   // Reset all PendingRequests state to initial values
   // This is called during app reset to ensure clean state
-  const resetPendingRequests = () => {
+  const resetPendingRequests = useCallback(() => {
     // Reset all state to initial values
     setIsLoadingRequest(false);
     setPendingUrl(undefined);
@@ -124,7 +120,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
       timeoutRef.current = null;
       setTimeoutId(null);
     }
-  };
+  }, []);
 
   // Register/unregister context reset function
   useEffect(() => {
@@ -133,7 +129,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
     return () => {
       unregisterContextReset(resetPendingRequests);
     };
-  }, []);
+  }, [resetPendingRequests]);
 
   // Helper function to add an activity
   const addActivityWithFallback = async (activity: PendingActivity): Promise<string> => {
@@ -152,7 +148,10 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
         return '';
       }
     } catch (error) {
-      console.error('Failed to add activity:', error);
+      logError('PENDING_REQUESTS', 'addActivityWithFallback', error, {
+        activityType: activity.type,
+        requestId: activity.request_id,
+      });
       refreshData();
       return '';
     }
@@ -163,7 +162,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
   const safeAmountToNumber = (amount: number | null | undefined): number | null => {
     if (amount == null) return null;
     const num = Number(amount);
-    return isNaN(num) ? null : num;
+    return Number.isNaN(num) ? null : num;
   };
 
   // Helper function to create ticket activity with progressive fallback retry logic
@@ -202,9 +201,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
         if (activityId) {
           return; // Success, exit early
         }
-      } catch (error) {
-        console.error(`Failed to create ${activityType} activity with full data:`, error);
-      }
+      } catch (_error) {}
 
       // Try with minimal required fields
       try {
@@ -225,9 +222,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
         if (activityId) {
           return; // Success, exit early
         }
-      } catch (error) {
-        console.error(`Failed to create ${activityType} activity with minimal data:`, error);
-      }
+      } catch (_error) {}
 
       // Last resort - try with absolute minimal data
       try {
@@ -245,11 +240,9 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           subscription_id: null,
           status,
         });
-      } catch (error) {
-        console.error(`Final attempt to create ${activityType} activity failed:`, error);
-      }
+      } catch (_error) {}
     },
-    [addActivityWithFallback]
+    [addActivityWithFallback, safeAmountToNumber]
   );
 
   // Helper function to add a subscription
@@ -300,7 +293,6 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
     async (id: string) => {
       const request = getById(id);
       if (!request) {
-        console.warn('Request not found:', id);
         return;
       }
 
@@ -308,14 +300,18 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
       await executeOperation(db => db.storePendingRequest(id, true), null);
 
       switch (request.type) {
-        case 'login':
+        case 'login': {
           // Create AuthResponseStatus for approved login using type assertion
+          const sessionToken = nostrService.issueJWT?.(
+            (request.metadata as SinglePaymentRequest).serviceKey,
+            168n
+          );
+          if (!sessionToken) {
+            throw new Error('Failed to issue JWT token');
+          }
           const approvedAuthResponse = new AuthResponseStatus.Approved({
             grantedPermissions: [],
-            sessionToken: nostrService.issueJWT!(
-              (request.metadata as SinglePaymentRequest).serviceKey,
-              168n
-            ),
+            sessionToken,
           });
           request.result(approvedAuthResponse);
 
@@ -340,7 +336,8 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             });
           });
           break;
-        case 'payment':
+        }
+        case 'payment': {
           const notifier = request.result as (status: PaymentStatus) => Promise<void>;
           const metadata = request.metadata as SinglePaymentRequest;
 
@@ -406,8 +403,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                   preferredCurrency // Currency enum values are already strings
                 );
                 convertedCurrency = preferredCurrency;
-              } catch (error) {
-                console.error('Currency conversion error during payment:', error);
+              } catch (_error) {
                 // Continue without conversion - convertedAmount will remain null
               }
             }
@@ -438,12 +434,10 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             );
 
             try {
-              const response = await walletService.sendPayment(
+              const _response = await walletService.sendPayment(
                 metadata.content.invoice,
                 BigInt(amount)
               );
-
-              console.log(response);
 
               await executeOperation(
                 db => db.addPaymentStatusEntry(metadata.content.invoice, 'payment_completed'),
@@ -464,8 +458,12 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 })
               );
             } catch (err) {
-              console.log('Error paying invoice:', JSON.stringify(err));
-
+              logError('PENDING_REQUESTS', 'approve - payment - sendPayment', err, {
+                requestId: id,
+                invoice: metadata.content.invoice,
+                amount: amount,
+                currency: currency,
+              });
               await executeOperation(
                 db => db.addPaymentStatusEntry(metadata.content.invoice, 'payment_failed'),
                 null
@@ -484,14 +482,13 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
               await notifier(
                 new PaymentStatus.Failed({
-                  reason: 'Payment failed: ' + err,
+                  reason: `Payment failed: ${err}`,
                 })
               );
             }
-          })().catch(err => {
-            console.error('Error processing payment:', err);
-          });
+          })().catch(_err => {});
           break;
+        }
         case 'subscription':
           // Add subscription activity
           try {
@@ -548,8 +545,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                   preferredCurrency // Currency enum values are already strings
                 );
                 convertedCurrency = preferredCurrency;
-              } catch (error) {
-                console.error('Currency conversion error during payment:', error);
+              } catch (_error) {
                 // Continue without conversion - convertedAmount will remain null
               }
 
@@ -602,12 +598,8 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 }),
                 requestId: (request.metadata as RecurringPaymentRequest).content.requestId,
               });
-            })().catch(err => {
-              console.error('Error processing subscription:', err);
-            });
-          } catch (err) {
-            console.error('Error adding subscription activity:', err);
-          }
+            })().catch(_err => {});
+          } catch (_err) {}
           break;
         case 'ticket':
           // Handle Cashu requests (sending tokens only)
@@ -622,7 +614,6 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 cashuEvent.inner.unit.toLowerCase() // Normalize unit name
               );
               if (!wallet) {
-                console.error('No wallet available for Cashu request');
                 request.result(new CashuResponseStatus.Rejected({ reason: 'No wallet available' }));
                 return;
               }
@@ -636,14 +627,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 typeof walletBalance === 'bigint' ? walletBalance : BigInt(walletBalance);
               const amountBigInt = typeof amount === 'bigint' ? amount : BigInt(amount);
 
-              console.log(
-                `[Ticket Request] Balance check: balance=${balanceBigInt.toString()}, requested=${amountBigInt.toString()}, unit=${cashuEvent.inner.unit}`
-              );
-
               if (balanceBigInt < amountBigInt) {
-                console.warn(
-                  `[Ticket Request] Insufficient balance: have ${balanceBigInt.toString()}, need ${amountBigInt.toString()}`
-                );
                 request.result(new CashuResponseStatus.InsufficientFunds());
                 return;
               }
@@ -682,10 +666,9 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 }
               }
 
-              const unitInfo =
-                ticketWallet && ticketWallet.getUnitInfo
-                  ? await ticketWallet.getUnitInfo()
-                  : undefined;
+              const unitInfo = ticketWallet?.getUnitInfo
+                ? await ticketWallet.getUnitInfo()
+                : undefined;
               const ticketTitle =
                 unitInfo?.title ||
                 (ticketWallet ? ticketWallet.unit() : cashuEvent.inner.unit || 'Unknown Ticket');
@@ -703,13 +686,11 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
               request.result(new CashuResponseStatus.Success({ token }));
             } else {
-              console.error('Invalid Cashu request event type');
               request.result(
                 new CashuResponseStatus.Rejected({ reason: 'Invalid Cashu request type' })
               );
             }
           } catch (error: any) {
-            console.error('Error processing Cashu request:', error);
             request.result(
               new CashuResponseStatus.Rejected({
                 reason: error.message || 'Failed to process Cashu request',
@@ -717,7 +698,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             );
           }
           break;
-        case 'nostrConnect':
+        case 'nostrConnect': {
           const connectEvent = request.metadata as NostrConnectRequestEvent;
 
           const requestedPermissions = connectEvent.params.at(2) ?? null;
@@ -731,7 +712,10 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               )
             );
           } catch (e) {
-            console.error(e);
+            logError('PENDING_REQUESTS', 'approve - nostrConnect - addAllowedBunkerClient', e, {
+              requestId: id,
+              clientPubkey: connectEvent.nostrClientPubkey,
+            });
             addActivityWithFallback({
               type: 'auth',
               service_key: (request.metadata as NostrConnectRequestEvent).nostrClientPubkey,
@@ -765,6 +749,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             status: 'positive',
           });
           break;
+        }
       }
     },
     [
@@ -774,6 +759,11 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
       createTicketActivityWithRetry,
       nostrService,
       eCashContext,
+      appService.dismissPendingRequest,
+      executeOperation,
+      preferredCurrency,
+      refreshData,
+      walletService.sendPayment,
     ]
   );
 
@@ -781,7 +771,6 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
     async (id: string) => {
       const request = getById(id);
       if (!request) {
-        console.warn('Request not found:', id);
         return;
       }
 
@@ -789,7 +778,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
       await executeOperation(db => db.storePendingRequest(id, false), null);
 
       switch (request?.type) {
-        case 'login':
+        case 'login': {
           // Create AuthResponseStatus for denied login using type assertion
           const deniedAuthResponse = new AuthResponseStatus.Declined({
             reason: 'Not approved by user',
@@ -817,7 +806,8 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             });
           });
           break;
-        case 'payment':
+        }
+        case 'payment': {
           const notifier = request.result as (status: PaymentStatus) => Promise<void>;
 
           // Add denied payment activity to database
@@ -867,8 +857,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 preferredCurrency // Currency enum values are already strings
               );
               convertedCurrency = preferredCurrency;
-            } catch (error) {
-              console.error('Currency conversion error during payment denial:', error);
+            } catch (_error) {
               // Continue without conversion - convertedAmount will remain null
             }
 
@@ -895,10 +884,9 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 });
               }),
             ]);
-          } catch (err) {
-            console.error('Error adding denied payment activity:', err);
-          }
+          } catch (_err) {}
           break;
+        }
         case 'subscription':
           request.result({
             status: new RecurringPaymentStatus.Rejected({
@@ -968,8 +956,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 : mintUrl
                   ? getServiceNameFromMintUrl(mintUrl)
                   : 'Unknown Service';
-            } catch (serviceNameError) {
-              console.error('[Deny Ticket] Error resolving service name:', serviceNameError);
+            } catch (_serviceNameError) {
               // Fallback to mint URL-based name or Unknown Service
               serviceName = mintUrl ? getServiceNameFromMintUrl(mintUrl) : 'Unknown Service';
             }
@@ -1019,7 +1006,10 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
             request.result(new CashuResponseStatus.Rejected({ reason: 'User denied request' }));
           } catch (error: any) {
-            console.error('Error processing Cashu denial:', error);
+            logError('PENDING_REQUESTS', 'deny - ticket', error, {
+              requestId: id,
+              mintUrl: (request.metadata as any)?.inner?.mintUrl,
+            });
             // Even on error, try to create activity with minimal info
             try {
               const cashuEvent = request.metadata as any;
@@ -1041,12 +1031,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 amount: null,
                 requestId: `${id}-denied`,
               });
-            } catch (activityError) {
-              console.error(
-                'Failed to create activity for denied ticket in error handler:',
-                activityError
-              );
-            }
+            } catch (_activityError) {}
             request.result(
               new CashuResponseStatus.Rejected({
                 reason: error.message || 'Failed to process Cashu denial',
@@ -1084,36 +1069,35 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
       nostrService,
       eCashContext,
       appService,
+      executeOperation,
+      preferredCurrency,
     ]
   );
 
   // Show skeleton loader and set timeout for request
-  const showSkeletonLoader = useCallback(
-    (parsedUrl: KeyHandshakeUrl) => {
-      if (parsedUrl.noRequest) {
-        return;
-      }
-      // Clean up any existing timeout
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
+  const showSkeletonLoader = useCallback((parsedUrl: KeyHandshakeUrl) => {
+    if (parsedUrl.noRequest) {
+      return;
+    }
+    // Clean up any existing timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
 
-      setIsLoadingRequest(true);
-      setPendingUrl(parsedUrl);
-      setRequestFailed(false);
+    setIsLoadingRequest(true);
+    setPendingUrl(parsedUrl);
+    setRequestFailed(false);
 
-      // Set new timeout for 15 seconds
-      const newTimeoutId = setTimeout(() => {
-        setIsLoadingRequest(false);
-        setRequestFailed(true);
-      }, 15000);
+    // Set new timeout for 15 seconds
+    const newTimeoutId = setTimeout(() => {
+      setIsLoadingRequest(false);
+      setRequestFailed(true);
+    }, 15000);
 
-      timeoutRef.current = newTimeoutId;
-      setTimeoutId(newTimeoutId);
-    },
-    [timeoutId]
-  );
+    timeoutRef.current = newTimeoutId;
+    setTimeoutId(newTimeoutId);
+  }, []);
 
   const cancelSkeletonLoader = useCallback(() => {
     if (timeoutRef.current) {
@@ -1124,6 +1108,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
     setIsLoadingRequest(false);
     setRequestFailed(false);
+    setPendingUrl(undefined);
   }, []);
 
   // Check for expected pending requests and clear skeleton loader
@@ -1162,7 +1147,6 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
       requestFailed,
       pendingUrl,
       showSkeletonLoader,
-      setRequestFailed,
     ]
   );
 

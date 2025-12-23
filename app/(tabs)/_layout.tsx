@@ -1,26 +1,23 @@
-import React, { useMemo } from 'react';
 import { Tabs } from 'expo-router';
 import {
+  Bug,
   Home,
   List,
   Receipt,
+  Settings,
   Ticket,
   UserSquare2,
-  Settings,
-  Bug,
   Wallet,
 } from 'lucide-react-native';
-import { Colors } from '@/constants/Colors';
-import { View, Platform, ToastAndroid } from 'react-native';
+import React, { useMemo } from 'react';
+import { Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HapticTab } from '@/components/HapticTab';
+import { Colors } from '@/constants/Colors';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import Constants from 'expo-constants';
 
 // Memoized tab icons to prevent unnecessary re-rendering
 const HomeIcon = React.memo(({ color }: { color: string }) => <Home size={24} color={color} />);
-
-const ActivityIcon = React.memo(({ color }: { color: string }) => <List size={24} color={color} />);
 
 const SubscriptionIcon = React.memo(({ color }: { color: string }) => (
   <Receipt size={24} color={color} />
@@ -39,6 +36,8 @@ const SettingsIcon = React.memo(({ color }: { color: string }) => (
 const DebugIcon = React.memo(({ color }: { color: string }) => <Bug size={24} color={color} />);
 
 const WalletIcon = React.memo(({ color }: { color: string }) => <Wallet size={24} color={color} />);
+
+const ListIcon = React.memo(({ color }: { color: string }) => <List size={24} color={color} />);
 
 // Memoized tab bar background to prevent unnecessary re-rendering
 const TabBarBackground = React.memo(() => {
@@ -108,10 +107,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="Wallet"
+        name="Activities"
         options={{
-          title: 'Wallet',
-          tabBarIcon: ({ color }) => <WalletIcon color={color} />,
+          title: 'Activities',
+          tabBarIcon: ({ color }) => <ListIcon color={color} />,
         }}
       />
       <Tabs.Screen
@@ -129,6 +128,13 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="Wallet"
+        options={{
+          title: 'Wallet',
+          tabBarIcon: ({ color }) => <WalletIcon color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="Settings"
         options={{
           title: 'Settings',
@@ -140,7 +146,7 @@ export default function TabLayout() {
         options={{
           title: 'Debug',
           tabBarIcon: ({ color }) => <DebugIcon color={color} />,
-          href: Constants.executionEnvironment === 'storeClient' || !__DEV__ ? null : undefined, // Hide in production
+          href: null, // Hidden from tabs, accessible via Settings in dev mode
         }}
       />
       <Tabs.Screen

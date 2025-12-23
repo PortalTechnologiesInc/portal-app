@@ -1,21 +1,21 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'expo-router';
+import { AlertCircle, ArrowLeft, Plus, RotateCcw, X } from 'lucide-react-native';
+import { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
   StyleSheet,
+  TextInput,
   TouchableOpacity,
   View,
-  ScrollView,
-  Alert,
-  TextInput,
-  ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { useRouter } from 'expo-router';
-import { ArrowLeft, RotateCcw, Plus, AlertCircle, X } from 'lucide-react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useThemeColor } from '@/hooks/useThemeColor';
-import { useECash } from '@/context/ECashContext';
 import { useDatabaseContext } from '@/context/DatabaseContext';
+import { useECash } from '@/context/ECashContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
 import { globalEvents } from '@/utils/common';
 import { showToast } from '@/utils/Toast';
 
@@ -56,14 +56,14 @@ export default function RecoverTicketsScreen() {
     setMintUrls(newUrls);
   };
 
-  const isValidUrl = (url: string) => {
+  const isValidUrl = useCallback((url: string) => {
     try {
       new URL(url);
       return true;
     } catch {
       return false;
     }
-  };
+  }, []);
 
   useEffect(() => {
     const retrieveMintsUrls = async () => {
@@ -87,7 +87,7 @@ export default function RecoverTicketsScreen() {
     };
 
     retrieveMintsUrls();
-  }, []);
+  }, [executeOnNostr]);
 
   const handleRecoverTickets = useCallback(async () => {
     const validUrls = mintUrls.filter(url => url.trim() && isValidUrl(url.trim()));
@@ -112,7 +112,6 @@ export default function RecoverTicketsScreen() {
         ]);
 
         if (!response.ok) {
-          console.warn(`Failed to connect to mint: ${url}`);
           Alert.alert(`Failed to connect to mint: ${url}`);
           continue; // Skip this URL and continue with the next one
         }
@@ -120,15 +119,11 @@ export default function RecoverTicketsScreen() {
         const mintKeys = await response.json();
 
         if (!mintKeys.keysets) {
-          console.warn(
-            `Mint response of ${url} does not match the expected standard.\nPlease check the URL and try again if it\'s wrong.`
-          );
           Alert.alert(
-            `Mint response of ${url} does not match the expected standard.\nPlease check the URL and try again if it\'s wrong.`
+            `Mint response of ${url} does not match the expected standard.\nPlease check the URL and try again if it's wrong.`
           );
           continue;
-        } else if (mintKeys.keysets.length == 0) {
-          console.warn(`Mint response of ${url} does not contains any ticket unit.`);
+        } else if (mintKeys.keysets.length === 0) {
           Alert.alert(`Mint response of ${url} does not contains any ticket unit.`);
           continue;
         }
@@ -141,18 +136,15 @@ export default function RecoverTicketsScreen() {
             mintUrl: url,
             unit: keyset.unit.toLowerCase(),
           });
-
-          console.log('Cashu token processed successfully');
         }
 
         Alert.alert(
           'Recovery Successful',
           `Tickets have been successfully recovered from ${validUrls.length} mint server(s). You can find your recovered tickets in the Tickets section.`,
-          [{ text: 'OK', onPress: (str?: string) => router.back() }]
+          [{ text: 'OK', onPress: (_str?: string) => router.back() }]
         );
       }
-    } catch (error) {
-      console.error('Error recovering tickets:', error);
+    } catch (_error) {
       Alert.alert(
         'Recovery Failed',
         'Failed to recover tickets. Please check your connection and try again.',
@@ -161,7 +153,7 @@ export default function RecoverTicketsScreen() {
     } finally {
       setIsRecoveringTickets(false);
     }
-  }, [mintUrls, addWallet, router]);
+  }, [mintUrls, addWallet, router, isValidUrl]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: backgroundColor }]} edges={['top']}>
@@ -215,7 +207,7 @@ export default function RecoverTicketsScreen() {
               </ThemedText>
 
               {mintUrls.map((url, index) => (
-                <View key={index} style={styles.urlInputRow}>
+                <View key={`mint-${url || index}`} style={styles.urlInputRow}>
                   <TextInput
                     style={[
                       styles.urlInput,
@@ -233,7 +225,7 @@ export default function RecoverTicketsScreen() {
                     autoCorrect={false}
                     keyboardType="url"
                   />
-                  {index != 0 && (
+                  {index !== 0 && (
                     <TouchableOpacity
                       style={[styles.removeButton, { backgroundColor: buttonDangerColor }]}
                       onPress={() => removeMintUrl(index)}

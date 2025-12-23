@@ -1,9 +1,10 @@
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
-import { useThemeColor } from '@/hooks/useThemeColor';
+import { PaymentType, type SdkEvent, SdkEvent_Tags } from '@breeztech/breez-sdk-spark-react-native';
+import Clipboard from '@react-native-clipboard/clipboard';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowDownUp, ArrowLeft, HandCoins, ClipboardCopy, QrCode, X } from 'lucide-react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import LottieView from 'lottie-react-native';
+import { ArrowDownUp, ArrowLeft, ClipboardCopy, HandCoins, QrCode, X } from 'lucide-react-native';
+import { Currency } from 'portal-app-lib';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -13,31 +14,30 @@ import {
   TextInput,
   TouchableOpacity,
 } from 'react-native';
-import QRCode from 'react-native-qrcode-svg';
 import { Colors } from 'react-native/Libraries/NewAppScreen';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import QRCode from 'react-native-qrcode-svg';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { ThemedText } from '@/components/ThemedText';
+import { ThemedView } from '@/components/ThemedView';
 import { useCurrency } from '@/context/CurrencyContext';
-import Clipboard from '@react-native-clipboard/clipboard';
-import { showToast } from '@/utils/Toast';
-import { useWalletManager } from '@/context/WalletManagerContext';
-import { BreezService } from '@/services/BreezService';
-import { WALLET_TYPE } from '@/models/WalletType';
-import LottieView from 'lottie-react-native';
-import { Currency as CurrencyConv } from '@/utils/currency';
-import { PortalAppManager } from '@/services/PortalAppManager';
-import { Currency } from 'portal-app-lib';
-import { PaymentType, SdkEvent, SdkEvent_Tags } from '@breeztech/breez-sdk-spark-react-native';
 import { useDatabaseContext } from '@/context/DatabaseContext';
+import { useWalletManager } from '@/context/WalletManagerContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import { WALLET_TYPE } from '@/models/WalletType';
+import type { BreezService } from '@/services/BreezService';
+import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import { PortalAppManager } from '@/services/PortalAppManager';
+import { Currency as CurrencyConv } from '@/utils/currency';
+import { showToast } from '@/utils/Toast';
 
 const portalLogo = require('../../assets/images/iosLight.png');
 
 enum PageState {
-  GetInvoiceInfo,
-  InvoiceCreating,
-  ShowInvoiceInfo,
-  ShowPaymentSent,
-  PaymentReceived,
+  GetInvoiceInfo = 0,
+  InvoiceCreating = 1,
+  ShowInvoiceInfo = 2,
+  ShowPaymentSent = 3,
+  PaymentReceived = 4,
 }
 
 export default function MyWalletManagementSecret() {
@@ -90,7 +90,7 @@ export default function MyWalletManagementSecret() {
 
       setConvertedAmount(converted);
       setIsConverting(false);
-    }, 800);
+    }, 800) as unknown as number;
   }, [amount, preferredCurrency, reverseCurrency]);
 
   const handleChangeText = useCallback(
@@ -156,8 +156,6 @@ export default function MyWalletManagementSecret() {
 
         let listenerId: string;
         const handler = async (event: SdkEvent) => {
-          console.log('[BREEZ EVENT]:', event);
-
           let isPaid = false;
           if (event.tag === SdkEvent_Tags.PaymentSucceeded) {
             const { amount: paymentAmount, paymentType } = event.inner.payment;
@@ -195,9 +193,7 @@ export default function MyWalletManagementSecret() {
         db => db.addPaymentStatusEntry(createdInvoice, 'payment_started'),
         null
       );
-    } catch (error) {
-      console.error('Failed to add payment_started status entry:', error);
-    }
+    } catch (_error) {}
 
     setInvoice(createdInvoice);
     setPageState(PageState.ShowInvoiceInfo);
@@ -244,8 +240,7 @@ export default function MyWalletManagementSecret() {
       });
 
       await executeOperation(db => db.saveNip05Contact(contactNpub));
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Error while sendig the request. Retry.');
       return;
     } finally {
@@ -480,7 +475,8 @@ export default function MyWalletManagementSecret() {
                 <Text style={{ color: primaryTextColor, fontSize: 20 }}>Amount</Text>
                 <ThemedView>
                   <Text style={{ color: secondaryTextColor, fontSize: 20 }}>
-                    {reverseCurrency ? parseInt(convertedAmount.toString()) : amount} sats
+                    {reverseCurrency ? Number.parseInt(convertedAmount.toString(), 10) : amount}{' '}
+                    sats
                   </Text>
                   <Text style={{ color: secondaryTextColor, fontSize: 20 }}>
                     {CurrencyConversionService.formatConvertedAmountWithFallback(

@@ -1,18 +1,18 @@
-import React, { useState } from 'react';
+import { Shield, X } from 'lucide-react-native';
+import { useState } from 'react';
 import {
-  StyleSheet,
-  View,
   Modal,
-  TouchableOpacity,
   ScrollView,
+  StyleSheet,
+  TouchableOpacity,
   useWindowDimensions,
+  View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ThemedText } from './ThemedText';
-import { PINKeypad } from './PINKeypad';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { Shield, X } from 'lucide-react-native';
-import { PIN_MIN_LENGTH, PIN_MAX_LENGTH } from '@/services/AppLockService';
+import { PIN_MAX_LENGTH, PIN_MIN_LENGTH } from '@/services/AppLockService';
+import { PINKeypad } from './PINKeypad';
+import { ThemedText } from './ThemedText';
 
 interface PINSetupScreenProps {
   visible: boolean;
@@ -34,7 +34,7 @@ export function PINSetupScreen({
   const { width, height } = useWindowDimensions();
   const [step, setStep] = useState<'enter' | 'confirm'>('enter');
   const [enteredPIN, setEnteredPIN] = useState('');
-  const [confirmPIN, setConfirmPIN] = useState('');
+  const [_confirmPIN, setConfirmPIN] = useState('');
   const [error, setError] = useState(false);
 
   const insets = useSafeAreaInsets();
@@ -96,12 +96,19 @@ export function PINSetupScreen({
 
   return (
     <Modal visible={visible} animationType="fade" transparent={false}>
-      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top', 'bottom']}>
-        <View style={[styles.topBar, { top: Math.max(insets.top, 12) }]}>
-          <TouchableOpacity onPress={handleCancel} style={styles.closeButton}>
-            <X size={24} color={secondaryTextColor} />
-          </TouchableOpacity>
-        </View>
+      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['bottom']}>
+        <TouchableOpacity
+          onPress={handleCancel}
+          style={[
+            styles.closeButton,
+            {
+              top: 20,
+              right: 20,
+            },
+          ]}
+        >
+          <X size={24} color={secondaryTextColor} />
+        </TouchableOpacity>
 
         <ScrollView
           contentContainerStyle={[
@@ -120,7 +127,7 @@ export function PINSetupScreen({
               style={[
                 styles.iconContainer,
                 {
-                  backgroundColor: buttonPrimaryColor + '20',
+                  backgroundColor: `${buttonPrimaryColor}20`,
                   width: iconSize,
                   height: iconSize,
                   borderRadius: iconSize / 2,
@@ -141,11 +148,13 @@ export function PINSetupScreen({
           </View>
 
           <View style={styles.pinContainer}>
-            {error && (
-              <ThemedText style={[styles.errorText, { color: errorColor, fontSize: 14 * rem }]}>
-                PINs do not match. Please try again.
-              </ThemedText>
-            )}
+            <View style={styles.errorContainer}>
+              {error && (
+                <ThemedText style={[styles.errorText, { color: errorColor, fontSize: 14 * rem }]}>
+                  PINs do not match. Please try again.
+                </ThemedText>
+              )}
+            </View>
             <PINKeypad
               key={step}
               onPINComplete={handlePINEnter}
@@ -169,17 +178,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  topBar: {
-    width: '100%',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    alignItems: 'flex-end',
-    position: 'absolute',
-    top: 0,
-    zIndex: 10,
-  },
   closeButton: {
-    padding: 8,
+    position: 'absolute',
+    padding: 12,
+    zIndex: 10,
   },
   content: {
     flexGrow: 1,
@@ -215,10 +217,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 32,
   },
+  errorContainer: {
+    minHeight: 40,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
   errorText: {
     fontSize: 14,
     textAlign: 'center',
-    marginBottom: 16,
   },
   pinContainer: {
     width: '100%',

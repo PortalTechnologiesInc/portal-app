@@ -1,21 +1,21 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { View, StyleSheet, FlatList } from 'react-native';
-import { usePendingRequests } from '../context/PendingRequestsContext';
-import { PendingRequestCard } from './PendingRequestCard';
-import { PendingRequestSkeletonCard } from './PendingRequestSkeletonCard';
-import { FailedRequestCard } from './FailedRequestCard';
-import type { PendingRequest } from '@/utils/types';
 import type {
   AuthChallengeEvent,
   RecurringPaymentRequest,
   SinglePaymentRequest,
 } from 'portal-app-lib';
-import { useNostrService } from '@/context/NostrServiceContext';
-import { ThemedText } from './ThemedText';
-import { useThemeColor } from '@/hooks/useThemeColor';
+import React, { useCallback, useEffect, useState } from 'react';
+import { FlatList, StyleSheet, View } from 'react-native';
 import { Layout } from '@/constants/Layout';
 import { useDatabaseContext } from '@/context/DatabaseContext';
+import { useNostrService } from '@/context/NostrServiceContext';
 import { usePortalApp } from '@/context/PortalAppContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import type { PendingRequest } from '@/utils/types';
+import { usePendingRequests } from '../context/PendingRequestsContext';
+import { FailedRequestCard } from './FailedRequestCard';
+import { PendingRequestCard } from './PendingRequestCard';
+import { PendingRequestSkeletonCard } from './PendingRequestSkeletonCard';
+import { ThemedText } from './ThemedText';
 
 // Create a skeleton request that adheres to the PendingRequest interface
 const createSkeletonRequest = (): PendingRequest => ({
@@ -25,6 +25,29 @@ const createSkeletonRequest = (): PendingRequest => ({
   timestamp: new Date(),
   result: () => {},
 });
+
+// Type guards for safe metadata access (moved outside component for stability)
+const hasExpiresAt = (metadata: unknown): metadata is { expiresAt: bigint } => {
+  return (
+    typeof metadata === 'object' &&
+    metadata !== null &&
+    'expiresAt' in metadata &&
+    typeof (metadata as Record<string, unknown>).expiresAt === 'bigint'
+  );
+};
+
+const hasInnerExpiresAt = (metadata: unknown): metadata is { inner: { expiresAt: bigint } } => {
+  return (
+    typeof metadata === 'object' &&
+    metadata !== null &&
+    'inner' in metadata &&
+    typeof (metadata as Record<string, unknown>).inner === 'object' &&
+    (metadata as Record<string, unknown>).inner !== null &&
+    'expiresAt' in ((metadata as Record<string, unknown>).inner as Record<string, unknown>) &&
+    typeof ((metadata as Record<string, unknown>).inner as Record<string, unknown>).expiresAt ===
+      'bigint'
+  );
+};
 
 export const PendingRequestsList: React.FC = React.memo(() => {
   const { isLoadingRequest, requestFailed, pendingUrl, showSkeletonLoader, setRequestFailed } =
@@ -40,29 +63,6 @@ export const PendingRequestsList: React.FC = React.memo(() => {
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
-
-  // Type guards for safe metadata access
-  const hasExpiresAt = (metadata: unknown): metadata is { expiresAt: bigint } => {
-    return (
-      typeof metadata === 'object' &&
-      metadata !== null &&
-      'expiresAt' in metadata &&
-      typeof (metadata as Record<string, unknown>).expiresAt === 'bigint'
-    );
-  };
-
-  const hasInnerExpiresAt = (metadata: unknown): metadata is { inner: { expiresAt: bigint } } => {
-    return (
-      typeof metadata === 'object' &&
-      metadata !== null &&
-      'inner' in metadata &&
-      typeof (metadata as Record<string, unknown>).inner === 'object' &&
-      (metadata as Record<string, unknown>).inner !== null &&
-      'expiresAt' in ((metadata as Record<string, unknown>).inner as Record<string, unknown>) &&
-      typeof ((metadata as Record<string, unknown>).inner as Record<string, unknown>).expiresAt ===
-        'bigint'
-    );
-  };
 
   // Updated isRequestExpired function
   const isRequestExpired = useCallback((request: PendingRequest): boolean => {
@@ -88,8 +88,7 @@ export const PendingRequestsList: React.FC = React.memo(() => {
       const currentTimeMs = BigInt(Date.now());
       const expiresAtMs = expiresAt * 1000n;
       return currentTimeMs > expiresAtMs;
-    } catch (error) {
-      console.warn('Error checking request expiration:', error);
+    } catch (_error) {
       return false;
     }
   }, []);
@@ -107,7 +106,6 @@ export const PendingRequestsList: React.FC = React.memo(() => {
 
       // Remove expired requests from the context
       expiredRequestIds.forEach(id => {
-        console.log(`🗑️ Automatically removing expired request: ${id}`);
         appService.dismissPendingRequest(id);
       });
     };
@@ -121,7 +119,7 @@ export const PendingRequestsList: React.FC = React.memo(() => {
     return () => {
       clearInterval(cleanupInterval);
     };
-  }, [appService.pendingRequests, appService.dismissPendingRequest]);
+  }, [appService.pendingRequests, appService.dismissPendingRequest, isRequestExpired]);
 
   useEffect(() => {
     const processData = async () => {
@@ -164,8 +162,7 @@ export const PendingRequestsList: React.FC = React.memo(() => {
               return null; // Request is stored, so filter it out
             }
             return request; // Request is not stored, so keep it
-          } catch (error) {
-            console.error('Error checking if request is stored:', error);
+          } catch (_error) {
             return request; // On error, keep the request
           }
         })
@@ -184,7 +181,13 @@ export const PendingRequestsList: React.FC = React.memo(() => {
     };
 
     processData();
-  }, [appService.pendingRequests, isLoadingRequest, requestFailed]);
+  }, [
+    appService.pendingRequests,
+    isLoadingRequest,
+    requestFailed,
+    executeOperation,
+    isRequestExpired,
+  ]);
 
   const handleRetry = () => {
     setRequestFailed(false);
@@ -246,9 +249,7 @@ export const PendingRequestsList: React.FC = React.memo(() => {
 
             return `${serviceKey}-${item.id}`;
           }}
-          renderItem={({ item, index }) => (
-            <View style={styles.cardWrapper}>{renderCard(item)}</View>
-          )}
+          renderItem={({ item }) => <View style={styles.cardWrapper}>{renderCard(item)}</View>}
           snapToOffsets={data.map((_, index) => index * (Layout.cardWidth + 12))}
           decelerationRate="fast"
           contentContainerStyle={[

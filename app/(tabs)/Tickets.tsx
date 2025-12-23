@@ -1,30 +1,30 @@
-import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { canOpenURL, openSettings, openURL } from 'expo-linking';
+import { router } from 'expo-router';
+import { AlertTriangle, CheckCircle, Nfc, Upload, XCircle } from 'lucide-react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View,
-  StyleSheet,
-  ScrollView,
+  ActivityIndicator,
   Alert,
   Platform,
+  ScrollView,
+  StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
+  View,
 } from 'react-native';
+import NfcManager from 'react-native-nfc-manager';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import uuid from 'react-native-uuid';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useThemeColor } from '@/hooks/useThemeColor';
-import { Ticket } from '@/utils/types';
-import { Colors } from '@/constants/Colors';
-import { Nfc, CheckCircle, XCircle, Upload, AlertTriangle } from 'lucide-react-native';
-import NfcManager from 'react-native-nfc-manager';
-import { canOpenURL, openURL, openSettings } from 'expo-linking';
 import TicketCard from '@/components/TicketCard';
+import { Colors } from '@/constants/Colors';
 import { useECash } from '@/context/ECashContext';
-import uuid from 'react-native-uuid';
-import { router } from 'expo-router';
+import { useThemeColor } from '@/hooks/useThemeColor';
 import { globalEvents } from '@/utils/common';
+import type { Ticket } from '@/utils/types';
 
 export default function TicketsScreen() {
-  const [filter, setFilter] = useState<'all' | 'active' | 'used' | 'expired'>('all');
+  const [_filter, setFilter] = useState<'all' | 'active' | 'used' | 'expired'>('all');
   const [focusedCardId, setFocusedCardId] = useState<string | null>(null);
   const [isNFCEnabled, setIsNFCEnabled] = useState<boolean | null>(null);
   const [isCheckingNFC, setIsCheckingNFC] = useState(false);
@@ -32,7 +32,7 @@ export default function TicketsScreen() {
   const [mintStatuses, setMintStatuses] = useState<Record<string, 'good' | 'bad'>>({});
   const scrollViewRef = useRef<ScrollView>(null);
   const { wallets, isLoading: eCashLoading } = useECash();
-  const [walletUpdateTrigger, setWalletUpdateTrigger] = useState(0);
+  const [_walletUpdateTrigger, setWalletUpdateTrigger] = useState(0);
 
   // Listen for wallet balance changes
   useEffect(() => {
@@ -47,6 +47,7 @@ export default function TicketsScreen() {
     };
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: wallets and _walletUpdateTrigger are the only dependencies needed. State setters (setTickets, setMintStatuses) are stable and don't need to be in deps.
   useEffect(() => {
     async function mapWallets() {
       const allTickets: Ticket[] = [];
@@ -95,8 +96,7 @@ export default function TicketsScreen() {
               kind: unitInfo?.kind?.tag || 'Other',
             });
           }
-        } catch (error) {
-          console.error(`TicketsScreen: Failed to load tickets for mint ${mintUrl}`, error);
+        } catch (_error) {
           statusMap[mintUrl] = 'bad';
         }
       }
@@ -105,10 +105,10 @@ export default function TicketsScreen() {
       setMintStatuses(statusMap);
     }
     mapWallets();
-  }, [wallets, walletUpdateTrigger]); // Add walletUpdateTrigger to trigger re-render when wallet balances change
+  }, [wallets, _walletUpdateTrigger]); // walletUpdateTrigger triggers re-render when wallet balances change
 
   // NFC Status Checking
-  const checkNFCStatus = async (): Promise<boolean> => {
+  const checkNFCStatus = useCallback(async (): Promise<boolean> => {
     try {
       const isStarted = await NfcManager.isSupported();
       if (!isStarted) {
@@ -119,7 +119,7 @@ export default function TicketsScreen() {
     } catch {
       return false;
     }
-  };
+  }, []);
 
   const openNFCSettings = async () => {
     try {
@@ -137,7 +137,7 @@ export default function TicketsScreen() {
     } catch {}
   };
 
-  const showNFCEnableDialog = () => {
+  const _showNFCEnableDialog = () => {
     Alert.alert(
       'Enable NFC',
       Platform.OS === 'android'
@@ -171,7 +171,7 @@ export default function TicketsScreen() {
     [mintStatuses]
   );
 
-  const handleFilterPress = useCallback((filterType: 'all' | 'active' | 'used' | 'expired') => {
+  const _handleFilterPress = useCallback((filterType: 'all' | 'active' | 'used' | 'expired') => {
     setFilter(filterType);
     setFocusedCardId(null);
   }, []);
@@ -192,7 +192,7 @@ export default function TicketsScreen() {
       setIsNFCEnabled(null);
       setIsCheckingNFC(false);
     }
-  }, [focusedCardId]);
+  }, [focusedCardId, checkNFCStatus]);
 
   // Card click handler
   const handleCardPress = useCallback((ticketId: string) => {
@@ -443,7 +443,7 @@ const styles = StyleSheet.create({
   headerContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 8,
   },
   importButton: {

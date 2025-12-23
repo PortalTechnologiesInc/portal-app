@@ -1,12 +1,12 @@
 import {
   initLogger,
-  KeypairInterface,
-  LogCallback,
-  LogEntry,
+  type KeypairInterface,
+  type LogCallback,
+  type LogEntry,
   LogLevel,
   PortalApp,
-  PortalAppInterface,
-  RelayStatusListener,
+  type PortalAppInterface,
+  type RelayStatusListener,
 } from 'portal-app-lib';
 export class PortalAppManager {
   private static instance: PortalAppInterface | null;
@@ -16,56 +16,47 @@ export class PortalAppManager {
     keypair: KeypairInterface,
     relays: string[],
     relayStatusCallback: RelayStatusListener,
-    logRust: boolean = false
+    logRust = false
   ): Promise<PortalAppInterface> {
-    if (!this.instance) {
-      console.log('📚 Initializing the lib!');
+    if (!PortalAppManager.instance) {
       PortalAppManager.instance = await PortalApp.create(keypair, relays, relayStatusCallback);
     }
 
     if (logRust) {
       try {
         initLogger(new Logger(), LogLevel.Error);
-        console.log('Logger initialized');
-      } catch (error) {
-        console.error('Error initializing logger:', error);
-      }
+      } catch (_error) {}
     }
 
-    return this.instance!;
+    return PortalAppManager.instance!;
   }
 
   static tryGetInstance() {
-    if (!this.instance) {
+    if (!PortalAppManager.instance) {
       throw new Error('PortalAppManager not initialized');
     }
 
-    return this.instance;
+    return PortalAppManager.instance;
   }
 
   static clearInstance() {
-    this.instance = null;
+    PortalAppManager.instance = null;
   }
 }
 
 class Logger implements LogCallback {
   log(entry: LogEntry) {
-    const message = `[${entry.target}] ${entry.message}`;
+    const _message = `[${entry.target}] ${entry.message}`;
     switch (entry.level) {
       case LogLevel.Trace:
-        console.trace(message);
         break;
       case LogLevel.Debug:
-        console.debug(message);
         break;
       case LogLevel.Info:
-        console.info(message);
         break;
       case LogLevel.Warn:
-        console.warn(message);
         break;
       case LogLevel.Error:
-        console.error(message);
         break;
     }
   }
