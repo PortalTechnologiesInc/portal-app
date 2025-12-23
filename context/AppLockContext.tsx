@@ -15,6 +15,7 @@ import {
   TIMER_OPTIONS,
 } from '@/services/AppLockService';
 import { isBiometricPromptInProgress } from '@/services/BiometricAuthService';
+import { isFilePickerActive } from '@/services/FilePickerService';
 
 interface AppLockContextType {
   isLocked: boolean;
@@ -106,14 +107,16 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
           return;
         }
         // For iOS inactive state: only record background time if biometric prompt is NOT in progress
-        // When FaceID modal appears, app goes to "inactive" but this is not real backgrounding
-        // We should only record background time for actual backgrounding, not system modals
-        if (!isBiometricPromptInProgress()) {
+        // and file picker is NOT active. When FaceID modal or image picker appears, app goes to
+        // "inactive" but this is not real backgrounding. We should only record background time
+        // for actual backgrounding, not system modals or file picker UI.
+        if (!isBiometricPromptInProgress() && !isFilePickerActive()) {
           AppLockService.recordBackgroundTime();
         }
       } else if (nextAppState === 'active') {
-        // Skip lock check if biometric prompt is in progress to avoid race conditions
-        if (isBiometricPromptInProgress()) {
+        // Skip lock check if biometric prompt is in progress or file picker is active
+        // to avoid race conditions and prevent locking while user is selecting images
+        if (isBiometricPromptInProgress() || isFilePickerActive()) {
           return;
         }
 

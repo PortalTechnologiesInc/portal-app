@@ -46,7 +46,7 @@ export default function NostrRelayManagementScreen() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [filterText, setFilterText] = useState<string>('');
   const [showCustomRelayInput, setShowCustomRelayInput] = useState<boolean>(false);
-  const updateTimeoutRef = useRef<number | null>(null);
+  const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isInitialLoadRef = useRef(true);
 
   // Theme colors
@@ -202,7 +202,7 @@ export default function NostrRelayManagementScreen() {
     updateTimeoutRef.current = setTimeout(() => {
       updateRelays();
       updateTimeoutRef.current = null;
-    }, DEBOUNCE_DELAY_MS) as unknown as number;
+    }, DEBOUNCE_DELAY_MS);
 
     // Cleanup timeout on unmount or when selectedRelays changes again
     return () => {
