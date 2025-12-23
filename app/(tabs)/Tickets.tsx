@@ -47,6 +47,7 @@ export default function TicketsScreen() {
     };
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: wallets and _walletUpdateTrigger are the only dependencies needed. State setters (setTickets, setMintStatuses) are stable and don't need to be in deps.
   useEffect(() => {
     async function mapWallets() {
       const allTickets: Ticket[] = [];
@@ -104,7 +105,7 @@ export default function TicketsScreen() {
       setMintStatuses(statusMap);
     }
     mapWallets();
-  }, [wallets]); // Add walletUpdateTrigger to trigger re-render when wallet balances change
+  }, [wallets, _walletUpdateTrigger]); // walletUpdateTrigger triggers re-render when wallet balances change
 
   // NFC Status Checking
   const checkNFCStatus = useCallback(async (): Promise<boolean> => {

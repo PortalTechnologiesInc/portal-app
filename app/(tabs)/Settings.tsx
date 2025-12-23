@@ -1,7 +1,6 @@
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useRouter } from 'expo-router';
 import {
-  Bug,
   Check,
   ChevronRight,
   Clock,
@@ -185,9 +184,6 @@ export default function SettingsScreen() {
     router.push('/recoverTickets');
   };
 
-  const handleDebugPress = () => {
-    router.push('/(tabs)/Debug');
-  };
 
   const resetPinVerificationConfig = useCallback(() => {
     setPinVerificationConfig({
@@ -1148,33 +1144,6 @@ export default function SettingsScreen() {
             </View>
           </TouchableOpacity>
 
-          {/* Debug Section - Dev Only */}
-          {__DEV__ && (
-            <TouchableOpacity
-              style={[styles.card, { backgroundColor: cardBackgroundColor, marginTop: 24 }]}
-              onPress={handleDebugPress}
-              activeOpacity={0.7}
-            >
-              <View style={styles.cardContent}>
-                <View style={styles.cardLeft}>
-                  <View style={styles.cardHeader}>
-                    <View style={[styles.iconContainer]}>
-                      <Bug size={22} color={buttonPrimaryColor} />
-                    </View>
-                    <View style={styles.cardText}>
-                      <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
-                        Debug
-                      </ThemedText>
-                      <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
-                        Developer tools and diagnostics
-                      </ThemedText>
-                    </View>
-                  </View>
-                </View>
-                <ChevronRight size={22} color={secondaryTextColor} />
-              </View>
-            </TouchableOpacity>
-          )}
         </ScrollView>
       </ThemedView>
 
@@ -1197,12 +1166,9 @@ export default function SettingsScreen() {
                 transform: [{ translateY: currencyDrawerSlide }],
               },
             ]}
+            onStartShouldSetResponder={() => true}
           >
-            <TouchableOpacity
-              activeOpacity={1}
-              onPress={e => e.stopPropagation()}
-              style={{ flex: 1 }}
-            >
+            <View style={{ flex: 1 }}>
             <View style={styles.modalHeader}>
               <ThemedText style={[styles.modalTitle, { color: primaryTextColor }]}>
                 Select Currency
@@ -1228,7 +1194,7 @@ export default function SettingsScreen() {
                 No currencies available
               </ThemedText>
             )}
-            </TouchableOpacity>
+            </View>
           </Animated.View>
         </TouchableOpacity>
       </Modal>
@@ -1252,12 +1218,9 @@ export default function SettingsScreen() {
                 transform: [{ translateY: timerDrawerSlide }],
               },
             ]}
+            onStartShouldSetResponder={() => true}
           >
-            <TouchableOpacity
-              activeOpacity={1}
-              onPress={e => e.stopPropagation()}
-              style={{ flex: 1 }}
-            >
+            <View style={{ flex: 1 }}>
             <View style={styles.modalHeader}>
               <ThemedText style={[styles.modalTitle, { color: primaryTextColor }]}>
                 Select Lock Timer
@@ -1300,7 +1263,7 @@ export default function SettingsScreen() {
                 No timer options available
               </ThemedText>
             )}
-            </TouchableOpacity>
+            </View>
           </Animated.View>
         </TouchableOpacity>
       </Modal>
