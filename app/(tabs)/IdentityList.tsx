@@ -1,6 +1,7 @@
+import Clipboard from '@react-native-clipboard/clipboard';
 import { requestMediaLibraryPermissionsAsync } from 'expo-image-picker';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { ArrowLeft, Edit, Pencil, User } from 'lucide-react-native';
+import { ArrowLeft, Copy, Edit, Pencil, User } from 'lucide-react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -79,6 +80,7 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
   const inputBorderColor = useThemeColor({}, 'inputBorder');
   const inputPlaceholderColor = useThemeColor({}, 'inputPlaceholder');
   const statusConnectedColor = useThemeColor({}, 'statusConnected');
+  const surfaceSecondary = useThemeColor({}, 'surfaceSecondary');
 
   // Reset local state to network values when screen comes into focus
   // This ensures unsaved changes are discarded when user navigates away and comes back
@@ -400,6 +402,46 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
                 </View>
               </View>
 
+              <View style={styles.publicKeyContainer}>
+                <ThemedText style={[styles.inputLabel, { color: textSecondary }]}>
+                  Public key
+                </ThemedText>
+                <View
+                  style={[
+                    styles.publicKeyBox,
+                    {
+                      borderColor: inputBorderColor,
+                      backgroundColor: surfaceSecondary,
+                    },
+                  ]}
+                >
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.publicKeyScrollView}
+                  >
+                    <ThemedText
+                      style={[styles.publicKeyText, { color: textPrimary }]}
+                      selectable
+                    >
+                      {nostrService.publicKey || ''}
+                    </ThemedText>
+                  </ScrollView>
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (nostrService.publicKey) {
+                        Clipboard.setString(nostrService.publicKey);
+                        showToast('Public key copied to clipboard', 'success');
+                      }
+                    }}
+                    style={styles.copyPublicKeyButton}
+                    activeOpacity={0.7}
+                  >
+                    <Copy size={16} color={buttonPrimary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
               {(() => {
                 const usernameChanged = usernameInput.trim() !== networkUsername;
                 const displayNameChanged = displayNameInput.trim() !== networkDisplayName;
@@ -630,6 +672,29 @@ const styles = StyleSheet.create({
   },
   usernameSuffix: {
     fontSize: 16,
+  },
+  publicKeyContainer: {
+    marginBottom: 24,
+    width: '100%',
+    maxWidth: 500,
+  },
+  publicKeyBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    gap: 12,
+  },
+  publicKeyScrollView: {
+    flex: 1,
+  },
+  publicKeyText: {
+    fontSize: 13,
+    fontFamily: 'monospace',
+  },
+  copyPublicKeyButton: {
+    padding: 4,
   },
   saveButton: {
     padding: 16,
