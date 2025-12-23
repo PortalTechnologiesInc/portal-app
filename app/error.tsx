@@ -28,6 +28,29 @@ const iconMap: Record<string, React.ReactNode> = {
   x: <XCircle size={48} color="#FF3333" />,
 };
 
+// Helper to sanitize objects by converting BigInt to strings (prevents React serialization errors)
+// Moved outside component to avoid useExhaustiveDependencies warnings in useMemo hooks
+const sanitizeForReact = (obj: any): any => {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === 'bigint') return obj.toString() + 'n';
+  if (Array.isArray(obj)) return obj.map(sanitizeForReact);
+  if (obj instanceof Map) {
+    const sanitized = new Map();
+    obj.forEach((value, key) => {
+      sanitized.set(key, sanitizeForReact(value));
+    });
+    return sanitized;
+  }
+  if (typeof obj === 'object') {
+    const sanitized: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      sanitized[key] = sanitizeForReact(value);
+    }
+    return sanitized;
+  }
+  return obj;
+};
+
 export default function ErrorScreen() {
   const params = useLocalSearchParams();
   const errorMessage =
@@ -37,28 +60,6 @@ export default function ErrorScreen() {
   const statusErrorColor = useThemeColor({}, 'statusError');
   const buttonPrimaryColor = useThemeColor({}, 'buttonPrimary');
   const buttonPrimaryTextColor = useThemeColor({}, 'buttonPrimaryText');
-
-  // Helper to sanitize objects by converting BigInt to strings (prevents React serialization errors)
-  const sanitizeForReact = (obj: any): any => {
-    if (obj === null || obj === undefined) return obj;
-    if (typeof obj === 'bigint') return obj.toString() + 'n';
-    if (Array.isArray(obj)) return obj.map(sanitizeForReact);
-    if (obj instanceof Map) {
-      const sanitized = new Map();
-      obj.forEach((value, key) => {
-        sanitized.set(key, sanitizeForReact(value));
-      });
-      return sanitized;
-    }
-    if (typeof obj === 'object') {
-      const sanitized: any = {};
-      for (const [key, value] of Object.entries(obj)) {
-        sanitized[key] = sanitizeForReact(value);
-      }
-      return sanitized;
-    }
-    return obj;
-  };
 
   // Gather data from all contexts
   // Note: If a context provider is missing, hooks will throw - this is expected and helps diagnose the issue
@@ -176,7 +177,7 @@ export default function ErrorScreen() {
         // Handle BigInt in objects by converting to string
         return JSON.stringify(
           value,
-          (key, val) => (typeof val === 'bigint' ? val.toString() + 'n' : val),
+          (_key, val) => (typeof val === 'bigint' ? val.toString() + 'n' : val),
           2
         );
       } catch {
