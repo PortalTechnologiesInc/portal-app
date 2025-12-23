@@ -4,6 +4,7 @@ import { launchImageLibraryAsync } from 'expo-image-picker';
 type CancelHandler = (() => void) | null;
 
 let activeCancelHandler: CancelHandler = null;
+let isPickerActive = false;
 
 const resolveCanceledResult = (resolve: (value: ImagePickerResult) => void) => {
   resolve({ canceled: true, assets: null });
@@ -35,6 +36,11 @@ export const cancelActiveFilePicker = () => {
     activeCancelHandler();
     activeCancelHandler = null;
   }
+  isPickerActive = false;
+};
+
+export const isFilePickerActive = (): boolean => {
+  return isPickerActive;
 };
 
 export const launchImagePickerWithAutoCancel = async (
@@ -44,12 +50,17 @@ export const launchImagePickerWithAutoCancel = async (
 
   const { promise: cancelPromise, cancel } = attachCancellation();
   activeCancelHandler = cancel;
+  isPickerActive = true;
 
   let canceledExternally = false;
 
   const pickerPromise = launchImageLibraryAsync(options).then(result => {
     activeCancelHandler = null;
+    isPickerActive = false;
     return result;
+  }).catch(error => {
+    isPickerActive = false;
+    throw error;
   });
 
   const raceResult = await Promise.race([
