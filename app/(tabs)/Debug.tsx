@@ -724,6 +724,20 @@ function DebugActions({
           🚨 View Onboarding Error Page
         </ThemedText>
       </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.actionButton, { backgroundColor: buttonColor }]}
+        onPress={() => {
+          const testMessage = encodeURIComponent(
+            'This is a test error message from the debug page. All diagnostic information will be included in the error report.'
+          );
+          router.push(`/error?message=${testMessage}&icon=error`);
+        }}
+      >
+        <ThemedText style={[styles.actionButtonText, { color: buttonTextColor }]}>
+          🐛 View Error Page
+        </ThemedText>
+      </TouchableOpacity>
     </ThemedView>
   );
 }
