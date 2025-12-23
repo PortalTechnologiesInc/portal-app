@@ -12,8 +12,10 @@ import {
   Zap,
 } from 'lucide-react-native';
 import { generateMnemonic, Mnemonic, Nsec } from 'portal-app-lib';
+import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   BackHandler,
   Image,
@@ -33,8 +35,11 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useAppLock } from '@/context/AppLockContext';
 import { useKey } from '@/context/KeyContext';
+import { useNostrService } from '@/context/NostrServiceContext';
 import { useOnboarding } from '@/context/OnboardingContext';
+import { useUserProfile } from '@/context/UserProfileContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { generateRandomGamertag } from '@/utils/common';
 import { WALLET_TYPE } from '@/models/WalletType';
 import { PIN_MAX_LENGTH, PIN_MIN_LENGTH } from '@/services/AppLockService';
 import { showToast } from '@/utils/Toast';
@@ -53,12 +58,17 @@ type OnboardingStep =
   | 'verify'
   | 'import'
   | 'pin-setup'
+  | 'profile-setup'
+  | 'profile-setup-error'
   | 'splash';
 
 export default function Onboarding() {
   const { completeOnboarding } = useOnboarding();
   const { setMnemonic, setNsec } = useKey();
   const { setupPIN, setLockEnabled, isBiometricAvailable } = useAppLock();
+  const { fetchProfile, setProfile, waitForProfileSetup, hasProfileAssigned } = useUserProfile();
+  const nostrService = useNostrService();
+  const params = useLocalSearchParams();
   const [currentStep, setCurrentStep] = useState<OnboardingStep>('welcome');
   const [seedPhrase, setSeedPhrase] = useState('');
   const [verificationWords, setVerificationWords] = useState<{
@@ -76,6 +86,29 @@ export default function Onboarding() {
   const [isSavingPin, setIsSavingPin] = useState(false);
   const [_isBiometricSupported, setIsBiometricSupported] = useState(false);
   const [pinSetupPreviousStep, _setPinSetupPreviousStep] = useState<OnboardingStep>('import');
+
+  // Support debug mode: jump to specific step via query parameter
+  useEffect(() => {
+    if (__DEV__ && params.step) {
+      const stepParam = params.step as string;
+      if (
+        [
+          'welcome',
+          'backup-warning',
+          'choice',
+          'generate',
+          'verify',
+          'import',
+          'pin-setup',
+          'profile-setup',
+          'profile-setup-error',
+          'splash',
+        ].includes(stepParam)
+      ) {
+        setCurrentStep(stepParam as OnboardingStep);
+      }
+    }
+  }, [params.step]);
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -156,6 +189,60 @@ export default function Onboarding() {
     setPinError('');
   }, []);
 
+  // Handle profile setup for imported seeds before completing onboarding
+  const handleProfileSetup = useCallback(async () => {
+    try {
+      // Check if seed was imported
+      const seedOrigin = await SecureStore.getItemAsync(SEED_ORIGIN_KEY);
+      if (seedOrigin !== 'imported') {
+        // Not an imported seed, proceed normally
+        return true;
+      }
+
+      // Wait for NostrService to be initialized
+      let retries = 0;
+      const maxRetries = 30; // Wait up to 15 seconds for initialization
+      while (!nostrService.isInitialized && retries < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        retries++;
+      }
+
+      if (!nostrService.isInitialized || !nostrService.publicKey) {
+        // NostrService not ready, show error
+        return false;
+      }
+
+      // Check if profile is already assigned
+      if (hasProfileAssigned()) {
+        return true;
+      }
+
+      // Try to fetch existing profile
+      const result = await fetchProfile(nostrService.publicKey);
+
+      if (result.found && result.username) {
+        // Profile found, wait for it to be set
+        const success = await waitForProfileSetup(15000);
+        return success;
+      }
+
+      // No profile found, generate and set one
+      const randomUsername = generateRandomGamertag();
+      try {
+        await setProfile(randomUsername, '');
+        // Wait for profile setup to complete
+        const success = await waitForProfileSetup(15000);
+        return success;
+      } catch (_error) {
+        // Profile setup failed
+        return false;
+      }
+    } catch (_error) {
+      // Error during profile setup
+      return false;
+    }
+  }, [nostrService, hasProfileAssigned, fetchProfile, setProfile, waitForProfileSetup]);
+
   const goToPreviousStep = useCallback(() => {
     const previousSteps: Record<OnboardingStep, OnboardingStep | null> = {
       welcome: null,
@@ -165,6 +252,8 @@ export default function Onboarding() {
       verify: 'generate',
       import: 'choice',
       'pin-setup': pinSetupPreviousStep,
+      'profile-setup': 'pin-setup',
+      'profile-setup-error': 'profile-setup',
       splash: null,
     };
 
@@ -220,6 +309,25 @@ export default function Onboarding() {
           case 'pin-setup':
             okBack(() => resetPinState());
             break;
+          case 'profile-setup':
+            // Go back to pin-setup
+            setCurrentStep('pin-setup');
+            return true; // Block default back behavior
+          case 'profile-setup-error':
+            // Allow retry by going back to profile-setup
+            setCurrentStep('profile-setup');
+            // Retry profile setup
+            handleProfileSetup().then(success => {
+              if (success) {
+                setCurrentStep('splash');
+                setTimeout(() => {
+                  completeOnboarding();
+                }, 2000);
+              } else {
+                setCurrentStep('profile-setup-error');
+              }
+            });
+            return true; // Block default back behavior
           case 'import':
             okBack(() => {
               setSeedPhrase('');
@@ -244,7 +352,7 @@ export default function Onboarding() {
       const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
       return () => backHandler.remove();
     }
-  }, [currentStep, okBack, resetPinState]);
+  }, [currentStep, okBack, resetPinState, handleProfileSetup]);
 
   const handleGenerate = async () => {
     const mnemonic = generateMnemonic().toString();
@@ -459,9 +567,21 @@ export default function Onboarding() {
     setCurrentStep('pin-setup');
   };
 
-  const handleCompletionWithoutPIN = () => {
+  const handleCompletionWithoutPIN = async () => {
     // Complete onboarding without setting up a PIN
     resetPinState();
+    
+    // Check if we need to set up profile for imported seed
+    setCurrentStep('profile-setup');
+    const profileSetupSuccess = await handleProfileSetup();
+    
+    if (!profileSetupSuccess) {
+      // Profile setup failed, show error page
+      setCurrentStep('profile-setup-error');
+      return;
+    }
+
+    // Profile setup successful, proceed to splash
     setCurrentStep('splash');
     setTimeout(() => {
       completeOnboarding();
@@ -494,6 +614,18 @@ export default function Onboarding() {
       // Always enable app lock when setting up PIN in onboarding
       await setLockEnabled(true);
       resetPinState();
+      
+      // Check if we need to set up profile for imported seed
+      setCurrentStep('profile-setup');
+      const profileSetupSuccess = await handleProfileSetup();
+      
+      if (!profileSetupSuccess) {
+        // Profile setup failed, show error page
+        setCurrentStep('profile-setup-error');
+        return;
+      }
+
+      // Profile setup successful, proceed to splash
       setCurrentStep('splash');
       setTimeout(() => {
         completeOnboarding();
@@ -530,6 +662,23 @@ export default function Onboarding() {
           });
       case 'pin-setup':
         return () => okBack(() => resetPinState());
+      case 'profile-setup':
+        return () => setCurrentStep('pin-setup');
+      case 'profile-setup-error':
+        return () => {
+          // Retry profile setup
+          setCurrentStep('profile-setup');
+          handleProfileSetup().then(success => {
+            if (success) {
+              setCurrentStep('splash');
+              setTimeout(() => {
+                completeOnboarding();
+              }, 2000);
+            } else {
+              setCurrentStep('profile-setup-error');
+            }
+          });
+        };
       case 'import':
         return () =>
           okBack(() => {
@@ -543,7 +692,12 @@ export default function Onboarding() {
 
   // Helper function to check if back button should be shown
   const shouldShowBackButton = () => {
-    return currentStep !== 'welcome' && currentStep !== ('splash' as OnboardingStep);
+    return (
+      currentStep !== 'welcome' &&
+      currentStep !== ('splash' as OnboardingStep) &&
+      currentStep !== 'profile-setup' &&
+      currentStep !== 'profile-setup-error'
+    );
   };
 
   return (
@@ -1003,6 +1157,82 @@ export default function Onboarding() {
             </View>
           </View>
         )}
+
+        {/* Profile Setup Step */}
+        {currentStep === 'profile-setup' && (
+          <View style={[styles.stepWrapper, styles.pinSetupFull]}>
+            <View style={styles.pinSetupContent}>
+              <View style={[styles.pinIconContainer, { backgroundColor: `${buttonPrimary}20` }]}>
+                <Shield size={32} color={buttonPrimary} />
+              </View>
+              <ThemedText type="title" style={styles.title}>
+                Setting Up Your Profile
+              </ThemedText>
+              <ThemedText style={styles.subtitle}>
+                Please wait while we set up your digital identity...
+              </ThemedText>
+              <ActivityIndicator size="large" color={buttonPrimary} style={styles.loadingSpinner} />
+            </View>
+          </View>
+        )}
+
+        {/* Profile Setup Error Step */}
+        {currentStep === 'profile-setup-error' && (
+          <View style={styles.stepWrapper}>
+            <ScrollView
+              contentContainerStyle={[styles.scrollContent, styles.centeredScrollContent]}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.pageContainer}>
+                <View style={styles.warningIconContainer}>
+                  <AlertTriangle size={isSmallDevice ? 48 : 64} color="#e74c3c" />
+                </View>
+
+                <ThemedText type="title" style={styles.warningTitle}>
+                  Profile Setup Failed
+                </ThemedText>
+
+                <View style={[styles.warningCard, { backgroundColor: cardBackgroundColor }]}>
+                  <ThemedText
+                    style={[styles.warningText, isSmallDevice && styles.warningTextSmall]}
+                  >
+                    We couldn't set up your profile right now. This might be due to a network
+                    connection issue.
+                  </ThemedText>
+                </View>
+
+                <View style={styles.warningPointsContainer}>
+                  <ThemedText style={styles.warningPointText}>
+                    Please check your internet connection and try again later.
+                  </ThemedText>
+                </View>
+              </View>
+            </ScrollView>
+            <View style={[styles.footer, styles.footerStack]}>
+              <TouchableOpacity
+                style={[styles.button, { backgroundColor: buttonPrimary }]}
+                onPress={() => {
+                  // Retry profile setup
+                  setCurrentStep('profile-setup');
+                  handleProfileSetup().then(success => {
+                    if (success) {
+                      setCurrentStep('splash');
+                      setTimeout(() => {
+                        completeOnboarding();
+                      }, 2000);
+                    } else {
+                      setCurrentStep('profile-setup-error');
+                    }
+                  });
+                }}
+              >
+                <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>
+                  Try Again
+                </ThemedText>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </ThemedView>
     </SafeAreaView>
   );
@@ -1018,6 +1248,9 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+  },
+  centeredScrollContent: {
+    justifyContent: 'center',
   },
   logoContainer: {
     alignItems: 'center',
@@ -1338,6 +1571,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     fontSize: 14,
     opacity: 0.8,
+  },
+  loadingSpinner: {
+    marginTop: 30,
+    marginBottom: 20,
   },
   // Header styles
   header: {
