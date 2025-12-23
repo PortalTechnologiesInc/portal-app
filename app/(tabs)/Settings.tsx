@@ -622,22 +622,16 @@ export default function SettingsScreen() {
             executeProtectedAction(
               async () => {
                 try {
-                  // Show progress to user
-                  showToast('Resetting app data...');
-
                   // Use comprehensive reset service
                   await resetApp();
 
-                  // Reset completed successfully
-                  showToast('App reset successful!', 'success');
-
                   // Navigation to onboarding is handled by AppResetService
+                  // Toast will be shown in onboarding screen after reset completes
                 } catch (_error) {
                   // Even if there's an error, try to navigate to onboarding
                   // as the reset likely succeeded partially
                   try {
                     router.replace('/onboarding');
-                    showToast('Reset completed with errors - please check app state', 'error');
                   } catch (_navError) {
                     Alert.alert(
                       'Reset Error',

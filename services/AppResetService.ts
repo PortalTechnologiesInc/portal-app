@@ -84,6 +84,16 @@ export class AppResetService {
       errors.push({ step: 'Storage', error });
     }
 
+    // Step 6: Set flag to show toast in onboarding (after clearing AsyncStorage)
+    // Use a small delay to ensure onboarding screen has mounted
+    setTimeout(async () => {
+      try {
+        await AsyncStorage.setItem('app_reset_complete', 'true');
+      } catch (_error) {
+        // Ignore errors setting flag
+      }
+    }, 100);
+
     // Step 6: Deleting app instance
     PortalAppManager.clearInstance();
 
