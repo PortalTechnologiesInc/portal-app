@@ -118,7 +118,7 @@ export function PINKeypad({
   const canSubmit = pin.length >= Math.max(normalizedMinLength, 4);
 
   const handleNumberPress = (number: string) => {
-    if (disabled) return;
+    if (disabled || error) return;
     if (pin.length < maxLength) {
       const newPin = pin + number;
       setPin(newPin);
@@ -129,7 +129,7 @@ export function PINKeypad({
   };
 
   const handleDelete = () => {
-    if (disabled) return;
+    if (disabled || error) return;
     if (pin.length > 0) {
       setPin(pin.slice(0, -1));
     }
@@ -199,16 +199,16 @@ export function PINKeypad({
             dynamicStyles.deleteButton,
             {
               backgroundColor: cardBackgroundColor,
-              opacity: disabled ? 0.4 : pin.length === 0 ? 0.5 : 1,
+              opacity: disabled || error ? 0.4 : pin.length === 0 ? 0.5 : 1,
             },
           ]}
           onPress={handleDelete}
           onLongPress={handleClear}
           delayLongPress={250}
-          disabled={pin.length === 0 || disabled}
+          disabled={pin.length === 0 || disabled || error}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Delete size={22} color={pin.length > 0 ? primaryTextColor : secondaryTextColor} />
+          <Delete size={22} color={pin.length > 0 && !error ? primaryTextColor : secondaryTextColor} />
         </TouchableOpacity>
       </View>
 
@@ -222,11 +222,11 @@ export function PINKeypad({
               style={[
                 styles.keypadButton,
                 dynamicStyles.keypadButton,
-                { backgroundColor: cardBackgroundColor, opacity: disabled ? 0.4 : 1 },
+                { backgroundColor: cardBackgroundColor, opacity: disabled || error ? 0.4 : 1 },
               ]}
               onPress={() => handleNumberPress(num)}
               activeOpacity={0.7}
-              disabled={disabled}
+              disabled={disabled || error}
             >
               <ThemedText
                 style={[
@@ -249,11 +249,11 @@ export function PINKeypad({
               style={[
                 styles.keypadButton,
                 dynamicStyles.keypadButton,
-                { backgroundColor: cardBackgroundColor, opacity: disabled ? 0.4 : 1 },
+                { backgroundColor: cardBackgroundColor, opacity: disabled || error ? 0.4 : 1 },
               ]}
               onPress={() => handleNumberPress(num)}
               activeOpacity={0.7}
-              disabled={disabled}
+              disabled={disabled || error}
             >
               <ThemedText
                 style={[
@@ -276,11 +276,11 @@ export function PINKeypad({
               style={[
                 styles.keypadButton,
                 dynamicStyles.keypadButton,
-                { backgroundColor: cardBackgroundColor, opacity: disabled ? 0.4 : 1 },
+                { backgroundColor: cardBackgroundColor, opacity: disabled || error ? 0.4 : 1 },
               ]}
               onPress={() => handleNumberPress(num)}
               activeOpacity={0.7}
-              disabled={disabled}
+              disabled={disabled || error}
             >
               <ThemedText
                 style={[
@@ -325,11 +325,11 @@ export function PINKeypad({
             style={[
               styles.keypadButton,
               dynamicStyles.keypadButton,
-              { backgroundColor: cardBackgroundColor, opacity: disabled ? 0.4 : 1 },
+              { backgroundColor: cardBackgroundColor, opacity: disabled || error ? 0.4 : 1 },
             ]}
             onPress={() => handleNumberPress('0')}
             activeOpacity={0.7}
-            disabled={disabled}
+            disabled={disabled || error}
           >
             <ThemedText
               style={[

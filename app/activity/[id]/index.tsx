@@ -105,7 +105,7 @@ export default function ActivityDetailScreen() {
   const [error, setError] = useState<string | null>(null);
   const [paymentSteps, setPaymentSteps] = useState<PaymentStep[]>([]);
   const { executeOperation } = useDatabaseContext();
-  const { activities: _activities } = useActivities();
+  const { activities } = useActivities();
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -125,9 +125,37 @@ export default function ActivityDetailScreen() {
 
   useEffect(() => {
     const fetchActivity = async () => {
+      if (!id) return;
+
       try {
         setLoading(true);
 
+        // First, check if activity is already in context (optimization for navigation from list)
+        const cachedActivity = activities.find(a => a.id === id);
+        if (cachedActivity) {
+          setActivity(cachedActivity);
+          setLoading(false);
+
+          // Still fetch payment status entries if needed (these aren't in the cached activity)
+          if (
+            cachedActivity.type === ActivityType.Pay ||
+            (cachedActivity.type === ActivityType.Receive && cachedActivity.invoice)
+          ) {
+            try {
+              const paymentStatusEntries = await executeOperation(
+                db => db.getPaymentStatusEntries(cachedActivity.invoice!),
+                []
+              );
+              const steps = convertPaymentStatusToSteps(paymentStatusEntries);
+              setPaymentSteps(steps);
+            } catch (_err) {
+              setPaymentSteps([]);
+            }
+          }
+          return;
+        }
+
+        // Activity not in context, fetch from database (e.g., deep link or removed from cache)
         const activityData = await executeOperation(db => db.getActivity(id as string), null);
 
         if (activityData) {
@@ -159,10 +187,8 @@ export default function ActivityDetailScreen() {
       }
     };
 
-    if (id) {
-      fetchActivity();
-    }
-  }, [id, executeOperation]);
+    fetchActivity();
+  }, [id, executeOperation, activities]);
 
   const handleBackPress = () => {
     router.back();
