@@ -167,6 +167,7 @@ export default function MyWalletManagementSecret() {
   const cardBackground = useThemeColor({}, 'cardBackground');
   const inputBorderColor = useThemeColor({}, 'inputBorder');
   const inputBackground = useThemeColor({}, 'inputBackground');
+  const placeholderColor = useThemeColor({}, 'inputPlaceholder');
 
   useEffect(() => {
     let active = true;
@@ -240,6 +241,7 @@ export default function MyWalletManagementSecret() {
                 ]}
                 onChangeText={text => setActiveFilter(text.toLocaleLowerCase())}
                 placeholder="Search contact..."
+                placeholderTextColor={placeholderColor}
               />
             </ThemedView>
 

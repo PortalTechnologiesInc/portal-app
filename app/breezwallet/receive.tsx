@@ -53,6 +53,7 @@ export default function MyWalletManagementSecret() {
   const buttonPrimaryColor = useThemeColor({}, 'buttonPrimary');
   const buttonPrimaryTextColor = useThemeColor({}, 'buttonPrimaryText');
   const inputBackground = useThemeColor({}, 'inputBackground');
+  const placeholderColor = useThemeColor({}, 'inputPlaceholder');
   const { getWallet } = useWalletManager();
   const [breezWallet, setBreezWallet] = useState<BreezService | null>(null);
   const [amount, setAmount] = useState('0');
@@ -330,6 +331,7 @@ export default function MyWalletManagementSecret() {
                       textAlign: 'center',
                       fontSize: 40,
                     }}
+                    placeholderTextColor={placeholderColor}
                     autoCorrect={false}
                     value={amount}
                     onBlur={() => {
@@ -393,6 +395,7 @@ export default function MyWalletManagementSecret() {
                 autoCapitalize="none"
                 keyboardType="default"
                 placeholder="Description"
+                placeholderTextColor={placeholderColor}
                 value={description}
                 onChangeText={text => setDescription(text)}
               />
