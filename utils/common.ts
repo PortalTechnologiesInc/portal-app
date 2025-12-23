@@ -306,8 +306,25 @@ export function useColorSchemeColor<T>(light: T, dark: T, colorScheme?: 'light' 
 export function formatAvatarUri(avatarUri: string | null, cacheKey?: number): string | null {
   if (!avatarUri) return null;
 
-  // If it's already a data URI or file URI, return as-is
-  if (avatarUri.startsWith('data:') || avatarUri.startsWith('file:')) {
+  // If it's a data URI, return as-is
+  if (avatarUri.startsWith('data:')) {
+    return avatarUri;
+  }
+
+  // For local file URIs (file://, content://, ph://, etc.), append cache key as query parameter
+  // React Native Image doesn't respect URL fragments, so we use query params for cache busting
+  if (
+    avatarUri.startsWith('file:') ||
+    avatarUri.startsWith('content:') ||
+    avatarUri.startsWith('ph:') ||
+    avatarUri.startsWith('assets-library:')
+  ) {
+    if (cacheKey) {
+      // Append timestamp as query param for cache busting
+      // Note: Some URI schemes don't support query params, but React Native Image will still treat it as a new URI
+      const separator = avatarUri.includes('?') ? '&' : '?';
+      return `${avatarUri}${separator}_t=${cacheKey}`;
+    }
     return avatarUri;
   }
 

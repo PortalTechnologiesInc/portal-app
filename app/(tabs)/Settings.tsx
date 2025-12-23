@@ -1,12 +1,12 @@
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useRouter } from 'expo-router';
 import {
-  ArrowLeft,
   Bug,
   Check,
   ChevronRight,
   Clock,
   Fingerprint,
+  HandCoins,
   KeyRound,
   Moon,
   RotateCcw,
@@ -17,9 +17,10 @@ import {
   Wifi,
   X,
 } from 'lucide-react-native';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  Animated,
   FlatList,
   Modal,
   Platform,
@@ -99,6 +100,11 @@ export default function SettingsScreen() {
   const [_pendingPinEnable, setPendingPinEnable] = useState(false);
   const [pendingBiometricEnable, setPendingBiometricEnable] = useState(false);
   const { width, height } = useWindowDimensions();
+  
+  // Animated values for drawer slide animations
+  const currencyDrawerSlide = useRef(new Animated.Value(height)).current;
+  const timerDrawerSlide = useRef(new Animated.Value(height)).current;
+  const pinVerifyDrawerSlide = useRef(new Animated.Value(height)).current;
   const insets = useSafeAreaInsets();
   const rem = Math.min(Math.max(width / 390, 0.9), 1);
   const modalMaxHeight = Math.min(height * 0.85, 560);
@@ -318,6 +324,60 @@ export default function SettingsScreen() {
       'success'
     );
   };
+
+  // Animate currency drawer when modal opens/closes
+  useEffect(() => {
+    if (isCurrencyModalVisible) {
+      Animated.spring(currencyDrawerSlide, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start();
+    } else {
+      Animated.timing(currencyDrawerSlide, {
+        toValue: height,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [isCurrencyModalVisible, height, currencyDrawerSlide]);
+
+  // Animate timer drawer when modal opens/closes
+  useEffect(() => {
+    if (isTimerModalVisible) {
+      Animated.spring(timerDrawerSlide, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start();
+    } else {
+      Animated.timing(timerDrawerSlide, {
+        toValue: height,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [isTimerModalVisible, height, timerDrawerSlide]);
+
+  // Animate PIN verification drawer when modal opens/closes
+  useEffect(() => {
+    if (isPINVerifyVisible) {
+      Animated.spring(pinVerifyDrawerSlide, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start();
+    } else {
+      Animated.timing(pinVerifyDrawerSlide, {
+        toValue: height,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [isPINVerifyVisible, height, pinVerifyDrawerSlide]);
 
   const handleCurrencyChange = () => {
     setIsCurrencyModalVisible(true);
@@ -629,60 +689,56 @@ export default function SettingsScreen() {
     <SafeAreaView style={[styles.safeArea, { backgroundColor: backgroundColor }]} edges={['top']}>
       <ThemedView style={styles.container}>
         <ThemedView style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <ArrowLeft size={20} color={primaryTextColor} />
-          </TouchableOpacity>
-          <ThemedText
-            style={styles.headerText}
-            lightColor={primaryTextColor}
-            darkColor={primaryTextColor}
-          >
+          <ThemedText type="title" style={{ color: primaryTextColor }}>
             Settings
           </ThemedText>
         </ThemedView>
 
         <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
           {/* Wallet Section */}
-          <ThemedView style={styles.section}>
-            <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
-              Wallet
-            </ThemedText>
-            <ThemedView style={styles.walletSection}>
-              <TouchableOpacity
-                style={[styles.card, { backgroundColor: cardBackgroundColor }]}
-                onPress={handleWalletCardPress}
-                activeOpacity={0.7}
-              >
-                <View style={styles.cardContent}>
-                  <View style={styles.cardLeft}>
-                    <View style={styles.cardHeader}>
-                      <View style={[styles.iconContainer]}>
-                        <Wallet size={20} color={buttonPrimaryColor} />
-                      </View>
-                      <View style={styles.cardText}>
-                        <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
-                          Wallet Configuration
-                        </ThemedText>
-                        <View style={styles.cardStatusRow}>
-                          <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
-                            Manage your wallet configurations
-                          </ThemedText>
-                        </View>
-                      </View>
+          <ThemedText
+            style={[styles.sectionTitle, { color: primaryTextColor, marginTop: 0 }]}
+          >
+            Wallet
+          </ThemedText>
+          <TouchableOpacity
+            style={[styles.card, { backgroundColor: cardBackgroundColor }]}
+            onPress={handleWalletCardPress}
+            activeOpacity={0.7}
+          >
+            <View style={styles.cardContent}>
+              <View style={styles.cardLeft}>
+                <View style={styles.cardHeader}>
+                  <View style={[styles.iconContainer]}>
+                    <Wallet size={22} color={buttonPrimaryColor} />
+                  </View>
+                  <View style={styles.cardText}>
+                    <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
+                      Wallet Configuration
+                    </ThemedText>
+                    <View style={styles.cardStatusRow}>
+                      <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
+                        Manage your wallet configurations
+                      </ThemedText>
                     </View>
                   </View>
-                  <ChevronRight size={24} color={secondaryTextColor} />
                 </View>
-              </TouchableOpacity>
-            </ThemedView>
-            <ThemedView style={styles.walletSection}>
-              <TouchableOpacity
-                style={[styles.card, { backgroundColor: cardBackgroundColor }]}
-                onPress={handleCurrencyChange}
-                activeOpacity={0.7}
-              >
-                <View style={styles.cardContent}>
-                  <View style={styles.cardLeft}>
+              </View>
+              <ChevronRight size={22} color={secondaryTextColor} />
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.card, { backgroundColor: cardBackgroundColor }]}
+            onPress={handleCurrencyChange}
+            activeOpacity={0.7}
+          >
+            <View style={styles.cardContent}>
+              <View style={styles.cardLeft}>
+                <View style={styles.cardHeader}>
+                  <View style={[styles.iconContainer]}>
+                    <HandCoins size={22} color={buttonPrimaryColor} />
+                  </View>
+                  <View style={styles.cardText}>
                     <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
                       Preferred Currency
                     </ThemedText>
@@ -690,15 +746,15 @@ export default function SettingsScreen() {
                       {getCurrentCurrencyDisplayName()}
                     </ThemedText>
                   </View>
-                  <View style={[styles.currencyIndicator, { backgroundColor: buttonPrimaryColor }]}>
-                    <ThemedText style={[styles.currencySymbol, { color: buttonPrimaryTextColor }]}>
-                      {getCurrentCurrencySymbol()}
-                    </ThemedText>
-                  </View>
                 </View>
-              </TouchableOpacity>
-            </ThemedView>
-          </ThemedView>
+              </View>
+              <View style={[styles.currencyIndicator, { backgroundColor: buttonPrimaryColor }]}>
+                <ThemedText style={[styles.currencySymbol, { color: buttonPrimaryTextColor }]}>
+                  {getCurrentCurrencySymbol()}
+                </ThemedText>
+              </View>
+            </View>
+          </TouchableOpacity>
 
           {/* Remote Signing */}
           <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
@@ -713,7 +769,7 @@ export default function SettingsScreen() {
               <View style={styles.cardLeft}>
                 <View style={styles.cardHeader}>
                   <View style={[styles.iconContainer]}>
-                    <Fingerprint size={20} color={buttonPrimaryColor} />
+                    <Fingerprint size={22} color={buttonPrimaryColor} />
                   </View>
                   <View style={styles.cardText}>
                     <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
@@ -725,7 +781,7 @@ export default function SettingsScreen() {
                   </View>
                 </View>
               </View>
-              <ChevronRight size={24} color={secondaryTextColor} />
+              <ChevronRight size={22} color={secondaryTextColor} />
             </View>
           </TouchableOpacity>
 
@@ -740,7 +796,7 @@ export default function SettingsScreen() {
               <View style={styles.cardLeft}>
                 <View style={styles.cardHeader}>
                   <View style={[styles.iconContainer]}>
-                    <Wifi size={20} color={buttonPrimaryColor} />
+                    <Wifi size={22} color={buttonPrimaryColor} />
                   </View>
                   <View style={styles.cardText}>
                     <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
@@ -752,7 +808,7 @@ export default function SettingsScreen() {
                   </View>
                 </View>
               </View>
-              <ChevronRight size={24} color={secondaryTextColor} />
+              <ChevronRight size={22} color={secondaryTextColor} />
             </View>
           </TouchableOpacity>
 
@@ -770,11 +826,11 @@ export default function SettingsScreen() {
                 <View style={styles.themeCardLeft}>
                   <View style={styles.iconContainer}>
                     {themeMode === 'auto' ? (
-                      <Smartphone size={24} color={buttonPrimaryColor} />
+                      <Smartphone size={22} color={buttonPrimaryColor} />
                     ) : themeMode === 'light' ? (
-                      <Sun size={24} color={buttonPrimaryColor} />
+                      <Sun size={22} color={buttonPrimaryColor} />
                     ) : (
-                      <Moon size={24} color={buttonPrimaryColor} />
+                      <Moon size={22} color={buttonPrimaryColor} />
                     )}
                   </View>
                   <View style={styles.themeTextContainer}>
@@ -808,7 +864,7 @@ export default function SettingsScreen() {
               <View style={styles.cardLeft}>
                 <View style={styles.cardHeader}>
                   <View style={[styles.iconContainer]}>
-                    <KeyRound size={20} color={buttonPrimaryColor} />
+                    <KeyRound size={22} color={buttonPrimaryColor} />
                   </View>
                   <View style={styles.cardText}>
                     <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
@@ -858,7 +914,7 @@ export default function SettingsScreen() {
                 <View style={styles.cardLeft}>
                   <View style={styles.cardHeader}>
                     <View style={[styles.iconContainer]}>
-                      <Fingerprint size={20} color={buttonPrimaryColor} />
+                      <Fingerprint size={22} color={buttonPrimaryColor} />
                     </View>
                     <View style={styles.cardText}>
                       <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
@@ -893,7 +949,7 @@ export default function SettingsScreen() {
           <View style={[styles.appLockOption, { backgroundColor: cardBackgroundColor }]}>
             <View style={styles.appLockLeft}>
               <View style={styles.appLockIconContainer}>
-                <Shield size={24} color={buttonPrimaryColor} />
+                <Shield size={22} color={buttonPrimaryColor} />
               </View>
               <View style={styles.appLockTextContainer}>
                 <ThemedText style={[styles.appLockTitle, { color: primaryTextColor }]}>
@@ -926,7 +982,7 @@ export default function SettingsScreen() {
                 <View style={styles.cardLeft}>
                   <View style={styles.cardHeader}>
                     <View style={[styles.iconContainer]}>
-                      <Clock size={20} color={buttonPrimaryColor} />
+                      <Clock size={22} color={buttonPrimaryColor} />
                     </View>
                     <View style={styles.cardText}>
                       <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
@@ -938,7 +994,7 @@ export default function SettingsScreen() {
                     </View>
                   </View>
                 </View>
-                <ChevronRight size={24} color={secondaryTextColor} />
+                <ChevronRight size={22} color={secondaryTextColor} />
               </View>
             </TouchableOpacity>
           )}
@@ -956,7 +1012,7 @@ export default function SettingsScreen() {
               <View style={styles.cardLeft}>
                 <View style={styles.cardHeader}>
                   <View style={[styles.iconContainer]}>
-                    <RotateCcw size={20} color={buttonPrimaryColor} />
+                    <RotateCcw size={22} color={buttonPrimaryColor} />
                   </View>
                   <View style={styles.cardText}>
                     <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
@@ -968,7 +1024,7 @@ export default function SettingsScreen() {
                   </View>
                 </View>
               </View>
-              <ChevronRight size={24} color={secondaryTextColor} />
+              <ChevronRight size={22} color={secondaryTextColor} />
             </View>
           </TouchableOpacity>
 
@@ -1003,15 +1059,22 @@ export default function SettingsScreen() {
             </View>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.exportButton, { backgroundColor: buttonPrimaryColor }]}
+            style={[
+              styles.exportButton,
+              {
+                backgroundColor: inputBorderColor,
+                opacity: 0.5,
+              },
+            ]}
             onPress={handleExportAppData}
+            disabled={true}
           >
             <View style={styles.exportButtonContent}>
-              <ThemedText style={[styles.exportButtonText, { color: buttonPrimaryTextColor }]}>
+              <ThemedText style={[styles.exportButtonText, { color: secondaryTextColor }]}>
                 Export App Data
               </ThemedText>
               <View style={styles.fingerprintIcon}>
-                <Fingerprint size={20} color={buttonPrimaryTextColor} />
+                <Fingerprint size={20} color={secondaryTextColor} />
               </View>
             </View>
           </TouchableOpacity>
@@ -1043,7 +1106,7 @@ export default function SettingsScreen() {
                 <View style={styles.cardLeft}>
                   <View style={styles.cardHeader}>
                     <View style={[styles.iconContainer]}>
-                      <Bug size={20} color={buttonPrimaryColor} />
+                      <Bug size={22} color={buttonPrimaryColor} />
                     </View>
                     <View style={styles.cardText}>
                       <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
@@ -1055,7 +1118,7 @@ export default function SettingsScreen() {
                     </View>
                   </View>
                 </View>
-                <ChevronRight size={24} color={secondaryTextColor} />
+                <ChevronRight size={22} color={secondaryTextColor} />
               </View>
             </TouchableOpacity>
           )}
@@ -1066,7 +1129,7 @@ export default function SettingsScreen() {
       <Modal
         visible={isCurrencyModalVisible}
         transparent
-        animationType="slide"
+        animationType="fade"
         onRequestClose={() => setIsCurrencyModalVisible(false)}
       >
         <TouchableOpacity
@@ -1074,11 +1137,19 @@ export default function SettingsScreen() {
           activeOpacity={1}
           onPress={() => setIsCurrencyModalVisible(false)}
         >
-          <TouchableOpacity
-            style={modalSheetStyle}
-            activeOpacity={1}
-            onPress={e => e.stopPropagation()}
+          <Animated.View
+            style={[
+              modalSheetStyle,
+              {
+                transform: [{ translateY: currencyDrawerSlide }],
+              },
+            ]}
           >
+            <TouchableOpacity
+              activeOpacity={1}
+              onPress={e => e.stopPropagation()}
+              style={{ flex: 1 }}
+            >
             <View style={styles.modalHeader}>
               <ThemedText style={[styles.modalTitle, { color: primaryTextColor }]}>
                 Select Currency
@@ -1087,7 +1158,7 @@ export default function SettingsScreen() {
                 onPress={() => setIsCurrencyModalVisible(false)}
                 style={styles.modalCloseButton}
               >
-                <X size={24} color={secondaryTextColor} />
+                <X size={22} color={secondaryTextColor} />
               </TouchableOpacity>
             </View>
             {currencies.length > 0 ? (
@@ -1104,7 +1175,8 @@ export default function SettingsScreen() {
                 No currencies available
               </ThemedText>
             )}
-          </TouchableOpacity>
+            </TouchableOpacity>
+          </Animated.View>
         </TouchableOpacity>
       </Modal>
 
@@ -1112,7 +1184,7 @@ export default function SettingsScreen() {
       <Modal
         visible={isTimerModalVisible}
         transparent
-        animationType="slide"
+        animationType="fade"
         onRequestClose={() => setIsTimerModalVisible(false)}
       >
         <TouchableOpacity
@@ -1120,11 +1192,19 @@ export default function SettingsScreen() {
           activeOpacity={1}
           onPress={() => setIsTimerModalVisible(false)}
         >
-          <TouchableOpacity
-            style={modalSheetStyle}
-            activeOpacity={1}
-            onPress={e => e.stopPropagation()}
+          <Animated.View
+            style={[
+              modalSheetStyle,
+              {
+                transform: [{ translateY: timerDrawerSlide }],
+              },
+            ]}
           >
+            <TouchableOpacity
+              activeOpacity={1}
+              onPress={e => e.stopPropagation()}
+              style={{ flex: 1 }}
+            >
             <View style={styles.modalHeader}>
               <ThemedText style={[styles.modalTitle, { color: primaryTextColor }]}>
                 Select Lock Timer
@@ -1133,7 +1213,7 @@ export default function SettingsScreen() {
                 onPress={() => setIsTimerModalVisible(false)}
                 style={styles.modalCloseButton}
               >
-                <X size={24} color={secondaryTextColor} />
+                <X size={22} color={secondaryTextColor} />
               </TouchableOpacity>
             </View>
             {timerOptions.length > 0 ? (
@@ -1167,7 +1247,8 @@ export default function SettingsScreen() {
                 No timer options available
               </ThemedText>
             )}
-          </TouchableOpacity>
+            </TouchableOpacity>
+          </Animated.View>
         </TouchableOpacity>
       </Modal>
 
@@ -1190,7 +1271,7 @@ export default function SettingsScreen() {
       <Modal
         visible={isPINVerifyVisible}
         transparent={true}
-        animationType="slide"
+        animationType="fade"
         onRequestClose={closePinVerification}
       >
         <TouchableOpacity
@@ -1198,11 +1279,19 @@ export default function SettingsScreen() {
           activeOpacity={1}
           onPress={closePinVerification}
         >
-          <TouchableOpacity
-            style={modalSheetStyle}
-            activeOpacity={1}
-            onPress={e => e.stopPropagation()}
+          <Animated.View
+            style={[
+              modalSheetStyle,
+              {
+                transform: [{ translateY: pinVerifyDrawerSlide }],
+              },
+            ]}
           >
+            <TouchableOpacity
+              activeOpacity={1}
+              onPress={e => e.stopPropagation()}
+              style={{ flex: 1 }}
+            >
             <View style={styles.modalHeader}>
               <ThemedText
                 style={[styles.modalTitle, { color: primaryTextColor, fontSize: 20 * rem }]}
@@ -1210,7 +1299,7 @@ export default function SettingsScreen() {
                 {pinVerificationConfig.title}
               </ThemedText>
               <TouchableOpacity onPress={closePinVerification}>
-                <X size={24} color={secondaryTextColor} />
+                <X size={22} color={secondaryTextColor} />
               </TouchableOpacity>
             </View>
             <View
@@ -1236,7 +1325,8 @@ export default function SettingsScreen() {
                 onError={() => setPinError(false)}
               />
             </View>
-          </TouchableOpacity>
+            </TouchableOpacity>
+          </Animated.View>
         </TouchableOpacity>
       </Modal>
     </SafeAreaView>
@@ -1252,17 +1342,10 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 16,
-  },
-  backButton: {
-    marginRight: 15,
-  },
-  headerText: {
-    fontSize: 20,
-    fontWeight: 'bold',
   },
   content: {
     flex: 1,
@@ -1274,6 +1357,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
+    marginTop: 10,
     marginBottom: 12,
   },
   card: {

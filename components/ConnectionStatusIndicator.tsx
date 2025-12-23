@@ -161,6 +161,7 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
   };
 
   // Handle pill expansion when status changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: pillWidthValue and textOpacityValue are stable Animated.Value objects that don't need to be in dependencies
   useEffect(() => {
     // Check if status actually changed
     if (prevStatus.current !== null && prevStatus.current !== overallConnectionStatus) {
@@ -216,6 +217,7 @@ export const ConnectionStatusIndicator: React.FC<ConnectionStatusIndicatorProps>
   }, [overallConnectionStatus, expandDuration, size]);
 
   // Optimized animation effect with proper cleanup (for pulsing when not connected)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: opacityValue is a stable Animated.Value object that doesn't need to be in dependencies
   useEffect(() => {
     if (overallConnectionStatus !== 'connected' && !isExpanded) {
       const pulse = Animated.loop(

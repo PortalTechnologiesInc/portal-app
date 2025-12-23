@@ -439,6 +439,10 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   }, []);
 
   const clearRemovedRelay = useCallback((relayUrl: string) => {
+    // Update ref immediately for status listener
+    removedRelaysRef.current.delete(relayUrl);
+    
+    // Update state
     setRemovedRelays(prev => {
       const newSet = new Set(prev);
       newSet.delete(relayUrl);

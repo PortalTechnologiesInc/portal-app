@@ -1,5 +1,5 @@
 import { Delete } from 'lucide-react-native';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { StyleSheet, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { ThemedText } from './ThemedText';
@@ -36,6 +36,7 @@ export function PINKeypad({
   disabled = false,
 }: PINKeypadProps) {
   const [pin, setPin] = useState('');
+  const prevErrorRef = useRef(error);
   const { width, height } = useWindowDimensions();
   const rem = Math.min(Math.max(width / 390, 0.85), 1);
   const verticalRem = Math.min(Math.max(height / 844, 0.85), 1);
@@ -146,11 +147,13 @@ export function PINKeypad({
     }
   };
 
-  // Clear PIN when error prop changes to false (after showing error)
+  // Clear PIN when error prop changes from true to false (after showing error)
   React.useEffect(() => {
-    if (!error && pin.length > 0) {
-      setPin('');
+    // Only clear if error changed from true to false
+    if (prevErrorRef.current === true && error === false) {
+      setPin(prevPin => (prevPin.length > 0 ? '' : prevPin));
     }
+    prevErrorRef.current = error;
   }, [error]);
 
   const renderDots = () => {

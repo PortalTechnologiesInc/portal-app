@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { ArrowLeft, Send, User } from 'lucide-react-native';
+import { Send, User } from 'lucide-react-native';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -194,11 +194,8 @@ export default function MyWalletManagementSecret() {
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
       <ThemedView style={[styles.container, { backgroundColor }]}>
         <ThemedView style={[styles.header, { backgroundColor }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <ArrowLeft size={20} color={primaryTextColor} />
-          </TouchableOpacity>
-          <ThemedText style={[styles.headerText, { color: primaryTextColor }]}>
-            Wallet Management
+          <ThemedText type="title" style={{ color: primaryTextColor }}>
+            Your Wallet
           </ThemedText>
         </ThemedView>
         <ThemedView style={{ ...styles.content, gap: 10 }}>
@@ -373,18 +370,11 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingTop: 16,
     paddingBottom: 20,
     // backgroundColor handled by theme
-  },
-  backButton: {
-    marginRight: 15,
-  },
-  headerText: {
-    fontSize: 20,
-    fontWeight: 'bold',
   },
   content: {
     flex: 1,
