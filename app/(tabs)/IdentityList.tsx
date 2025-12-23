@@ -20,7 +20,11 @@ import { useNostrService } from '@/context/NostrServiceContext';
 import { useUserProfile } from '@/context/UserProfileContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { AppLockService } from '@/services/AppLockService';
-import { launchImagePickerWithAutoCancel } from '@/services/FilePickerService';
+import {
+  cancelActiveFilePicker,
+  isFilePickerActive,
+  launchImagePickerWithAutoCancel,
+} from '@/services/FilePickerService';
 import { formatAvatarUri } from '@/utils/common';
 import { showToast } from '@/utils/Toast';
 import type { Identity } from '@/utils/types';
@@ -145,8 +149,15 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
     } catch (_error) {
       Alert.alert('Error', 'Failed to select image. Please try again.');
     } finally {
-      // Always disable lock suppression after image picker interaction completes
-      AppLockService.disableLockSuppression('image-picker');
+      // Clear file picker active flag and disable lock suppression
+      // Use setTimeout to ensure this happens after app state transitions complete
+      setTimeout(() => {
+        if (isFilePickerActive()) {
+          cancelActiveFilePicker();
+        }
+        // Always disable lock suppression after image picker interaction completes
+        AppLockService.disableLockSuppression('image-picker');
+      }, 300);
     }
   };
 

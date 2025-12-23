@@ -14,10 +14,6 @@ const TAG_WIDTH = 60;
 const TAG_HEIGHT = 32;
 
 export function DevTag() {
-  if (!__DEV__) {
-    return null;
-  }
-
   const router = useRouter();
   const buttonPrimaryColor = useThemeColor({}, 'buttonPrimary');
   const buttonPrimaryTextColor = useThemeColor({}, 'buttonPrimaryText');
@@ -35,6 +31,10 @@ export function DevTag() {
   const isDragging = useRef(false);
   const tapTimeout = useRef<NodeJS.Timeout | null>(null);
   const startPosition = useRef(position);
+
+  if (!__DEV__) {
+    return null;
+  }
 
   // Update position when screen dimensions change
   useEffect(() => {
