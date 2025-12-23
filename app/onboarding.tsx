@@ -37,6 +37,7 @@ import { useOnboarding } from '@/context/OnboardingContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { WALLET_TYPE } from '@/models/WalletType';
 import { PIN_MAX_LENGTH, PIN_MIN_LENGTH } from '@/services/AppLockService';
+import { showToast } from '@/utils/Toast';
 
 // Preload all required assets
 const onboardingLogo = require('../assets/images/appLogo.png');
@@ -124,6 +125,30 @@ export default function Onboarding() {
       isMounted = false;
     };
   }, [isBiometricAvailable]);
+
+  // Check for app reset completion and show toast
+  useEffect(() => {
+    const checkResetComplete = async () => {
+      try {
+        const resetFlag = await AsyncStorage.getItem('app_reset_complete');
+        if (resetFlag === 'true') {
+          // Show toast after a small delay to ensure screen is fully rendered
+          setTimeout(() => {
+            showToast('App reset successful!', 'success');
+          }, 300);
+          // Remove the flag
+          await AsyncStorage.removeItem('app_reset_complete');
+        }
+      } catch (_error) {
+        // Ignore errors checking flag
+      }
+    };
+
+    // Check immediately and also with a small delay to catch flag set after mount
+    checkResetComplete();
+    const timeoutId = setTimeout(checkResetComplete, 200);
+    return () => clearTimeout(timeoutId);
+  }, []);
 
   const resetPinState = useCallback(() => {
     setPinStep('enter');
