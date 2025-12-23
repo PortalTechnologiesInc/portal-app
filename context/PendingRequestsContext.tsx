@@ -35,6 +35,7 @@ import { fromUnixSeconds } from '@/services/DatabaseService';
 import { PortalAppManager } from '@/services/PortalAppManager';
 import { getServiceNameFromMintUrl, globalEvents } from '@/utils/common';
 import { normalizeCurrencyForComparison } from '@/utils/currency';
+import { logError } from '@/utils/errorLogger';
 import type {
   PendingActivity,
   PendingRequest,
@@ -146,7 +147,11 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
         refreshData();
         return '';
       }
-    } catch (_error) {
+    } catch (error) {
+      logError('PENDING_REQUESTS', 'addActivityWithFallback', error, {
+        activityType: activity.type,
+        requestId: activity.request_id,
+      });
       refreshData();
       return '';
     }
@@ -453,6 +458,12 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 })
               );
             } catch (err) {
+              logError('PENDING_REQUESTS', 'approve - payment - sendPayment', err, {
+                requestId: id,
+                invoice: metadata.content.invoice,
+                amount: amount,
+                currency: currency,
+              });
               await executeOperation(
                 db => db.addPaymentStatusEntry(metadata.content.invoice, 'payment_failed'),
                 null
@@ -700,7 +711,11 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 requestedPermissions
               )
             );
-          } catch (_e) {
+          } catch (e) {
+            logError('PENDING_REQUESTS', 'approve - nostrConnect - addAllowedBunkerClient', e, {
+              requestId: id,
+              clientPubkey: connectEvent.nostrClientPubkey,
+            });
             addActivityWithFallback({
               type: 'auth',
               service_key: (request.metadata as NostrConnectRequestEvent).nostrClientPubkey,
@@ -991,6 +1006,10 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
             request.result(new CashuResponseStatus.Rejected({ reason: 'User denied request' }));
           } catch (error: any) {
+            logError('PENDING_REQUESTS', 'deny - ticket', error, {
+              requestId: id,
+              mintUrl: (request.metadata as any)?.inner?.mintUrl,
+            });
             // Even on error, try to create activity with minimal info
             try {
               const cashuEvent = request.metadata as any;
@@ -1089,6 +1108,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
     setIsLoadingRequest(false);
     setRequestFailed(false);
+    setPendingUrl(undefined);
   }, []);
 
   // Check for expected pending requests and clear skeleton loader
