@@ -2,11 +2,11 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Send } from 'lucide-react-native';
+import { ArrowLeft, Ban, Send } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { Colors } from 'react-native/Libraries/NewAppScreen';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import bolt11 from 'light-bolt11-decoder';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 import { useCurrency } from '@/context/CurrencyContext';
@@ -37,6 +37,7 @@ export default function MyWalletManagementSecret() {
   const { getWallet } = useWalletManager();
   const { executeOperation } = useDatabaseContext();
   const [breezWallet, setBreezWallet] = useState<BreezService | null>(null);
+  const [balanceSats, setBalanceSats] = useState<bigint | null>(null);
 
   const [amountMillisats, setAmountMillisats] = useState<number | null>(null);
   const [convertedAmount, setConvertedAmount] = useState<number | null>(null);
@@ -54,6 +55,47 @@ export default function MyWalletManagementSecret() {
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
   const buttonPrimaryColor = useThemeColor({}, 'buttonPrimary');
   const buttonPrimaryTextColor = useThemeColor({}, 'buttonPrimaryText');
+  const errorColor = useThemeColor({}, 'statusError');
+
+  const totalToPaySats = useMemo(() => {
+    if (!amountMillisats || feesInSats == null) return null;
+    return amountMillisats / 1000 + feesInSats;
+  }, [amountMillisats, feesInSats]);
+
+  const canPay = useMemo(() => {
+    if (isSendPaymentLoading) return false;
+    if (totalToPaySats == null || balanceSats == null) return false;
+    if (!prepareSendPaymentResponse) return false;
+
+    return totalToPaySats > 0 && totalToPaySats <= balanceSats;
+  }, [
+    isSendPaymentLoading,
+    totalToPaySats,
+    balanceSats,
+    prepareSendPaymentResponse,
+  ]);
+
+  const payDisabledMessage = useMemo(() => {
+    if (isSendPaymentLoading) {
+      return 'Processing payment…';
+    }
+
+    if (balanceSats == null || totalToPaySats == null) {
+      return 'Calculating payment details…';
+    }
+
+    if (totalToPaySats > balanceSats) {
+      return `Insufficient balance: ${balanceSats} sats available, ${totalToPaySats} sats required`;
+    }
+
+    return null;
+  }, [isSendPaymentLoading, balanceSats, totalToPaySats]);
+
+  const payDisableMessageColor = useMemo(() => {
+    if (totalToPaySats != null && totalToPaySats > balanceSats!) return errorColor;
+    return primaryTextColor;
+  }, [payDisabledMessage, primaryTextColor, errorColor]);
+
 
   useEffect(() => {
     if (!isPaymentSent) return;
@@ -133,6 +175,14 @@ export default function MyWalletManagementSecret() {
       active = false;
     };
   }, [getWallet]);
+
+  useEffect(() => {
+    if (!breezWallet) return;
+
+    breezWallet.getWalletInfo().then(info => {
+      setBalanceSats(info.balanceInSats ?? null);
+    });
+  }, [breezWallet]);
 
   useEffect(() => {
     if (breezWallet == null) return;
@@ -271,6 +321,20 @@ export default function MyWalletManagementSecret() {
               </ThemedView>
             </ThemedView>
 
+
+            {payDisabledMessage && (
+              <ThemedText
+                style={{
+                  color: payDisableMessageColor,
+                  fontSize: 14,
+                  textAlign: 'center',
+                  marginBottom: 8,
+                }}
+              >
+                {payDisabledMessage}
+              </ThemedText>
+            )}
+
             <ThemedView
               style={{
                 flexDirection: 'row',
@@ -283,7 +347,7 @@ export default function MyWalletManagementSecret() {
                 paddingRight: 30,
               }}
             >
-              <TouchableOpacity onPress={confirmPayment} disabled={isSendPaymentLoading}>
+              <TouchableOpacity onPress={confirmPayment} disabled={!canPay}>
                 <ThemedView
                   style={{ flexDirection: 'row', gap: 10, backgroundColor: buttonPrimaryColor }}
                 >
@@ -291,10 +355,16 @@ export default function MyWalletManagementSecret() {
                     <ActivityIndicator size="small" color={buttonPrimaryTextColor} />
                   ) : (
                     <>
-                      <Send color={buttonPrimaryTextColor} />
-                      <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
-                        Pay
-                      </ThemedText>
+                      {canPay ? (
+                        <>
+                        <Send color={buttonPrimaryTextColor} />
+                        <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
+                          Pay
+                        </ThemedText>
+                        </>
+                      ) : (
+                        <Ban color={buttonPrimaryTextColor} />
+                      )}
                     </>
                   )}
                 </ThemedView>
