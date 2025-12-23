@@ -21,7 +21,7 @@ import {
   type RecurringPaymentResponseContent,
   type SinglePaymentRequest,
 } from 'portal-app-lib';
-import React, { createContext, useCallback, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import {
   handleAuthChallenge,
@@ -32,6 +32,7 @@ import {
 } from '@/services/EventFilters';
 import { PortalAppManager } from '@/services/PortalAppManager';
 import { globalEvents } from '@/utils/common';
+import { logError } from '@/utils/errorLogger';
 import { getKeypairFromKey } from '@/utils/keyHelpers';
 import { handleErrorWithToastAndReinit, showToast } from '@/utils/Toast';
 import type { PendingRequest } from '@/utils/types';
@@ -142,11 +143,26 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
   const eCashContext = useECash();
   const { executeOperation, executeOnNostr } = useDatabaseContext();
   const [pendingRequests, setPendingRequests] = useState<{ [key: string]: PendingRequest }>({});
+  const pendingRequestsRef = useRef<{ [key: string]: PendingRequest }>({});
+  const listenersInitializedRef = useRef(false);
   const { activeWallet } = useWalletManager();
   const { preferredCurrency } = useCurrency();
   const { mnemonic, nsec } = useKey();
 
+  // Keep ref in sync with state so listeners always access current value
+  useEffect(() => {
+    pendingRequestsRef.current = pendingRequests;
+  }, [pendingRequests]);
+
   const initializeApp = useCallback(() => {
+    // Prevent re-registering listeners if they're already initialized
+    // This prevents Rust panics from trying to register listeners multiple times
+    if (listenersInitializedRef.current) {
+      console.log('[PORTAL_APP]: Listeners already initialized, skipping');
+      return;
+    }
+
+    console.log('[PORTAL_APP]: Initializing app and setting up listeners');
     const app = PortalAppManager.tryGetInstance();
 
     const keypair = getKeypairFromKey({ mnemonic, nsec });
@@ -237,102 +253,151 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
                 showToast(`Ticket received: ${ticketTitle}${amountStr}`, 'success');
               } else {
               }
-            } catch (_activityError) {}
-          } catch (_error: any) {}
+            } catch (activityError: any) {
+              logError('CASHU_DIRECT', 'onCashuDirect - recordActivity', activityError, {
+                tokenInfo: tokenInfo?.mintUrl,
+                amount: tokenInfo?.amount,
+              });
+            }
+          } catch (error: any) {
+            logError('CASHU_DIRECT', 'onCashuDirect - processToken', error, {
+              tokenLength: event?.inner?.token?.length,
+            });
+          }
 
           // Return void for direct processing
           return;
         })
       )
       .catch(_e => {
-        handleErrorWithToastAndReinit(
-          'Failed to listen for Cashu direct. Retrying...',
-          initializeApp
-        );
+        // Silently handle listener setup errors - don't retry to avoid infinite loops
+        // The listener will be re-established on next app initialization
       });
 
     // listener to burn tokens
-    app.listenCashuRequests(
-      new LocalCashuRequestListener(async (event: CashuRequestContentWithKey) => {
-        // Use event-based ID for deduplication instead of random generation
-        const eventId = `${event.inner.mintUrl}-${event.inner.unit}-${event.inner.amount}-${event.mainKey}`;
-        const id = `cashu-request-${eventId}`;
-
-        // Early deduplication check before processing
-        const existingRequest = pendingRequests[id];
-        if (existingRequest) {
-          // Return a promise that will resolve when the original request is resolved
-          return new Promise<CashuResponseStatus>(resolve => {
-            // Store the resolve function so it gets called when the original request completes
-            const originalResolve = existingRequest.result;
-            existingRequest.result = (status: CashuResponseStatus) => {
-              resolve(status);
-              if (originalResolve) originalResolve(status);
-            };
-          });
-        }
-
-        // Declare wallet in outer scope
-        let wallet: any;
-        // Check if we have the required unit before creating pending request
-        try {
-          const requiredMintUrl = event.inner.mintUrl;
-          const requiredUnit = event.inner.unit.toLowerCase(); // Normalize unit name
-          const requiredAmount = event.inner.amount;
-
-          // Check if we have a wallet for this mint and unit
-          wallet = await eCashContext.getWallet(requiredMintUrl, requiredUnit);
-
-          // If wallet not found in ECashContext, try to create it
-          if (!wallet) {
-            try {
-              wallet = await eCashContext.addWallet(requiredMintUrl, requiredUnit);
-            } catch (_error) {}
-          }
-
-          if (!wallet) {
-            return new CashuResponseStatus.InsufficientFunds();
-          }
-
-          // Check if we have sufficient balance
-          const balance = await wallet.getBalance();
-          if (balance < requiredAmount) {
-            return new CashuResponseStatus.InsufficientFunds();
-          }
-        } catch (_error) {
-          return new CashuResponseStatus.InsufficientFunds();
-        }
-
-        // Get the ticket title for pending requests
-        let ticketTitle = 'Unknown Ticket';
-        if (wallet) {
-          let unitInfo: any;
+    app
+      .listenCashuRequests(
+        new LocalCashuRequestListener(async (event: CashuRequestContentWithKey) => {
           try {
-            unitInfo = wallet.getUnitInfo ? await wallet.getUnitInfo() : undefined;
-          } catch {
-            unitInfo = undefined;
-          }
-          ticketTitle = unitInfo?.title || wallet.unit();
-        }
-        return new Promise<CashuResponseStatus>(resolve => {
-          const newRequest: PendingRequest = {
-            id,
-            metadata: event,
-            timestamp: new Date(),
-            type: 'ticket',
-            result: resolve,
-            ticketTitle, // Set the ticket name for UI
-          };
-          setPendingRequests(prev => {
-            // Check if request already exists to prevent duplicates
-            if (prev[id]) {
-              return prev;
+            // Use event-based ID for deduplication instead of random generation
+            const eventId = `${event.inner.mintUrl}-${event.inner.unit}-${event.inner.amount}-${event.mainKey}`;
+            const id = `cashu-request-${eventId}`;
+
+            // Early deduplication check before processing - use ref to get current value
+            const existingRequest = pendingRequestsRef.current[id];
+            if (existingRequest) {
+              // Return a promise that will resolve when the original request is resolved
+              return new Promise<CashuResponseStatus>(resolve => {
+                // Store the resolve function so it gets called when the original request completes
+                const originalResolve = existingRequest.result;
+                existingRequest.result = (status: CashuResponseStatus) => {
+                  resolve(status);
+                  if (originalResolve) originalResolve(status);
+                };
+              });
             }
-            return { ...prev, [id]: newRequest };
-          });
-        });
-      })
-    );
+
+            // Declare wallet in outer scope
+            let wallet: any;
+            // Check if we have the required unit before creating pending request
+            try {
+              const requiredMintUrl = event.inner.mintUrl;
+              const requiredUnit = event.inner.unit.toLowerCase(); // Normalize unit name
+              const requiredAmount = event.inner.amount;
+
+              // Check if we have a wallet for this mint and unit
+              wallet = await eCashContext.getWallet(requiredMintUrl, requiredUnit);
+
+              // If wallet not found in ECashContext, try to create it
+              if (!wallet) {
+                try {
+                  wallet = await eCashContext.addWallet(requiredMintUrl, requiredUnit);
+                } catch (error) {
+                  logError('CASHU_REQUEST', 'listenCashuRequests - addWallet', error, {
+                    mintUrl: requiredMintUrl,
+                    unit: requiredUnit,
+                  });
+                }
+              }
+
+              if (!wallet) {
+                // Auto-reject - wallet not found (expected behavior)
+                console.log('[CASHU_REQUEST]: Auto-rejecting - wallet not found', {
+                  mintUrl: requiredMintUrl,
+                  unit: requiredUnit,
+                });
+                return new CashuResponseStatus.InsufficientFunds();
+              }
+
+              // Check if we have sufficient balance
+              const balance = await wallet.getBalance();
+              if (balance < requiredAmount) {
+                console.log('[CASHU_REQUEST]: Auto-rejecting - insufficient balance', {
+                  balance: balance.toString(),
+                  requiredAmount: requiredAmount.toString(),
+                  mintUrl: requiredMintUrl,
+                  unit: requiredUnit,
+                });
+                return new CashuResponseStatus.InsufficientFunds();
+              }
+            } catch (error) {
+              logError('CASHU_REQUEST', 'listenCashuRequests - checkWallet', error, {
+                mintUrl: event.inner.mintUrl,
+                unit: event.inner.unit,
+                amount: event.inner.amount,
+              });
+              return new CashuResponseStatus.InsufficientFunds();
+            }
+
+            // Get the ticket title for pending requests
+            let ticketTitle = 'Unknown Ticket';
+            if (wallet) {
+              let unitInfo: any;
+              try {
+                unitInfo = wallet.getUnitInfo ? await wallet.getUnitInfo() : undefined;
+              } catch (error) {
+                logError('CASHU_REQUEST', 'listenCashuRequests - getUnitInfo', error, {
+                  mintUrl: event.inner.mintUrl,
+                  unit: event.inner.unit,
+                });
+                unitInfo = undefined;
+              }
+              ticketTitle = unitInfo?.title || wallet.unit();
+            }
+            return new Promise<CashuResponseStatus>(resolve => {
+              const newRequest: PendingRequest = {
+                id,
+                metadata: event,
+                timestamp: new Date(),
+                type: 'ticket',
+                result: resolve,
+                ticketTitle, // Set the ticket name for UI
+              };
+              setPendingRequests(prev => {
+                // Check if request already exists to prevent duplicates
+                if (prev[id]) {
+                  // Duplicate request - silently ignore (expected behavior)
+                  return prev;
+                }
+                return { ...prev, [id]: newRequest };
+              });
+            });
+          } catch (error) {
+            // Catch any unexpected errors and return InsufficientFunds to prevent hanging
+            logError('CASHU_REQUEST', 'listenCashuRequests - unexpectedError', error, {
+              mintUrl: event?.inner?.mintUrl,
+              unit: event?.inner?.unit,
+              amount: event?.inner?.amount,
+            });
+            return new CashuResponseStatus.InsufficientFunds();
+          }
+        })
+      )
+      .catch(e => {
+        logError('CASHU_REQUEST', 'listenCashuRequests - setup', e);
+        // Silently handle listener setup errors - don't retry to avoid infinite loops
+        // The listener will be re-established on next app initialization
+      });
 
     /**
      * these logic go inside the new listeners that will be implemented
@@ -405,27 +470,35 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
                 executeOperation,
                 resolver,
                 AppState.currentState !== 'active' && !alreadyTracked
-              ).then(askUser => {
-                if (askUser) {
-                  const newRequest: PendingRequest = {
-                    id,
-                    metadata: event,
-                    timestamp: new Date(),
-                    type: 'payment',
-                    result: resolver,
-                  };
+              )
+                .then(askUser => {
+                  if (askUser) {
+                    const newRequest: PendingRequest = {
+                      id,
+                      metadata: event,
+                      timestamp: new Date(),
+                      type: 'payment',
+                      result: resolver,
+                    };
 
-                  setPendingRequests(prev => {
-                    // Check if request already exists to prevent duplicates
-                    if (prev[id]) {
-                      return prev;
-                    }
-                    const newPendingRequests = { ...prev };
-                    newPendingRequests[id] = newRequest;
-                    return newPendingRequests;
+                    setPendingRequests(prev => {
+                      // Check if request already exists to prevent duplicates
+                      if (prev[id]) {
+                        // Duplicate request - silently ignore (expected behavior)
+                        return prev;
+                      }
+                      const newPendingRequests = { ...prev };
+                      newPendingRequests[id] = newRequest;
+                      return newPendingRequests;
+                    });
+                  }
+                })
+                .catch(error => {
+                  logError('PAYMENT_REQUEST', 'listenForPaymentRequest - handleSinglePaymentRequest', error, {
+                    eventId: id,
+                    alreadyTracked,
                   });
-                }
-              });
+                });
             });
           },
           (event: RecurringPaymentRequest) => {
@@ -434,36 +507,47 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
             void executeOperation(db => db.markNotificationEventProcessed(id), false);
 
             return new Promise<RecurringPaymentResponseContent>(resolve => {
-              handleRecurringPaymentRequest(event, executeOperation, resolve).then(askUser => {
-                if (askUser) {
-                  const newRequest: PendingRequest = {
-                    id,
-                    metadata: event,
-                    timestamp: new Date(),
-                    type: 'subscription',
-                    result: resolve,
-                  };
+              handleRecurringPaymentRequest(event, executeOperation, resolve)
+                .then(askUser => {
+                  if (askUser) {
+                    const newRequest: PendingRequest = {
+                      id,
+                      metadata: event,
+                      timestamp: new Date(),
+                      type: 'subscription',
+                      result: resolve,
+                    };
 
-                  setPendingRequests(prev => {
-                    // Check if request already exists to prevent duplicates
-                    if (prev[id]) {
-                      return prev;
-                    }
-                    const newPendingRequests = { ...prev };
-                    newPendingRequests[id] = newRequest;
-                    return newPendingRequests;
+                    setPendingRequests(prev => {
+                      // Check if request already exists to prevent duplicates
+                      if (prev[id]) {
+                        // Duplicate request - silently ignore (expected behavior)
+                        return prev;
+                      }
+                      const newPendingRequests = { ...prev };
+                      newPendingRequests[id] = newRequest;
+                      return newPendingRequests;
+                    });
+                  }
+                })
+                .catch(error => {
+                  logError('RECURRING_PAYMENT', 'listenForPaymentRequest - handleRecurringPaymentRequest', error, {
+                    eventId: id,
                   });
-                }
-              });
+                });
             });
           }
         )
       )
-      .catch(_e => {
-        handleErrorWithToastAndReinit(
-          'Failed to listen for payment request. Retrying...',
-          initializeApp
-        );
+      .catch(e => {
+        logError('PAYMENT_REQUEST', 'listenForPaymentRequest - setup', e);
+        // Don't retry on Rust panics - listeners might already be registered
+        // Reset the flag so it can be retried manually if needed
+        if (e?.message?.includes('panic') || e?.message?.includes('Rust')) {
+          listenersInitializedRef.current = false;
+          console.log('[PORTAL_APP]: Rust panic detected, resetting listener flag');
+        }
+        // Don't call handleErrorWithToastAndReinit to avoid infinite retry loop
       });
 
     // Listen for closed recurring payments
@@ -475,41 +559,56 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
           });
         })
       )
-      .catch(_e => {});
+      .catch(e => {
+        logError('AUTH_CHALLENGE', 'listenForAuthChallenge - setup', e);
+      });
 
     app
       .listenForNip46Request(
         new LocalNip46RequestListener((event: NostrConnectRequestEvent) => {
           const id = event.id;
           return new Promise<NostrConnectResponseStatus>(resolve => {
-            handleNostrConnectRequest(
-              event,
-              keyToHex(publicKeyStr),
-              executeOperation,
-              resolve
-            ).then(askUser => {
-              if (askUser) {
-                const newRequest: PendingRequest = {
-                  id,
-                  metadata: event,
-                  timestamp: new Date(),
-                  type: 'nostrConnect',
-                  result: resolve,
-                };
+            handleNostrConnectRequest(event, keyToHex(publicKeyStr), executeOperation, resolve)
+              .then(askUser => {
+                if (askUser) {
+                  const newRequest: PendingRequest = {
+                    id,
+                    metadata: event,
+                    timestamp: new Date(),
+                    type: 'nostrConnect',
+                    result: resolve,
+                  };
 
-                setPendingRequests(prev => {
-                  // Check if request already exists to prevent duplicates
-                  if (prev[id]) {
-                    return prev;
-                  }
-                  return { ...prev, [id]: newRequest };
+                  setPendingRequests(prev => {
+                    // Check if request already exists to prevent duplicates
+                    if (prev[id]) {
+                      // Duplicate request - silently ignore (expected behavior)
+                      return prev;
+                    }
+                    return { ...prev, [id]: newRequest };
+                  });
+                }
+              })
+              .catch(error => {
+                logError('NOSTR_CONNECT', 'listenForNip46Request - handleNostrConnectRequest', error, {
+                  eventId: id,
                 });
-              }
-            });
+              });
           });
         })
       )
-      .catch(_e => {});
+      .catch(e => {
+        logError('AUTH_CHALLENGE', 'listenForAuthChallenge - setup', e);
+        // Don't retry on Rust panics - listeners might already be registered
+        if (e?.message?.includes('panic') || e?.message?.includes('Rust')) {
+          console.log('[PORTAL_APP]: Rust panic detected in auth challenge listener');
+        }
+      });
+
+    // Mark listeners as initialized after attempting all registrations
+    // Note: Even if some fail, we mark as initialized to prevent retry loops
+    listenersInitializedRef.current = true;
+    console.log('[PORTAL_APP]: Listener initialization complete');
   }, [
     executeOperation,
     executeOnNostr,
@@ -519,7 +618,7 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
     eCashContext.getWallet,
     mnemonic,
     nsec,
-    pendingRequests,
+    // Removed pendingRequests from dependencies - using ref instead to prevent listener re-registration
   ]);
 
   const dismissPendingRequest = useCallback((id: string) => {
@@ -531,8 +630,18 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
   }, []);
 
   useEffect(() => {
-    if (!isInitialized) return;
-    initializeApp();
+    if (!isInitialized) {
+      // Reset flag when not initialized so it can be initialized again
+      listenersInitializedRef.current = false;
+      return;
+    }
+    // Only initialize once - guard prevents re-initialization
+    if (!listenersInitializedRef.current) {
+      console.log('[PORTAL_APP]: useEffect triggered - calling initializeApp');
+      initializeApp();
+    } else {
+      console.log('[PORTAL_APP]: useEffect triggered but listeners already initialized, skipping');
+    }
   }, [isInitialized, initializeApp]);
 
   const contextValue: PortalAppProviderType = {
