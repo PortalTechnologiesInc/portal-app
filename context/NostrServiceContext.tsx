@@ -290,10 +290,14 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
           await executeOperation(db => db.updateRelays(defaultRelayList), null);
         }
 
-        // Always clear existing instance to ensure fresh initialization with new listener
-        // This is critical because PortalAppManager.getInstance reuses existing instances
-        // and ignores new listeners if an instance already exists
-        PortalAppManager.clearInstance();
+        // Only clear existing instance when switching to a different public key.
+        // This ensures fresh initialization with a new listener for a new identity,
+        // while avoiding unnecessary resets when the public key remains the same.
+        // Note: PortalAppManager.getInstance reuses existing instances and ignores
+        // new listeners if an instance already exists, so we must clear when the key changes.
+        if (!publicKey || publicKey !== publicKeyStr) {
+          PortalAppManager.clearInstance();
+        }
 
         const listener = createRelayStatusListener();
         const app = await PortalAppManager.getInstance(
