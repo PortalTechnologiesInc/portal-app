@@ -10,6 +10,7 @@ import { SafeAreaView, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AppLifecycleHandler } from '@/components/AppLifecycleHandler';
 import { AppLockScreen } from '@/components/AppLockScreen';
+import { DevTag } from '@/components/DevTag';
 import { Colors } from '@/constants/Colors';
 import { ActivitiesProvider } from '@/context/ActivitiesContext';
 import { AppLockProvider } from '@/context/AppLockContext';
@@ -150,6 +151,7 @@ const ThemedRootView = () => {
         </OnboardingProvider>
         <AppLockScreen />
       </AppLockProvider>
+      <DevTag />
     </GestureHandlerRootView>
   );
 };
