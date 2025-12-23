@@ -8,6 +8,7 @@ import {
   Fingerprint,
   HandCoins,
   KeyRound,
+  Languages,
   Moon,
   RotateCcw,
   Shield,
@@ -756,37 +757,8 @@ export default function SettingsScreen() {
             </View>
           </TouchableOpacity>
 
-          {/* Remote Signing */}
-          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
-            Remote Signing
-          </ThemedText>
-          <TouchableOpacity
-            style={[styles.card, { backgroundColor: cardBackgroundColor }]}
-            onPress={handleRemoteSigningPress}
-            activeOpacity={0.7}
-          >
-            <View style={styles.cardContent}>
-              <View style={styles.cardLeft}>
-                <View style={styles.cardHeader}>
-                  <View style={[styles.iconContainer]}>
-                    <Fingerprint size={22} color={buttonPrimaryColor} />
-                  </View>
-                  <View style={styles.cardText}>
-                    <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
-                      Remote signer setup
-                    </ThemedText>
-                    <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
-                      Configure bunker URLs or respond to nostrconnect requests
-                    </ThemedText>
-                  </View>
-                </View>
-              </View>
-              <ChevronRight size={22} color={secondaryTextColor} />
-            </View>
-          </TouchableOpacity>
-
-          {/* Nostr Section */}
-          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>Relays</ThemedText>
+          {/* Network Section */}
+          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>Network</ThemedText>
           <TouchableOpacity
             style={[styles.card, { backgroundColor: cardBackgroundColor }]}
             onPress={handleNostrCardPress}
@@ -811,6 +783,66 @@ export default function SettingsScreen() {
               <ChevronRight size={22} color={secondaryTextColor} />
             </View>
           </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.card, { backgroundColor: cardBackgroundColor }]}
+            onPress={handleRemoteSigningPress}
+            activeOpacity={0.7}
+          >
+            <View style={styles.cardContent}>
+              <View style={styles.cardLeft}>
+                <View style={styles.cardHeader}>
+                  <View style={[styles.iconContainer]}>
+                    <Fingerprint size={22} color={buttonPrimaryColor} />
+                  </View>
+                  <View style={styles.cardText}>
+                    <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
+                      Remote signer setup
+                    </ThemedText>
+                    <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
+                      Configure bunker URLs or respond to nostrconnect requests
+                    </ThemedText>
+                  </View>
+                </View>
+              </View>
+              <ChevronRight size={22} color={secondaryTextColor} />
+            </View>
+          </TouchableOpacity>
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: cardBackgroundColor },
+              { opacity: 0.5 },
+            ]}
+          >
+            <View style={styles.cardContent}>
+              <View style={styles.cardLeft}>
+                <View style={styles.cardHeader}>
+                  <View style={[styles.iconContainer]}>
+                    <Shield size={22} color={secondaryTextColor} />
+                  </View>
+                  <View style={styles.cardText}>
+                    <ThemedText style={[styles.cardTitle, { color: secondaryTextColor }]}>
+                      Enable Tor
+                    </ThemedText>
+                    <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
+                      Route traffic through Tor network
+                    </ThemedText>
+                  </View>
+                </View>
+              </View>
+              <Switch
+                value={false}
+                onValueChange={() => {}}
+                disabled={true}
+                trackColor={{
+                  false: inputBorderColor,
+                  true: inputBorderColor,
+                }}
+                thumbColor="#ffffff"
+                ios_backgroundColor={inputBorderColor}
+              />
+            </View>
+          </View>
 
           {/* Theme Section */}
           <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
@@ -854,11 +886,94 @@ export default function SettingsScreen() {
               </View>
             </TouchableOpacity>
           </ThemedView>
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: cardBackgroundColor },
+              { opacity: 0.5 },
+            ]}
+          >
+            <View style={styles.cardContent}>
+              <View style={styles.cardLeft}>
+                <View style={styles.cardHeader}>
+                  <View style={[styles.iconContainer]}>
+                    <Languages size={22} color={secondaryTextColor} />
+                  </View>
+                  <View style={styles.cardText}>
+                    <ThemedText style={[styles.cardTitle, { color: secondaryTextColor }]}>
+                      Preferred Language
+                    </ThemedText>
+                    <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
+                      Select your preferred language
+                    </ThemedText>
+                  </View>
+                </View>
+              </View>
+              <View style={[styles.currencyIndicator, { backgroundColor: inputBorderColor }]}>
+                <ThemedText style={[styles.currencySymbol, { color: secondaryTextColor }]}>
+                  ENG
+                </ThemedText>
+              </View>
+            </View>
+          </View>
 
           {/* Security Section */}
           <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
             Security
           </ThemedText>
+          <View style={[styles.appLockOption, { backgroundColor: cardBackgroundColor }]}>
+            <View style={styles.appLockLeft}>
+              <View style={styles.appLockIconContainer}>
+                <Shield size={22} color={buttonPrimaryColor} />
+              </View>
+              <View style={styles.appLockTextContainer}>
+                <ThemedText style={[styles.appLockTitle, { color: primaryTextColor }]}>
+                  App Lock
+                </ThemedText>
+                <ThemedText style={[styles.appLockDescription, { color: secondaryTextColor }]}>
+                  Lock your app with biometric or PIN
+                </ThemedText>
+              </View>
+            </View>
+            <Switch
+              value={isLockEnabled}
+              onValueChange={handleAppLockToggle}
+              trackColor={{
+                false: inputBorderColor,
+                true: buttonPrimaryColor,
+              }}
+              thumbColor={isLockEnabled ? buttonPrimaryTextColor : '#ffffff'}
+              ios_backgroundColor={inputBorderColor}
+            />
+          </View>
+
+          {isLockEnabled && (
+            <TouchableOpacity
+              style={[styles.card, { backgroundColor: cardBackgroundColor }]}
+              onPress={() => setIsTimerModalVisible(true)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.cardContent}>
+                <View style={styles.cardLeft}>
+                  <View style={styles.cardHeader}>
+                    <View style={[styles.iconContainer]}>
+                      <Clock size={22} color={buttonPrimaryColor} />
+                    </View>
+                    <View style={styles.cardText}>
+                      <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
+                        Lock Timer
+                      </ThemedText>
+                      <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
+                        {getTimerLabel()}
+                      </ThemedText>
+                    </View>
+                  </View>
+                </View>
+                <ChevronRight size={22} color={secondaryTextColor} />
+              </View>
+            </TouchableOpacity>
+          )}
+
           <View style={[styles.card, { backgroundColor: cardBackgroundColor }]}>
             <View style={styles.cardContent}>
               <View style={styles.cardLeft}>
@@ -946,62 +1061,9 @@ export default function SettingsScreen() {
             </View>
           )}
 
-          <View style={[styles.appLockOption, { backgroundColor: cardBackgroundColor }]}>
-            <View style={styles.appLockLeft}>
-              <View style={styles.appLockIconContainer}>
-                <Shield size={22} color={buttonPrimaryColor} />
-              </View>
-              <View style={styles.appLockTextContainer}>
-                <ThemedText style={[styles.appLockTitle, { color: primaryTextColor }]}>
-                  App Lock
-                </ThemedText>
-                <ThemedText style={[styles.appLockDescription, { color: secondaryTextColor }]}>
-                  Lock your app with biometric or PIN
-                </ThemedText>
-              </View>
-            </View>
-            <Switch
-              value={isLockEnabled}
-              onValueChange={handleAppLockToggle}
-              trackColor={{
-                false: inputBorderColor,
-                true: buttonPrimaryColor,
-              }}
-              thumbColor={isLockEnabled ? buttonPrimaryTextColor : '#ffffff'}
-              ios_backgroundColor={inputBorderColor}
-            />
-          </View>
-
-          {isLockEnabled && (
-            <TouchableOpacity
-              style={[styles.card, { backgroundColor: cardBackgroundColor }]}
-              onPress={() => setIsTimerModalVisible(true)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.cardContent}>
-                <View style={styles.cardLeft}>
-                  <View style={styles.cardHeader}>
-                    <View style={[styles.iconContainer]}>
-                      <Clock size={22} color={buttonPrimaryColor} />
-                    </View>
-                    <View style={styles.cardText}>
-                      <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
-                        Lock Timer
-                      </ThemedText>
-                      <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
-                        {getTimerLabel()}
-                      </ThemedText>
-                    </View>
-                  </View>
-                </View>
-                <ChevronRight size={22} color={secondaryTextColor} />
-              </View>
-            </TouchableOpacity>
-          )}
-
-          {/* Recover Tickets Section */}
+          {/* Backup & Recovery Section */}
           <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
-            Recovery
+            Backup & Recovery
           </ThemedText>
           <TouchableOpacity
             style={[styles.card, { backgroundColor: cardBackgroundColor }]}
@@ -1027,9 +1089,6 @@ export default function SettingsScreen() {
               <ChevronRight size={22} color={secondaryTextColor} />
             </View>
           </TouchableOpacity>
-
-          {/* Export Section */}
-          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>Export</ThemedText>
           {mnemonic && (
             <TouchableOpacity
               style={[styles.exportButton, { backgroundColor: buttonPrimaryColor }]}
@@ -1079,8 +1138,8 @@ export default function SettingsScreen() {
             </View>
           </TouchableOpacity>
 
-          {/* Extra Section */}
-          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>Extra</ThemedText>
+          {/* Advanced Section */}
+          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>Advanced</ThemedText>
           <TouchableOpacity
             style={[styles.clearDataButton, { backgroundColor: buttonDangerColor }]}
             onPress={handleClearAppData}
