@@ -637,10 +637,7 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
     }
     // Only initialize once - guard prevents re-initialization
     if (!listenersInitializedRef.current) {
-      console.log('[PORTAL_APP]: useEffect triggered - calling initializeApp');
       initializeApp();
-    } else {
-      console.log('[PORTAL_APP]: useEffect triggered but listeners already initialized, skipping');
     }
   }, [isInitialized, initializeApp]);
 
