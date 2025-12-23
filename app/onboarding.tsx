@@ -1126,19 +1126,21 @@ export default function Onboarding() {
               <ThemedText style={styles.subtitle}>
                 Protect your app by requiring a PIN for sensitive actions.
               </ThemedText>
-              {pinError ? (
-                <ThemedText
-                  style={[styles.errorText, styles.pinErrorText, { color: buttonDanger }]}
-                >
-                  {pinError}
-                </ThemedText>
-              ) : null}
               {isSavingPin && (
                 <ThemedText style={[styles.pinSavingText, { color: textPrimary }]}>
                   Saving PIN...
                 </ThemedText>
               )}
               <View style={styles.pinKeypadContainer}>
+                <View style={styles.pinErrorContainer}>
+                  {pinError ? (
+                    <ThemedText
+                      style={[styles.errorText, styles.pinErrorText, { color: buttonDanger }]}
+                    >
+                      {pinError}
+                    </ThemedText>
+                  ) : null}
+                </View>
                 <PINKeypad
                   key={pinStep}
                   onPINComplete={handlePinEntryComplete}
@@ -1563,8 +1565,15 @@ const styles = StyleSheet.create({
     marginTop: 10,
     alignItems: 'center',
   },
+  pinErrorContainer: {
+    minHeight: 40,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
   pinErrorText: {
-    marginBottom: 10,
+    textAlign: 'center',
   },
   pinSavingText: {
     textAlign: 'center',

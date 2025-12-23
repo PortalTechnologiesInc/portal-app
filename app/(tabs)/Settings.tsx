@@ -1154,11 +1154,17 @@ export default function SettingsScreen() {
         animationType="fade"
         onRequestClose={() => setIsCurrencyModalVisible(false)}
       >
-        <TouchableOpacity
+        <View
           style={[styles.modalOverlay, { paddingTop: Math.max(insets.top, 12) }]}
-          activeOpacity={1}
-          onPress={() => setIsCurrencyModalVisible(false)}
+          pointerEvents="box-none"
         >
+          <View style={StyleSheet.absoluteFill} pointerEvents="auto">
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              activeOpacity={1}
+              onPress={() => setIsCurrencyModalVisible(false)}
+            />
+          </View>
           <Animated.View
             style={[
               modalSheetStyle,
@@ -1166,9 +1172,9 @@ export default function SettingsScreen() {
                 transform: [{ translateY: currencyDrawerSlide }],
               },
             ]}
-            onStartShouldSetResponder={() => true}
+            pointerEvents="box-none"
           >
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1 }} pointerEvents="auto">
             <View style={styles.modalHeader}>
               <ThemedText style={[styles.modalTitle, { color: primaryTextColor }]}>
                 Select Currency
@@ -1188,6 +1194,8 @@ export default function SettingsScreen() {
                 style={modalListStyle}
                 contentContainerStyle={styles.currencyListContent}
                 showsVerticalScrollIndicator={false}
+                scrollEnabled={true}
+                nestedScrollEnabled={true}
               />
             ) : (
               <ThemedText style={[styles.modalEmptyState, { color: primaryTextColor }]}>
@@ -1196,7 +1204,7 @@ export default function SettingsScreen() {
             )}
             </View>
           </Animated.View>
-        </TouchableOpacity>
+        </View>
       </Modal>
 
       {/* Timer Selector Modal */}
@@ -1332,14 +1340,28 @@ export default function SettingsScreen() {
               >
                 {pinVerificationConfig.instructions}
               </ThemedText>
-              <PINKeypad
-                onPINComplete={handlePINVerifyComplete}
-                minLength={PIN_MIN_LENGTH}
-                maxLength={PIN_MAX_LENGTH}
-                showDots={true}
-                error={pinError}
-                onError={() => setPinError(false)}
-              />
+              <View style={styles.pinKeypadWrapper}>
+                {pinError && (
+                  <View style={styles.pinErrorContainer}>
+                    <ThemedText
+                      style={[
+                        styles.pinErrorText,
+                        { color: buttonDangerColor, fontSize: 14 * rem },
+                      ]}
+                    >
+                      Incorrect PIN. Please try again.
+                    </ThemedText>
+                  </View>
+                )}
+                <PINKeypad
+                  onPINComplete={handlePINVerifyComplete}
+                  minLength={PIN_MIN_LENGTH}
+                  maxLength={PIN_MAX_LENGTH}
+                  showDots={true}
+                  error={pinError}
+                  onError={() => setPinError(false)}
+                />
+              </View>
             </View>
             </TouchableOpacity>
           </Animated.View>
@@ -1657,5 +1679,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     marginBottom: 24,
+  },
+  pinKeypadWrapper: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  pinErrorContainer: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  pinErrorText: {
+    fontSize: 14,
+    textAlign: 'center',
   },
 });
