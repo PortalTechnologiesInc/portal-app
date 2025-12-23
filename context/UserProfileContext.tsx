@@ -11,39 +11,59 @@ import { useNostrService } from './NostrServiceContext';
 // Helper function to validate image
 const validateImage = async (uri: string): Promise<{ isValid: boolean; error?: string }> => {
   try {
-    // Get file info
-    const fileInfo = await FileSystem.getInfoAsync(uri);
-
-    if (!fileInfo.exists) {
-      return { isValid: false, error: 'File does not exist' };
-    }
-
-    // Check file size (3MB limit - reduced from 5MB)
-    if (fileInfo.size && fileInfo.size > 3 * 1024 * 1024) {
-      const sizeInMB = (fileInfo.size / (1024 * 1024)).toFixed(2);
-      return {
-        isValid: false,
-        error: `Image is ${sizeInMB}MB. Please choose an image smaller than 3MB.`,
-      };
-    }
-
-    // Check file extension for GIF
+    // Check file extension for GIF first (before trying to access file system)
     const extension = uri.toLowerCase().split('.').pop();
-
     if (extension === 'gif') {
       return { isValid: false, error: 'GIF images are not supported' };
     }
 
-    // Check MIME type if available (additional GIF check)
-    const mimeTypes = ['image/gif'];
-    if (fileInfo.uri && mimeTypes.some(type => fileInfo.uri.includes(type))) {
+    // Check MIME type if present in URI
+    if (uri.includes('image/gif') || uri.includes('mimeType=image/gif')) {
       return { isValid: false, error: 'GIF images are not supported' };
     }
 
-    return { isValid: true };
+    // For certain URI schemes (content://, ph://, assets-library://), FileSystem.getInfoAsync might fail
+    // but React Native Image can still handle them, so we'll skip file system validation for these
+    const skipFileSystemCheck =
+      uri.startsWith('content:') ||
+      uri.startsWith('ph:') ||
+      uri.startsWith('assets-library:') ||
+      uri.startsWith('data:');
+
+    if (skipFileSystemCheck) {
+      // For these URI schemes, just do basic validation
+      return { isValid: true };
+    }
+
+    // For file:// URIs, we can do full validation
+    try {
+      const fileInfo = await FileSystem.getInfoAsync(uri);
+
+      if (!fileInfo.exists) {
+        return { isValid: false, error: 'File does not exist' };
+      }
+
+      // Check file size (3MB limit - reduced from 5MB)
+      if (fileInfo.size && fileInfo.size > 3 * 1024 * 1024) {
+        const sizeInMB = (fileInfo.size / (1024 * 1024)).toFixed(2);
+        return {
+          isValid: false,
+          error: `Image is ${sizeInMB}MB. Please choose an image smaller than 3MB.`,
+        };
+      }
+
+      return { isValid: true };
+    } catch (fileSystemError) {
+      // If FileSystem.getInfoAsync fails, but it's a valid-looking image URI, allow it
+      // React Native Image component can handle URIs that FileSystem can't access
+      console.warn('FileSystem validation failed, but URI looks valid:', uri);
+      return { isValid: true };
+    }
   } catch (error) {
     console.error('Image validation error:', error);
-    return { isValid: false, error: 'Failed to validate image' };
+    // If validation completely fails, still allow the URI - let React Native Image handle it
+    // This prevents blocking valid URIs that we can't validate
+    return { isValid: true };
   }
 };
 
@@ -321,7 +341,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
               errorMessage = error.inner[0];
             }
 
-            if (errorMessage.includes('409')) {
+            if (errorMessage.includes('403')) {
               nip05Error = `Username "${normalizedUsername}" is already taken. Please choose a different name.`;
             } else {
               nip05Error = `Registration service offline. Please try again later.`;
@@ -504,7 +524,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setUsername,
   ]);
 
-  const setAvatarUri = async (uri: string | null) => {
+  const setAvatarUri = useCallback(async (uri: string | null) => {
     try {
       if (uri) {
         // Validate the image
@@ -514,15 +534,18 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         }
       }
 
-      // Just update the state, no SecureStorage saving
+      // Update both state and refresh key together to ensure Image component updates
+      // Use a new timestamp for the refresh key to force cache invalidation
+      const newRefreshKey = Date.now();
       setAvatarUriState(uri);
+      setAvatarRefreshKey(newRefreshKey);
 
       // Note: Image processing and uploading is now handled by setProfile method
     } catch (e) {
       console.error('Failed to set avatar URI:', e);
       throw e; // Re-throw so the UI can handle the error
     }
-  };
+  }, []);
 
   return (
     <UserProfileContext.Provider
