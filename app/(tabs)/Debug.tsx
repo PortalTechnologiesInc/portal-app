@@ -364,6 +364,18 @@ export default function DebugScreen() {
               </ThemedText>
             </TouchableOpacity>
 
+            {/* View Onboarding Error Page */}
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: buttonColor }]}
+              onPress={() => {
+                router.push('/onboarding?step=profile-setup-error');
+              }}
+            >
+              <ThemedText style={[styles.actionButtonText, { color: buttonTextColor }]}>
+                🚨 View Onboarding Error Page
+              </ThemedText>
+            </TouchableOpacity>
+
             {/* Fingerprint Support Toggle */}
             <View style={styles.settingRow}>
               <View style={styles.settingInfo}>
