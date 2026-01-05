@@ -32,16 +32,12 @@ export function DevTag() {
   const tapTimeout = useRef<NodeJS.Timeout | null>(null);
   const startPosition = useRef(position);
 
-  if (!__DEV__) {
-    return null;
-  }
-
   // Update position when screen dimensions change
+  // biome-ignore lint/correctness/useExhaustiveDependencies: getInitialPosition uses only values already in dependency array
   useEffect(() => {
     const newPosition = getInitialPosition();
     setPosition(newPosition);
     pan.setValue({ x: newPosition.x, y: newPosition.y });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screenWidth, screenHeight, insets.bottom, insets.right]);
 
   const panResponder = useRef(
@@ -92,6 +88,10 @@ export function DevTag() {
       },
     })
   ).current;
+
+  if (!__DEV__) {
+    return null;
+  }
 
   return (
     <Animated.View

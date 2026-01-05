@@ -187,7 +187,7 @@ export default function ActivityDetailScreen() {
       }
     };
 
-    fetchActivity();
+      fetchActivity();
   }, [id, executeOperation, activities]);
 
   const handleBackPress = () => {

@@ -155,8 +155,8 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
         if (isFilePickerActive()) {
           cancelActiveFilePicker();
         }
-        // Always disable lock suppression after image picker interaction completes
-        AppLockService.disableLockSuppression('image-picker');
+      // Always disable lock suppression after image picker interaction completes
+      AppLockService.disableLockSuppression('image-picker');
       }, 300);
     }
   };

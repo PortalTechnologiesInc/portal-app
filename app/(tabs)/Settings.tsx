@@ -1154,17 +1154,12 @@ export default function SettingsScreen() {
         animationType="fade"
         onRequestClose={() => setIsCurrencyModalVisible(false)}
       >
-        <View
-          style={[styles.modalOverlay, { paddingTop: Math.max(insets.top, 12) }]}
-          pointerEvents="box-none"
-        >
-          <View style={StyleSheet.absoluteFill} pointerEvents="auto">
-            <TouchableOpacity
-              style={StyleSheet.absoluteFill}
-              activeOpacity={1}
-              onPress={() => setIsCurrencyModalVisible(false)}
-            />
-          </View>
+        <View style={[styles.modalOverlay, { paddingTop: Math.max(insets.top, 12) }]}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setIsCurrencyModalVisible(false)}
+          />
           <Animated.View
             style={[
               modalSheetStyle,
@@ -1172,9 +1167,7 @@ export default function SettingsScreen() {
                 transform: [{ translateY: currencyDrawerSlide }],
               },
             ]}
-            pointerEvents="box-none"
           >
-            <View style={{ flex: 1 }} pointerEvents="auto">
             <View style={styles.modalHeader}>
               <ThemedText style={[styles.modalTitle, { color: primaryTextColor }]}>
                 Select Currency
@@ -1182,6 +1175,7 @@ export default function SettingsScreen() {
               <TouchableOpacity
                 onPress={() => setIsCurrencyModalVisible(false)}
                 style={styles.modalCloseButton}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <X size={22} color={secondaryTextColor} />
               </TouchableOpacity>
@@ -1195,14 +1189,13 @@ export default function SettingsScreen() {
                 contentContainerStyle={styles.currencyListContent}
                 showsVerticalScrollIndicator={false}
                 scrollEnabled={true}
-                nestedScrollEnabled={true}
+                bounces={true}
               />
             ) : (
               <ThemedText style={[styles.modalEmptyState, { color: primaryTextColor }]}>
                 No currencies available
               </ThemedText>
             )}
-            </View>
           </Animated.View>
         </View>
       </Modal>

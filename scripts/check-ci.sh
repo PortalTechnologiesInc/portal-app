@@ -39,9 +39,9 @@ errors=$(echo "$output" | grep -E "^[^:]+:[0-9]+:[0-9]+.*lint/(correctness|secur
 if [ -n "$errors" ]; then
   unique_errors=$(echo "$errors" | sort -u | grep -v '^$' || true)
   if [ -n "$unique_errors" ]; then
-    echo "❌ Biome errors found:"
+  echo "❌ Biome errors found:"
     echo "$unique_errors"
-    exit 1
+  exit 1
   fi
 fi
 
