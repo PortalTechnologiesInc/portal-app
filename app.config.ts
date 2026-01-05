@@ -2,7 +2,7 @@ export default {
   expo: {
     name: 'Portal',
     slug: 'portal',
-    version: '1.0.9',
+    version: '1.0.10',
     orientation: 'portrait',
     owner: 'portaltechnologiesinc',
     icon: './assets/images/appLogo.png',
