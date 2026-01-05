@@ -92,9 +92,9 @@ export default function MyWalletManagementSecret() {
   }, [isSendPaymentLoading, balanceSats, totalToPaySats]);
 
   const payDisableMessageColor = useMemo(() => {
-    if (totalToPaySats != null && totalToPaySats > balanceSats!) return errorColor;
+    if (totalToPaySats != null && balanceSats != null && totalToPaySats > balanceSats) return errorColor;
     return primaryTextColor;
-  }, [payDisabledMessage, primaryTextColor, errorColor]);
+  }, [totalToPaySats, balanceSats, primaryTextColor, errorColor]);
 
 
   useEffect(() => {
