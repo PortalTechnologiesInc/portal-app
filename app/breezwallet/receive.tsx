@@ -2,16 +2,21 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowDownUp, ArrowLeft, HandCoins, ClipboardCopy, QrCode, X } from 'lucide-react-native';
+import { ArrowDownUp, ArrowLeft, HandCoins, ClipboardCopy, QrCode, X, Key } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ActivityIndicator,
   Alert,
   Image,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { Colors } from 'react-native/Libraries/NewAppScreen';
@@ -295,284 +300,301 @@ export default function MyWalletManagementSecret() {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
-      <ThemedView style={[styles.container, { backgroundColor }]}>
-        <ThemedView style={[styles.header, { backgroundColor }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <ArrowLeft size={20} color={primaryTextColor} />
-          </TouchableOpacity>
-          <ThemedText style={[styles.headerText, { color: primaryTextColor }]}>Receive</ThemedText>
-        </ThemedView>
-
-        {pageState === PageState.GetInvoiceInfo ? (
-          <ThemedView
-            style={{
-              ...styles.content,
-              flex: 1,
-              justifyContent: 'center',
-              alignItems: 'center',
-              gap: 20,
-            }}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <ScrollView
+            contentContainerStyle={{ flexGrow: 1 }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            bounces={false}
           >
-            <ThemedView
-              style={{
-                gap: 20,
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '80%',
-                flex: 1,
-              }}
-            >
-              <ThemedView style={{ alignItems: 'center' }}>
-                <ThemedView style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                  <TextInput
-                    ref={textInputRef}
-                    style={{
-                      color: primaryTextColor,
-                      textAlign: 'center',
-                      fontSize: 40,
-                    }}
-                    placeholderTextColor={placeholderColor}
-                    autoCorrect={false}
-                    value={amount}
-                    onBlur={() => {
-                      if (amount === '') setAmount('0');
-                    }}
-                    onFocus={() => {
-                      if (amount === '0') setAmount('');
-                    }}
-                    autoCapitalize="none"
-                    keyboardType="number-pad"
-                    placeholder={`0`}
-                    onChangeText={handleChangeText}
-                  />
-                  {
-                    <Text style={{ color: secondaryTextColor, fontSize: 25 }}>
-                      {reverseCurrency ? getCurrentCurrencySymbol() : 'Sats'}
-                    </Text>
-                  }
-                </ThemedView>
-
-                <TouchableOpacity
-                  onPress={reverseCurrencyTap}
-                  disabled={isSwitching}
-                  style={{ paddingTop: 10, paddingBottom: 10, paddingLeft: 30, paddingRight: 30 }}
-                >
-                  <ThemedView style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
-                    {isSwitching ? (
-                      <ActivityIndicator size="small" color={secondaryTextColor} />
-                    ) : (
-                      <ArrowDownUp size={30} color={secondaryTextColor} />
-                    )}
-                  </ThemedView>
+            <ThemedView style={[styles.container, { backgroundColor }]}>
+              <ThemedView style={[styles.header, { backgroundColor }]}>
+                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                  <ArrowLeft size={20} color={primaryTextColor} />
                 </TouchableOpacity>
-
-                {isConverting ? (
-                  <ActivityIndicator color={primaryTextColor} size="small" />
-                ) : (
-                  <ThemedText>
-                    {CurrencyConversionService.formatConvertedAmountWithFallback(
-                      convertedAmount,
-                      reverseCurrency ? CurrencyConv.SATS : preferredCurrency
-                    )}
-                  </ThemedText>
-                )}
+                <ThemedText style={[styles.headerText, { color: primaryTextColor }]}>Receive</ThemedText>
               </ThemedView>
 
-              <TextInput
-                style={[
-                  styles.verificationInput,
-                  {
-                    backgroundColor: inputBackground,
-                    color: primaryTextColor,
-                    textAlign: 'center',
-                  },
-                ]}
-                editable
-                multiline
-                numberOfLines={4}
-                maxLength={40}
-                autoCorrect={false}
-                autoCapitalize="none"
-                keyboardType="default"
-                placeholder="Description"
-                placeholderTextColor={placeholderColor}
-                value={description}
-                onChangeText={text => setDescription(text)}
-              />
-            </ThemedView>
+              {pageState === PageState.GetInvoiceInfo ? (
+                <ThemedView
+                  style={{
+                    ...styles.content,
+                    flex: 1,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: 20,
+                  }}
+                >
+                  <ThemedView
+                    style={{
+                      gap: 20,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '80%',
+                      flex: 1,
+                    }}
+                  >
+                    <ThemedView style={{ alignItems: 'center' }}>
+                      <ThemedView style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                        <TextInput
+                          ref={textInputRef}
+                          style={{
+                            color: primaryTextColor,
+                            textAlign: 'center',
+                            fontSize: 40,
+                          }}
+                          placeholderTextColor={placeholderColor}
+                          autoCorrect={false}
+                          value={amount}
+                          onBlur={() => {
+                            if (amount === '') setAmount('0');
+                          }}
+                          onFocus={() => {
+                            if (amount === '0') setAmount('');
+                          }}
+                          autoCapitalize="none"
+                          keyboardType="number-pad"
+                          placeholder={`0`}
+                          onChangeText={handleChangeText}
+                          onSubmitEditing={Keyboard.dismiss}
+                          returnKeyType='done'
+                        />
+                        {
+                          <Text style={{ color: secondaryTextColor, fontSize: 25 }}>
+                            {reverseCurrency ? getCurrentCurrencySymbol() : 'Sats'}
+                          </Text>
+                        }
+                      </ThemedView>
 
-            <ThemedView
-              style={{
-                flexDirection: 'row',
-                gap: 40,
-                backgroundColor: buttonPrimaryColor,
-                borderRadius: 25,
-                paddingTop: 10,
-                paddingBottom: 10,
-                paddingLeft: 30,
-                paddingRight: 30,
-              }}
-            >
-              {contactNpub == null ? (
-                <TouchableOpacity onPress={generateInvoice}>
-                  <ThemedView
-                    style={{ flexDirection: 'row', gap: 10, backgroundColor: buttonPrimaryColor }}
-                  >
-                    <QrCode color={buttonPrimaryTextColor} />
-                    <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
-                      Generate invoice
-                    </ThemedText>
-                  </ThemedView>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity onPress={sendPaymentRequest}>
-                  <ThemedView
-                    style={{ flexDirection: 'row', gap: 10, backgroundColor: buttonPrimaryColor }}
-                  >
-                    {isPaymentRequestLoading ? (
-                      <ActivityIndicator size="small" color={buttonPrimaryTextColor} />
-                    ) : (
-                      <>
-                        <HandCoins color={buttonPrimaryTextColor} />
-                        <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
-                          Request payment
+                      <TouchableOpacity
+                        onPress={reverseCurrencyTap}
+                        disabled={isSwitching}
+                        style={{ paddingTop: 10, paddingBottom: 10, paddingLeft: 30, paddingRight: 30 }}
+                      >
+                        <ThemedView style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+                          {isSwitching ? (
+                            <ActivityIndicator size="small" color={secondaryTextColor} />
+                          ) : (
+                            <ArrowDownUp size={30} color={secondaryTextColor} />
+                          )}
+                        </ThemedView>
+                      </TouchableOpacity>
+
+                      {isConverting ? (
+                        <ActivityIndicator color={primaryTextColor} size="small" />
+                      ) : (
+                        <ThemedText>
+                          {CurrencyConversionService.formatConvertedAmountWithFallback(
+                            convertedAmount,
+                            reverseCurrency ? CurrencyConv.SATS : preferredCurrency
+                          )}
                         </ThemedText>
-                      </>
+                      )}
+                    </ThemedView>
+
+                    <TextInput
+                      style={[
+                        styles.verificationInput,
+                        {
+                          backgroundColor: inputBackground,
+                          color: primaryTextColor,
+                          textAlign: 'center',
+                        },
+                      ]}
+                      editable
+                      multiline
+                      numberOfLines={4}
+                      maxLength={40}
+                      autoCorrect={false}
+                      autoCapitalize="none"
+                      keyboardType="default"
+                      placeholder="Description"
+                      placeholderTextColor={placeholderColor}
+                      value={description}
+                      onChangeText={text => setDescription(text)}
+                      returnKeyType='done'
+                    />
+                  </ThemedView>
+
+                  <ThemedView
+                    style={{
+                      flexDirection: 'row',
+                      gap: 40,
+                      backgroundColor: buttonPrimaryColor,
+                      borderRadius: 25,
+                      paddingTop: 10,
+                      paddingBottom: 10,
+                      paddingLeft: 30,
+                      paddingRight: 30,
+                    }}
+                  >
+                    {contactNpub == null ? (
+                      <TouchableOpacity onPress={generateInvoice}>
+                        <ThemedView
+                          style={{ flexDirection: 'row', gap: 10, backgroundColor: buttonPrimaryColor }}
+                        >
+                          <QrCode color={buttonPrimaryTextColor} />
+                          <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
+                            Generate invoice
+                          </ThemedText>
+                        </ThemedView>
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity onPress={sendPaymentRequest}>
+                        <ThemedView
+                          style={{ flexDirection: 'row', gap: 10, backgroundColor: buttonPrimaryColor }}
+                        >
+                          {isPaymentRequestLoading ? (
+                            <ActivityIndicator size="small" color={buttonPrimaryTextColor} />
+                          ) : (
+                            <>
+                              <HandCoins color={buttonPrimaryTextColor} />
+                              <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
+                                Request payment
+                              </ThemedText>
+                            </>
+                          )}
+                        </ThemedView>
+                      </TouchableOpacity>
                     )}
                   </ThemedView>
-                </TouchableOpacity>
+                </ThemedView>
+              ) : pageState === PageState.InvoiceCreating ? (
+                <ThemedView style={{ alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+                  <ActivityIndicator color={primaryTextColor} size={60} />
+                </ThemedView>
+              ) : pageState === PageState.ShowInvoiceInfo ? (
+                <ThemedView style={{ ...styles.content, flex: 1, gap: 20, alignItems: 'center' }}>
+                  <ThemedView
+                    style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 20 }}
+                  >
+                    <ThemedView
+                      style={{
+                        borderColor: primaryTextColor,
+                        borderWidth: 2,
+                        padding: 10,
+                        borderRadius: 10,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <QRCode size={300} value={invoice} quietZone={5} />
+
+                      <Image
+                        source={portalLogo}
+                        style={{
+                          position: 'absolute',
+                          width: 100,
+                          height: 100,
+                          backgroundColor: 'white',
+                          borderRadius: 30,
+                          borderColor: 'black',
+                          borderWidth: 2,
+                        }}
+                      />
+                    </ThemedView>
+
+                    <ThemedView style={{ flexDirection: 'row', gap: 10 }}>
+                      <Text style={{ color: primaryTextColor, fontSize: 20 }}>Amount</Text>
+                      <ThemedView>
+                        <Text style={{ color: secondaryTextColor, fontSize: 20 }}>
+                          {reverseCurrency ? parseInt(convertedAmount.toString()) : amount} sats
+                        </Text>
+                        <Text style={{ color: secondaryTextColor, fontSize: 20 }}>
+                          {CurrencyConversionService.formatConvertedAmountWithFallback(
+                            reverseCurrency ? Number(amount) : convertedAmount,
+                            preferredCurrency
+                          )}
+                        </Text>
+                      </ThemedView>
+                    </ThemedView>
+
+                    <ThemedView
+                      style={{
+                        flexDirection: 'row',
+                        gap: 40,
+                        backgroundColor: buttonPrimaryColor,
+                        borderRadius: 25,
+                        paddingTop: 10,
+                        paddingBottom: 10,
+                        paddingLeft: 30,
+                        paddingRight: 30,
+                      }}
+                    >
+                      <TouchableOpacity
+                        onPress={() => {
+                          Clipboard.setString(invoice);
+                          showToast('Invoice copied in the clipboard!', 'success');
+                        }}
+                      >
+                        <ThemedView
+                          style={{ flexDirection: 'row', gap: 10, backgroundColor: buttonPrimaryColor }}
+                        >
+                          <ClipboardCopy color={buttonPrimaryTextColor} />
+                          <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
+                            Copy
+                          </ThemedText>
+                        </ThemedView>
+                      </TouchableOpacity>
+                    </ThemedView>
+                  </ThemedView>
+
+                  <ThemedView
+                    style={{
+                      flexDirection: 'row',
+                      gap: 40,
+                      backgroundColor: buttonPrimaryColor,
+                      borderRadius: 25,
+                      paddingTop: 10,
+                      paddingBottom: 10,
+                      paddingLeft: 30,
+                      paddingRight: 30,
+                    }}
+                  >
+                    <TouchableOpacity
+                      onPress={() => {
+                        setAmount('0');
+                        setDescription('');
+                        setPageState(PageState.GetInvoiceInfo);
+                        setInvoice('');
+                      }}
+                    >
+                      <ThemedView
+                        style={{ flexDirection: 'row', gap: 10, backgroundColor: buttonPrimaryColor }}
+                      >
+                        <X color={buttonPrimaryTextColor} />
+                        <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
+                          Cancel
+                        </ThemedText>
+                      </ThemedView>
+                    </TouchableOpacity>
+                  </ThemedView>
+                </ThemedView>
+              ) : (
+                <ThemedView
+                  style={{
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flex: 1,
+                    gap: 30,
+                  }}
+                >
+                  <LottieView
+                    source={require('../../assets/icons/CheckAnimation.json')}
+                    autoPlay
+                    loop={false}
+                    style={{ width: 200, height: 200 }}
+                  />
+                </ThemedView>
               )}
             </ThemedView>
-          </ThemedView>
-        ) : pageState === PageState.InvoiceCreating ? (
-          <ThemedView style={{ alignItems: 'center', justifyContent: 'center', flex: 1 }}>
-            <ActivityIndicator color={primaryTextColor} size={60} />
-          </ThemedView>
-        ) : pageState === PageState.ShowInvoiceInfo ? (
-          <ThemedView style={{ ...styles.content, flex: 1, gap: 20, alignItems: 'center' }}>
-            <ThemedView
-              style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 20 }}
-            >
-              <ThemedView
-                style={{
-                  borderColor: primaryTextColor,
-                  borderWidth: 2,
-                  padding: 10,
-                  borderRadius: 10,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                }}
-              >
-                <QRCode size={300} value={invoice} quietZone={5} />
-
-                <Image
-                  source={portalLogo}
-                  style={{
-                    position: 'absolute',
-                    width: 100,
-                    height: 100,
-                    backgroundColor: 'white',
-                    borderRadius: 30,
-                    borderColor: 'black',
-                    borderWidth: 2,
-                  }}
-                />
-              </ThemedView>
-
-              <ThemedView style={{ flexDirection: 'row', gap: 10 }}>
-                <Text style={{ color: primaryTextColor, fontSize: 20 }}>Amount</Text>
-                <ThemedView>
-                  <Text style={{ color: secondaryTextColor, fontSize: 20 }}>
-                    {reverseCurrency ? parseInt(convertedAmount.toString()) : amount} sats
-                  </Text>
-                  <Text style={{ color: secondaryTextColor, fontSize: 20 }}>
-                    {CurrencyConversionService.formatConvertedAmountWithFallback(
-                      reverseCurrency ? Number(amount) : convertedAmount,
-                      preferredCurrency
-                    )}
-                  </Text>
-                </ThemedView>
-              </ThemedView>
-
-              <ThemedView
-                style={{
-                  flexDirection: 'row',
-                  gap: 40,
-                  backgroundColor: buttonPrimaryColor,
-                  borderRadius: 25,
-                  paddingTop: 10,
-                  paddingBottom: 10,
-                  paddingLeft: 30,
-                  paddingRight: 30,
-                }}
-              >
-                <TouchableOpacity
-                  onPress={() => {
-                    Clipboard.setString(invoice);
-                    showToast('Invoice copied in the clipboard!', 'success');
-                  }}
-                >
-                  <ThemedView
-                    style={{ flexDirection: 'row', gap: 10, backgroundColor: buttonPrimaryColor }}
-                  >
-                    <ClipboardCopy color={buttonPrimaryTextColor} />
-                    <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
-                      Copy
-                    </ThemedText>
-                  </ThemedView>
-                </TouchableOpacity>
-              </ThemedView>
-            </ThemedView>
-
-            <ThemedView
-              style={{
-                flexDirection: 'row',
-                gap: 40,
-                backgroundColor: buttonPrimaryColor,
-                borderRadius: 25,
-                paddingTop: 10,
-                paddingBottom: 10,
-                paddingLeft: 30,
-                paddingRight: 30,
-              }}
-            >
-              <TouchableOpacity
-                onPress={() => {
-                  setAmount('0');
-                  setDescription('');
-                  setPageState(PageState.GetInvoiceInfo);
-                  setInvoice('');
-                }}
-              >
-                <ThemedView
-                  style={{ flexDirection: 'row', gap: 10, backgroundColor: buttonPrimaryColor }}
-                >
-                  <X color={buttonPrimaryTextColor} />
-                  <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
-                    Cancel
-                  </ThemedText>
-                </ThemedView>
-              </TouchableOpacity>
-            </ThemedView>
-          </ThemedView>
-        ) : (
-          <ThemedView
-            style={{
-              alignItems: 'center',
-              justifyContent: 'center',
-              flex: 1,
-              gap: 30,
-            }}
-          >
-            <LottieView
-              source={require('../../assets/icons/CheckAnimation.json')}
-              autoPlay
-              loop={false}
-              style={{ width: 200, height: 200 }}
-            />
-          </ThemedView>
-        )}
-      </ThemedView>
+          </ScrollView>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
