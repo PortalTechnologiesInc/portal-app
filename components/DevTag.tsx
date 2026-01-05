@@ -29,7 +29,7 @@ export function DevTag() {
   const [position, setPosition] = useState(getInitialPosition);
   const pan = useRef(new Animated.ValueXY(getInitialPosition())).current;
   const isDragging = useRef(false);
-  const tapTimeout = useRef<NodeJS.Timeout | null>(null);
+  const tapTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startPosition = useRef(position);
 
   // Update position when screen dimensions change
