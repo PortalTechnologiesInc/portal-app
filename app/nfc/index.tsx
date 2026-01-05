@@ -71,7 +71,7 @@ export default function NFCScanScreen() {
   // Helper function to clear all timeouts
   const clearAllTimeouts = useCallback(() => {
     for (const timeoutId of scanTimeouts.current) {
-      clearTimeout(timeoutId as unknown as NodeJS.Timeout);
+      clearTimeout(timeoutId);
     }
     scanTimeouts.current = [];
   }, []);
