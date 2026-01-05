@@ -111,6 +111,7 @@ export default {
           includeNdefEntitlement: false,
         },
       ],
+      './plugins/withRemoveUniffiDependency',
     ],
     experiments: {
       typedRoutes: true,
