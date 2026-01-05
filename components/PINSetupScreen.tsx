@@ -8,7 +8,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { PIN_MAX_LENGTH, PIN_MIN_LENGTH } from '@/services/AppLockService';
 import { PINKeypad } from './PINKeypad';
@@ -37,7 +37,6 @@ export function PINSetupScreen({
   const [_confirmPIN, setConfirmPIN] = useState('');
   const [error, setError] = useState(false);
 
-  const insets = useSafeAreaInsets();
   const backgroundColor = useThemeColor({}, 'background');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
   const secondaryTextColor = useThemeColor({}, 'textSecondary');

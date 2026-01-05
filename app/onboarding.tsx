@@ -1133,13 +1133,13 @@ export default function Onboarding() {
               )}
               <View style={styles.pinKeypadContainer}>
                 <View style={styles.pinErrorContainer}>
-                  {pinError ? (
-                    <ThemedText
-                      style={[styles.errorText, styles.pinErrorText, { color: buttonDanger }]}
-                    >
-                      {pinError}
-                    </ThemedText>
-                  ) : null}
+              {pinError ? (
+                <ThemedText
+                  style={[styles.errorText, styles.pinErrorText, { color: buttonDanger }]}
+                >
+                  {pinError}
+                </ThemedText>
+              ) : null}
                 </View>
                 <PINKeypad
                   key={pinStep}

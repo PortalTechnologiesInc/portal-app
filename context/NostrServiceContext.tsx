@@ -296,7 +296,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         // Note: PortalAppManager.getInstance reuses existing instances and ignores
         // new listeners if an instance already exists, so we must clear when the key changes.
         if (!publicKey || publicKey !== publicKeyStr) {
-          PortalAppManager.clearInstance();
+        PortalAppManager.clearInstance();
         }
 
         const listener = createRelayStatusListener();

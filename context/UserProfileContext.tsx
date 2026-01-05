@@ -345,16 +345,12 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
               errorMessage = error.inner[0];
             }
 
-            switch (true) {
-              case errorMessage.includes('403'):
-                nip05Error = `Username "${normalizedUsername}" is already taken. Please choose a different name.`;
-                break;
-              case errorMessage.includes('409'):
-                nip05Error = `This username is reserved or requires a premium account.`;
-                break;
-              default:
-                nip05Error = `Registration service offline. Please try again later.`;
-                break;
+            if (errorMessage.includes('403')) {
+              nip05Error = `Username "${normalizedUsername}" is already taken. Please choose a different name.`;
+            } else if (errorMessage.includes('409')) {
+              nip05Error = `This username is reserved or requires a premium account.`;
+            } else {
+              nip05Error = `Registration service offline. Please try again later.`;
             }
 
             // Keep actualUsernameToUse as networkUsername (previous valid username)

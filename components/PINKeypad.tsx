@@ -151,7 +151,7 @@ export function PINKeypad({
   React.useEffect(() => {
     // Only clear if error changed from true to false
     if (prevErrorRef.current === true && error === false) {
-      setPin(prevPin => (prevPin.length > 0 ? '' : prevPin));
+      setPin('');
     }
     prevErrorRef.current = error;
   }, [error]);

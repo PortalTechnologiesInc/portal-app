@@ -346,84 +346,84 @@ function QRCodeTester({
     }
   };
 
-  return (
-    <ThemedView style={[styles.section, { backgroundColor: cardBackgroundColor }]}>
-      <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
-        📱 QR Code Testing
-      </ThemedText>
-      <ThemedText style={[styles.description, { color: secondaryTextColor }]}>
-        Test QR code payloads without needing a camera. Useful for Android emulator testing.
-      </ThemedText>
+    return (
+          <ThemedView style={[styles.section, { backgroundColor: cardBackgroundColor }]}>
+            <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
+              📱 QR Code Testing
+            </ThemedText>
+            <ThemedText style={[styles.description, { color: secondaryTextColor }]}>
+              Test QR code payloads without needing a camera. Useful for Android emulator testing.
+            </ThemedText>
 
-      <View style={styles.settingRow}>
-        <View style={styles.settingInfo}>
-          <ThemedText style={[styles.settingLabel, { color: primaryTextColor }]}>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <ThemedText style={[styles.settingLabel, { color: primaryTextColor }]}>
             NWC Mode
-          </ThemedText>
-          <ThemedText style={[styles.settingSubtext, { color: secondaryTextColor }]}>
+                </ThemedText>
+                <ThemedText style={[styles.settingSubtext, { color: secondaryTextColor }]}>
             {isNWCMode ? 'Test Nostr Wallet Connect (NWC) URLs' : 'Test Portal authentication URLs'}
-          </ThemedText>
-        </View>
-        <Switch
+                </ThemedText>
+              </View>
+              <Switch
           value={isNWCMode}
           onValueChange={setIsNWCMode}
-          trackColor={{ false: '#767577', true: buttonColor }}
+                trackColor={{ false: '#767577', true: buttonColor }}
           thumbColor={isNWCMode ? '#ffffff' : '#f4f3f4'}
-        />
-      </View>
+              />
+            </View>
 
-      <View style={styles.settingColumn}>
-        <ThemedText style={[styles.settingLabel, { color: primaryTextColor }]}>
-          QR Code Payload
-        </ThemedText>
-        <ThemedText style={[styles.settingSubtext, { color: secondaryTextColor }]}>
+            <View style={styles.settingColumn}>
+              <ThemedText style={[styles.settingLabel, { color: primaryTextColor }]}>
+                QR Code Payload
+              </ThemedText>
+              <ThemedText style={[styles.settingSubtext, { color: secondaryTextColor }]}>
           {isNWCMode ? 'Enter a nostr+walletconnect:// URL' : 'Enter a portal:// URL'}
-        </ThemedText>
+              </ThemedText>
 
-        <TextInput
-          style={[
-            styles.qrInput,
-            {
-              backgroundColor: surfaceSecondaryColor,
-              color: primaryTextColor,
-              borderColor: surfaceSecondaryColor,
-            },
-          ]}
-          value={qrCodeInput}
-          onChangeText={setQrCodeInput}
+              <TextInput
+                style={[
+                  styles.qrInput,
+                  {
+                    backgroundColor: surfaceSecondaryColor,
+                    color: primaryTextColor,
+                    borderColor: surfaceSecondaryColor,
+                  },
+                ]}
+                value={qrCodeInput}
+                onChangeText={setQrCodeInput}
           placeholder={isNWCMode ? 'nostr+walletconnect://...' : 'portal://...'}
-          placeholderTextColor={secondaryTextColor}
-          multiline
-          numberOfLines={4}
-          textAlignVertical="top"
-        />
-      </View>
+                placeholderTextColor={secondaryTextColor}
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+              />
+            </View>
 
-      <TouchableOpacity
-        style={[styles.actionButton, { backgroundColor: buttonColor }]}
-        onPress={handleProcessQRCode}
-      >
-        <ThemedText style={[styles.actionButtonText, { color: buttonTextColor }]}>
-          🚀 Process QR Code
-        </ThemedText>
-      </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: buttonColor }]}
+              onPress={handleProcessQRCode}
+            >
+              <ThemedText style={[styles.actionButtonText, { color: buttonTextColor }]}>
+                🚀 Process QR Code
+              </ThemedText>
+            </TouchableOpacity>
 
-      <TouchableOpacity
-        style={[
-          styles.actionButton,
-          {
-            backgroundColor: 'transparent',
-            borderWidth: 1,
-            borderColor: buttonColor,
-          },
-        ]}
-        onPress={() => setQrCodeInput('')}
-      >
-        <ThemedText style={[styles.actionButtonText, { color: buttonColor }]}>
-          🧹 Clear Input
-        </ThemedText>
-      </TouchableOpacity>
-    </ThemedView>
+            <TouchableOpacity
+              style={[
+                styles.actionButton,
+                {
+                  backgroundColor: 'transparent',
+                  borderWidth: 1,
+                  borderColor: buttonColor,
+                },
+              ]}
+              onPress={() => setQrCodeInput('')}
+            >
+              <ThemedText style={[styles.actionButtonText, { color: buttonColor }]}>
+                🧹 Clear Input
+              </ThemedText>
+            </TouchableOpacity>
+          </ThemedView>
   );
 }
 
@@ -492,127 +492,127 @@ function CurrencyConverter({
   };
 
   return (
-    <ThemedView style={[styles.section, { backgroundColor: cardBackgroundColor }]}>
-      <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
-        💱 Currency Conversion Testing
-      </ThemedText>
-      <ThemedText style={[styles.description, { color: secondaryTextColor }]}>
+          <ThemedView style={[styles.section, { backgroundColor: cardBackgroundColor }]}>
+            <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
+              💱 Currency Conversion Testing
+            </ThemedText>
+            <ThemedText style={[styles.description, { color: secondaryTextColor }]}>
         Test currency conversion between different currencies. Supports BTC, SATS, MSATS, and fiat
         currencies.
-      </ThemedText>
+            </ThemedText>
 
-      <View style={styles.settingColumn}>
+            <View style={styles.settingColumn}>
         <ThemedText style={[styles.settingLabel, { color: primaryTextColor }]}>Amount</ThemedText>
-        <ThemedText style={[styles.settingSubtext, { color: secondaryTextColor }]}>
-          Enter the amount to convert (positive number)
-        </ThemedText>
-        <TextInput
-          style={[
-            styles.textInput,
-            {
-              backgroundColor: surfaceSecondaryColor,
-              color: primaryTextColor,
-              borderColor: surfaceSecondaryColor,
-            },
-          ]}
-          value={conversionAmount}
-          onChangeText={setConversionAmount}
-          placeholder="e.g., 100"
-          placeholderTextColor={secondaryTextColor}
-          keyboardType="numeric"
-        />
-      </View>
+              <ThemedText style={[styles.settingSubtext, { color: secondaryTextColor }]}>
+                Enter the amount to convert (positive number)
+              </ThemedText>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  {
+                    backgroundColor: surfaceSecondaryColor,
+                    color: primaryTextColor,
+                    borderColor: surfaceSecondaryColor,
+                  },
+                ]}
+                value={conversionAmount}
+                onChangeText={setConversionAmount}
+                placeholder="e.g., 100"
+                placeholderTextColor={secondaryTextColor}
+                keyboardType="numeric"
+              />
+            </View>
 
-      <View style={styles.settingColumn}>
-        <ThemedText style={[styles.settingLabel, { color: primaryTextColor }]}>
-          Source Currency
-        </ThemedText>
-        <ThemedText style={[styles.settingSubtext, { color: secondaryTextColor }]}>
-          Currency to convert from (e.g., BTC, SATS, USD, EUR)
-        </ThemedText>
-        <TextInput
-          style={[
-            styles.textInput,
-            {
-              backgroundColor: surfaceSecondaryColor,
-              color: primaryTextColor,
-              borderColor: surfaceSecondaryColor,
-            },
-          ]}
-          value={sourceCurrency}
-          onChangeText={setSourceCurrency}
-          placeholder="e.g., BTC"
-          placeholderTextColor={secondaryTextColor}
-          autoCapitalize="characters"
-        />
-      </View>
+            <View style={styles.settingColumn}>
+              <ThemedText style={[styles.settingLabel, { color: primaryTextColor }]}>
+                Source Currency
+              </ThemedText>
+              <ThemedText style={[styles.settingSubtext, { color: secondaryTextColor }]}>
+                Currency to convert from (e.g., BTC, SATS, USD, EUR)
+              </ThemedText>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  {
+                    backgroundColor: surfaceSecondaryColor,
+                    color: primaryTextColor,
+                    borderColor: surfaceSecondaryColor,
+                  },
+                ]}
+                value={sourceCurrency}
+                onChangeText={setSourceCurrency}
+                placeholder="e.g., BTC"
+                placeholderTextColor={secondaryTextColor}
+                autoCapitalize="characters"
+              />
+            </View>
 
-      <View style={styles.settingColumn}>
-        <ThemedText style={[styles.settingLabel, { color: primaryTextColor }]}>
-          Destination Currency
-        </ThemedText>
-        <ThemedText style={[styles.settingSubtext, { color: secondaryTextColor }]}>
-          Currency to convert to (e.g., SATS, USD, EUR, BTC)
-        </ThemedText>
-        <TextInput
-          style={[
-            styles.textInput,
-            {
-              backgroundColor: surfaceSecondaryColor,
-              color: primaryTextColor,
-              borderColor: surfaceSecondaryColor,
-            },
-          ]}
-          value={destinationCurrency}
-          onChangeText={setDestinationCurrency}
-          placeholder="e.g., SATS"
-          placeholderTextColor={secondaryTextColor}
-          autoCapitalize="characters"
-        />
-      </View>
+            <View style={styles.settingColumn}>
+              <ThemedText style={[styles.settingLabel, { color: primaryTextColor }]}>
+                Destination Currency
+              </ThemedText>
+              <ThemedText style={[styles.settingSubtext, { color: secondaryTextColor }]}>
+                Currency to convert to (e.g., SATS, USD, EUR, BTC)
+              </ThemedText>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  {
+                    backgroundColor: surfaceSecondaryColor,
+                    color: primaryTextColor,
+                    borderColor: surfaceSecondaryColor,
+                  },
+                ]}
+                value={destinationCurrency}
+                onChangeText={setDestinationCurrency}
+                placeholder="e.g., SATS"
+                placeholderTextColor={secondaryTextColor}
+                autoCapitalize="characters"
+              />
+            </View>
 
-      <TouchableOpacity
-        style={[
-          styles.actionButton,
-          {
-            backgroundColor: isConverting ? '#ccc' : buttonColor,
-          },
-        ]}
-        onPress={handleCurrencyConversion}
-        disabled={isConverting}
-      >
-        <ThemedText style={[styles.actionButtonText, { color: buttonTextColor }]}>
-          {isConverting ? '⏳ Converting...' : '🔄 Convert Currency'}
-        </ThemedText>
-      </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.actionButton,
+                {
+                  backgroundColor: isConverting ? '#ccc' : buttonColor,
+                },
+              ]}
+              onPress={handleCurrencyConversion}
+              disabled={isConverting}
+            >
+              <ThemedText style={[styles.actionButtonText, { color: buttonTextColor }]}>
+                {isConverting ? '⏳ Converting...' : '🔄 Convert Currency'}
+              </ThemedText>
+            </TouchableOpacity>
 
-      {convertedAmount !== null && (
-        <ThemedView
-          style={[styles.resultContainer, { backgroundColor: surfaceSecondaryColor }]}
-        >
+            {convertedAmount !== null && (
+              <ThemedView
+                style={[styles.resultContainer, { backgroundColor: surfaceSecondaryColor }]}
+              >
           <ThemedText style={[styles.resultLabel, { color: primaryTextColor }]}>Result:</ThemedText>
-          <ThemedText style={[styles.resultValue, { color: primaryTextColor }]}>
-            {convertedAmount.toFixed(8).replace(/\.?0+$/, '')}
-          </ThemedText>
-        </ThemedView>
-      )}
+                <ThemedText style={[styles.resultValue, { color: primaryTextColor }]}>
+                  {convertedAmount.toFixed(8).replace(/\.?0+$/, '')}
+                </ThemedText>
+              </ThemedView>
+            )}
 
-      <TouchableOpacity
-        style={[
-          styles.actionButton,
-          {
-            backgroundColor: 'transparent',
-            borderWidth: 1,
-            borderColor: buttonColor,
-          },
-        ]}
+            <TouchableOpacity
+              style={[
+                styles.actionButton,
+                {
+                  backgroundColor: 'transparent',
+                  borderWidth: 1,
+                  borderColor: buttonColor,
+                },
+              ]}
         onPress={handleClear}
-      >
-        <ThemedText style={[styles.actionButtonText, { color: buttonColor }]}>
-          🧹 Clear All
-        </ThemedText>
-      </TouchableOpacity>
-    </ThemedView>
+            >
+              <ThemedText style={[styles.actionButtonText, { color: buttonColor }]}>
+                🧹 Clear All
+              </ThemedText>
+            </TouchableOpacity>
+          </ThemedView>
   );
 }
 
@@ -656,13 +656,13 @@ function AppLockTester({
   };
 
   return (
-    <ThemedView style={[styles.section, { backgroundColor: cardBackgroundColor }]}>
-      <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
+          <ThemedView style={[styles.section, { backgroundColor: cardBackgroundColor }]}>
+            <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
         🔒 App Lock Testing
-      </ThemedText>
+            </ThemedText>
       <ThemedText style={[styles.description, { color: secondaryTextColor }]}>
         Test biometric authentication support detection and inversion.
-      </ThemedText>
+            </ThemedText>
 
       <View style={styles.settingRow}>
         <View style={styles.settingInfo}>
@@ -692,7 +692,7 @@ function AppLockTester({
           disabled={isFingerprintSupported === null}
         />
       </View>
-    </ThemedView>
+          </ThemedView>
   );
 }
 
