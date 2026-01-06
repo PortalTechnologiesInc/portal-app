@@ -54,7 +54,7 @@ import { useCurrency } from './CurrencyContext';
 import { useOnboarding } from './OnboardingContext';
 import { getKeypairFromKey, hasKey } from '@/utils/keyHelpers';
 import { getServiceNameFromProfile, mapNumericStatusToString } from '@/utils/nostrHelper';
-import { DefaultProviders, processQueue, ProviderRepository, enqueueTask, Task } from '@/queue/WorkQueue';
+import { processQueue, ProviderRepository, enqueueTask, Task } from '@/queue/WorkQueue';
 import { ActivityWithDates, DatabaseService } from '@/services/DatabaseService';
 import { SetPendingRequestsProvider } from '..';
 
@@ -981,19 +981,25 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     }
   }
 
-  class CheckRelayStatusTask extends Task<[], [RelayStatusesProvider], boolean> {
+  class CheckRelayStatusTask extends Task<[], { 'RelayStatusesProvider': RelayStatusesProvider }, boolean> {
     constructor() {
-      super([], ['RelayStatusesProvider'], async ([relayStatusesProvider]) => {
-        return relayStatusesProvider.areRelaysConnected();
-      });
-      this.expiry = new Date(Date.now() + 1000);
+      super(['RelayStatusesProvider']);
+    }
+
+    async taskLogic({ RelayStatusesProvider }: { 'RelayStatusesProvider': RelayStatusesProvider }): Promise<boolean> {
+      this.expiry = new Date(Date.now() + 1000); // Only cache for 1 second
+      return RelayStatusesProvider.areRelaysConnected();
     }
   }
   Task.register(CheckRelayStatusTask);
 
-  class WaitForRelaysConnectedTask extends Task<[], [], void> {
+  class WaitForRelaysConnectedTask extends Task<[], {}, void> {
     constructor() {
-      super([], [], async ([]) => {
+      super([]);
+      this.expiry = new Date(0);
+    }
+
+    async taskLogic(): Promise<void> {
         let count = 0;
         while (count < 5) {
           if (await new CheckRelayStatusTask().run()) {
@@ -1005,29 +1011,32 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         }
 
         throw new Error('Relays did not connect in time');
-      });
-      this.expiry = new Date(0);
     }
   }
   Task.register(WaitForRelaysConnectedTask);
 
-  class FetchServiceNameTask extends Task<[string], [PortalApp], Profile | undefined> {
+  class FetchServiceNameTask extends Task<[string], { 'PortalApp': PortalApp }, Profile | undefined> {
     constructor(key: string) {
-      super([key], ['PortalApp'], async ([portal], key) => {
-        await new WaitForRelaysConnectedTask().run();
-        return await portal.fetchProfile(key);
-      });
+      super(['PortalApp'], key);
+    }
+
+    async taskLogic({ PortalApp }: { 'PortalApp': PortalApp }, key: string): Promise<Profile | undefined> {
       this.expiry = new Date(Date.now() + 1000 * 60 * 60 * 24);
+
+      await new WaitForRelaysConnectedTask().run();
+      return await PortalApp.fetchProfile(key);
     }
   }
   Task.register(FetchServiceNameTask);
 
   type SaveActivityArgs = Omit<ActivityWithDates, 'id' | 'created_at'>;
-  class SaveActivityTask extends Task<[SaveActivityArgs], [DatabaseService], string> {
+  class SaveActivityTask extends Task<[SaveActivityArgs], { 'DatabaseService': DatabaseService }, string> {
     constructor(activity: SaveActivityArgs) {
-      super([activity], ['DatabaseService'], async ([db], activity) => {
-        return await db.addActivity(activity);
-      });
+      super(['DatabaseService'], activity);
+    }
+
+    async taskLogic({ DatabaseService }: { 'DatabaseService': DatabaseService }, activity: SaveActivityArgs): Promise<string> {
+      return await DatabaseService.addActivity(activity);
     }
   }
   Task.register(SaveActivityTask);
@@ -1040,80 +1049,87 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     }
   }
 
-  class RequireAuthUserApprovalTask extends Task<[PendingRequest], [SetPendingRequestsProvider], AuthResponseStatus> {
+  class RequireAuthUserApprovalTask extends Task<[PendingRequest], { 'SetPendingRequestsProvider': SetPendingRequestsProvider }, AuthResponseStatus> {
     constructor(request: PendingRequest) {
-      super([request], ['SetPendingRequestsProvider'], async ([setPendingRequests], request) => {
-        console.log('Requesting user approval for:', request);
-        return new Promise<AuthResponseStatus>(resolve => {
-          request.result = resolve;
-          setPendingRequests.addPendingRequest(request);
-        });
+      super(['SetPendingRequestsProvider'], request);
+    }
+
+    async taskLogic({ SetPendingRequestsProvider }: { 'SetPendingRequestsProvider': SetPendingRequestsProvider }, request: PendingRequest): Promise<AuthResponseStatus> {
+      console.log('Requesting user approval for:', request);
+
+      return new Promise<AuthResponseStatus>(resolve => {
+        request.result = resolve;
+        SetPendingRequestsProvider.addPendingRequest(request);
       });
     }
   }
   Task.register(RequireAuthUserApprovalTask);
 
-  class SendAuthChallengeResponseTask extends Task<[PendingRequest, AuthResponseStatus], [PortalApp], void> {
+  class SendAuthChallengeResponseTask extends Task<[PendingRequest, AuthResponseStatus], { 'PortalApp': PortalApp }, void> {
     constructor(request: PendingRequest, response: AuthResponseStatus) {
-      super([request, response], ['PortalApp'], async ([portalApp], request) => {
-        await new WaitForRelaysConnectedTask().run();
-        return await portalApp.replyAuthChallenge(request.metadata as AuthChallengeEvent, response);
-      });
+      super(['PortalApp'], request, response);
+    }
+
+    async taskLogic({ PortalApp }: { 'PortalApp': PortalApp }, request: PendingRequest, response: AuthResponseStatus): Promise<void> {
+      await new WaitForRelaysConnectedTask().run();
+      return await PortalApp.replyAuthChallenge(request.metadata as AuthChallengeEvent, response);
     }
   }
   Task.register(SendAuthChallengeResponseTask);
 
-  class ProcessIncomingRequestTask extends Task<[PendingRequest], [], void> {
+  class ProcessIncomingRequestTask extends Task<[PendingRequest], {}, void> {
     constructor(request: PendingRequest) {
-      super([request], [], async ([], request) => {
-        if (request.type !== 'login') {
-          return;
-        }
-
-        const serviceKey = (request.metadata as AuthChallengeEvent).serviceKey;
-        const profile = await new FetchServiceNameTask(serviceKey).run();
-        const name = getServiceNameFromProfile(profile);
-
-        const approved = await new RequireAuthUserApprovalTask(request).run();
-
-        // throw new Error('test');
-
-        if (approved) {
-          const approvedAuthResponse = new AuthResponseStatus.Approved({
-            grantedPermissions: [],
-            sessionToken: 'testtoken',
-            // sessionToken: nostrService.issueJWT!(
-            //   (request.metadata as SinglePaymentRequest).serviceKey,
-            //   168n
-            // ),
-          });
-          await new SendAuthChallengeResponseTask(request, approvedAuthResponse).run();
-        } else {
-          const deniedAuthResponse = new AuthResponseStatus.Declined({  
-            reason: 'Not approved by user',
-          });
-          await new SendAuthChallengeResponseTask(request, deniedAuthResponse).run();
-        }
-
-        await new SaveActivityTask({
-          type: 'auth',
-          service_key: serviceKey,
-          detail: 'User approved login',
-          date: new Date(),
-          service_name: name || 'Unknown Service',
-          amount: null,
-          currency: null,
-          converted_amount: null,
-          converted_currency: null,
-          request_id: request.id,
-          subscription_id: null,
-          status: approved ? 'positive' : 'negative',
-        }).run();
-
-        console.log('saved activity');
-      });
-
+      super([], request);
       this.expiry = new Date(Number((request.metadata as { expiresAt: bigint }).expiresAt * 1000n));
+    }
+
+    async taskLogic(providers: {}, request: PendingRequest): Promise<void> {
+      if (request.type !== 'login') {
+        return;
+      }
+
+      const serviceKey = (request.metadata as AuthChallengeEvent).serviceKey;
+      const profile = await new FetchServiceNameTask(serviceKey).run();
+      const name = getServiceNameFromProfile(profile);
+
+      const approved = await new RequireAuthUserApprovalTask(request).run();
+
+      // throw new Error('test');
+
+      if (approved) {
+        const approvedAuthResponse = new AuthResponseStatus.Approved({
+          grantedPermissions: [],
+          sessionToken: 'testtoken',
+          // sessionToken: nostrService.issueJWT!(
+          //   (request.metadata as SinglePaymentRequest).serviceKey,
+          //   168n
+          // ),
+        });
+        await new SendAuthChallengeResponseTask(request, approvedAuthResponse).run();
+      } else {
+        const deniedAuthResponse = new AuthResponseStatus.Declined({  
+          reason: 'Not approved by user',
+        });
+        await new SendAuthChallengeResponseTask(request, deniedAuthResponse).run();
+      }
+
+      await new SaveActivityTask({
+        type: 'auth',
+        service_key: serviceKey,
+        detail: 'User approved login',
+        date: new Date(),
+        service_name: name || 'Unknown Service',
+        amount: null,
+        currency: null,
+        converted_amount: null,
+        converted_currency: null,
+        request_id: request.id,
+        subscription_id: null,
+        status: approved ? 'positive' : 'negative',
+      }).run();
+
+      console.log('saved activity');
+
     }
   }
   Task.register(ProcessIncomingRequestTask);

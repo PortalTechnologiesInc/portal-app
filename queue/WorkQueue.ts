@@ -47,13 +47,11 @@ export class JsonArguments<TArgs extends unknown[] = unknown[]> extends Argument
       return toReturn;
     };
     const flattenedArgs = flattenObject(this.args);
-    const jsonArgs = JSON.stringify(flattenedArgs, (_, v) => {
+    const jsonArgs = JSON.stringify(flattenedArgs, (k, v) => {
       if (typeof v === 'function') {
-        return null;
-      } else if (typeof v === 'bigint') {
-        return `BigInt(${v.toString()})`;
+        throw new Error(`Function ${k} is not serializable`);
       } else {
-        return v;
+        return `${k}:${typeof v}:${v.toString()}`;
       }
     });
     const hash = new Sha256();
@@ -63,43 +61,70 @@ export class JsonArguments<TArgs extends unknown[] = unknown[]> extends Argument
   }
 }
 
-export abstract class Task<A extends unknown[], P extends unknown[], T> {
-  private static registry = new Map<string, TaskConstructor<unknown[], unknown[], unknown>>();
+function serializeValue(v: any): string {
+  return JSON.stringify(v, (k, v) => {
+    if (typeof v === 'function') {
+      throw new Error(`Function ${k} is not serializable`);
+    } else if (typeof v === 'bigint') {
+      return `${v.toString()}n`;
+    } else {
+      return v;
+    }
+  })
+}
+
+function deserializeValue(v: string): any {
+  return JSON.parse(v, (key, value) => {
+    if (typeof value === 'string' && value.endsWith('n') && value.length <= 32 && !isNaN(Number(value.slice(0, -1)))) {
+      return BigInt(value.slice(0, -1));
+    } else {
+      return value;
+    }
+  })
+}
+
+type StringTupleSameLength<A extends unknown[], R extends unknown[] = []> = 
+  R['length'] extends A['length'] 
+    ? R 
+    : StringTupleSameLength<A, [...R, string]>;
+
+type ExtractNames<P extends { [key: string]: any }> = [keyof P] extends [infer K] ? K[] : never;
+
+type TaskProviders = { [key: string]: any };
+
+export abstract class Task<A extends unknown[], P extends TaskProviders, T> {
+  private static registry = new Map<string, TaskConstructor<unknown[], TaskProviders, unknown>>();
 
   private readonly db: DatabaseService;
   protected readonly args: Arguments<A>;
-  protected readonly providers: P;
   protected expiry: Expiry = 'forever';
 
-  constructor(args: Arguments<A> | A, readonly providerNames: string[], private readonly fn: (providers: P, ...args: A) => Promise<T>) {
-    if (args instanceof Arguments) {
-      this.args = args;
-    } else {
-      this.args = new JsonArguments(args);
-    }
+  constructor(private readonly providerNames: ExtractNames<P>, ...args: A) {
+    this.args = new JsonArguments(args);
 
     const db = ProviderRepository.get<DatabaseService>('DatabaseService');
     if (!db) {
       throw new Error('DatabaseService not found');
     }
     this.db = db;
+  }
 
-    const providers = this.providerNames.map(name => {
+  abstract taskLogic(providers: P, ...args: A): Promise<T>;
+
+  async run(): Promise<T> {
+    const providers = (this.providerNames as string[]).map(name => {
       const provider = ProviderRepository.get(name);
       if (!provider) {
         throw new Error(`Provider ${name} not found`);
       }
       return provider;
     });
-    this.providers = providers as P;
-  }
-
-  async run(): Promise<T> {
+ 
     const key = `${this.constructor.name}:${this.args.hash()}`;
     const cached = await this.db.getCache(key);
     if (cached) {
       console.warn(`Cache hit for ${key}: ${cached}`);
-      return JSON.parse(cached);
+      return deserializeValue(cached);
     }
 
     try {
@@ -109,11 +134,11 @@ export abstract class Task<A extends unknown[], P extends unknown[], T> {
         return await lock;
       } else {
         // await this.db.beginTransaction();
-        const promise = this.fn(this.providers, ...this.args.values());
+        const promise = this.taskLogic(providers as unknown as P, ...this.args.values());
         locksMap.set(key, promise);
         try {
           const data = await promise;
-          await this.db.setCache(key, JSON.stringify(data), this.expiry);
+          await this.db.setCache(key, serializeValue(data), this.expiry);
           return data;
         } finally {
           // await this.db.commitTransaction();
@@ -130,51 +155,31 @@ export abstract class Task<A extends unknown[], P extends unknown[], T> {
     return {
       id: 0,
       task_name: this.constructor.name,
-      arguments: JSON.stringify(this.args.values(), (_, v) => {
-        if (typeof v === 'function') {
-          return null;
-        } else if (typeof v === 'bigint') {
-          return `BigInt(${v.toString()})`;
-        } else {
-          return v;
-        }
-      }),
+      arguments: serializeValue(this.args.values()),
       added_at: toUnixSeconds(Date.now()),
       expires_at: this.expiry === 'forever' ? null : this.expiry.getTime(),
       priority: 0,
     };
   }
 
-  static register<A extends unknown[], P extends unknown[], T>(instance: new (...args: any[]) => Task<A, P, T>) {
+  static register<A extends unknown[], P extends TaskProviders, T>(instance: new (...args: any[]) => Task<A, P, T>) {
     Task.registry.set(instance.name, instance as TaskConstructor<any[], any, any>);
   }
 
-  static getFromRegistry(name: string): TaskConstructor<unknown[], unknown[], unknown> | undefined {
+  static getFromRegistry(name: string): TaskConstructor<unknown[], TaskProviders, unknown> | undefined {
     return Task.registry.get(name);
   }
 
   static deserialize(serialized: QueuedTaskRecord): Task<any[], any, any> {
-
     const constructor = Task.getFromRegistry(serialized.task_name);
     if (!constructor) {
       throw new Error(`Task constructor not found: ${serialized.task_name}`);
     }
-    return new constructor(...JSON.parse(serialized.arguments, (key, value) => {
-      if (typeof value === 'string' && value.startsWith('BigInt(')) {
-        return BigInt(value.slice(7, -1));
-      } else {
-        return value;
-      }
-    }));
+    return new constructor(...deserializeValue(serialized.arguments));
   }
 }
 
-export type TaskConstructor<A extends unknown[] = unknown[], P extends unknown[] = unknown[], T = unknown> = new (...args: any[]) => Task<A, P, T>;
-
-export interface DefaultProviders {
-  db: DatabaseService;
-  portal: PortalAppInterface;
-}
+export type TaskConstructor<A extends unknown[] = unknown[], P extends TaskProviders = TaskProviders, T = unknown> = new (...args: any[]) => Task<A, P, T>;
 
 export class ProviderRepository {
   private static providers = new Map<string, any>();
