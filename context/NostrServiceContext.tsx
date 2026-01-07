@@ -6,6 +6,7 @@ import React, {
   useCallback,
   useRef,
   useMemo,
+  RefObject,
 } from 'react';
 import { AppState } from 'react-native';
 import {
@@ -180,8 +181,8 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
   useEffect(() => {
     ProviderRepository.register(new SetPendingRequestsForeground(setPendingRequests), 'SetPendingRequestsProvider');
-    ProviderRepository.register(new RelayStatusesProvider(relayStatuses));
-  }, [setPendingRequests, relayStatuses]);
+    ProviderRepository.register(new RelayStatusesProvider(relayStatusesRef), 'RelayStatusesProvider');
+  }, [setPendingRequests]);
 
   // Stable AppState listener - runs only once, never recreated
   useEffect(() => {
@@ -974,10 +975,10 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   );
 
   class RelayStatusesProvider {
-    constructor(public readonly relayStatuses: RelayInfo[]) {}
+    constructor(public readonly relayStatuses: RefObject<RelayInfo[]>) {}
 
     areRelaysConnected(): boolean {
-      return this.relayStatuses.some(r => r.connected);
+      return this.relayStatuses.current.some(r => r.connected);
     }
   }
 
