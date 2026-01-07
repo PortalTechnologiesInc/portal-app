@@ -55,9 +55,11 @@ import { useCurrency } from './CurrencyContext';
 import { useOnboarding } from './OnboardingContext';
 import { getKeypairFromKey, hasKey } from '@/utils/keyHelpers';
 import { getServiceNameFromProfile, mapNumericStatusToString } from '@/utils/nostrHelper';
-import { processQueue, ProviderRepository, enqueueTask, Task } from '@/queue/WorkQueue';
+import { resumeTasks, ProviderRepository, enqueueTask, Task, TransactionalTask } from '@/queue/WorkQueue';
+import { RelayStatusesProvider } from '@/queue/Providers';
 import { ActivityWithDates, DatabaseService } from '@/services/DatabaseService';
-import { SetPendingRequestsProvider } from '..';
+import { SetPendingRequestsProvider } from '@/queue/Providers';
+import { FetchServiceProfileTask } from '@/queue/Tasks';
 
 // Note: WalletInfo and WalletInfoState are now imported from centralized types
 
@@ -72,7 +74,7 @@ export interface NostrServiceContextType {
   lookupInvoice: (invoice: string) => Promise<LookupInvoiceResponse>;
   disconnectWallet: () => void;
   sendKeyHandshake: (url: KeyHandshakeUrl) => Promise<void>;
-  getServiceName: (app: PortalAppInterface, publicKey: string) => Promise<string | null>;
+  // getServiceName: (app: PortalAppInterface, publicKey: string) => Promise<string | null>;
   dismissPendingRequest: (id: string) => void;
   setUserProfile: (profile: Profile) => Promise<void>;
   submitNip05: (nip05: string) => Promise<void>;
@@ -181,8 +183,10 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
   useEffect(() => {
     ProviderRepository.register(new SetPendingRequestsForeground(setPendingRequests), 'SetPendingRequestsProvider');
-    ProviderRepository.register(new RelayStatusesProvider(relayStatusesRef), 'RelayStatusesProvider');
   }, [setPendingRequests]);
+  useEffect(() => {
+    console.warn('pendingRequests', pendingRequests);
+  }, [pendingRequests]);
 
   // Stable AppState listener - runs only once, never recreated
   useEffect(() => {
@@ -405,8 +409,8 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         // Start listening and give it a moment to establish connections
         app.listen({ signal: abortController.signal });
 
-        ProviderRepository.register(app);
-        processQueue().catch(error => {
+        ProviderRepository.register(app, 'PortalApp');
+        resumeTasks().catch(error => {
           console.error('Error processing queue', error);
         });
 
@@ -629,16 +633,17 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
               break;
             }
 
-            const newRequest: PendingRequest = {
+            const newRequest: Omit<PendingRequest, 'result'> = {
               id: event.eventId,
               metadata: event,
               timestamp: new Date(),
               type: 'login',
-              result: () => {},
             };
             try {
               const task = new ProcessIncomingRequestTask(newRequest);
-              enqueueTask(task);
+              enqueueTask(task).catch(error => {
+                console.error('Error enqueuing task', error);
+              });
             } catch (error) {
               console.error('Error running task', error);
             }
@@ -804,9 +809,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     };
   }, [mnemonic, nsec, reinitKey]);
 
-  useEffect(() => {
-  }, [pendingRequests]);
-
   // Optimized wallet connection effect with better separation of concerns
   useEffect(() => {
     if (!isInitialized) return;
@@ -933,105 +935,49 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   );
 
   // Get service name with database caching
-  const getServiceName = useCallback(
-    async (app: PortalAppInterface, pubKey: string): Promise<string | null> => {
-      try {
-        // Step 1: Check for valid cached entry (not expired)
-        const cachedName = await executeOperation(db => db.getCachedServiceName(pubKey), null);
-        if (cachedName) {
-          console.log('DEBUG: Using cached service name for:', pubKey, '->', cachedName);
-          return cachedName;
-        }
+  // const getServiceName = useCallback(
+  //   async (app: PortalAppInterface, pubKey: string): Promise<string | null> => {
+  //     try {
+  //       // Step 1: Check for valid cached entry (not expired)
+  //       const cachedName = await executeOperation(db => db.getCachedServiceName(pubKey), null);
+  //       if (cachedName) {
+  //         console.log('DEBUG: Using cached service name for:', pubKey, '->', cachedName);
+  //         return cachedName;
+  //       }
 
-        // Step 2: Check relay connection status before attempting network fetch
-        if (
-          !relayStatusesRef.current.length ||
-          relayStatusesRef.current.every(r => r.status != 'Connected')
-        ) {
-          throw new Error(
-            'No relay connections available. Please check your internet connection and try again.'
-          );
-        }
+  //       // Step 2: Check relay connection status before attempting network fetch
+  //       if (
+  //         !relayStatusesRef.current.length ||
+  //         relayStatusesRef.current.every(r => r.status != 'Connected')
+  //       ) {
+  //         throw new Error(
+  //           'No relay connections available. Please check your internet connection and try again.'
+  //         );
+  //       }
 
-        // Step 3: Fetch from network
-        const profile = await app.fetchProfile(pubKey);
+  //       // Step 3: Fetch from network
+  //       const profile = await app.fetchProfile(pubKey);
 
-        // Step 4: Extract service name from profile
-        const serviceName = getServiceNameFromProfile(profile);
+  //       // Step 4: Extract service name from profile
+  //       const serviceName = getServiceNameFromProfile(profile);
 
-        if (serviceName) {
-          // Step 5: Cache the result
-          await executeOperation(db => db.setCachedServiceName(pubKey, serviceName), null);
-          return serviceName;
-        } else {
-          return null;
-        }
-      } catch (error) {
-        console.error('Error fetching service name for:', pubKey, error);
-        throw error;
-      }
-    },
-    [relayStatuses]
-  );
-
-  class RelayStatusesProvider {
-    constructor(public readonly relayStatuses: RefObject<RelayInfo[]>) {}
-
-    areRelaysConnected(): boolean {
-      return this.relayStatuses.current.some(r => r.connected);
-    }
-  }
-
-  class CheckRelayStatusTask extends Task<[], { 'RelayStatusesProvider': RelayStatusesProvider }, boolean> {
-    constructor() {
-      super(['RelayStatusesProvider']);
-    }
-
-    async taskLogic({ RelayStatusesProvider }: { 'RelayStatusesProvider': RelayStatusesProvider }): Promise<boolean> {
-      this.expiry = new Date(Date.now() + 1000); // Only cache for 1 second
-      return RelayStatusesProvider.areRelaysConnected();
-    }
-  }
-  Task.register(CheckRelayStatusTask);
-
-  class WaitForRelaysConnectedTask extends Task<[], {}, void> {
-    constructor() {
-      super([]);
-      this.expiry = new Date(0);
-    }
-
-    async taskLogic(): Promise<void> {
-        let count = 0;
-        while (count < 5) {
-          if (await new CheckRelayStatusTask().run()) {
-            return;
-          }
-
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          count++;
-        }
-
-        throw new Error('Relays did not connect in time');
-    }
-  }
-  Task.register(WaitForRelaysConnectedTask);
-
-  class FetchServiceNameTask extends Task<[string], { 'PortalApp': PortalApp }, Profile | undefined> {
-    constructor(key: string) {
-      super(['PortalApp'], key);
-    }
-
-    async taskLogic({ PortalApp }: { 'PortalApp': PortalApp }, key: string): Promise<Profile | undefined> {
-      this.expiry = new Date(Date.now() + 1000 * 60 * 60 * 24);
-
-      await new WaitForRelaysConnectedTask().run();
-      return await PortalApp.fetchProfile(key);
-    }
-  }
-  Task.register(FetchServiceNameTask);
+  //       if (serviceName) {
+  //         // Step 5: Cache the result
+  //         await executeOperation(db => db.setCachedServiceName(pubKey, serviceName), null);
+  //         return serviceName;
+  //       } else {
+  //         return null;
+  //       }
+  //     } catch (error) {
+  //       console.error('Error fetching service name for:', pubKey, error);
+  //       throw error;
+  //     }
+  //   },
+  //   [relayStatuses]
+  // );
 
   type SaveActivityArgs = Omit<ActivityWithDates, 'id' | 'created_at'>;
-  class SaveActivityTask extends Task<[SaveActivityArgs], { 'DatabaseService': DatabaseService }, string> {
+  class SaveActivityTask extends TransactionalTask<[SaveActivityArgs], ['DatabaseService'], string> {
     constructor(activity: SaveActivityArgs) {
       super(['DatabaseService'], activity);
     }
@@ -1050,8 +996,8 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     }
   }
 
-  class RequireAuthUserApprovalTask extends Task<[PendingRequest], { 'SetPendingRequestsProvider': SetPendingRequestsProvider }, AuthResponseStatus> {
-    constructor(request: PendingRequest) {
+  class RequireAuthUserApprovalTask extends Task<[Omit<PendingRequest, 'result'>], ['SetPendingRequestsProvider'], AuthResponseStatus> {
+    constructor(request: Omit<PendingRequest, 'result'>) {
       super(['SetPendingRequestsProvider'], request);
     }
 
@@ -1059,67 +1005,48 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
       console.log('Requesting user approval for:', request);
 
       return new Promise<AuthResponseStatus>(resolve => {
-        request.result = resolve;
-        SetPendingRequestsProvider.addPendingRequest(request);
+        SetPendingRequestsProvider.addPendingRequest({ ...request, result: resolve });
       });
     }
   }
   Task.register(RequireAuthUserApprovalTask);
 
-  class SendAuthChallengeResponseTask extends Task<[PendingRequest, AuthResponseStatus], { 'PortalApp': PortalApp }, void> {
-    constructor(request: PendingRequest, response: AuthResponseStatus) {
-      super(['PortalApp'], request, response);
+  class SendAuthChallengeResponseTask extends Task<[Omit<PendingRequest, 'result'>, AuthResponseStatus], ['PortalApp', 'RelayStatusesProvider'], void> {
+    constructor(request: Omit<PendingRequest, 'result'>, response: AuthResponseStatus) {
+      super(['PortalApp', 'RelayStatusesProvider'], request, response);
     }
 
-    async taskLogic({ PortalApp }: { 'PortalApp': PortalApp }, request: PendingRequest, response: AuthResponseStatus): Promise<void> {
-      await new WaitForRelaysConnectedTask().run();
+    async taskLogic({ PortalApp, RelayStatusesProvider }: { 'PortalApp': PortalAppInterface, 'RelayStatusesProvider': RelayStatusesProvider }, request: Omit<PendingRequest, 'result'>, response: AuthResponseStatus): Promise<void> {
+      await RelayStatusesProvider.waitForRelaysConnected();
       return await PortalApp.replyAuthChallenge(request.metadata as AuthChallengeEvent, response);
     }
   }
   Task.register(SendAuthChallengeResponseTask);
 
-  class ProcessIncomingRequestTask extends Task<[PendingRequest], {}, void> {
-    constructor(request: PendingRequest) {
+  class ProcessIncomingRequestTask extends Task<[Omit<PendingRequest, 'result'>], [], void> {
+    constructor(request: Omit<PendingRequest, 'result'>) {
       super([], request);
       this.expiry = new Date(Number((request.metadata as { expiresAt: bigint }).expiresAt * 1000n));
     }
 
-    async taskLogic(providers: {}, request: PendingRequest): Promise<void> {
+    async taskLogic(providers: {}, request: Omit<PendingRequest, 'result'>): Promise<void> {
       if (request.type !== 'login') {
         return;
       }
 
       const serviceKey = (request.metadata as AuthChallengeEvent).serviceKey;
-      const profile = await new FetchServiceNameTask(serviceKey).run();
-      const name = getServiceNameFromProfile(profile);
+      const profileNameDeferred = (new FetchServiceProfileTask(serviceKey).run()).then(profile => getServiceNameFromProfile(profile));
 
       const approved = await new RequireAuthUserApprovalTask(request).run();
+      await new SendAuthChallengeResponseTask(request, approved).run();
 
-      // throw new Error('test');
-
-      if (approved) {
-        const approvedAuthResponse = new AuthResponseStatus.Approved({
-          grantedPermissions: [],
-          sessionToken: 'testtoken',
-          // sessionToken: nostrService.issueJWT!(
-          //   (request.metadata as SinglePaymentRequest).serviceKey,
-          //   168n
-          // ),
-        });
-        await new SendAuthChallengeResponseTask(request, approvedAuthResponse).run();
-      } else {
-        const deniedAuthResponse = new AuthResponseStatus.Declined({  
-          reason: 'Not approved by user',
-        });
-        await new SendAuthChallengeResponseTask(request, deniedAuthResponse).run();
-      }
-
+      const name = await Promise.race([profileNameDeferred, new Promise<string>(resolve => resolve('Unknown Service'))]);
       await new SaveActivityTask({
         type: 'auth',
         service_key: serviceKey,
         detail: 'User approved login',
         date: new Date(),
-        service_name: name || 'Unknown Service',
+        service_name: name!,
         amount: null,
         currency: null,
         converted_amount: null,
@@ -1128,9 +1055,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         subscription_id: null,
         status: approved ? 'positive' : 'negative',
       }).run();
-
-      console.log('saved activity');
-
     }
   }
   Task.register(ProcessIncomingRequestTask);
@@ -1163,6 +1087,10 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   useEffect(() => {
     relayStatusesRef.current = relayStatuses;
   }, [relayStatuses]);
+
+  useEffect(() => {
+    ProviderRepository.register(new RelayStatusesProvider(relayStatusesRef), 'RelayStatusesProvider');
+  }, [relayStatusesRef]);
 
   useEffect(() => {
     removedRelaysRef.current = removedRelays;
@@ -1299,7 +1227,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     lookupInvoice,
     disconnectWallet,
     sendKeyHandshake,
-    getServiceName,
+    // getServiceName,
     dismissPendingRequest,
     setUserProfile,
     closeRecurringPayment,

@@ -9,6 +9,7 @@ import { DatabaseService } from './services/DatabaseService';
 import { openDatabaseAsync } from 'expo-sqlite';
 import { ProviderRepository } from './queue/WorkQueue';
 import { PendingRequest } from './models/PendingRequest';
+import { SetPendingRequestsProvider } from './queue/Providers';
 
 const BACKGROUND_NOTIFICATION_TASK = 'BACKGROUND-NOTIFICATION-TASK';
 /**
@@ -90,13 +91,9 @@ TaskManager.defineTask<Notifications.NotificationTaskPayload>(
 Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
 
 async function initializeDatabase() {
-  const sqlite = await openDatabaseAsync(DATABASE_NAME);
+  const sqlite = await openDatabaseAsync(DATABASE_NAME, { useNewConnection: true });
   const db = new DatabaseService(sqlite);
-  ProviderRepository.register(db);
-}
-
-export interface SetPendingRequestsProvider {
-  addPendingRequest(request: PendingRequest): void;
+  ProviderRepository.register(db, 'DatabaseService');
 }
 
 class SetPendingRequestsBackground implements SetPendingRequestsProvider {

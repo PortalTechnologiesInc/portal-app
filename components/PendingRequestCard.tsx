@@ -19,6 +19,8 @@ import { Layout } from '@/constants/Layout';
 import { SkeletonPulse } from './PendingRequestSkeletonCard';
 import { PortalAppManager } from '@/services/PortalAppManager';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import { FetchServiceProfileTask } from '@/queue/Tasks';
+import { getServiceNameFromProfile } from '@/utils/nostrHelper';
 
 interface PendingRequestCardProps {
   request: PendingRequest;
@@ -103,10 +105,8 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
 
         try {
           setIsServiceNameLoading(true);
-          const name = await nostrService.getServiceName(
-            PortalAppManager.tryGetInstance(),
-            serviceKey
-          );
+          const profile = await new FetchServiceProfileTask(serviceKey).run();
+          const name = getServiceNameFromProfile(profile);
           if (isMounted.current) {
             setServiceName(name);
             setIsServiceNameLoading(false);

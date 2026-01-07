@@ -137,26 +137,27 @@ export class DatabaseService {
     }
   }
 
-  async beginTransaction(): Promise<void> {
-    await this.db.runAsync('BEGIN TRANSACTION');
-  }
-
-  async commitTransaction(): Promise<void> {
-    while (true) {
+  // NOTE: the name should be sql-safe, since we control it hopefully we won't fuck it up ourselves
+  async startSavepoint(name: string): Promise<void> {
+    for (let i = 0; i < 10; i++) {
       try {
-        await this.db.runAsync('COMMIT');
+        await this.db.runAsync(`SAVEPOINT ${name}`);
+        return;
       } catch (error) {
-        if (error instanceof Error && error.message.includes('database is locked')) { // TODO: test this case
-          await new Promise(resolve => setTimeout(resolve, 100));
-          continue;
-        }
-        throw error;
+        console.error('Database is locked, retrying...');
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
     }
+
+    throw new Error('Failed to begin transaction after 10 retries');
   }
 
-  async rollbackTransaction(): Promise<void> {
-    await this.db.runAsync('ROLLBACK');
+  async releaseSavepoint(name: string): Promise<void> {
+    await this.db.runAsync(`RELEASE SAVEPOINT ${name}`);
+  }
+
+  async rollbackSavepoint(name: string): Promise<void> {
+    await this.db.runAsync(`ROLLBACK TO SAVEPOINT ${name}`);
   }
 
   // Activity methods

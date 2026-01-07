@@ -38,22 +38,32 @@ import type {
 } from '@/utils/types';
 import { PortalAppManager } from '@/services/PortalAppManager';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
+import { getServiceNameFromProfile } from '@/utils/nostrHelper';
+import { FetchServiceProfileTask } from '@/queue/Tasks';
 
 // Helper function to get service name with fallback
+// const getServiceNameWithFallback = async (
+//   nostrService: NostrServiceContextType,
+//   serviceKey: string
+// ): Promise<string> => {
+//   try {
+//     const app = PortalAppManager.tryGetInstance();
+//     const serviceName = await nostrService.getServiceName(app, serviceKey);
+//     return serviceName || 'Unknown Service';
+//   } catch (error) {
+//     console.error('Failed to fetch service name:', error);
+//     return 'Unknown Service';
+//   }
+// };
+// Note: PendingActivity and PendingSubscription are now imported from centralized types
+
 const getServiceNameWithFallback = async (
   nostrService: NostrServiceContextType,
   serviceKey: string
 ): Promise<string> => {
-  try {
-    const app = PortalAppManager.tryGetInstance();
-    const serviceName = await nostrService.getServiceName(app, serviceKey);
-    return serviceName || 'Unknown Service';
-  } catch (error) {
-    console.error('Failed to fetch service name:', error);
-    return 'Unknown Service';
-  }
+  const profile = await new FetchServiceProfileTask(serviceKey).run();
+  return getServiceNameFromProfile(profile) || 'Unknown Service';
 };
-// Note: PendingActivity and PendingSubscription are now imported from centralized types
 
 interface PendingRequestsContextType {
   getByType: (type: PendingRequestType) => PendingRequest[];

@@ -1,6 +1,6 @@
 import { DatabaseService, QueuedTaskRecord, toUnixSeconds } from "@/services/DatabaseService";
-import { PortalAppInterface } from "portal-app-lib";
 import { Sha256 } from '@aws-crypto/sha256-js';
+import { GlobalProviders } from "./Providers";
 
 type Expiry = Date | 'forever';
 type Waiter<T> = (result: T | null, error: any) => void;
@@ -33,7 +33,7 @@ export class JsonArguments<TArgs extends unknown[] = unknown[]> extends Argument
       for (const i in ob) {
         if (!ob.hasOwnProperty(i)) continue;
         
-        if ((typeof ob[i]) == 'object') {
+        if ((typeof ob[i]) === 'object') {
           var flatObject = flattenObject(ob[i]);
           for (var x in flatObject) {
             if (!flatObject.hasOwnProperty(x)) continue;
@@ -50,14 +50,16 @@ export class JsonArguments<TArgs extends unknown[] = unknown[]> extends Argument
     const jsonArgs = JSON.stringify(flattenedArgs, (k, v) => {
       if (typeof v === 'function') {
         throw new Error(`Function ${k} is not serializable`);
+      } else if (typeof v === 'bigint') {
+        return `${v.toString()}n`;
       } else {
-        return `${k}:${typeof v}:${v.toString()}`;
+        return v;
       }
     });
     const hash = new Sha256();
     hash.update(jsonArgs);
     const result = hash.digestSync();
-    return result.toString();
+    return Array.from(result).map((b) => b.toString(16).padStart(2, "0")).join("")
   }
 }
 
@@ -83,44 +85,42 @@ function deserializeValue(v: string): any {
   })
 }
 
-type StringTupleSameLength<A extends unknown[], R extends unknown[] = []> = 
-  R['length'] extends A['length'] 
-    ? R 
-    : StringTupleSameLength<A, [...R, string]>;
+type GlobalProviderNames = GlobalProviders['name'];
 
-type ExtractNames<P extends { [key: string]: any }> = [keyof P] extends [infer K] ? K[] : never;
+type ProvidersSubset<N extends GlobalProviderNames[]> = {
+  [K in GlobalProviderNames]: K extends N[number] ? Extract<GlobalProviders, { name: K }>['type'] : never;
+}
 
-type TaskProviders = { [key: string]: any };
-
-export abstract class Task<A extends unknown[], P extends TaskProviders, T> {
-  private static registry = new Map<string, TaskConstructor<unknown[], TaskProviders, unknown>>();
+export abstract class Task<A extends unknown[], P extends GlobalProviderNames[], T> {
+  private static registry = new Map<string, TaskConstructor<unknown[], GlobalProviderNames[], unknown>>();
 
   private readonly db: DatabaseService;
   protected readonly args: Arguments<A>;
   protected expiry: Expiry = 'forever';
 
-  constructor(private readonly providerNames: ExtractNames<P>, ...args: A) {
+  constructor(private readonly providerNames: P, ...args: A) {
     this.args = new JsonArguments(args);
 
-    const db = ProviderRepository.get<DatabaseService>('DatabaseService');
+    const db = ProviderRepository.get('DatabaseService');
     if (!db) {
       throw new Error('DatabaseService not found');
     }
     this.db = db;
   }
 
-  abstract taskLogic(providers: P, ...args: A): Promise<T>;
+  abstract taskLogic(providers: ProvidersSubset<P>, ...args: A): Promise<T>;
 
   async run(): Promise<T> {
-    const providers = (this.providerNames as string[]).map(name => {
+    const providers: Partial<Record<GlobalProviderNames, any>> = {};
+    for (const name of this.providerNames) {
       const provider = ProviderRepository.get(name);
       if (!provider) {
         throw new Error(`Provider ${name} not found`);
       }
-      return provider;
-    });
- 
-    const key = `${this.constructor.name}:${this.args.hash()}`;
+      providers[name] = provider;
+    }
+
+    const key = `${this.constructor.name}${this.args.hash()}`;
     const cached = await this.db.getCache(key);
     if (cached) {
       console.warn(`Cache hit for ${key}: ${cached}`);
@@ -133,20 +133,34 @@ export abstract class Task<A extends unknown[], P extends TaskProviders, T> {
       if (lock) {
         return await lock;
       } else {
-        // await this.db.beginTransaction();
-        const promise = this.taskLogic(providers as unknown as P, ...this.args.values());
-        locksMap.set(key, promise);
-        try {
-          const data = await promise;
-          await this.db.setCache(key, serializeValue(data), this.expiry);
-          return data;
-        } finally {
-          // await this.db.commitTransaction();
-          locksMap.delete(key);
+        if (this instanceof TransactionalTask) {
+          // console.warn('Beginning transaction', key);
+          await this.db.startSavepoint(key);
         }
+
+        const promise = this.taskLogic(providers as ProvidersSubset<P>, ...this.args.values());
+        locksMap.set(key, promise);
+
+        const data = await promise;
+        await this.db.setCache(key, serializeValue(data), this.expiry);
+        
+        if (this instanceof TransactionalTask) {
+          // console.warn('Committing transaction', key);
+          await this.db.releaseSavepoint(key);
+        }
+        locksMap.delete(key);
+
+        return data;
       }
     } catch (error) {
       console.log(error);
+
+      if (this instanceof TransactionalTask) {
+        // console.warn('Rolling back transaction', key);
+        await this.db.rollbackSavepoint(key);
+      }
+      locksMap.delete(key);
+
       throw error;
     }
   }
@@ -162,11 +176,11 @@ export abstract class Task<A extends unknown[], P extends TaskProviders, T> {
     };
   }
 
-  static register<A extends unknown[], P extends TaskProviders, T>(instance: new (...args: any[]) => Task<A, P, T>) {
+  static register<A extends unknown[], P extends GlobalProviderNames[], T>(instance: new (...args: any[]) => Task<A, P, T>) {
     Task.registry.set(instance.name, instance as TaskConstructor<any[], any, any>);
   }
 
-  static getFromRegistry(name: string): TaskConstructor<unknown[], TaskProviders, unknown> | undefined {
+  static getFromRegistry(name: string): TaskConstructor<unknown[], GlobalProviderNames[], unknown> | undefined {
     return Task.registry.get(name);
   }
 
@@ -179,18 +193,29 @@ export abstract class Task<A extends unknown[], P extends TaskProviders, T> {
   }
 }
 
-export type TaskConstructor<A extends unknown[] = unknown[], P extends TaskProviders = TaskProviders, T = unknown> = new (...args: any[]) => Task<A, P, T>;
+/**
+ * TransactionalTask is a Task that runs in a sqlite transaction.
+ * 
+ * It should only be used for tasks that modify the database. If a task is spawned internally that also modifies the database,
+ * its changes and cache will not be committed until the "root" transactiona tasks completes.
+ * 
+ * Also note that the transaction will keep an exclusive lock on the database for the duration of the task,
+ * so this should only be done for tasks that complete fairly quickly.
+ */
+export abstract class TransactionalTask<A extends unknown[], P extends GlobalProviderNames[], T> extends Task<A, P, T> {}
+
+export type TaskConstructor<A extends unknown[] = unknown[], P extends GlobalProviderNames[] = GlobalProviderNames[], T = unknown> = new (...args: any[]) => Task<A, P, T>;
 
 export class ProviderRepository {
-  private static providers = new Map<string, any>();
+  private static providers = new Map<GlobalProviderNames, any>();
 
-  static register(provider: any, name?: string) {
-    console.warn('Registering provider', name || provider.constructor.name);
-    ProviderRepository.providers.set(name || provider.constructor.name, provider);
+  static register<N extends GlobalProviderNames>(provider: Extract<GlobalProviders, { name: N }>['type'], name: N) {
+    console.warn('Registering provider', name);
+    ProviderRepository.providers.set(name, provider);
   }
 
-  static get<T>(type: string): T | undefined {
-    return ProviderRepository.providers.get(type) as T;
+  static get<N extends GlobalProviderNames>(type: N): ProvidersSubset<[N]>[N] | undefined {
+    return ProviderRepository.providers.get(type) as ProvidersSubset<[N]>[N];
   }
 }
 
@@ -207,17 +232,16 @@ async function runTask(db: DatabaseService, record: QueuedTaskRecord): Promise<a
   }
 }
 
-export async function processQueue() {
-  const db = ProviderRepository.get<DatabaseService>('DatabaseService');
+/**
+ * Resume tasks from the database queue.
+ * 
+ * Resume tasks that were spawned with `enqueueTask` and are not completed yet.
+ */
+export async function resumeTasks() {
+  const db = ProviderRepository.get('DatabaseService');
   if (!db) {
     throw new Error('DatabaseService not found');
   }
-
-  // const tasks = await db.getQueuedTasks({ excludeExpired: false });
-  // for (const task of tasks) {
-  //   // await db.deleteQueuedTask(task.id);
-  //   console.warn('debug task:', task);
-  // }
 
   while (true) {
     const record = await db.extractNextQueuedTask();
@@ -230,13 +254,19 @@ export async function processQueue() {
  }
 }
 
+/**
+ * Enqueue a task to the database queue.
+ * 
+ * Add a task to the database queue for future resumption and immediately start its execution.
+ */
 export async function enqueueTask<T>(task: Task<any[], any, T>): Promise<T> {
-  const db = ProviderRepository.get<DatabaseService>('DatabaseService');
+  const db = ProviderRepository.get('DatabaseService');
   if (!db) {
     throw new Error('DatabaseService not found');
   }
 
   const record = task.serialize();
+  console.log(record);
   const id = await db.addQueuedTask(record.task_name, record.arguments, record.expires_at, record.priority);
   console.log('Added task to queue', id);
 
