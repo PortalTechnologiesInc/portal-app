@@ -208,7 +208,10 @@ export function PINKeypad({
           disabled={pin.length === 0 || disabled || error}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Delete size={22} color={pin.length > 0 && !error ? primaryTextColor : secondaryTextColor} />
+          <Delete
+            size={22}
+            color={pin.length > 0 && !error ? primaryTextColor : secondaryTextColor}
+          />
         </TouchableOpacity>
       </View>
 

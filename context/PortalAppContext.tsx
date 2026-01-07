@@ -277,111 +277,111 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
     // listener to burn tokens
     app
       .listenCashuRequests(
-      new LocalCashuRequestListener(async (event: CashuRequestContentWithKey) => {
+        new LocalCashuRequestListener(async (event: CashuRequestContentWithKey) => {
           try {
-        // Use event-based ID for deduplication instead of random generation
-        const eventId = `${event.inner.mintUrl}-${event.inner.unit}-${event.inner.amount}-${event.mainKey}`;
-        const id = `cashu-request-${eventId}`;
+            // Use event-based ID for deduplication instead of random generation
+            const eventId = `${event.inner.mintUrl}-${event.inner.unit}-${event.inner.amount}-${event.mainKey}`;
+            const id = `cashu-request-${eventId}`;
 
             // Early deduplication check before processing - use ref to get current value
             const existingRequest = pendingRequestsRef.current[id];
-        if (existingRequest) {
-          // Return a promise that will resolve when the original request is resolved
-          return new Promise<CashuResponseStatus>(resolve => {
-            // Store the resolve function so it gets called when the original request completes
-            const originalResolve = existingRequest.result;
-            existingRequest.result = (status: CashuResponseStatus) => {
-              resolve(status);
-              if (originalResolve) originalResolve(status);
-            };
-          });
-        }
+            if (existingRequest) {
+              // Return a promise that will resolve when the original request is resolved
+              return new Promise<CashuResponseStatus>(resolve => {
+                // Store the resolve function so it gets called when the original request completes
+                const originalResolve = existingRequest.result;
+                existingRequest.result = (status: CashuResponseStatus) => {
+                  resolve(status);
+                  if (originalResolve) originalResolve(status);
+                };
+              });
+            }
 
-        // Declare wallet in outer scope
-        let wallet: any;
-        // Check if we have the required unit before creating pending request
-        try {
-          const requiredMintUrl = event.inner.mintUrl;
-          const requiredUnit = event.inner.unit.toLowerCase(); // Normalize unit name
-          const requiredAmount = event.inner.amount;
-
-          // Check if we have a wallet for this mint and unit
-          wallet = await eCashContext.getWallet(requiredMintUrl, requiredUnit);
-
-          // If wallet not found in ECashContext, try to create it
-          if (!wallet) {
+            // Declare wallet in outer scope
+            let wallet: any;
+            // Check if we have the required unit before creating pending request
             try {
-              wallet = await eCashContext.addWallet(requiredMintUrl, requiredUnit);
+              const requiredMintUrl = event.inner.mintUrl;
+              const requiredUnit = event.inner.unit.toLowerCase(); // Normalize unit name
+              const requiredAmount = event.inner.amount;
+
+              // Check if we have a wallet for this mint and unit
+              wallet = await eCashContext.getWallet(requiredMintUrl, requiredUnit);
+
+              // If wallet not found in ECashContext, try to create it
+              if (!wallet) {
+                try {
+                  wallet = await eCashContext.addWallet(requiredMintUrl, requiredUnit);
                 } catch (error) {
                   logError('CASHU_REQUEST', 'listenCashuRequests - addWallet', error, {
                     mintUrl: requiredMintUrl,
                     unit: requiredUnit,
                   });
                 }
-          }
+              }
 
-          if (!wallet) {
+              if (!wallet) {
                 // Auto-reject - wallet not found (expected behavior)
                 console.log('[CASHU_REQUEST]: Auto-rejecting - wallet not found', {
                   mintUrl: requiredMintUrl,
                   unit: requiredUnit,
                 });
-            return new CashuResponseStatus.InsufficientFunds();
-          }
+                return new CashuResponseStatus.InsufficientFunds();
+              }
 
-          // Check if we have sufficient balance
-          const balance = await wallet.getBalance();
-          if (balance < requiredAmount) {
+              // Check if we have sufficient balance
+              const balance = await wallet.getBalance();
+              if (balance < requiredAmount) {
                 console.log('[CASHU_REQUEST]: Auto-rejecting - insufficient balance', {
                   balance: balance.toString(),
                   requiredAmount: requiredAmount.toString(),
                   mintUrl: requiredMintUrl,
                   unit: requiredUnit,
                 });
-            return new CashuResponseStatus.InsufficientFunds();
-          }
+                return new CashuResponseStatus.InsufficientFunds();
+              }
             } catch (error) {
               logError('CASHU_REQUEST', 'listenCashuRequests - checkWallet', error, {
                 mintUrl: event.inner.mintUrl,
                 unit: event.inner.unit,
                 amount: event.inner.amount,
               });
-          return new CashuResponseStatus.InsufficientFunds();
-        }
+              return new CashuResponseStatus.InsufficientFunds();
+            }
 
-        // Get the ticket title for pending requests
-        let ticketTitle = 'Unknown Ticket';
-        if (wallet) {
-          let unitInfo: any;
-          try {
-            unitInfo = wallet.getUnitInfo ? await wallet.getUnitInfo() : undefined;
+            // Get the ticket title for pending requests
+            let ticketTitle = 'Unknown Ticket';
+            if (wallet) {
+              let unitInfo: any;
+              try {
+                unitInfo = wallet.getUnitInfo ? await wallet.getUnitInfo() : undefined;
               } catch (error) {
                 logError('CASHU_REQUEST', 'listenCashuRequests - getUnitInfo', error, {
                   mintUrl: event.inner.mintUrl,
                   unit: event.inner.unit,
                 });
-            unitInfo = undefined;
-          }
-          ticketTitle = unitInfo?.title || wallet.unit();
-        }
-        return new Promise<CashuResponseStatus>(resolve => {
-          const newRequest: PendingRequest = {
-            id,
-            metadata: event,
-            timestamp: new Date(),
-            type: 'ticket',
-            result: resolve,
-            ticketTitle, // Set the ticket name for UI
-          };
-          setPendingRequests(prev => {
-            // Check if request already exists to prevent duplicates
-            if (prev[id]) {
-                  // Duplicate request - silently ignore (expected behavior)
-              return prev;
+                unitInfo = undefined;
+              }
+              ticketTitle = unitInfo?.title || wallet.unit();
             }
-            return { ...prev, [id]: newRequest };
-          });
-        });
+            return new Promise<CashuResponseStatus>(resolve => {
+              const newRequest: PendingRequest = {
+                id,
+                metadata: event,
+                timestamp: new Date(),
+                type: 'ticket',
+                result: resolve,
+                ticketTitle, // Set the ticket name for UI
+              };
+              setPendingRequests(prev => {
+                // Check if request already exists to prevent duplicates
+                if (prev[id]) {
+                  // Duplicate request - silently ignore (expected behavior)
+                  return prev;
+                }
+                return { ...prev, [id]: newRequest };
+              });
+            });
           } catch (error) {
             // Catch any unexpected errors and return InsufficientFunds to prevent hanging
             logError('CASHU_REQUEST', 'listenCashuRequests - unexpectedError', error, {
@@ -472,33 +472,38 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
                 AppState.currentState !== 'active' && !alreadyTracked
               )
                 .then(askUser => {
-                if (askUser) {
-                  const newRequest: PendingRequest = {
-                    id,
-                    metadata: event,
-                    timestamp: new Date(),
-                    type: 'payment',
-                    result: resolver,
-                  };
+                  if (askUser) {
+                    const newRequest: PendingRequest = {
+                      id,
+                      metadata: event,
+                      timestamp: new Date(),
+                      type: 'payment',
+                      result: resolver,
+                    };
 
-                  setPendingRequests(prev => {
-                    // Check if request already exists to prevent duplicates
-                    if (prev[id]) {
+                    setPendingRequests(prev => {
+                      // Check if request already exists to prevent duplicates
+                      if (prev[id]) {
                         // Duplicate request - silently ignore (expected behavior)
-                      return prev;
-                    }
-                    const newPendingRequests = { ...prev };
-                    newPendingRequests[id] = newRequest;
-                    return newPendingRequests;
-                  });
-                }
+                        return prev;
+                      }
+                      const newPendingRequests = { ...prev };
+                      newPendingRequests[id] = newRequest;
+                      return newPendingRequests;
+                    });
+                  }
                 })
                 .catch(error => {
-                  logError('PAYMENT_REQUEST', 'listenForPaymentRequest - handleSinglePaymentRequest', error, {
-                    eventId: id,
-                    alreadyTracked,
-                  });
-              });
+                  logError(
+                    'PAYMENT_REQUEST',
+                    'listenForPaymentRequest - handleSinglePaymentRequest',
+                    error,
+                    {
+                      eventId: id,
+                      alreadyTracked,
+                    }
+                  );
+                });
             });
           },
           (event: RecurringPaymentRequest) => {
@@ -509,32 +514,37 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
             return new Promise<RecurringPaymentResponseContent>(resolve => {
               handleRecurringPaymentRequest(event, executeOperation, resolve)
                 .then(askUser => {
-                if (askUser) {
-                  const newRequest: PendingRequest = {
-                    id,
-                    metadata: event,
-                    timestamp: new Date(),
-                    type: 'subscription',
-                    result: resolve,
-                  };
+                  if (askUser) {
+                    const newRequest: PendingRequest = {
+                      id,
+                      metadata: event,
+                      timestamp: new Date(),
+                      type: 'subscription',
+                      result: resolve,
+                    };
 
-                  setPendingRequests(prev => {
-                    // Check if request already exists to prevent duplicates
-                    if (prev[id]) {
+                    setPendingRequests(prev => {
+                      // Check if request already exists to prevent duplicates
+                      if (prev[id]) {
                         // Duplicate request - silently ignore (expected behavior)
-                      return prev;
-                    }
-                    const newPendingRequests = { ...prev };
-                    newPendingRequests[id] = newRequest;
-                    return newPendingRequests;
-                  });
-                }
+                        return prev;
+                      }
+                      const newPendingRequests = { ...prev };
+                      newPendingRequests[id] = newRequest;
+                      return newPendingRequests;
+                    });
+                  }
                 })
                 .catch(error => {
-                  logError('RECURRING_PAYMENT', 'listenForPaymentRequest - handleRecurringPaymentRequest', error, {
-                    eventId: id,
-                  });
-              });
+                  logError(
+                    'RECURRING_PAYMENT',
+                    'listenForPaymentRequest - handleRecurringPaymentRequest',
+                    error,
+                    {
+                      eventId: id,
+                    }
+                  );
+                });
             });
           }
         )
@@ -570,30 +580,35 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
           return new Promise<NostrConnectResponseStatus>(resolve => {
             handleNostrConnectRequest(event, keyToHex(publicKeyStr), executeOperation, resolve)
               .then(askUser => {
-              if (askUser) {
-                const newRequest: PendingRequest = {
-                  id,
-                  metadata: event,
-                  timestamp: new Date(),
-                  type: 'nostrConnect',
-                  result: resolve,
-                };
+                if (askUser) {
+                  const newRequest: PendingRequest = {
+                    id,
+                    metadata: event,
+                    timestamp: new Date(),
+                    type: 'nostrConnect',
+                    result: resolve,
+                  };
 
-                setPendingRequests(prev => {
-                  // Check if request already exists to prevent duplicates
-                  if (prev[id]) {
+                  setPendingRequests(prev => {
+                    // Check if request already exists to prevent duplicates
+                    if (prev[id]) {
                       // Duplicate request - silently ignore (expected behavior)
-                    return prev;
-                  }
-                  return { ...prev, [id]: newRequest };
-                });
-              }
+                      return prev;
+                    }
+                    return { ...prev, [id]: newRequest };
+                  });
+                }
               })
               .catch(error => {
-                logError('NOSTR_CONNECT', 'listenForNip46Request - handleNostrConnectRequest', error, {
-                  eventId: id,
-                });
-            });
+                logError(
+                  'NOSTR_CONNECT',
+                  'listenForNip46Request - handleNostrConnectRequest',
+                  error,
+                  {
+                    eventId: id,
+                  }
+                );
+              });
           });
         })
       )
@@ -637,7 +652,7 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
     }
     // Only initialize once - guard prevents re-initialization
     if (!listenersInitializedRef.current) {
-    initializeApp();
+      initializeApp();
     }
   }, [isInitialized, initializeApp]);
 

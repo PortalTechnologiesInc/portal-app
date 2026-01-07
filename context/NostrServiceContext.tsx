@@ -140,7 +140,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
       onRelayStatusChange: (relay_url: string, status: number): Promise<void> => {
         const execOp = executeOperationRef.current;
         const setStatuses = setRelayStatusesRef.current;
-        
+
         if (!execOp || !setStatuses) {
           // If refs are not available, still try to update status using direct setter
           // This fallback should rarely be needed since refs are set immediately
@@ -159,7 +159,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
           });
           return Promise.resolve();
         }
-        
+
         return execOp(db => db.getRelays())
           .then(relays => {
             const statusString = mapNumericStatusToString(status);
@@ -296,16 +296,11 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         // Note: PortalAppManager.getInstance reuses existing instances and ignores
         // new listeners if an instance already exists, so we must clear when the key changes.
         if (!publicKey || publicKey !== publicKeyStr) {
-        PortalAppManager.clearInstance();
+          PortalAppManager.clearInstance();
         }
 
         const listener = createRelayStatusListener();
-        const app = await PortalAppManager.getInstance(
-          keypair,
-          relays,
-          listener,
-          false
-        );
+        const app = await PortalAppManager.getInstance(keypair, relays, listener, false);
 
         // Start listening and give it a moment to establish connections
         app.listen({ signal: abortController.signal });
@@ -445,7 +440,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   const clearRemovedRelay = useCallback((relayUrl: string) => {
     // Update ref immediately for status listener
     removedRelaysRef.current.delete(relayUrl);
-    
+
     // Update state
     setRemovedRelays(prev => {
       const newSet = new Set(prev);

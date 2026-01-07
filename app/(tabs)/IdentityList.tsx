@@ -93,14 +93,14 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
       // Reset all local inputs to match network (saved) values
       setUsernameInput(networkUsername || username || '');
       setDisplayNameInput(networkDisplayName || displayName || '');
-      
+
       // Only update refresh key if avatar URI actually changed to preserve cache
       const avatarUriChanged = networkAvatarUri !== previousAvatarUriRef.current;
       if (avatarUriChanged) {
         setLocalAvatarRefreshKey(Date.now());
         previousAvatarUriRef.current = networkAvatarUri;
       }
-      
+
       setLocalAvatarUri(networkAvatarUri);
       savedSuccessfullyRef.current = false;
     }, [networkUsername, networkDisplayName, networkAvatarUri, username, displayName])
@@ -155,8 +155,8 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
         if (isFilePickerActive()) {
           cancelActiveFilePicker();
         }
-      // Always disable lock suppression after image picker interaction completes
-      AppLockService.disableLockSuppression('image-picker');
+        // Always disable lock suppression after image picker interaction completes
+        AppLockService.disableLockSuppression('image-picker');
       }, 300);
     }
   };
@@ -431,10 +431,7 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
                     showsHorizontalScrollIndicator={false}
                     style={styles.publicKeyScrollView}
                   >
-                    <ThemedText
-                      style={[styles.publicKeyText, { color: textPrimary }]}
-                      selectable
-                    >
+                    <ThemedText style={[styles.publicKeyText, { color: textPrimary }]} selectable>
                       {nostrService.publicKey || ''}
                     </ThemedText>
                   </ScrollView>
@@ -480,9 +477,7 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
                         isDisabled && { color: textSecondary },
                       ]}
                     >
-                      {profileIsLoading
-                        ? 'Saving...'
-                        : 'Save Changes'}
+                      {profileIsLoading ? 'Saving...' : 'Save Changes'}
                     </ThemedText>
                   </TouchableOpacity>
                 );
