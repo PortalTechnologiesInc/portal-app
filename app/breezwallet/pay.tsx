@@ -68,12 +68,7 @@ export default function MyWalletManagementSecret() {
     if (!prepareSendPaymentResponse) return false;
 
     return totalToPaySats > 0 && totalToPaySats <= balanceSats;
-  }, [
-    isSendPaymentLoading,
-    totalToPaySats,
-    balanceSats,
-    prepareSendPaymentResponse,
-  ]);
+  }, [isSendPaymentLoading, totalToPaySats, balanceSats, prepareSendPaymentResponse]);
 
   const payDisabledMessage = useMemo(() => {
     if (isSendPaymentLoading) {
@@ -92,10 +87,10 @@ export default function MyWalletManagementSecret() {
   }, [isSendPaymentLoading, balanceSats, totalToPaySats]);
 
   const payDisableMessageColor = useMemo(() => {
-    if (totalToPaySats != null && balanceSats != null && totalToPaySats > balanceSats) return errorColor;
+    if (totalToPaySats != null && balanceSats != null && totalToPaySats > balanceSats)
+      return errorColor;
     return primaryTextColor;
   }, [totalToPaySats, balanceSats, primaryTextColor, errorColor]);
-
 
   useEffect(() => {
     if (!isPaymentSent) return;
@@ -326,7 +321,6 @@ export default function MyWalletManagementSecret() {
               </ThemedView>
             </ThemedView>
 
-
             {payDisabledMessage && (
               <ThemedText
                 style={{
@@ -362,10 +356,10 @@ export default function MyWalletManagementSecret() {
                     <>
                       {canPay ? (
                         <>
-                        <Send color={buttonPrimaryTextColor} />
-                        <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
-                          Pay
-                        </ThemedText>
+                          <Send color={buttonPrimaryTextColor} />
+                          <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
+                            Pay
+                          </ThemedText>
                         </>
                       ) : (
                         <Ban color={buttonPrimaryTextColor} />

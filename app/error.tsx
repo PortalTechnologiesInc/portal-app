@@ -74,13 +74,8 @@ export default function ErrorScreen() {
     pendingRequests: nostrPendingRequestsRaw,
   } = useNostrService();
   const { username, displayName, syncStatus, isProfileEditable } = useUserProfile();
-  const {
-    activities,
-    subscriptions,
-    isLoadingMore,
-    hasMoreActivities,
-    totalActivities,
-  } = useActivities();
+  const { activities, subscriptions, isLoadingMore, hasMoreActivities, totalActivities } =
+    useActivities();
   const { isLoadingRequest, pendingUrl, requestFailed } = usePendingRequests();
   const {
     activeWallet: activeWalletRaw,
@@ -101,9 +96,12 @@ export default function ErrorScreen() {
     () => sanitizeForReact(nostrPendingRequestsRaw),
     [nostrPendingRequestsRaw]
   );
-  const walletManagerInfo = useMemo(() => sanitizeForReact(walletManagerInfoRaw), [walletManagerInfoRaw]);
+  const walletManagerInfo = useMemo(
+    () => sanitizeForReact(walletManagerInfoRaw),
+    [walletManagerInfoRaw]
+  );
   const activeWallet = useMemo(() => sanitizeForReact(activeWalletRaw), [activeWalletRaw]);
-  
+
   // walletStatus needs to remain a Map, but sanitize its values
   const walletStatus = useMemo(() => {
     if (!walletStatusRaw || !(walletStatusRaw instanceof Map)) return walletStatusRaw;
@@ -199,8 +197,7 @@ export default function ErrorScreen() {
   // Wallet status summary (with safe access)
   const breezStatus =
     walletStatus?.get?.(WALLET_TYPE.BREEZ) || WALLET_CONNECTION_STATUS.NOT_CONFIGURED;
-  const nwcStatus =
-    walletStatus?.get?.(WALLET_TYPE.NWC) || WALLET_CONNECTION_STATUS.NOT_CONFIGURED;
+  const nwcStatus = walletStatus?.get?.(WALLET_TYPE.NWC) || WALLET_CONNECTION_STATUS.NOT_CONFIGURED;
 
   // Support email from env variable
   const supportEmail = process.env.EXPO_PUBLIC_SUPPORT_EMAIL || 'support@yourdomain.com';

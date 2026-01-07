@@ -311,7 +311,9 @@ export default function MyWalletManagementSecret() {
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                   <ArrowLeft size={20} color={primaryTextColor} />
                 </TouchableOpacity>
-                <ThemedText style={[styles.headerText, { color: primaryTextColor }]}>Receive</ThemedText>
+                <ThemedText style={[styles.headerText, { color: primaryTextColor }]}>
+                  Receive
+                </ThemedText>
               </ThemedView>
 
               {pageState === PageState.GetInvoiceInfo ? (
@@ -356,7 +358,7 @@ export default function MyWalletManagementSecret() {
                           placeholder={`0`}
                           onChangeText={handleChangeText}
                           onSubmitEditing={Keyboard.dismiss}
-                          returnKeyType='done'
+                          returnKeyType="done"
                         />
                         {
                           <Text style={{ color: secondaryTextColor, fontSize: 25 }}>
@@ -368,7 +370,12 @@ export default function MyWalletManagementSecret() {
                       <TouchableOpacity
                         onPress={reverseCurrencyTap}
                         disabled={isSwitching}
-                        style={{ paddingTop: 10, paddingBottom: 10, paddingLeft: 30, paddingRight: 30 }}
+                        style={{
+                          paddingTop: 10,
+                          paddingBottom: 10,
+                          paddingLeft: 30,
+                          paddingRight: 30,
+                        }}
                       >
                         <ThemedView style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
                           {isSwitching ? (
@@ -411,7 +418,7 @@ export default function MyWalletManagementSecret() {
                       placeholderTextColor={placeholderColor}
                       value={description}
                       onChangeText={text => setDescription(text)}
-                      returnKeyType='done'
+                      returnKeyType="done"
                     />
                   </ThemedView>
 
@@ -430,7 +437,11 @@ export default function MyWalletManagementSecret() {
                     {contactNpub == null ? (
                       <TouchableOpacity onPress={generateInvoice}>
                         <ThemedView
-                          style={{ flexDirection: 'row', gap: 10, backgroundColor: buttonPrimaryColor }}
+                          style={{
+                            flexDirection: 'row',
+                            gap: 10,
+                            backgroundColor: buttonPrimaryColor,
+                          }}
                         >
                           <QrCode color={buttonPrimaryTextColor} />
                           <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
@@ -441,14 +452,20 @@ export default function MyWalletManagementSecret() {
                     ) : (
                       <TouchableOpacity onPress={sendPaymentRequest}>
                         <ThemedView
-                          style={{ flexDirection: 'row', gap: 10, backgroundColor: buttonPrimaryColor }}
+                          style={{
+                            flexDirection: 'row',
+                            gap: 10,
+                            backgroundColor: buttonPrimaryColor,
+                          }}
                         >
                           {isPaymentRequestLoading ? (
                             <ActivityIndicator size="small" color={buttonPrimaryTextColor} />
                           ) : (
                             <>
                               <HandCoins color={buttonPrimaryTextColor} />
-                              <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
+                              <ThemedText
+                                style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}
+                              >
                                 Request payment
                               </ThemedText>
                             </>
@@ -497,7 +514,10 @@ export default function MyWalletManagementSecret() {
                       <Text style={{ color: primaryTextColor, fontSize: 20 }}>Amount</Text>
                       <ThemedView>
                         <Text style={{ color: secondaryTextColor, fontSize: 20 }}>
-                          {reverseCurrency ? parseInt(convertedAmount.toString()) : amount} sats
+                          {reverseCurrency
+                            ? Number.parseInt(convertedAmount.toString(), 10)
+                            : amount}{' '}
+                          sats
                         </Text>
                         <Text style={{ color: secondaryTextColor, fontSize: 20 }}>
                           {CurrencyConversionService.formatConvertedAmountWithFallback(
@@ -527,7 +547,11 @@ export default function MyWalletManagementSecret() {
                         }}
                       >
                         <ThemedView
-                          style={{ flexDirection: 'row', gap: 10, backgroundColor: buttonPrimaryColor }}
+                          style={{
+                            flexDirection: 'row',
+                            gap: 10,
+                            backgroundColor: buttonPrimaryColor,
+                          }}
                         >
                           <ClipboardCopy color={buttonPrimaryTextColor} />
                           <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
@@ -559,7 +583,11 @@ export default function MyWalletManagementSecret() {
                       }}
                     >
                       <ThemedView
-                        style={{ flexDirection: 'row', gap: 10, backgroundColor: buttonPrimaryColor }}
+                        style={{
+                          flexDirection: 'row',
+                          gap: 10,
+                          backgroundColor: buttonPrimaryColor,
+                        }}
                       >
                         <X color={buttonPrimaryTextColor} />
                         <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>

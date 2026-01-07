@@ -570,11 +570,11 @@ export default function Onboarding() {
   const handleCompletionWithoutPIN = async () => {
     // Complete onboarding without setting up a PIN
     resetPinState();
-    
+
     // Check if we need to set up profile for imported seed
     setCurrentStep('profile-setup');
     const profileSetupSuccess = await handleProfileSetup();
-    
+
     if (!profileSetupSuccess) {
       // Profile setup failed, show error page
       setCurrentStep('profile-setup-error');
@@ -614,11 +614,11 @@ export default function Onboarding() {
       // Always enable app lock when setting up PIN in onboarding
       await setLockEnabled(true);
       resetPinState();
-      
+
       // Check if we need to set up profile for imported seed
       setCurrentStep('profile-setup');
       const profileSetupSuccess = await handleProfileSetup();
-      
+
       if (!profileSetupSuccess) {
         // Profile setup failed, show error page
         setCurrentStep('profile-setup-error');
@@ -1133,13 +1133,13 @@ export default function Onboarding() {
               )}
               <View style={styles.pinKeypadContainer}>
                 <View style={styles.pinErrorContainer}>
-              {pinError ? (
-                <ThemedText
-                  style={[styles.errorText, styles.pinErrorText, { color: buttonDanger }]}
-                >
-                  {pinError}
-                </ThemedText>
-              ) : null}
+                  {pinError ? (
+                    <ThemedText
+                      style={[styles.errorText, styles.pinErrorText, { color: buttonDanger }]}
+                    >
+                      {pinError}
+                    </ThemedText>
+                  ) : null}
                 </View>
                 <PINKeypad
                   key={pinStep}

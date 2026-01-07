@@ -100,7 +100,7 @@ export default function SettingsScreen() {
   const [_pendingPinEnable, setPendingPinEnable] = useState(false);
   const [pendingBiometricEnable, setPendingBiometricEnable] = useState(false);
   const { width, height } = useWindowDimensions();
-  
+
   // Animated values for drawer slide animations
   const currencyDrawerSlide = useRef(new Animated.Value(height)).current;
   const timerDrawerSlide = useRef(new Animated.Value(height)).current;
@@ -183,7 +183,6 @@ export default function SettingsScreen() {
   const handleRecoverTicketsPress = () => {
     router.push('/recoverTickets');
   };
-
 
   const resetPinVerificationConfig = useCallback(() => {
     setPinVerificationConfig({
@@ -687,9 +686,7 @@ export default function SettingsScreen() {
 
         <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
           {/* Wallet Section */}
-          <ThemedText
-            style={[styles.sectionTitle, { color: primaryTextColor, marginTop: 0 }]}
-          >
+          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor, marginTop: 0 }]}>
             Wallet
           </ThemedText>
           <TouchableOpacity
@@ -748,7 +745,9 @@ export default function SettingsScreen() {
           </TouchableOpacity>
 
           {/* Network Section */}
-          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>Network</ThemedText>
+          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
+            Network
+          </ThemedText>
           <TouchableOpacity
             style={[styles.card, { backgroundColor: cardBackgroundColor }]}
             onPress={handleNostrCardPress}
@@ -797,13 +796,7 @@ export default function SettingsScreen() {
               <ChevronRight size={22} color={secondaryTextColor} />
             </View>
           </TouchableOpacity>
-          <View
-            style={[
-              styles.card,
-              { backgroundColor: cardBackgroundColor },
-              { opacity: 0.5 },
-            ]}
-          >
+          <View style={[styles.card, { backgroundColor: cardBackgroundColor }, { opacity: 0.5 }]}>
             <View style={styles.cardContent}>
               <View style={styles.cardLeft}>
                 <View style={styles.cardHeader}>
@@ -876,13 +869,7 @@ export default function SettingsScreen() {
               </View>
             </TouchableOpacity>
           </ThemedView>
-          <View
-            style={[
-              styles.card,
-              { backgroundColor: cardBackgroundColor },
-              { opacity: 0.5 },
-            ]}
-          >
+          <View style={[styles.card, { backgroundColor: cardBackgroundColor }, { opacity: 0.5 }]}>
             <View style={styles.cardContent}>
               <View style={styles.cardLeft}>
                 <View style={styles.cardHeader}>
@@ -1129,7 +1116,9 @@ export default function SettingsScreen() {
           </TouchableOpacity>
 
           {/* Advanced Section */}
-          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>Advanced</ThemedText>
+          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
+            Advanced
+          </ThemedText>
           <TouchableOpacity
             style={[styles.clearDataButton, { backgroundColor: buttonDangerColor }]}
             onPress={handleClearAppData}
@@ -1143,7 +1132,6 @@ export default function SettingsScreen() {
               </View>
             </View>
           </TouchableOpacity>
-
         </ScrollView>
       </ThemedView>
 
@@ -1222,48 +1210,50 @@ export default function SettingsScreen() {
             onStartShouldSetResponder={() => true}
           >
             <View style={{ flex: 1 }}>
-            <View style={styles.modalHeader}>
-              <ThemedText style={[styles.modalTitle, { color: primaryTextColor }]}>
-                Select Lock Timer
-              </ThemedText>
-              <TouchableOpacity
-                onPress={() => setIsTimerModalVisible(false)}
-                style={styles.modalCloseButton}
-              >
-                <X size={22} color={secondaryTextColor} />
-              </TouchableOpacity>
-            </View>
-            {timerOptions.length > 0 ? (
-              <FlatList
-                data={timerOptions}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={[styles.currencyItem, { backgroundColor: cardBackgroundColor }]}
-                    onPress={() => handleTimerSelect(item.value)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.currencyItemContent}>
-                      <View style={styles.currencyItemLeft}>
-                        <ThemedText style={[styles.currencyItemName, { color: primaryTextColor }]}>
-                          {item.label}
-                        </ThemedText>
+              <View style={styles.modalHeader}>
+                <ThemedText style={[styles.modalTitle, { color: primaryTextColor }]}>
+                  Select Lock Timer
+                </ThemedText>
+                <TouchableOpacity
+                  onPress={() => setIsTimerModalVisible(false)}
+                  style={styles.modalCloseButton}
+                >
+                  <X size={22} color={secondaryTextColor} />
+                </TouchableOpacity>
+              </View>
+              {timerOptions.length > 0 ? (
+                <FlatList
+                  data={timerOptions}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={[styles.currencyItem, { backgroundColor: cardBackgroundColor }]}
+                      onPress={() => handleTimerSelect(item.value)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.currencyItemContent}>
+                        <View style={styles.currencyItemLeft}>
+                          <ThemedText
+                            style={[styles.currencyItemName, { color: primaryTextColor }]}
+                          >
+                            {item.label}
+                          </ThemedText>
+                        </View>
+                        {lockTimerDuration === item.value && (
+                          <Check size={20} color={statusConnectedColor} />
+                        )}
                       </View>
-                      {lockTimerDuration === item.value && (
-                        <Check size={20} color={statusConnectedColor} />
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                )}
-                keyExtractor={item => item.value?.toString() || 'never'}
-                style={modalListStyle}
-                contentContainerStyle={styles.currencyListContent}
-                showsVerticalScrollIndicator={false}
-              />
-            ) : (
-              <ThemedText style={[styles.modalEmptyState, { color: primaryTextColor }]}>
-                No timer options available
-              </ThemedText>
-            )}
+                    </TouchableOpacity>
+                  )}
+                  keyExtractor={item => item.value?.toString() || 'never'}
+                  style={modalListStyle}
+                  contentContainerStyle={styles.currencyListContent}
+                  showsVerticalScrollIndicator={false}
+                />
+              ) : (
+                <ThemedText style={[styles.modalEmptyState, { color: primaryTextColor }]}>
+                  No timer options available
+                </ThemedText>
+              )}
             </View>
           </Animated.View>
         </TouchableOpacity>
@@ -1309,53 +1299,53 @@ export default function SettingsScreen() {
               onPress={e => e.stopPropagation()}
               style={{ flex: 1 }}
             >
-            <View style={styles.modalHeader}>
-              <ThemedText
-                style={[styles.modalTitle, { color: primaryTextColor, fontSize: 20 * rem }]}
-              >
-                {pinVerificationConfig.title}
-              </ThemedText>
-              <TouchableOpacity onPress={closePinVerification}>
-                <X size={22} color={secondaryTextColor} />
-              </TouchableOpacity>
-            </View>
-            <View
-              style={[
-                styles.pinContainer,
-                { paddingTop: 16 * rem, paddingBottom: Math.max(32, 40 * rem) },
-              ]}
-            >
-              <ThemedText
+              <View style={styles.modalHeader}>
+                <ThemedText
+                  style={[styles.modalTitle, { color: primaryTextColor, fontSize: 20 * rem }]}
+                >
+                  {pinVerificationConfig.title}
+                </ThemedText>
+                <TouchableOpacity onPress={closePinVerification}>
+                  <X size={22} color={secondaryTextColor} />
+                </TouchableOpacity>
+              </View>
+              <View
                 style={[
-                  styles.pinInstruction,
-                  { color: secondaryTextColor, fontSize: 16 * rem, marginBottom: 24 * rem },
+                  styles.pinContainer,
+                  { paddingTop: 16 * rem, paddingBottom: Math.max(32, 40 * rem) },
                 ]}
               >
-                {pinVerificationConfig.instructions}
-              </ThemedText>
-              <View style={styles.pinKeypadWrapper}>
-                {pinError && (
-                  <View style={styles.pinErrorContainer}>
-                    <ThemedText
-                      style={[
-                        styles.pinErrorText,
-                        { color: buttonDangerColor, fontSize: 14 * rem },
-                      ]}
-                    >
-                      Incorrect PIN. Please try again.
-                    </ThemedText>
-                  </View>
-                )}
-                <PINKeypad
-                  onPINComplete={handlePINVerifyComplete}
-                  minLength={PIN_MIN_LENGTH}
-                  maxLength={PIN_MAX_LENGTH}
-                  showDots={true}
-                  error={pinError}
-                  onError={() => setPinError(false)}
-                />
+                <ThemedText
+                  style={[
+                    styles.pinInstruction,
+                    { color: secondaryTextColor, fontSize: 16 * rem, marginBottom: 24 * rem },
+                  ]}
+                >
+                  {pinVerificationConfig.instructions}
+                </ThemedText>
+                <View style={styles.pinKeypadWrapper}>
+                  {pinError && (
+                    <View style={styles.pinErrorContainer}>
+                      <ThemedText
+                        style={[
+                          styles.pinErrorText,
+                          { color: buttonDangerColor, fontSize: 14 * rem },
+                        ]}
+                      >
+                        Incorrect PIN. Please try again.
+                      </ThemedText>
+                    </View>
+                  )}
+                  <PINKeypad
+                    onPINComplete={handlePINVerifyComplete}
+                    minLength={PIN_MIN_LENGTH}
+                    maxLength={PIN_MAX_LENGTH}
+                    showDots={true}
+                    error={pinError}
+                    onError={() => setPinError(false)}
+                  />
+                </View>
               </View>
-            </View>
             </TouchableOpacity>
           </Animated.View>
         </TouchableOpacity>
