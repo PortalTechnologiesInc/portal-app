@@ -1,4 +1,7 @@
+import { ProviderRepository } from '@/queue/WorkQueue';
 import type { Frequency } from './types.d';
+import { GlobalEventsEmitterProvider } from '@/queue/providers/GlobalEventsEmitter';
+import { Currency, CurrencyHelpers } from './currency';
 
 // Convert cents to dollars by dividing by 100 and fix to 2 decimal places
 export function formatCentsToCurrency(cents: number): string {
@@ -393,6 +396,7 @@ class EventEmitter {
 
 // Global event emitter instance for cross-context communication
 export const globalEvents = new EventEmitter();
+ProviderRepository.register(new GlobalEventsEmitterProvider(globalEvents.emit));
 
 /**
  * Extract a readable service name from a mint URL
@@ -421,6 +425,34 @@ export function getServiceNameFromMintUrl(mintUrl: string): string {
       return match[1].replace(/^www\./, '');
     }
     return 'Ticket Mint';
+  }
+}
+
+export function formatAmountToHumanReadable(
+  amount: number,
+  currency: string,
+): String {
+  try {
+    // Format the amount - prefer converted amount if available
+    let formattedAmount: string;
+    // Use converted amount with proper formatting
+    const currencyEnum = currency as Currency;
+    const symbol = CurrencyHelpers.getSymbol(currencyEnum);
+
+    if (currencyEnum === Currency.SATS) {
+      formattedAmount = `${Math.round(amount)} ${symbol}`;
+    } else if (currencyEnum === Currency.BTC) {
+      const fixed = amount.toFixed(8);
+      const trimmed = fixed.replace(/\.0+$/, '').replace(/(\.\d*?[1-9])0+$/, '$1');
+      formattedAmount = `${symbol}${trimmed}`;
+    } else {
+      formattedAmount = `${symbol}${amount.toFixed(2)}`;
+    }
+    return formattedAmount;
+  } catch (error) {
+    // Silently fail - notification errors shouldn't break payment flow
+    console.error('Failed to format amount:', error);
+    return "";
   }
 }
 
