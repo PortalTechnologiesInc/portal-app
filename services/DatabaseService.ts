@@ -14,18 +14,32 @@ export const toUnixSeconds = (date: Date | number): number => {
 export const fromUnixSeconds = (seconds: number | bigint): Date => {
   return new Date(Number(seconds) * 1000);
 };
+export interface KeyValueCacheRecord {
+  key: string;
+  value: string;
+  expires_at: number | null; // Unix timestamp in seconds, null means never expires
+}
+
+export interface QueuedTaskRecord {
+  id: number;
+  task_name: string;
+  arguments: string; // JSON string representation
+  added_at: number; // Unix timestamp in seconds
+  expires_at: number | null; // Unix timestamp in seconds, null means never expires
+  priority: number; // Higher numbers = higher priority
+}
 
 // Database record types (as stored in SQLite)
 export interface ActivityRecord {
   id: string;
   type:
-    | 'auth'
-    | 'pay'
-    | 'receive'
-    | 'ticket'
-    | 'ticket_approved'
-    | 'ticket_denied'
-    | 'ticket_received';
+  | 'auth'
+  | 'pay'
+  | 'receive'
+  | 'ticket'
+  | 'ticket_approved'
+  | 'ticket_denied'
+  | 'ticket_received';
   service_name: string;
   service_key: string;
   detail: string;
@@ -130,6 +144,8 @@ export interface AllowedBunkerClientWithDates
   last_seen: Date;
   created_at: Date;
 }
+
+export type PaymentAction = 'payment_started' | 'payment_completed' | 'payment_failed';
 
 export class DatabaseService {
   constructor(private db: SQLiteDatabase) {}
@@ -1047,77 +1063,10 @@ export class DatabaseService {
     }
   }
 
-  /**
-   * Marks a notification event as processed. Returns true if the event was already recorded.
-   */
-  async markNotificationEventProcessed(eventId: string): Promise<boolean> {
-    try {
-      const now = toUnixSeconds(Date.now());
-      const result = await this.db.runAsync(
-        `INSERT OR IGNORE INTO processed_notification_events (
-          event_id, processed_at
-        ) VALUES (?, ?)`,
-        [eventId, now]
-      );
-      return result.changes === 0;
-    } catch (_error) {
-      return false;
-    }
-  }
-
-  /**
-   * Marks a subscription as processing. Returns the number of rows removed.
-   */
-  async markSubscriptionAsProcessing(subscriptionId: string): Promise<number> {
-    const now = toUnixSeconds(Date.now());
-    try {
-      const result = await this.db.runAsync(
-        `INSERT OR IGNORE INTO processing_subscriptions (
-          subscription_id, processed_at
-        ) VALUES (?, ?)`,
-        [subscriptionId, now]
-      );
-      return result.changes;
-    } catch (_error) {
-      return 0;
-    }
-  }
-
-  /**
-   * Deletes the subscription from the list of processing. Returns the number of rows removed.
-   */
-  async deleteProcessingSubscription(subscriptionId: string): Promise<number> {
-    try {
-      const result = await this.db.runAsync(
-        `DELETE FROM processing_subscriptions WHERE subscription_id = ?`,
-        [subscriptionId]
-      );
-      return result.changes;
-    } catch (_error) {
-      return 0;
-    }
-  }
-
-  /**
-   * Deletes all processing subscriptions older than 1 minute. Returns the number of rows removed.
-   */
-  async deleteStaleProcessingSubscriptions(): Promise<number> {
-    try {
-      const tenMinutesAgo = toUnixSeconds(Date.now()) - 60;
-      const result = await this.db.runAsync(
-        `DELETE FROM processing_subscriptions WHERE processed_at <= ?`,
-        [tenMinutesAgo]
-      );
-      return result.changes ?? 0;
-    } catch (_error) {
-      return 0;
-    }
-  }
-
   // Payment status log methods
   async addPaymentStatusEntry(
     invoice: string,
-    actionType: 'payment_started' | 'payment_completed' | 'payment_failed'
+    actionType: PaymentAction,
   ): Promise<number> {
     const now = toUnixSeconds(Date.now());
     const result = await this.db.runAsync(
@@ -1133,7 +1082,7 @@ export class DatabaseService {
     Array<{
       id: number;
       invoice: string;
-      action_type: 'payment_started' | 'payment_completed' | 'payment_failed';
+      action_type: PaymentAction;
       created_at: Date;
     }>
   > {
@@ -1375,11 +1324,214 @@ export class DatabaseService {
   }
 
   async updateBunkerClientName(pubkey: string, name: string | null): Promise<void> {
+    try {
     await this.db.runAsync(
       `UPDATE bunker_allowed_clients
         SET client_name = ?
         WHERE client_pubkey = ?`,
       [name, pubkey]
     );
+    } catch (error) {
+      console.error('Database error while updating client name:', error);
+      throw error;
+    }
+  }
+
+  // Key-value cache methods
+
+  /**
+   * Get a cached value if it exists and hasn't expired
+   * @param key The cache key
+   * @returns The cached value or null if not found/expired
+   */
+  async getCache(key: string): Promise<string | null> {
+    const now = toUnixSeconds(Date.now());
+
+    const record = await this.db.getFirstAsync<KeyValueCacheRecord>(
+      'SELECT * FROM key_value_cache WHERE key = ? AND (expires_at IS NULL OR expires_at > ?)',
+      [key, now]
+    );
+
+    return record?.value || null;
+  }
+
+  /**
+   * Store a value in the cache with an expiration timestamp
+   * @param key The cache key
+   * @param value The value to cache
+   * @param expiresAt The expiration timestamp (Date, Unix seconds, null for 'forever', or 'forever' string)
+   */
+  async setCache(
+    key: string,
+    value: string,
+    expiresAt: Date | number | null | 'forever'
+  ): Promise<void> {
+    const expiresAtSeconds =
+      expiresAt === null || expiresAt === 'forever' ? null : toUnixSeconds(expiresAt);
+
+    if (value === null || value === undefined) {
+      value = '{}'; // FIXME: make the column nullable
+    }
+
+    console.warn('Setting cache', key, value, expiresAtSeconds);
+    await this.db.runAsync(
+      `INSERT OR REPLACE INTO key_value_cache (
+        key, value, expires_at
+      ) VALUES (?, ?, ?)`,
+      [key, value, expiresAtSeconds]
+    );
+  }
+
+  /**
+   * Delete a cache entry by key
+   * @param key The cache key to delete
+   */
+  async deleteCache(key: string): Promise<void> {
+    await this.db.runAsync('DELETE FROM key_value_cache WHERE key = ?', [key]);
+  }
+
+  /**
+   * Clean up expired cache entries (optional maintenance method)
+   * Only deletes entries with non-NULL expires_at that have expired
+   * @returns The number of entries deleted
+   */
+  async cleanExpiredCache(): Promise<number> {
+    const now = toUnixSeconds(Date.now());
+
+    const result = await this.db.runAsync(
+      'DELETE FROM key_value_cache WHERE expires_at IS NOT NULL AND expires_at <= ?',
+      [now]
+    );
+
+    return result.changes ?? 0;
+  }
+
+  // Queued tasks methods
+
+  /**
+   * Add a task to the queue
+   * @param taskName The name of the task
+   * @param argumentsJson JSON string representation of the task arguments
+   * @param expiresAt Optional expiration timestamp (Date, Unix seconds, null for 'forever', or 'forever' string)
+   * @param priority Optional priority (defaults to 0, higher numbers = higher priority)
+   * @returns The ID of the inserted task
+   */
+  async addQueuedTask(
+    taskName: string,
+    argumentsJson: string,
+    expiresAt?: Date | number | null | 'forever',
+    priority: number = 0
+  ): Promise<number> {
+    const now = toUnixSeconds(Date.now());
+    const expiresAtSeconds =
+      expiresAt === undefined || expiresAt === null || expiresAt === 'forever'
+        ? null
+        : toUnixSeconds(expiresAt);
+
+    const result = await this.db.runAsync(
+      `INSERT INTO queued_tasks (
+        task_name, arguments, added_at, expires_at, priority
+      ) VALUES (?, ?, ?, ?, ?)`,
+      [taskName, argumentsJson, now, expiresAtSeconds, priority]
+    );
+
+    return result.lastInsertRowId;
+  }
+
+  /**
+   * Get queued tasks, optionally filtered by task name and excluding expired tasks
+   * @param options Filtering options
+   * @returns Array of queued task records
+   */
+  async getQueuedTasks(options: {
+    taskName?: string;
+    excludeExpired?: boolean;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<QueuedTaskRecord[]> {
+    const conditions: string[] = [];
+    const params: (string | number)[] = [];
+
+    if (options.taskName) {
+      conditions.push('task_name = ?');
+      params.push(options.taskName);
+    }
+
+    if (options.excludeExpired !== false) {
+      // Default to excluding expired tasks
+      const now = toUnixSeconds(Date.now());
+      conditions.push('(expires_at IS NULL OR expires_at > ?)');
+      params.push(now);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const limitClause = options.limit ? `LIMIT ${options.limit}` : '';
+    const offsetClause = options.offset ? `OFFSET ${options.offset}` : '';
+
+    const records = await this.db.getAllAsync<QueuedTaskRecord>(
+      `SELECT * FROM queued_tasks ${whereClause} ORDER BY priority DESC, added_at ASC ${limitClause} ${offsetClause}`,
+      params
+    );
+
+    return records;
+  }
+
+  /**
+   * Get a queued task by ID
+   * @param id The task ID
+   * @returns The queued task record or null if not found
+   */
+  async getQueuedTask(id: number): Promise<QueuedTaskRecord | null> {
+    const record = await this.db.getFirstAsync<QueuedTaskRecord>(
+      'SELECT * FROM queued_tasks WHERE id = ?',
+      [id]
+    );
+
+    return record || null;
+  }
+
+  /**
+   * Extract the next task from the queue
+   * Returns the highest priority task (or oldest if same priority) that hasn't expired.
+   * The task remains in the queue and should be deleted manually once completed.
+   * @returns The next queued task record or null if no tasks available
+   */
+  async extractNextQueuedTask(): Promise<QueuedTaskRecord | null> {
+    const now = toUnixSeconds(Date.now());
+
+    // Get the next task (highest priority, oldest, not expired)
+    const task = await this.db.getFirstAsync<QueuedTaskRecord>(
+      `SELECT * FROM queued_tasks 
+       WHERE (expires_at IS NULL OR expires_at > ?)
+       ORDER BY priority DESC, added_at ASC 
+       LIMIT 1`,
+      [now]
+    );
+
+    return task || null;
+  }
+
+  /**
+   * Delete a queued task by ID
+   * @param id The task ID to delete
+   */
+  async deleteQueuedTask(id: number): Promise<void> {
+    await this.db.runAsync('DELETE FROM queued_tasks WHERE id = ?', [id]);
+  }
+
+  /**
+   * Clean up expired queued tasks
+   * Only deletes tasks with non-NULL expires_at that have expired
+   * @returns The number of tasks deleted
+   */
+  async cleanExpiredQueuedTasks(): Promise<number> {
+    const now = toUnixSeconds(Date.now());
+
+    const result = await this.db.runAsync(
+      'DELETE FROM queued_tasks WHERE expires_at IS NOT NULL AND expires_at <= ?',
+      [now]
+    );
+
+    return result.changes ?? 0;
   }
 }
