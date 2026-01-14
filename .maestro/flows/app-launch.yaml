@@ -2,4 +2,10 @@ appId: cc.getportal.portal
 ---
 # Basic app launch and navigation test
 - launchApp
-- assertVisible: "Portal"
+# Wait for app to fully load (handles loading screens, onboarding, etc.)
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+# Wait a bit more for async operations (Maestro waits in milliseconds)
+- waitForAnimationToEnd
+# Check if app loaded - look for "Welcome" text (shown on first launch or home screen)
+- assertVisible: Welcome to Portal
