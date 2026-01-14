@@ -7,6 +7,7 @@ import {
   keyToHex,
   NostrConnectMethod,
   type NostrConnectRequestEvent,
+  CloseRecurringPaymentResponse,
   NostrConnectResponseStatus,
   PaymentStatus,
   parseBolt11,
@@ -16,15 +17,13 @@ import {
   type SinglePaymentRequest,
   NostrConnectMethod,
   keyToHex,
-  PortalAppInterface,
 } from 'portal-app-lib';
 import type { Wallet } from '@/models/WalletType';
 import { globalEvents } from '@/utils/common';
 import * as Notifications from 'expo-notifications';
-import { DatabaseService, fromUnixSeconds, SubscriptionWithDates } from './DatabaseService';
-import { CurrencyConversionService } from './CurrencyConversionService';
-import { globalEvents, PendingRequest } from '@/utils/common';
-import { Currency, CurrencyHelpers, normalizeCurrencyForComparison } from '@/utils/currency';
+import { DatabaseService } from './DatabaseService';
+import { globalEvents } from '@/utils/common';
+import { Currency, CurrencyHelpers } from '@/utils/currency';
 import { getMethodString } from '@/utils/nip46';
 import { CurrencyConversionService } from './CurrencyConversionService';
 import {

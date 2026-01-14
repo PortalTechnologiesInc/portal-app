@@ -6,15 +6,15 @@ import { WaitForRelaysConnectedTask } from "./WaitForRelaysConnected";
 import { PromptUserProvider } from "../providers/PromptUser";
 import { PendingRequest } from "@/utils/types";
 import { Currency, CurrencyHelpers, normalizeCurrencyForComparison } from "@/utils/currency";
-import { GetWalletInfoTask } from "./GetWalletInfo";
 import { SaveActivityTask } from "./SaveActivity";
 import { StartPaymentTask } from "./StartPayment";
 import { formatAmountToHumanReadable } from "@/utils/common";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { GetWalletInfoTask } from "./GetWalletInfo";
 
-export class HandleSinglePaymentRequestTask extends Task<[SinglePaymentRequest], [DatabaseService, Currency], void> {
+export class HandleSinglePaymentRequestTask extends Task<[SinglePaymentRequest], [DatabaseService], void> {
   constructor(request: SinglePaymentRequest) {
-    super([request], ['Wallet', 'DatabaseService'], async ([db], request) => {
+    super([request], ['DatabaseService'], async ([db], request) => {
       let subId = request.content.subscriptionId;
       try {
         const checkAmount = new CheckAmountTask(request).run();
@@ -205,12 +205,38 @@ export class HandleSinglePaymentRequestTask extends Task<[SinglePaymentRequest],
           return;
         }
 
-        let balance: bigint | undefined;
 
         const walletInfo = await new GetWalletInfoTask().run();
-        balance = walletInfo.balanceInSats;
 
-        if (balance && BigInt(amount) > balance) {
+        const isWalletProvided = walletInfo != null;
+        if (!isWalletProvided) {
+          await new SaveActivityTask({
+            type: 'pay',
+            service_key: request.serviceKey,
+            service_name: subscriptionServiceName,
+            detail: 'Recurrent payment failed: wallet not provided.',
+            date: new Date(),
+            amount: amount,
+            currency: currency,
+            converted_amount: convertedAmount,
+            converted_currency: convertedCurrency,
+            request_id: request.eventId,
+            status: 'negative',
+            subscription_id: request.content.subscriptionId || null,
+          }).run()
+
+          await new SendSinglePaymentResponseTask(request, new PaymentStatus.Rejected({
+            reason: 'Recurrent payment failed: no wallet provided.',
+          }
+          )).run();
+
+          return;
+        }
+
+        const balance = walletInfo.balanceInSats;
+        const isBalanceEnough = balance && balance > BigInt(amount);
+
+        if (!isBalanceEnough) {
           await new SaveActivityTask({
             type: 'pay',
             service_key: request.serviceKey,
@@ -262,6 +288,7 @@ export class HandleSinglePaymentRequestTask extends Task<[SinglePaymentRequest],
     });
   }
 }
+Task.register(HandleSinglePaymentRequestTask);
 
 class CheckAmountTask extends Task<[SinglePaymentRequest], [], boolean> {
   constructor(request: SinglePaymentRequest) {
@@ -307,6 +334,7 @@ class CheckAmountTask extends Task<[SinglePaymentRequest], [], boolean> {
     });
   }
 }
+Task.register(CheckAmountTask);
 
 export class SendSinglePaymentResponseTask extends Task<[SinglePaymentRequest, PaymentStatus], [PortalAppInterface], void> {
   constructor(request: SinglePaymentRequest, response: PaymentStatus) {

@@ -1,5 +1,5 @@
 import { DatabaseService, QueuedTaskRecord, toUnixSeconds } from "@/services/DatabaseService";
-import { PortalAppInterface } from "portal-app-lib";
+import { PortalAppInterface, CalendarInterface, parseCalendar } from "portal-app-lib";
 import { Sha256 } from '@aws-crypto/sha256-js';
 
 type Expiry = Date | 'forever';
@@ -9,7 +9,7 @@ const locksMap = new Map<string, Promise<any>>();
 const waitersMap = new Map<number, Waiter<any>>();
 
 export abstract class Arguments<TArgs extends unknown[] = unknown[]> {
-  constructor(protected readonly args: TArgs) {}
+  constructor(protected readonly args: TArgs) { }
 
   abstract hash(): string;
 
@@ -28,16 +28,16 @@ export class JsonArguments<TArgs extends unknown[] = unknown[]> extends Argument
   }
 
   hash(): string {
-    const flattenObject = function(ob: any) {
+    const flattenObject = function (ob: any) {
       const toReturn: Record<string, any> = {};
       for (const i in ob) {
         if (!ob.hasOwnProperty(i)) continue;
-        
+
         if ((typeof ob[i]) == 'object') {
           var flatObject = flattenObject(ob[i]);
           for (var x in flatObject) {
             if (!flatObject.hasOwnProperty(x)) continue;
-            
+
             toReturn[i + '.' + x] = flatObject[x];
           }
         } else {
@@ -99,7 +99,7 @@ export abstract class Task<A extends unknown[], P extends unknown[], T> {
     const cached = await this.db.getCache(key);
     if (cached) {
       console.warn(`Cache hit for ${key}: ${cached}`);
-      return JSON.parse(cached);
+      return parseSafe(cached);
     }
 
     try {
@@ -113,7 +113,7 @@ export abstract class Task<A extends unknown[], P extends unknown[], T> {
         locksMap.set(key, promise);
         try {
           const data = await promise;
-          await this.db.setCache(key, JSON.stringify(data), this.expiry);
+          await this.db.setCache(key, stringifySafe(data), this.expiry);
           return data;
         } finally {
           // await this.db.commitTransaction();
@@ -130,15 +130,7 @@ export abstract class Task<A extends unknown[], P extends unknown[], T> {
     return {
       id: 0,
       task_name: this.constructor.name,
-      arguments: JSON.stringify(this.args.values(), (_, v) => {
-        if (typeof v === 'function') {
-          return null;
-        } else if (typeof v === 'bigint') {
-          return `BigInt(${v.toString()})`;
-        } else {
-          return v;
-        }
-      }),
+      arguments: stringifySafe(this.args.values()),
       added_at: toUnixSeconds(Date.now()),
       expires_at: this.expiry === 'forever' ? null : this.expiry.getTime(),
       priority: 0,
@@ -159,13 +151,7 @@ export abstract class Task<A extends unknown[], P extends unknown[], T> {
     if (!constructor) {
       throw new Error(`Task constructor not found: ${serialized.task_name}`);
     }
-    return new constructor(...JSON.parse(serialized.arguments, (key, value) => {
-      if (typeof value === 'string' && value.startsWith('BigInt(')) {
-        return BigInt(value.slice(7, -1));
-      } else {
-        return value;
-      }
-    }));
+    return new constructor(...parseSafe(serialized.arguments));
   }
 }
 
@@ -225,7 +211,7 @@ export async function processQueue() {
     }
 
     await runTask(db, record);
- }
+  }
 }
 
 export async function enqueueTask<T>(task: Task<any[], any, T>): Promise<T> {
@@ -241,4 +227,44 @@ export async function enqueueTask<T>(task: Task<any[], any, T>): Promise<T> {
 
   console.log('[WorkQueue] Running task immediately');
   return await runTask(db, record);
+}
+
+// Helper function to check if a value implements CalendarInterface
+function isCalendarInterface(value: unknown): value is CalendarInterface {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'nextOccurrence' in value &&
+    'toCalendarString' in value &&
+    'toHumanReadable' in value &&
+    typeof (value as any).nextOccurrence === 'function' &&
+    typeof (value as any).toCalendarString === 'function' &&
+    typeof (value as any).toHumanReadable === 'function'
+  );
+}
+
+function stringifySafe(value: any) {
+  return JSON.stringify(value, (_, v) => {
+    if (typeof v === 'function') {
+      return null;
+    } else if (typeof v === 'bigint') {
+      return `BigInt(${v.toString()})`;
+    } else if (isCalendarInterface(v)) {
+      return `CalendarInterface(${v.toCalendarString()})`;
+    } else {
+      return v;
+    }
+  })
+}
+
+function parseSafe(value: string) {
+  return JSON.parse(value, (_, value) => {
+    if (typeof value === 'string' && value.startsWith('BigInt(')) {
+      return BigInt(value.slice(7, -1));
+    } else if (typeof value === 'string' && value.startsWith('CalendarInterface(')) {
+      return parseCalendar(value.slice(18, -1));
+    } else {
+      return value;
+    }
+  })
 }
