@@ -283,6 +283,14 @@
                 echo "installing expo..."
                 npm install -g @expo/cli
               fi
+
+              if ! command -v maestro &> /dev/null; then
+                echo "installing maestro..."
+                curl -Ls "https://get.maestro.mobile.dev" | bash
+                export PATH="$HOME/.maestro/bin:$PATH"
+              else
+                export PATH="$HOME/.maestro/bin:$PATH"
+              fi
             '';
           };
         };

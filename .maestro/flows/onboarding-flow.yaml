@@ -1,0 +1,13 @@
+appId: cc.getportal.portal
+---
+# Onboarding flow test
+# Note: This test assumes a fresh app install. Adjust based on your onboarding flow.
+- launchApp
+- assertVisible: "Portal"
+
+# Note: Add specific onboarding steps here based on your actual onboarding flow
+# Example steps (uncomment and modify as needed):
+# - tapOn: "Get Started"
+# - inputText: "Test User"
+# - tapOn: "Continue"
+# - assertVisible: "Welcome"

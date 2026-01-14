@@ -1,0 +1,16 @@
+appId: cc.getportal.portal
+---
+# Push notification tests
+# WARNING: These tests require a physical device (not emulator/simulator)
+# Real device tokens are needed for APNs (iOS) and FCM (Android)
+
+- launchApp
+- assertVisible: "Portal"
+- takeScreenshot: push-test-start
+
+# Note: Add push notification test steps here
+# Example steps (uncomment and modify as needed):
+# - sendNotification:
+#     title: "Test Notification"
+#     body: "This is a test notification"
+# - assertVisible: "Test Notification"

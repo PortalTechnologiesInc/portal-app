@@ -1,0 +1,5 @@
+appId: cc.getportal.portal
+---
+# Basic app launch and navigation test
+- launchApp
+- assertVisible: "Portal"

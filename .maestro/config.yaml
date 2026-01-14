@@ -1,0 +1,14 @@
+# Maestro Configuration
+# Default app ID for Android
+appId: cc.getportal.portal
+
+# Test environment settings
+env:
+  # Add environment-specific variables here if needed
+  # EXAMPLE:
+  # API_URL: "https://api.example.com"
+  # ENV: "development"
+
+# Device/emulator preferences
+# Maestro will use the default connected device/emulator
+# To specify a device, use: maestro test --device <device-id> <flow.yaml>
