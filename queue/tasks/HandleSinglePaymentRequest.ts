@@ -2,7 +2,6 @@ import { Currency_Tags, parseBolt11, parseCalendar, PaymentStatus, PortalAppInte
 import { Task } from "../WorkQueue";
 import { DatabaseService, fromUnixSeconds, SubscriptionWithDates } from "@/services/DatabaseService";
 import { CurrencyConversionService } from "@/services/CurrencyConversionService";
-import { WaitForRelaysConnectedTask } from "./WaitForRelaysConnected";
 import { PromptUserProvider } from "../providers/PromptUser";
 import { PendingRequest } from "@/utils/types";
 import { Currency, CurrencyHelpers, normalizeCurrencyForComparison } from "@/utils/currency";
@@ -11,6 +10,7 @@ import { StartPaymentTask } from "./StartPayment";
 import { formatAmountToHumanReadable } from "@/utils/common";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { GetWalletInfoTask } from "./GetWalletInfo";
+import { RelayStatusesProvider } from "../providers/RelayStatus";
 
 export class HandleSinglePaymentRequestTask extends Task<[SinglePaymentRequest], [DatabaseService], void> {
   constructor(request: SinglePaymentRequest) {
@@ -24,19 +24,6 @@ export class HandleSinglePaymentRequestTask extends Task<[SinglePaymentRequest],
             reason: `Invoice amount does not match the requested amount.`,
           }))
           return;
-        }
-        // Deduplication guard: skip if an activity with the same request/event id already exists
-        try {
-          const alreadyExists = await db.hasActivityWithRequestId(request.eventId);
-          if (alreadyExists) {
-            console.warn(
-              `🔁 Skipping duplicate payment activity for request_id/eventId: ${request.eventId}`
-            );
-            return;
-          }
-        } catch (e) {
-          // If the check fails, proceed without blocking, but log the error
-          console.error('Failed to check duplicate activity:', e);
         }
 
         let amount =
@@ -115,11 +102,12 @@ export class HandleSinglePaymentRequestTask extends Task<[SinglePaymentRequest],
               conversionAmount = originalAmount; // Already in millisats
             }
 
-            convertedAmount = await CurrencyConversionService.convertAmount(
+            convertedAmount = await new ConvertCurrencyTask(
               conversionAmount,
               sourceCurrency,
-              preferredCurrency // Currency enum values are already strings
-            );
+              preferredCurrency,
+            ).run();
+
             convertedCurrency = preferredCurrency;
           } catch (error) {
             console.error('Currency conversion error during payment:', error);
@@ -336,10 +324,10 @@ class CheckAmountTask extends Task<[SinglePaymentRequest], [], boolean> {
 }
 Task.register(CheckAmountTask);
 
-export class SendSinglePaymentResponseTask extends Task<[SinglePaymentRequest, PaymentStatus], [PortalAppInterface], void> {
+export class SendSinglePaymentResponseTask extends Task<[SinglePaymentRequest, PaymentStatus], [PortalAppInterface, RelayStatusesProvider], void> {
   constructor(request: SinglePaymentRequest, response: PaymentStatus) {
-    super([request, response], ['PortalAppInterface'], async ([portalApp], request, response) => {
-      await new WaitForRelaysConnectedTask().run();
+    super([request, response], ['PortalAppInterface', 'RelayStatusesProvider'], async ([portalApp, relayStatusesProvider], request, response) => {
+      await relayStatusesProvider.waitForRelaysConnected();
       return await portalApp.replySinglePaymentRequest(
         request,
         {
@@ -351,6 +339,25 @@ export class SendSinglePaymentResponseTask extends Task<[SinglePaymentRequest, P
   }
 }
 Task.register(SendSinglePaymentResponseTask);
+
+export class ConvertCurrencyTask extends Task<[number, string, string], [], number> {
+  constructor(
+    private readonly amount: number,
+    private readonly fromCurreny: string,
+    private readonly toCurrency: string,
+  ) {
+    super([amount, fromCurreny, toCurrency], [], async ([], amount, fromCurreny, toCurrency) => {
+      return CurrencyConversionService.convertAmount(
+        amount,
+        fromCurreny,
+        toCurrency,
+      );
+    });
+    this.expiry = new Date(Date.now() + 1000 * 60 * 4); // cache it for 4 min
+  }
+}
+Task.register(SendSinglePaymentResponseTask);
+
 
 class RequireSinglePaymentUserApprovalTask extends Task<[SinglePaymentRequest, string, string], [PromptUserProvider], PaymentStatus | null> {
   constructor(request: SinglePaymentRequest, title: string, body: string) {

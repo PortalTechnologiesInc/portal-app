@@ -2,10 +2,9 @@ import { PendingRequest } from "@/utils/types";
 import { Task } from "../WorkQueue";
 import { AuthChallengeEvent, AuthResponseStatus, PortalAppInterface, Profile } from "portal-app-lib";
 import { getServiceNameFromProfile } from "@/utils/nostrHelper";
-import { ActivityWithDates, DatabaseService } from "@/services/DatabaseService";
 import { PromptUserProvider } from "../providers/PromptUser";
-import { WaitForRelaysConnectedTask } from "./WaitForRelaysConnected";
 import { SaveActivityTask } from "./SaveActivity";
+import { RelayStatusesProvider } from "../providers/RelayStatus";
 
 export class ProcessAuthRequestTask extends Task<[AuthChallengeEvent], [], void> {
   constructor(event: AuthChallengeEvent) {
@@ -57,11 +56,11 @@ export class ProcessAuthRequestTask extends Task<[AuthChallengeEvent], [], void>
 }
 Task.register(ProcessAuthRequestTask);
 
-class FetchServiceNameTask extends Task<[string], [PortalAppInterface], Profile | undefined> {
+class FetchServiceNameTask extends Task<[string], [PortalAppInterface, RelayStatusesProvider], Profile | undefined> {
   constructor(key: string) {
     console.log('[FetchServiceNameTask] getting PortalAppInterface');
-    super([key], ['PortalAppInterface'], async ([portal], key) => {
-      await new WaitForRelaysConnectedTask().run();
+    super([key], ['PortalAppInterface', 'RelayStatusesProvider'], async ([portal, relayStatusesProvider], key) => {
+      await relayStatusesProvider.waitForRelaysConnected();
       return await portal.fetchProfile(key);
     });
     this.expiry = new Date(Date.now() + 1000 * 60 * 60 * 24);
@@ -108,10 +107,10 @@ class RequireAuthUserApprovalTask extends Task<[AuthChallengeEvent], [PromptUser
 }
 Task.register(RequireAuthUserApprovalTask);
 
-class SendAuthChallengeResponseTask extends Task<[AuthChallengeEvent, AuthResponseStatus], [PortalAppInterface], void> {
+class SendAuthChallengeResponseTask extends Task<[AuthChallengeEvent, AuthResponseStatus], [PortalAppInterface, RelayStatusesProvider], void> {
   constructor(event: AuthChallengeEvent, response: AuthResponseStatus) {
-    super([event, response], ['PortalAppInterface'], async ([portalApp], event, response) => {
-      await new WaitForRelaysConnectedTask().run();
+    super([event, response], ['PortalAppInterface', 'RelayStatusesProvider'], async ([portalApp, relayStatusesProvider], event, response) => {
+      await relayStatusesProvider.waitForRelaysConnected();
       return await portalApp.replyAuthChallenge(event, response);
     });
   }

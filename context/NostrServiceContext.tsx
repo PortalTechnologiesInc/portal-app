@@ -413,7 +413,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
   useEffect(() => {
     relayStatusesRef.current = relayStatuses;
-    ProviderRepository.register(new RelayStatusesProvider(relayStatuses));
+    ProviderRepository.register(new RelayStatusesProvider(relayStatusesRef));
   }, [relayStatuses]);
 
   useEffect(() => {

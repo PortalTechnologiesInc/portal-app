@@ -2,7 +2,7 @@ import { PortalAppInterface, RecurringPaymentRequest, RecurringPaymentResponseCo
 import { Task } from "../WorkQueue";
 import { PromptUserProvider } from "../providers/PromptUser";
 import { PendingRequest } from "@/utils/types";
-import { WaitForRelaysConnectedTask } from "./WaitForRelaysConnected";
+import { RelayStatusesProvider } from "../providers/RelayStatus";
 
 export class HandleRecurringPaymentRequestTask extends Task<[RecurringPaymentRequest], [], void> {
   constructor(request: RecurringPaymentRequest) {
@@ -73,10 +73,10 @@ class RequireRecurringPaymentUserApprovalTask extends Task<[RecurringPaymentRequ
 Task.register(RequireRecurringPaymentUserApprovalTask);
 
 
-export class SendRecurringPaymentResponseTask extends Task<[RecurringPaymentRequest, RecurringPaymentResponseContent], [PortalAppInterface], void> {
+export class SendRecurringPaymentResponseTask extends Task<[RecurringPaymentRequest, RecurringPaymentResponseContent], [PortalAppInterface, RelayStatusesProvider], void> {
   constructor(request: RecurringPaymentRequest, response: RecurringPaymentResponseContent) {
-    super([request, response], ['PortalAppInterface'], async ([portalApp], request, response) => {
-      await new WaitForRelaysConnectedTask().run();
+    super([request, response], ['PortalAppInterface', 'RelayStatusesProvider'], async ([portalApp, relayStatusesProvider], request, response) => {
+      await relayStatusesProvider.waitForRelaysConnected();
       return await portalApp.replyRecurringPaymentRequest(
         request,
         response,
