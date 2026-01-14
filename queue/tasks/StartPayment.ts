@@ -1,17 +1,16 @@
 import { DatabaseService, PaymentAction } from "@/services/DatabaseService";
 import { Task } from "../WorkQueue";
-import { Wallet } from "@/models/WalletType";
 import { SaveActivityArgs, SaveActivityTask } from "./SaveActivity";
-import { WaitForRelaysConnectedTask } from "./WaitForRelaysConnected";
 import { PaymentStatus, SinglePaymentRequest } from "portal-app-lib";
 import { ActiveWalletProvider } from "../providers/ActiveWallet";
 import { SendSinglePaymentResponseTask } from "./HandleSinglePaymentRequest";
 import { globalEvents } from "@/utils/common";
+import { RelayStatusesProvider } from "../providers/RelayStatus";
 
-export class StartPaymentTask extends Task<[SaveActivityArgs, SinglePaymentRequest, string], [], void> {
+export class StartPaymentTask extends Task<[SaveActivityArgs, SinglePaymentRequest, string], [RelayStatusesProvider], void> {
   constructor(private readonly initialActivityData: SaveActivityArgs, private readonly request: SinglePaymentRequest, private readonly subsctiptionId: string) {
-    super([initialActivityData, request, subsctiptionId], [], async ([], initialActivityData, request, subscriptionId) => {
-      await new WaitForRelaysConnectedTask().run();
+    super([initialActivityData, request, subsctiptionId], ['RelayStatusesProvider'], async ([relayStatusesProvider], initialActivityData, request, subscriptionId) => {
+      await relayStatusesProvider.waitForRelaysConnected();
 
       const id = await new SaveActivityTask(initialActivityData).run();
 

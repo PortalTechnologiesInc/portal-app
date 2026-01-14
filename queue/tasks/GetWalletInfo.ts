@@ -1,14 +1,13 @@
 import { WalletInfo } from "@/utils/types";
 import { Task } from "../WorkQueue";
-import { Wallet } from "@/models/WalletType";
-import { WaitForRelaysConnectedTask } from "./WaitForRelaysConnected";
 import { ActiveWalletProvider } from "../providers/ActiveWallet";
+import { RelayStatusesProvider } from "../providers/RelayStatus";
 
-export class GetWalletInfoTask extends Task<[], [ActiveWalletProvider], WalletInfo | null> {
+export class GetWalletInfoTask extends Task<[], [ActiveWalletProvider, RelayStatusesProvider], WalletInfo | null> {
   constructor() {
     console.log('[GetWalletInfoTask] getting ActiveWalletProvider');
-    super([], ['ActiveWalletProvider'], async ([activeWalletProvider]) => {
-      await new WaitForRelaysConnectedTask().run();
+    super([], ['ActiveWalletProvider', 'RelayStatusesProvider'], async ([activeWalletProvider, relayStatusesProvider]) => {
+      await relayStatusesProvider.waitForRelaysConnected();
       const wallet = activeWalletProvider.getWallet();
       return wallet ? await wallet.getWalletInfo() : null;
     });
