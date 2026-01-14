@@ -328,12 +328,14 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
               const task = await new HandleSinglePaymentRequestTask(singlePaymentRequest)
               console.log('[PortalAppContext] Enqueuing HandleSinglePaymentRequestTask for request:', singlePaymentRequest.eventId);
               enqueueTask(task);
+              break;
             }
             case IncomingPaymentRequest_Tags.Recurring: {
               const recurringPaymentRequest = event.inner[0] as RecurringPaymentRequest;
               const task = await new HandleRecurringPaymentRequestTask(recurringPaymentRequest)
               console.log('[PortalAppContext] Enqueuing HandleRecurringPaymentRequestTask for request:', recurringPaymentRequest.eventId);
               enqueueTask(task);
+              break;
             }
           }
           const id = event.inner[0].eventId;
@@ -341,7 +343,7 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
           console.error('[PortalAppContext] Error running task', error);
         }
       }
-    })
+    })();
 
     // Listen for closed recurring payments
     // app

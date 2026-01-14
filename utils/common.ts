@@ -1,5 +1,3 @@
-import { ProviderRepository } from '@/queue/WorkQueue';
-import { GlobalEventsEmitterProvider } from '@/queue/providers/GlobalEventsEmitter';
 import { Currency, CurrencyHelpers } from './currency';
 
 // Convert cents to dollars by dividing by 100 and fix to 2 decimal places
@@ -319,7 +317,6 @@ class EventEmitter {
 
 // Global event emitter instance for cross-context communication
 export const globalEvents = new EventEmitter();
-ProviderRepository.register(new GlobalEventsEmitterProvider(globalEvents.emit));
 
 /**
  * Extract a readable service name from a mint URL

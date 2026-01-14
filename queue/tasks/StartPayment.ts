@@ -3,15 +3,14 @@ import { Task } from "../WorkQueue";
 import { Wallet } from "@/models/WalletType";
 import { SaveActivityArgs, SaveActivityTask } from "./SaveActivity";
 import { WaitForRelaysConnectedTask } from "./WaitForRelaysConnected";
-import { GlobalEventsEmitterProvider } from "../providers/GlobalEventsEmitter";
 import { PaymentStatus, SinglePaymentRequest } from "portal-app-lib";
-import { ActiveWalletProvider } from "../providers/Wallet";
+import { ActiveWalletProvider } from "../providers/ActiveWallet";
 import { SendSinglePaymentResponseTask } from "./HandleSinglePaymentRequest";
+import { globalEvents } from "@/utils/common";
 
 export class StartPaymentTask extends Task<[SaveActivityArgs, SinglePaymentRequest, string], [], void> {
   constructor(private readonly initialActivityData: SaveActivityArgs, private readonly request: SinglePaymentRequest, private readonly subsctiptionId: string) {
-    console.log('[GetWalletInfoTask] getting Wallet');
-    super([initialActivityData, request, subsctiptionId], ['DatabaseService', 'Wallet'], async ([], initialActivityData, request, subscriptionId) => {
+    super([initialActivityData, request, subsctiptionId], [], async ([], initialActivityData, request, subscriptionId) => {
       await new WaitForRelaysConnectedTask().run();
 
       const id = await new SaveActivityTask(initialActivityData).run();
@@ -30,9 +29,8 @@ export class StartPaymentTask extends Task<[SaveActivityArgs, SinglePaymentReque
         }
         await new SendSinglePaymentResponseTask(request, new PaymentStatus.Success({ preimage })).run();
 
-        
-
         await new UpdateSubscriptionLastPaymentTask(subscriptionId).run();
+        await new AddPaymentStatusTask(request.content.invoice, 'payment_completed').run();
         await new UpdateActivityStatusTask(id, 'positive', 'Payment completed').run();
       } catch (error) {
         console.error(
@@ -67,8 +65,8 @@ Task.register(AddPaymentStatusTask);
 class PayInvoiceTask extends Task<[string, bigint], [ActiveWalletProvider], string | undefined> {
   constructor(private readonly invoice: string, private readonly amount: bigint) {
     console.log('[PayInvoiceTask] getting Wallet');
-    super([invoice, amount], ['DatabaseService'], async ([wallet], invoice, amount) => {
-      const preimage = await wallet.getWallet()?.sendPayment(invoice, amount);
+    super([invoice, amount], ['ActiveWalletProvider'], async ([activeWalletProvider], invoice, amount) => {
+      const preimage = await activeWalletProvider.getWallet()?.sendPayment(invoice, amount);
       console.log('🧾 Invoice paid!');
       return preimage;
     });
@@ -87,12 +85,12 @@ class UpdateSubscriptionLastPaymentTask extends Task<[string], [DatabaseService]
 Task.register(UpdateSubscriptionLastPaymentTask);
 
 type ActivityPaymentStatus = 'neutral' | 'positive' | 'negative' | 'pending';
-class UpdateActivityStatusTask extends Task<[string, ActivityPaymentStatus, string], [GlobalEventsEmitterProvider, DatabaseService], void> {
+class UpdateActivityStatusTask extends Task<[string, ActivityPaymentStatus, string], [DatabaseService], void> {
   constructor(private readonly id: string, private readonly status: ActivityPaymentStatus, private readonly statusDetail: string) {
     console.log('[UpdateActivityStatusTask] getting DatabaseService');
-    super([id, status, statusDetail], ['GlobalEventsEmitterProvider', 'DatabaseService'], async ([geep, db], id, status, statusDetail) => {
+    super([id, status, statusDetail], ['DatabaseService'], async ([db], id, status, statusDetail) => {
       await db.updateActivityStatus(id, status, statusDetail);
-      geep.emit('activityUpdated', { activityId: id });
+      globalEvents.emit('activityUpdated', { activityId: id });
     });
   }
 }

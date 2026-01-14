@@ -13,7 +13,7 @@ import { DatabaseService } from './services/DatabaseService';
 import { ProviderRepository } from './queue/WorkQueue';
 import { PromptUserWithNotification } from './queue/providers/PromptUser';
 import { NotificationProvider } from './queue/providers/Notification';
-import { ActiveWalletProvider, WalletWrapper } from './queue/providers/Wallet';
+import { ActiveWalletProvider, WalletWrapper } from './queue/providers/ActiveWallet';
 
 const BACKGROUND_NOTIFICATION_TASK = 'BACKGROUND-NOTIFICATION-TASK';
 /**

@@ -27,7 +27,7 @@ import { useCurrency } from './CurrencyContext';
 import { useDatabaseContext } from './DatabaseContext';
 import { useKey } from './KeyContext';
 import { ProviderRepository } from '@/queue/WorkQueue';
-import { ActiveWalletProvider, WalletWrapper } from '@/queue/providers/Wallet';
+import { ActiveWalletProvider, WalletWrapper } from '@/queue/providers/ActiveWallet';
 
 export interface WalletManagerContextType {
   activeWallet?: Wallet;
