@@ -1,4 +1,4 @@
-import { Currency_Tags, parseBolt11, parseCalendar, PaymentStatus, PortalAppInterface, SinglePaymentRequest } from "portal-app-lib";
+import { Currency_Tags, parseBolt11, parseCalendar, PaymentStatus, PortalApp, SinglePaymentRequest } from "portal-app-lib";
 import { Task } from "../WorkQueue";
 import { DatabaseService, fromUnixSeconds, SubscriptionWithDates } from "@/services/DatabaseService";
 import { CurrencyConversionService } from "@/services/CurrencyConversionService";
@@ -12,386 +12,396 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { GetWalletInfoTask } from "./GetWalletInfo";
 import { RelayStatusesProvider } from "../providers/RelayStatus";
 
-export class HandleSinglePaymentRequestTask extends Task<[SinglePaymentRequest], [DatabaseService], void> {
-  constructor(request: SinglePaymentRequest) {
-    super([request], ['DatabaseService'], async ([db], request) => {
-      let subId = request.content.subscriptionId;
-      try {
-        const checkAmount = new CheckAmountTask(request).run();
+export class HandleSinglePaymentRequestTask extends Task<[SinglePaymentRequest], { DatabaseService: DatabaseService }, void> {
+  constructor(private readonly request: SinglePaymentRequest) {
+    super(['DatabaseService'], request);
+    this.expiry = new Date(Number(request.expiresAt * 1000n));
+  }
 
-        if (!checkAmount) {
-          new SendSinglePaymentResponseTask(request, new PaymentStatus.Rejected({
-            reason: `Invoice amount does not match the requested amount.`,
-          }))
-          return;
-        }
+  async taskLogic({ DatabaseService }: { DatabaseService: DatabaseService }, request: SinglePaymentRequest): Promise<void> {
+    let subId = request.content.subscriptionId;
+    try {
+      const checkAmount = new CheckAmountTask(request).run();
 
-        let amount =
-          typeof request.content.amount === 'bigint'
-            ? Number(request.content.amount)
-            : request.content.amount;
+      if (!checkAmount) {
+        new SendSinglePaymentResponseTask(request, new PaymentStatus.Rejected({
+          reason: `Invoice amount does not match the requested amount.`,
+        }))
+        return;
+      }
 
-        // Store original amount for currency conversion
-        const originalAmount = amount;
+      let amount =
+        typeof request.content.amount === 'bigint'
+          ? Number(request.content.amount)
+          : request.content.amount;
 
-        // Extract currency symbol from the Currency object and convert amount for storage
-        let currency: string | null = null;
-        const currencyObj = request.content.currency;
-        switch (currencyObj.tag) {
-          case Currency_Tags.Fiat:
-            {
-              const fiatCurrencyRaw = (currencyObj as any).inner;
-              const fiatCurrencyValue = Array.isArray(fiatCurrencyRaw)
-                ? fiatCurrencyRaw[0]
-                : fiatCurrencyRaw;
-              currency =
-                typeof fiatCurrencyValue === 'string'
-                  ? String(fiatCurrencyValue).toUpperCase()
-                  : 'UNKNOWN';
-              // Normalize fiat amount from minor units (cents) to major units (dollars) for storage
-              amount = amount / 100;
-            }
-            break;
-          case Currency_Tags.Millisats:
-            amount = amount / 1000; // Convert to sats for database storage
-            currency = 'SATS';
-            break;
-        }
+      // Store original amount for currency conversion
+      const originalAmount = amount;
 
-        // Convert currency for user's preferred currency using original amount
-        let convertedAmount: number | null = null;
-        let convertedCurrency: string | null = null;
-
-        // todo create utils methods for asyncstorage
-        let preferredCurrency = await AsyncStorage.getItem('preferred_currency');
-        if (!preferredCurrency || !CurrencyHelpers.isValidCurrency(preferredCurrency)) {
-          preferredCurrency = Currency.USD;
-        }
-        // Normalize stored currency for comparison (handle "sats" -> "SATS")
-        const normalizedStoredCurrency = normalizeCurrencyForComparison(currency);
-        const normalizedPreferredCurrency = normalizeCurrencyForComparison(preferredCurrency);
-
-        // Skip conversion if currencies are the same (case-insensitive, with sats normalization)
-        if (
-          normalizedStoredCurrency &&
-          normalizedPreferredCurrency &&
-          normalizedStoredCurrency === normalizedPreferredCurrency
-        ) {
-          // No conversion needed - currencies match
-          convertedAmount = null;
-          convertedCurrency = null;
-        } else {
-          // Perform conversion
-          try {
-            let sourceCurrency: string;
-            let conversionAmount: number;
-
-            if (currencyObj?.tag === Currency_Tags.Fiat) {
-              const fiatCurrencyRaw = (currencyObj as any).inner;
-              const fiatCurrencyValue = Array.isArray(fiatCurrencyRaw)
-                ? fiatCurrencyRaw[0]
-                : fiatCurrencyRaw;
-              sourceCurrency =
-                typeof fiatCurrencyValue === 'string'
-                  ? String(fiatCurrencyValue).toUpperCase()
-                  : 'UNKNOWN';
-              // Normalize fiat amount from minor units (cents) to major units (dollars)
-              conversionAmount = originalAmount / 100;
-            } else {
-              sourceCurrency = 'MSATS';
-              conversionAmount = originalAmount; // Already in millisats
-            }
-
-            convertedAmount = await new ConvertCurrencyTask(
-              conversionAmount,
-              sourceCurrency,
-              preferredCurrency,
-            ).run();
-
-            convertedCurrency = preferredCurrency;
-          } catch (error) {
-            console.error('Currency conversion error during payment:', error);
-            // Continue without conversion - convertedAmount will remain null
-            return;
+      // Extract currency symbol from the Currency object and convert amount for storage
+      let currency: string | null = null;
+      const currencyObj = request.content.currency;
+      switch (currencyObj.tag) {
+        case Currency_Tags.Fiat:
+          {
+            const fiatCurrencyRaw = (currencyObj as any).inner;
+            const fiatCurrencyValue = Array.isArray(fiatCurrencyRaw)
+              ? fiatCurrencyRaw[0]
+              : fiatCurrencyRaw;
+            currency =
+              typeof fiatCurrencyValue === 'string'
+                ? String(fiatCurrencyValue).toUpperCase()
+                : 'UNKNOWN';
+            // Normalize fiat amount from minor units (cents) to major units (dollars) for storage
+            amount = amount / 100;
           }
-        }
+          break;
+        case Currency_Tags.Millisats:
+          amount = amount / 1000; // Convert to sats for database storage
+          currency = 'SATS';
+          break;
+      }
 
-        const notificationAmount =
-          convertedAmount !== null && convertedCurrency ? convertedAmount : amount;
-        const notificationCurrency =
-          convertedAmount !== null && convertedCurrency ? convertedCurrency : currency;
+      // Convert currency for user's preferred currency using original amount
+      let convertedAmount: number | null = null;
+      let convertedCurrency: string | null = null;
 
-        if (!subId) {
-          console.log(`👤 Not a subscription, required user interaction!`);
+      // todo create utils methods for asyncstorage
+      let preferredCurrency = await AsyncStorage.getItem('preferred_currency');
+      if (!preferredCurrency || !CurrencyHelpers.isValidCurrency(preferredCurrency)) {
+        preferredCurrency = Currency.USD;
+      }
+      // Normalize stored currency for comparison (handle "sats" -> "SATS")
+      const normalizedStoredCurrency = normalizeCurrencyForComparison(currency);
+      const normalizedPreferredCurrency = normalizeCurrencyForComparison(preferredCurrency);
 
-          const paymentResponse = await new RequireSinglePaymentUserApprovalTask(
-            request,
-            'Payment Request',
-            `Payment request of: ${formatAmountToHumanReadable(notificationAmount, notificationCurrency)}`
+      // Skip conversion if currencies are the same (case-insensitive, with sats normalization)
+      if (
+        normalizedStoredCurrency &&
+        normalizedPreferredCurrency &&
+        normalizedStoredCurrency === normalizedPreferredCurrency
+      ) {
+        // No conversion needed - currencies match
+        convertedAmount = null;
+        convertedCurrency = null;
+      } else {
+        // Perform conversion
+        try {
+          let sourceCurrency: string;
+          let conversionAmount: number;
+
+          if (currencyObj?.tag === Currency_Tags.Fiat) {
+            const fiatCurrencyRaw = (currencyObj as any).inner;
+            const fiatCurrencyValue = Array.isArray(fiatCurrencyRaw)
+              ? fiatCurrencyRaw[0]
+              : fiatCurrencyRaw;
+            sourceCurrency =
+              typeof fiatCurrencyValue === 'string'
+                ? String(fiatCurrencyValue).toUpperCase()
+                : 'UNKNOWN';
+            // Normalize fiat amount from minor units (cents) to major units (dollars)
+            conversionAmount = originalAmount / 100;
+          } else {
+            sourceCurrency = 'MSATS';
+            conversionAmount = originalAmount; // Already in millisats
+          }
+
+          convertedAmount = await new ConvertCurrencyTask(
+            conversionAmount,
+            sourceCurrency,
+            preferredCurrency,
           ).run();
 
-          if (paymentResponse) {
-            await new SendSinglePaymentResponseTask(request, paymentResponse).run();
-          }
-
+          convertedCurrency = preferredCurrency;
+        } catch (error) {
+          console.error('Currency conversion error during payment:', error);
+          // Continue without conversion - convertedAmount will remain null
           return;
         }
+      }
 
-        console.log(
-          `🤖 The request is from a subscription with id ${subId}. Checking to make automatic action.`
-        );
-        let subscription: SubscriptionWithDates;
-        let subscriptionServiceName: string;
-        try {
-          let subscriptionFromDb = await db.getSubscription(subId);
-          if (!subscriptionFromDb) {
-            await new SendSinglePaymentResponseTask(request, new PaymentStatus.Rejected({
-              reason: `Subscription with ID ${subId} not found in database`,
-            })).run();
-            console.warn(
-              `🚫 Payment rejected! The request is a subscription payment, but no subscription found with id ${subId}`
-            );
-            return;
-          }
-          subscription = subscriptionFromDb;
-          subscriptionServiceName = subscriptionFromDb.service_name;
-        } catch (e) {
-          await new SendSinglePaymentResponseTask(request, new PaymentStatus.Rejected({
-            reason:
-              'Failed to retrieve subscription from database. Please try again or contact support if the issue persists.',
-          }
-          )).run();
-          console.warn(`🚫 Payment rejected! Failing to connect to database.`);
-          return;
+      const notificationAmount =
+        convertedAmount !== null && convertedCurrency ? convertedAmount : amount;
+      const notificationCurrency =
+        convertedAmount !== null && convertedCurrency ? convertedCurrency : currency;
+
+      if (!subId) {
+        console.log(`👤 Not a subscription, required user interaction!`);
+
+        const paymentResponse = await new RequireSinglePaymentUserApprovalTask(
+          request,
+          'Payment Request',
+          `Payment request of: ${formatAmountToHumanReadable(notificationAmount, notificationCurrency)}`
+        ).run();
+
+        if (paymentResponse) {
+          await new SendSinglePaymentResponseTask(request, paymentResponse).run();
         }
 
-        if (amount != subscription.amount || currency != subscription.currency) {
+        return;
+      }
+
+      console.log(
+        `🤖 The request is from a subscription with id ${subId}. Checking to make automatic action.`
+      );
+      let subscription: SubscriptionWithDates;
+      let subscriptionServiceName: string;
+      try {
+        let subscriptionFromDb = await DatabaseService.getSubscription(subId);
+        if (!subscriptionFromDb) {
           await new SendSinglePaymentResponseTask(request, new PaymentStatus.Rejected({
-            reason: `Payment amount does not match subscription amount.\nExpected: ${subscription.amount} ${subscription.currency}\nReceived: ${amount} ${request.content.currency}`,
-          }
-          )).run();
+            reason: `Subscription with ID ${subId} not found in database`,
+          })).run();
           console.warn(
-            `🚫 Payment rejected! Amount does not match subscription amount.\nExpected: ${subscription.amount} ${subscription.currency}\nReceived: ${amount} ${request.content.currency}`
+            `🚫 Payment rejected! The request is a subscription payment, but no subscription found with id ${subId}`
           );
           return;
         }
+        subscription = subscriptionFromDb;
+        subscriptionServiceName = subscriptionFromDb.service_name;
+      } catch (e) {
+        await new SendSinglePaymentResponseTask(request, new PaymentStatus.Rejected({
+          reason:
+            'Failed to retrieve subscription from database. Please try again or contact support if the issue persists.',
+        }
+        )).run();
+        console.warn(`🚫 Payment rejected! Failing to connect to database.`);
+        return;
+      }
 
-        // If no payment has been executed, the nextOccurrence is the first payment due time
-        let nextOccurrence: bigint | undefined = BigInt(
-          subscription.recurrence_first_payment_due.getTime() / 1000
+      if (amount != subscription.amount || currency != subscription.currency) {
+        await new SendSinglePaymentResponseTask(request, new PaymentStatus.Rejected({
+          reason: `Payment amount does not match subscription amount.\nExpected: ${subscription.amount} ${subscription.currency}\nReceived: ${amount} ${request.content.currency}`,
+        }
+        )).run();
+        console.warn(
+          `🚫 Payment rejected! Amount does not match subscription amount.\nExpected: ${subscription.amount} ${subscription.currency}\nReceived: ${amount} ${request.content.currency}`
         );
-        if (subscription.last_payment_date) {
-          let lastPayment = BigInt(subscription.last_payment_date.getTime() / 1000);
-          nextOccurrence = parseCalendar(subscription.recurrence_calendar).nextOccurrence(lastPayment);
+        return;
+      }
+
+      // If no payment has been executed, the nextOccurrence is the first payment due time
+      let nextOccurrence: bigint | undefined = BigInt(
+        subscription.recurrence_first_payment_due.getTime() / 1000
+      );
+      if (subscription.last_payment_date) {
+        let lastPayment = BigInt(subscription.last_payment_date.getTime() / 1000);
+        nextOccurrence = parseCalendar(subscription.recurrence_calendar).nextOccurrence(lastPayment);
+      }
+
+      if (!nextOccurrence || fromUnixSeconds(nextOccurrence) > new Date()) {
+        await new SendSinglePaymentResponseTask(request, new PaymentStatus.Rejected({
+          reason: 'Payment is not due yet. Please wait till the next payment is scheduled.',
         }
-
-        if (!nextOccurrence || fromUnixSeconds(nextOccurrence) > new Date()) {
-          await new SendSinglePaymentResponseTask(request, new PaymentStatus.Rejected({
-            reason: 'Payment is not due yet. Please wait till the next payment is scheduled.',
-          }
-          )).run();
-          return;
-        }
+        )).run();
+        return;
+      }
 
 
-        const walletInfo = await new GetWalletInfoTask().run();
+      const walletInfo = await new GetWalletInfoTask().run();
 
-        const isWalletProvided = walletInfo != null;
-        if (!isWalletProvided) {
-          await new SaveActivityTask({
-            type: 'pay',
-            service_key: request.serviceKey,
-            service_name: subscriptionServiceName,
-            detail: 'Recurrent payment failed: wallet not provided.',
-            date: new Date(),
-            amount: amount,
-            currency: currency,
-            converted_amount: convertedAmount,
-            converted_currency: convertedCurrency,
-            request_id: request.eventId,
-            status: 'negative',
-            subscription_id: request.content.subscriptionId || null,
-          }).run()
-
-          await new SendSinglePaymentResponseTask(request, new PaymentStatus.Rejected({
-            reason: 'Recurrent payment failed: no wallet provided.',
-          }
-          )).run();
-
-          return;
-        }
-
-        const balance = walletInfo.balanceInSats;
-        const isBalanceEnough = balance && balance > BigInt(amount);
-
-        if (!isBalanceEnough) {
-          await new SaveActivityTask({
-            type: 'pay',
-            service_key: request.serviceKey,
-            service_name: subscriptionServiceName,
-            detail: 'Recurrent payment failed: insufficient wallet balance.',
-            date: new Date(),
-            amount: amount,
-            currency: currency,
-            converted_amount: convertedAmount,
-            converted_currency: convertedCurrency,
-            request_id: request.eventId,
-            status: 'negative',
-            subscription_id: request.content.subscriptionId || null,
-          }).run()
-
-          await new SendSinglePaymentResponseTask(request, new PaymentStatus.Rejected({
-            reason: 'Recurrent payment failed: insufficient wallet balance.',
-          }
-          )).run();
-
-          return;
-        }
-
-        await new StartPaymentTask({
+      const isWalletProvided = walletInfo != null;
+      if (!isWalletProvided) {
+        await new SaveActivityTask({
           type: 'pay',
           service_key: request.serviceKey,
           service_name: subscriptionServiceName,
-          detail: 'Recurrent payment',
-          // todo: remove dates from entity. created_at already exists
+          detail: 'Recurrent payment failed: wallet not provided.',
           date: new Date(),
           amount: amount,
           currency: currency,
           converted_amount: convertedAmount,
           converted_currency: convertedCurrency,
           request_id: request.eventId,
-          status: 'pending',
+          status: 'negative',
           subscription_id: request.content.subscriptionId || null,
-          invoice: request.content.invoice,
-        }, request, subId).run();
+        }).run()
 
-        return;
-      } catch (e) {
         await new SendSinglePaymentResponseTask(request, new PaymentStatus.Rejected({
-          reason: `An unexpected error occurred while processing the payment: ${e}.\nPlease try again or contact support if the issue persists.`,
+          reason: 'Recurrent payment failed: no wallet provided.',
         }
         )).run();
-        console.warn(`🚫 Payment rejected! Error is: ${e}`);
+
+        return;
       }
-    });
+
+      const balance = walletInfo.balanceInSats;
+      const isBalanceEnough = balance && balance > BigInt(amount);
+
+      if (!isBalanceEnough) {
+        await new SaveActivityTask({
+          type: 'pay',
+          service_key: request.serviceKey,
+          service_name: subscriptionServiceName,
+          detail: 'Recurrent payment failed: insufficient wallet balance.',
+          date: new Date(),
+          amount: amount,
+          currency: currency,
+          converted_amount: convertedAmount,
+          converted_currency: convertedCurrency,
+          request_id: request.eventId,
+          status: 'negative',
+          subscription_id: request.content.subscriptionId || null,
+        }).run()
+
+        await new SendSinglePaymentResponseTask(request, new PaymentStatus.Rejected({
+          reason: 'Recurrent payment failed: insufficient wallet balance.',
+        }
+        )).run();
+
+        return;
+      }
+
+      await new StartPaymentTask({
+        type: 'pay',
+        service_key: request.serviceKey,
+        service_name: subscriptionServiceName,
+        detail: 'Recurrent payment',
+        // todo: remove dates from entity. created_at already exists
+        date: new Date(),
+        amount: amount,
+        currency: currency,
+        converted_amount: convertedAmount,
+        converted_currency: convertedCurrency,
+        request_id: request.eventId,
+        status: 'pending',
+        subscription_id: request.content.subscriptionId || null,
+        invoice: request.content.invoice,
+      }, request, subId).run();
+
+      return;
+    } catch (e) {
+      await new SendSinglePaymentResponseTask(request, new PaymentStatus.Rejected({
+        reason: `An unexpected error occurred while processing the payment: ${e}.\nPlease try again or contact support if the issue persists.`,
+      }
+      )).run();
+      console.warn(`🚫 Payment rejected! Error is: ${e}`);
+    }
   }
 }
 Task.register(HandleSinglePaymentRequestTask);
 
-class CheckAmountTask extends Task<[SinglePaymentRequest], [], boolean> {
-  constructor(request: SinglePaymentRequest) {
-    super([request], [], async ([], request) => {
+class CheckAmountTask extends Task<[SinglePaymentRequest], {}, boolean> {
+  constructor(private readonly request: SinglePaymentRequest) {
+    super([], request);
+  }
 
-      let invoiceData = parseBolt11(request.content.invoice);
+  async taskLogic(_: {}, request: SinglePaymentRequest): Promise<boolean> {
+    let invoiceData = parseBolt11(request.content.invoice);
 
-      const invoiceAmountMsat = Number(invoiceData.amountMsat);
-      // 1% tolerance for amounts up to 10,000,000 msats, 0.5% for larger amounts
-      const TOLERANCE_PERCENT = invoiceAmountMsat <= 10_000_000 ? 0.01 : 0.005;
+    const invoiceAmountMsat = Number(invoiceData.amountMsat);
+    // 1% tolerance for amounts up to 10,000,000 msats, 0.5% for larger amounts
+    const TOLERANCE_PERCENT = invoiceAmountMsat <= 10_000_000 ? 0.01 : 0.005;
 
-      if (request.content.currency.tag === Currency_Tags.Millisats) {
-        const requestAmountMsat = Number(request.content.amount);
-        const difference = Math.abs(invoiceAmountMsat - requestAmountMsat);
-        const tolerance = invoiceAmountMsat * TOLERANCE_PERCENT;
-        return difference <= tolerance;
-      } else if (request.content.currency.tag === Currency_Tags.Fiat) {
-        // Convert fiat amount to msat for comparison
-        const fiatCurrencyRaw = (request.content.currency as any).inner;
-        const fiatCurrencyValue = Array.isArray(fiatCurrencyRaw)
-          ? fiatCurrencyRaw[0]
-          : fiatCurrencyRaw;
-        const fiatCurrency =
-          typeof fiatCurrencyValue === 'string'
-            ? String(fiatCurrencyValue).toUpperCase()
-            : 'UNKNOWN';
-        const rawFiatAmount = Number(request.content.amount);
-        const normalizedFiatAmount = rawFiatAmount / 100; // incoming amount is in minor units (e.g., cents)
-        const amountInMsat = await CurrencyConversionService.convertAmount(
-          normalizedFiatAmount,
-          fiatCurrency,
-          'MSATS'
-        );
-        const requestAmountMsat = Math.round(amountInMsat);
-        const difference = Math.abs(invoiceAmountMsat - requestAmountMsat);
-        const tolerance = invoiceAmountMsat * TOLERANCE_PERCENT;
-        return difference <= tolerance;
-      }
-      console.warn(
-        `🚫 Payment not due! The invoice amount do not match the requested amount.\nReceived ${invoiceData.amountMsat}\nRequired ${request.content.amount}`
+    if (request.content.currency.tag === Currency_Tags.Millisats) {
+      const requestAmountMsat = Number(request.content.amount);
+      const difference = Math.abs(invoiceAmountMsat - requestAmountMsat);
+      const tolerance = invoiceAmountMsat * TOLERANCE_PERCENT;
+      return difference <= tolerance;
+    } else if (request.content.currency.tag === Currency_Tags.Fiat) {
+      // Convert fiat amount to msat for comparison
+      const fiatCurrencyRaw = (request.content.currency as any).inner;
+      const fiatCurrencyValue = Array.isArray(fiatCurrencyRaw)
+        ? fiatCurrencyRaw[0]
+        : fiatCurrencyRaw;
+      const fiatCurrency =
+        typeof fiatCurrencyValue === 'string'
+          ? String(fiatCurrencyValue).toUpperCase()
+          : 'UNKNOWN';
+      const rawFiatAmount = Number(request.content.amount);
+      const normalizedFiatAmount = rawFiatAmount / 100; // incoming amount is in minor units (e.g., cents)
+      const amountInMsat = await CurrencyConversionService.convertAmount(
+        normalizedFiatAmount,
+        fiatCurrency,
+        'MSATS'
       );
-      return false;
-    });
+      const requestAmountMsat = Math.round(amountInMsat);
+      const difference = Math.abs(invoiceAmountMsat - requestAmountMsat);
+      const tolerance = invoiceAmountMsat * TOLERANCE_PERCENT;
+      return difference <= tolerance;
+    }
+    console.warn(
+      `🚫 Payment not due! The invoice amount do not match the requested amount.\nReceived ${invoiceData.amountMsat}\nRequired ${request.content.amount}`
+    );
+    return false;
   }
 }
 Task.register(CheckAmountTask);
 
-export class SendSinglePaymentResponseTask extends Task<[SinglePaymentRequest, PaymentStatus], [PortalAppInterface, RelayStatusesProvider], void> {
-  constructor(request: SinglePaymentRequest, response: PaymentStatus) {
-    super([request, response], ['PortalAppInterface', 'RelayStatusesProvider'], async ([portalApp, relayStatusesProvider], request, response) => {
-      await relayStatusesProvider.waitForRelaysConnected();
-      return await portalApp.replySinglePaymentRequest(
-        request,
-        {
-          requestId: request.eventId,
-          status: response
-        }
-      );
-    });
+export class SendSinglePaymentResponseTask extends Task<[SinglePaymentRequest, PaymentStatus], { PortalApp: PortalApp, RelayStatusesProvider: RelayStatusesProvider }, void> {
+  constructor(private readonly request: SinglePaymentRequest, private readonly response: PaymentStatus) {
+    super(['PortalApp', 'RelayStatusesProvider'], request, response);
+  }
+
+  async taskLogic({ PortalApp, RelayStatusesProvider }: { PortalApp: PortalApp, RelayStatusesProvider: RelayStatusesProvider }, request: SinglePaymentRequest, response: PaymentStatus): Promise<void> {
+    await RelayStatusesProvider.waitForRelaysConnected();
+    return await PortalApp.replySinglePaymentRequest(
+      request,
+      {
+        requestId: request.eventId,
+        status: response
+      }
+    );
   }
 }
 Task.register(SendSinglePaymentResponseTask);
 
-export class ConvertCurrencyTask extends Task<[number, string, string], [], number> {
+export class ConvertCurrencyTask extends Task<[number, string, string], {}, number> {
   constructor(
     private readonly amount: number,
     private readonly fromCurreny: string,
     private readonly toCurrency: string,
   ) {
-    super([amount, fromCurreny, toCurrency], [], async ([], amount, fromCurreny, toCurrency) => {
-      return CurrencyConversionService.convertAmount(
-        amount,
-        fromCurreny,
-        toCurrency,
-      );
-    });
+    super([], amount, fromCurreny, toCurrency);
     this.expiry = new Date(Date.now() + 1000 * 60 * 4); // cache it for 4 min
   }
+
+  async taskLogic(_: {}, amount: number, fromCurreny: string, toCurrency: string): Promise<number> {
+    return CurrencyConversionService.convertAmount(
+      amount,
+      fromCurreny,
+      toCurrency,
+    );
+  }
 }
-Task.register(SendSinglePaymentResponseTask);
+Task.register(ConvertCurrencyTask);
 
 
-class RequireSinglePaymentUserApprovalTask extends Task<[SinglePaymentRequest, string, string], [PromptUserProvider], PaymentStatus | null> {
-  constructor(request: SinglePaymentRequest, title: string, body: string) {
-    super([request, title, body], ['PromptUserProvider'], async ([promptUserProvider], request, title, body) => {
-      console.log('[RequireSinglePaymentUserApprovalTask] Requesting user approval for:', {
+class RequireSinglePaymentUserApprovalTask extends Task<[SinglePaymentRequest, string, string], { PromptUserProvider: PromptUserProvider }, PaymentStatus | null> {
+  constructor(private readonly request: SinglePaymentRequest, private readonly title: string, private readonly body: string) {
+    super(['PromptUserProvider'], request, title, body);
+  }
+
+  async taskLogic({ PromptUserProvider }: { PromptUserProvider: PromptUserProvider }, request: SinglePaymentRequest, title: string, body: string): Promise<PaymentStatus | null> {
+    console.log('[RequireSinglePaymentUserApprovalTask] Requesting user approval for:', {
+      id: request.eventId,
+      type: 'login',
+    });
+    console.log('[RequireSinglePaymentUserApprovalTask] SetPendingRequestsProvider available:', !!PromptUserProvider);
+    return new Promise<PaymentStatus | null>(resolve => {
+      // in the PromptUserProvider the promise will be immediatly resolved as null when the app is offline
+      // hence a notification should be shown instead of a pending request and the flow should stop
+      const newPendingRequest: PendingRequest = {
         id: request.eventId,
-        type: 'login',
-      });
-      console.log('[RequireSinglePaymentUserApprovalTask] SetPendingRequestsProvider available:', !!promptUserProvider);
-      return new Promise<PaymentStatus | null>(resolve => {
-        // in the PromptUserProvider the promise will be immediatly resolved as null when the app is offline
-        // hence a notification should be shown instead of a pending request and the flow should stop
-        const newPendingRequest: PendingRequest = {
-          id: request.eventId,
-          metadata: request,
-          timestamp: new Date(),
+        metadata: request,
+        timestamp: new Date(),
+        type: 'payment',
+        result: resolve,
+      };
+
+      const newNotification = {
+        title: title,
+        body: body,
+        data: {
           type: 'payment',
-          result: resolve,
-        };
-
-        const newNotification = {
-          title: title,
-          body: body,
-          data: {
-            type: 'payment',
-          }
         }
+      }
 
-        console.log('[RequireAuthUserApprovalTask] Calling addPendingRequest for:', newPendingRequest.id);
-        promptUserProvider.promptUser({
-          pendingRequest: newPendingRequest, notification: newNotification
-        });
-        console.log('[RequireAuthUserApprovalTask] addPendingRequest called, waiting for user approval');
+      console.log('[RequireAuthUserApprovalTask] Calling addPendingRequest for:', newPendingRequest.id);
+      PromptUserProvider.promptUser({
+        pendingRequest: newPendingRequest, notification: newNotification
       });
+      console.log('[RequireAuthUserApprovalTask] addPendingRequest called, waiting for user approval');
     });
   }
 }
