@@ -18,11 +18,13 @@ import { useWalletManager } from '@/context/WalletManagerContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useWalletStatus } from '@/hooks/useWalletStatus';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import { getServiceNameFromProfile } from '@/utils/nostrHelper';
 import { PortalAppManager } from '@/services/PortalAppManager';
 import { formatActivityAmount, normalizeCurrencyForComparison } from '@/utils/currency';
 import type { PendingRequest } from '@/utils/types';
 import { usePendingRequests } from '../context/PendingRequestsContext';
 import { SkeletonPulse } from './PendingRequestSkeletonCard';
+import { FetchServiceNameTask } from '@/queue/tasks/ProcessAuthRequest';
 
 interface PendingRequestCardProps {
   request: PendingRequest;
@@ -99,6 +101,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
       // Reset mounted flag at the start of each effect
       isMounted.current = true;
 
+      const serviceKey = (metadata as any).serviceKey;
       if (type === 'ticket' && request.ticketTitle) {
         setServiceName(request.ticketTitle);
         setIsServiceNameLoading(false);
@@ -115,10 +118,8 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
 
           try {
             setIsRequestorNameLoading(true);
-            const name = await nostrService.getServiceName(
-              PortalAppManager.tryGetInstance(),
-              requestorServiceKey
-            );
+            const profile = await new FetchServiceNameTask(serviceKey).run();
+            const name = getServiceNameFromProfile(profile);
             if (isMounted.current) {
               setRequestorName(name);
               setIsRequestorNameLoading(false);
@@ -135,15 +136,10 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
       } else {
         const fetchServiceName = async () => {
           if (!isMounted.current) return;
-
-          const serviceKey = (metadata as any).serviceKey;
-
           try {
             setIsServiceNameLoading(true);
-            const name = await nostrService.getServiceName(
-              PortalAppManager.tryGetInstance(),
-              serviceKey
-            );
+            const profile = await new FetchServiceNameTask(serviceKey).run();
+            const name = getServiceNameFromProfile(profile);
             if (isMounted.current) {
               setServiceName(name);
               setIsServiceNameLoading(false);
@@ -466,26 +462,28 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
               formatServiceName()
             )
           ) : // For payment/subscription requests, show service name (loading state)
-          isServiceNameLoading ? (
-            <SkeletonPulse
-              style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
-            />
-          ) : // For payment/subscription requests, show service name (loading state)
-          isServiceNameLoading ? (
-            <SkeletonPulse
-              style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
-            />
-          ) : (
-            formatServiceName()
-          )}
+            isServiceNameLoading ? (
+              <SkeletonPulse
+                style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
+              />
+            ) : (
+              // For payment/subscription requests, show service name (loading state)
+              isServiceNameLoading ? (
+                <SkeletonPulse
+                  style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
+                />
+              ) : (
+                formatServiceName()
+              )
+            )}
         </Text>
 
         <Text style={[styles.serviceInfo, { color: secondaryTextColor }]}>
           {isTicketRequest
             ? // For ticket requests, show ticket title as secondary info
-              formatSecondaryInfo()
+            formatSecondaryInfo()
             : // For payment/subscription requests, show truncated recipient pubkey
-              formatSecondaryInfo()}
+            formatSecondaryInfo()}
         </Text>
 
         {(isPaymentRequest || isSubscriptionRequest) && amount !== null && (
@@ -497,9 +495,9 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
                     const normalized = getNormalizedAmountAndCurrency();
                     return normalized
                       ? formatActivityAmount(
-                          normalized.normalizedAmount,
-                          normalized.normalizedCurrency
-                        )
+                        normalized.normalizedAmount,
+                        normalized.normalizedCurrency
+                      )
                       : '';
                   })()}
                 </Text>
@@ -513,9 +511,9 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
                   const normalized = getNormalizedAmountAndCurrency();
                   return normalized
                     ? formatActivityAmount(
-                        normalized.normalizedAmount,
-                        normalized.normalizedCurrency
-                      )
+                      normalized.normalizedAmount,
+                      normalized.normalizedCurrency
+                    )
                     : '';
                 })()}
               </Text>

@@ -142,34 +142,8 @@ export const PendingRequestsList: React.FC = React.memo(() => {
         })
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-      const filteredRequests = await Promise.all(
-        sortedRequests.map(async request => {
-          // Handle different request types
-          if (request.type === 'ticket') {
-            // Ticket requests don't have eventId, so we can't check if they're stored
-            // For now, always show them
-            return request;
-          }
-
-          // For other request types, check if they're stored
-          try {
-            const isStored = await executeOperation(
-              db => db.isPendingRequestStored((request.metadata as SinglePaymentRequest).eventId),
-              false // fallback to false if operation fails
-            );
-
-            if (isStored) {
-              return null; // Request is stored, so filter it out
-            }
-            return request; // Request is not stored, so keep it
-          } catch (_error) {
-            return request; // On error, keep the request
-          }
-        })
-      );
-
       // Remove null values (filtered out requests)
-      const nonStoredRequests = filteredRequests.filter(request => request !== null);
+      const nonStoredRequests = sortedRequests.filter(request => request !== null);
 
       // Add skeleton if needed
       const finalData =

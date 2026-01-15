@@ -3,7 +3,7 @@ import { Task } from "../WorkQueue";
 import { ActiveWalletProvider } from "../providers/ActiveWallet";
 import { RelayStatusesProvider } from "../providers/RelayStatus";
 
-export class GetWalletInfoTask extends Task<[], { ActiveWalletProvider: ActiveWalletProvider, RelayStatusesProvider: RelayStatusesProvider }, WalletInfo | null> {
+export class GetWalletInfoTask extends Task<[], ['ActiveWalletProvider', 'RelayStatusesProvider'], WalletInfo | null> {
   constructor() {
     console.log('[GetWalletInfoTask] getting ActiveWalletProvider');
     super(['ActiveWalletProvider', 'RelayStatusesProvider']);

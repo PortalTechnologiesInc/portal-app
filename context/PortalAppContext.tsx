@@ -51,7 +51,7 @@ import { useECash } from './ECashContext';
 import { useKey } from './KeyContext';
 import { useNostrService } from './NostrServiceContext';
 import { useWalletManager } from './WalletManagerContext';
-import { enqueueTask, processQueue, ProviderRepository, Task } from '@/queue/WorkQueue';
+import { enqueueTask, ProviderRepository } from '@/queue/WorkQueue';
 import { getServiceNameFromProfile } from '@/utils/nostrHelper';
 import { ActivityWithDates, DatabaseService } from '@/services/DatabaseService';
 import { ProcessAuthRequestTask } from '@/queue/tasks/ProcessAuthRequest';

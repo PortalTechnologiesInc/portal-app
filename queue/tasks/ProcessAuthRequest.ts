@@ -12,7 +12,7 @@ export class ProcessAuthRequestTask extends Task<[AuthChallengeEvent], [], void>
     this.expiry = new Date(Number(event.expiresAt * 1000n));
   }
 
-  async taskLogic(_: [], event: AuthChallengeEvent): Promise<void> {
+  async taskLogic(_: {}, event: AuthChallengeEvent): Promise<void> {
     const authResponse = await new RequireAuthUserApprovalTask(event).run();
     console.log('[ProcessIncomingRequestTask] User approval result:', authResponse);
 
@@ -31,17 +31,16 @@ export class ProcessAuthRequestTask extends Task<[AuthChallengeEvent], [], void>
 
     const serviceKey = event.serviceKey;
     console.log('[ProcessIncomingRequestTask] Fetching profile for serviceKey:', serviceKey);
-    const profile = await new FetchServiceNameTask(serviceKey).run();
-    const name = getServiceNameFromProfile(profile);
-    console.log('[ProcessIncomingRequestTask] Service name resolved:', name);
+    const profileNameDeferred = (new FetchServiceNameTask(serviceKey).run()).then(profile => getServiceNameFromProfile(profile));
     console.log('[ProcessIncomingRequestTask] Calling RequireAuthUserApprovalTask');
 
+    const name = await Promise.race([profileNameDeferred, new Promise<string>(resolve => resolve('Unknown Service'))]);
     await new SaveActivityTask({
       type: 'auth',
       service_key: serviceKey,
       detail: 'User approved login',
       date: new Date(),
-      service_name: name || 'Unknown Service',
+      service_name: name!,
       amount: null,
       currency: null,
       converted_amount: null,
@@ -56,21 +55,21 @@ export class ProcessAuthRequestTask extends Task<[AuthChallengeEvent], [], void>
 }
 Task.register(ProcessAuthRequestTask);
 
-class FetchServiceNameTask extends Task<[string], { PortalApp: PortalApp, RelayStatusesProvider: RelayStatusesProvider }, Profile | undefined> {
+export class FetchServiceNameTask extends Task<[string], ['PortalAppInterface', 'RelayStatusesProvider'], Profile | undefined> {
   constructor(key: string) {
-    super(['PortalApp', 'RelayStatusesProvider'], key);
+    super(['PortalAppInterface', 'RelayStatusesProvider'], key);
   }
 
-  async taskLogic({ PortalApp, RelayStatusesProvider }: { PortalApp: PortalApp, RelayStatusesProvider: RelayStatusesProvider }, key: string): Promise<Profile | undefined> {
+  async taskLogic({ PortalAppInterface, RelayStatusesProvider }: { PortalAppInterface: PortalAppInterface, RelayStatusesProvider: RelayStatusesProvider }, key: string): Promise<Profile | undefined> {
     this.expiry = new Date(Date.now() + 1000 * 60 * 60 * 24);
 
     await RelayStatusesProvider.waitForRelaysConnected();
-    return await PortalApp.fetchProfile(key);
+    return await PortalAppInterface.fetchProfile(key);
   }
 }
 Task.register(FetchServiceNameTask);
 
-class RequireAuthUserApprovalTask extends Task<[AuthChallengeEvent], { PromptUserProvider: PromptUserProvider }, AuthResponseStatus | null> {
+class RequireAuthUserApprovalTask extends Task<[AuthChallengeEvent], ['PromptUserProvider'], AuthResponseStatus | null> {
   constructor(event: AuthChallengeEvent) {
     super(['PromptUserProvider'], event)
   }
@@ -111,13 +110,13 @@ class RequireAuthUserApprovalTask extends Task<[AuthChallengeEvent], { PromptUse
 }
 Task.register(RequireAuthUserApprovalTask);
 
-class SendAuthChallengeResponseTask extends Task<[AuthChallengeEvent, AuthResponseStatus], { PortalApp: PortalApp, RelayStatusesProvider: RelayStatusesProvider }, void> {
+class SendAuthChallengeResponseTask extends Task<[AuthChallengeEvent, AuthResponseStatus], ['PortalAppInterface', 'RelayStatusesProvider'], void> {
   constructor(event: AuthChallengeEvent, response: AuthResponseStatus) {
-    super(['PortalApp', 'RelayStatusesProvider'], event, response)
+    super(['PortalAppInterface', 'RelayStatusesProvider'], event, response)
   }
-  async taskLogic({ PortalApp, RelayStatusesProvider }: { PortalApp: PortalApp; RelayStatusesProvider: RelayStatusesProvider; }, event: AuthChallengeEvent, response: AuthResponseStatus): Promise<void> {
+  async taskLogic({ PortalAppInterface, RelayStatusesProvider }: { PortalAppInterface: PortalAppInterface; RelayStatusesProvider: RelayStatusesProvider; }, event: AuthChallengeEvent, response: AuthResponseStatus): Promise<void> {
     await RelayStatusesProvider.waitForRelaysConnected();
-    return await PortalApp.replyAuthChallenge(event, response);
+    return await PortalAppInterface.replyAuthChallenge(event, response);
   }
 }
 Task.register(SendAuthChallengeResponseTask);

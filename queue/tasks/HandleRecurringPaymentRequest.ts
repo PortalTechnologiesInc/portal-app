@@ -1,10 +1,10 @@
-import { PortalApp, RecurringPaymentRequest, RecurringPaymentResponseContent } from "portal-app-lib";
+import { PortalAppInterface, RecurringPaymentRequest, RecurringPaymentResponseContent } from "portal-app-lib";
 import { Task } from "../WorkQueue";
 import { PromptUserProvider } from "../providers/PromptUser";
 import { PendingRequest } from "@/utils/types";
 import { RelayStatusesProvider } from "../providers/RelayStatus";
 
-export class HandleRecurringPaymentRequestTask extends Task<[RecurringPaymentRequest], {}, void> {
+export class HandleRecurringPaymentRequestTask extends Task<[RecurringPaymentRequest], [], void> {
   constructor(private readonly request: RecurringPaymentRequest) {
     super([], request);
     this.expiry = new Date(Number(request.expiresAt * 1000n));
@@ -34,7 +34,7 @@ export class HandleRecurringPaymentRequestTask extends Task<[RecurringPaymentReq
 }
 Task.register(HandleRecurringPaymentRequestTask);
 
-class RequireRecurringPaymentUserApprovalTask extends Task<[RecurringPaymentRequest, string, string], { PromptUserProvider: PromptUserProvider }, RecurringPaymentResponseContent | null> {
+class RequireRecurringPaymentUserApprovalTask extends Task<[RecurringPaymentRequest, string, string], ['PromptUserProvider'], RecurringPaymentResponseContent | null> {
   constructor(private readonly request: RecurringPaymentRequest, private readonly title: string, private readonly body: string) {
     super(['PromptUserProvider'], request, title, body);
   }
@@ -75,14 +75,14 @@ class RequireRecurringPaymentUserApprovalTask extends Task<[RecurringPaymentRequ
 Task.register(RequireRecurringPaymentUserApprovalTask);
 
 
-export class SendRecurringPaymentResponseTask extends Task<[RecurringPaymentRequest, RecurringPaymentResponseContent], { PortalApp: PortalApp, RelayStatusesProvider: RelayStatusesProvider }, void> {
+export class SendRecurringPaymentResponseTask extends Task<[RecurringPaymentRequest, RecurringPaymentResponseContent], ['PortalAppInterface', 'RelayStatusesProvider'], void> {
   constructor(private readonly request: RecurringPaymentRequest, private readonly response: RecurringPaymentResponseContent) {
-    super(['PortalApp', 'RelayStatusesProvider'], request, response);
+    super(['PortalAppInterface', 'RelayStatusesProvider'], request, response);
   }
 
-  async taskLogic({ PortalApp, RelayStatusesProvider }: { PortalApp: PortalApp, RelayStatusesProvider: RelayStatusesProvider }, request: RecurringPaymentRequest, response: RecurringPaymentResponseContent): Promise<void> {
+  async taskLogic({ PortalAppInterface, RelayStatusesProvider }: { PortalAppInterface: PortalAppInterface, RelayStatusesProvider: RelayStatusesProvider }, request: RecurringPaymentRequest, response: RecurringPaymentResponseContent): Promise<void> {
     await RelayStatusesProvider.waitForRelaysConnected();
-    return await PortalApp.replyRecurringPaymentRequest(
+    return await PortalAppInterface.replyRecurringPaymentRequest(
       request,
       response,
     );
