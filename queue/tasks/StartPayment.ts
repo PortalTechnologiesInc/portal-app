@@ -7,7 +7,7 @@ import { SendSinglePaymentResponseTask } from "./HandleSinglePaymentRequest";
 import { globalEvents } from "@/utils/common";
 import { RelayStatusesProvider } from "../providers/RelayStatus";
 
-export class StartPaymentTask extends Task<[SaveActivityArgs, SinglePaymentRequest, string], { RelayStatusesProvider: RelayStatusesProvider }, void> {
+export class StartPaymentTask extends Task<[SaveActivityArgs, SinglePaymentRequest, string], ['RelayStatusesProvider'], void> {
   constructor(private readonly initialActivityData: SaveActivityArgs, private readonly request: SinglePaymentRequest, private readonly subsctiptionId: string) {
     super(['RelayStatusesProvider'], initialActivityData, request, subsctiptionId);
     this.expiry = new Date(Date.now() + 1000 * 60 * 60 * 24);
@@ -51,7 +51,7 @@ export class StartPaymentTask extends Task<[SaveActivityArgs, SinglePaymentReque
 }
 Task.register(StartPaymentTask);
 
-class AddPaymentStatusTask extends Task<[string, PaymentAction], { DatabaseService: DatabaseService }, void> {
+class AddPaymentStatusTask extends Task<[string, PaymentAction], ['DatabaseService'], void> {
   constructor(private readonly invoice: string, action: PaymentAction) {
     console.log('[AddPaymentStatusTask] getting DatabaseService');
     super(['DatabaseService'], invoice, action);
@@ -64,7 +64,7 @@ class AddPaymentStatusTask extends Task<[string, PaymentAction], { DatabaseServi
 Task.register(AddPaymentStatusTask);
 
 // returns the invoice preimage
-class PayInvoiceTask extends Task<[string, bigint], { ActiveWalletProvider: ActiveWalletProvider }, string | undefined> {
+class PayInvoiceTask extends Task<[string, bigint], ['ActiveWalletProvider'], string | undefined> {
   constructor(private readonly invoice: string, private readonly amount: bigint) {
     console.log('[PayInvoiceTask] getting Wallet');
     super(['ActiveWalletProvider'], invoice, amount);
@@ -78,7 +78,7 @@ class PayInvoiceTask extends Task<[string, bigint], { ActiveWalletProvider: Acti
 }
 Task.register(PayInvoiceTask);
 
-class UpdateSubscriptionLastPaymentTask extends Task<[string], { DatabaseService: DatabaseService }, void> {
+class UpdateSubscriptionLastPaymentTask extends Task<[string], ['DatabaseService'], void> {
   constructor(private readonly subscriptionId: string) {
     console.log('[UpdateSubsctiptionLastPaymentTask] getting DatabaseService');
     super(['DatabaseService'], subscriptionId);
@@ -91,7 +91,7 @@ class UpdateSubscriptionLastPaymentTask extends Task<[string], { DatabaseService
 Task.register(UpdateSubscriptionLastPaymentTask);
 
 type ActivityPaymentStatus = 'neutral' | 'positive' | 'negative' | 'pending';
-class UpdateActivityStatusTask extends Task<[string, ActivityPaymentStatus, string], { DatabaseService: DatabaseService }, void> {
+class UpdateActivityStatusTask extends Task<[string, ActivityPaymentStatus, string], ['DatabaseService'], void> {
   constructor(private readonly id: string, private readonly status: ActivityPaymentStatus, private readonly statusDetail: string) {
     console.log('[UpdateActivityStatusTask] getting DatabaseService');
     super(['DatabaseService'], id, status, statusDetail);

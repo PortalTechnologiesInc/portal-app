@@ -1,4 +1,4 @@
-import { Currency_Tags, parseBolt11, parseCalendar, PaymentStatus, PortalApp, SinglePaymentRequest } from "portal-app-lib";
+import { Currency_Tags, parseBolt11, parseCalendar, PaymentStatus, PortalAppInterface, SinglePaymentRequest } from "portal-app-lib";
 import { Task } from "../WorkQueue";
 import { DatabaseService, fromUnixSeconds, SubscriptionWithDates } from "@/services/DatabaseService";
 import { CurrencyConversionService } from "@/services/CurrencyConversionService";
@@ -12,7 +12,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { GetWalletInfoTask } from "./GetWalletInfo";
 import { RelayStatusesProvider } from "../providers/RelayStatus";
 
-export class HandleSinglePaymentRequestTask extends Task<[SinglePaymentRequest], { DatabaseService: DatabaseService }, void> {
+export class HandleSinglePaymentRequestTask extends Task<[SinglePaymentRequest], ['DatabaseService'], void> {
   constructor(private readonly request: SinglePaymentRequest) {
     super(['DatabaseService'], request);
     this.expiry = new Date(Number(request.expiresAt * 1000n));
@@ -281,7 +281,7 @@ export class HandleSinglePaymentRequestTask extends Task<[SinglePaymentRequest],
 }
 Task.register(HandleSinglePaymentRequestTask);
 
-class CheckAmountTask extends Task<[SinglePaymentRequest], {}, boolean> {
+class CheckAmountTask extends Task<[SinglePaymentRequest], [], boolean> {
   constructor(private readonly request: SinglePaymentRequest) {
     super([], request);
   }
@@ -328,14 +328,14 @@ class CheckAmountTask extends Task<[SinglePaymentRequest], {}, boolean> {
 }
 Task.register(CheckAmountTask);
 
-export class SendSinglePaymentResponseTask extends Task<[SinglePaymentRequest, PaymentStatus], { PortalApp: PortalApp, RelayStatusesProvider: RelayStatusesProvider }, void> {
+export class SendSinglePaymentResponseTask extends Task<[SinglePaymentRequest, PaymentStatus], ['PortalAppInterface', 'RelayStatusesProvider'], void> {
   constructor(private readonly request: SinglePaymentRequest, private readonly response: PaymentStatus) {
-    super(['PortalApp', 'RelayStatusesProvider'], request, response);
+    super(['PortalAppInterface', 'RelayStatusesProvider'], request, response);
   }
 
-  async taskLogic({ PortalApp, RelayStatusesProvider }: { PortalApp: PortalApp, RelayStatusesProvider: RelayStatusesProvider }, request: SinglePaymentRequest, response: PaymentStatus): Promise<void> {
+  async taskLogic({ PortalAppInterface, RelayStatusesProvider }: { PortalAppInterface: PortalAppInterface, RelayStatusesProvider: RelayStatusesProvider }, request: SinglePaymentRequest, response: PaymentStatus): Promise<void> {
     await RelayStatusesProvider.waitForRelaysConnected();
-    return await PortalApp.replySinglePaymentRequest(
+    return await PortalAppInterface.replySinglePaymentRequest(
       request,
       {
         requestId: request.eventId,
@@ -346,7 +346,7 @@ export class SendSinglePaymentResponseTask extends Task<[SinglePaymentRequest, P
 }
 Task.register(SendSinglePaymentResponseTask);
 
-export class ConvertCurrencyTask extends Task<[number, string, string], {}, number> {
+export class ConvertCurrencyTask extends Task<[number, string, string], [], number> {
   constructor(
     private readonly amount: number,
     private readonly fromCurreny: string,
@@ -367,7 +367,7 @@ export class ConvertCurrencyTask extends Task<[number, string, string], {}, numb
 Task.register(ConvertCurrencyTask);
 
 
-class RequireSinglePaymentUserApprovalTask extends Task<[SinglePaymentRequest, string, string], { PromptUserProvider: PromptUserProvider }, PaymentStatus | null> {
+class RequireSinglePaymentUserApprovalTask extends Task<[SinglePaymentRequest, string, string], ['PromptUserProvider'], PaymentStatus | null> {
   constructor(private readonly request: SinglePaymentRequest, private readonly title: string, private readonly body: string) {
     super(['PromptUserProvider'], request, title, body);
   }

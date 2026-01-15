@@ -1,7 +1,6 @@
 import type {
   KeyHandshakeUrl,
   KeypairInterface,
-  PortalAppInterface,
   Profile,
   RelayStatusListener,
 } from 'portal-app-lib';
@@ -13,7 +12,7 @@ import { registerContextReset, unregisterContextReset } from '@/services/Context
 import type { NwcService } from '@/services/NwcService';
 import { PortalAppManager } from '@/services/PortalAppManager';
 import { getKeypairFromKey, hasKey } from '@/utils/keyHelpers';
-import { getServiceNameFromProfile, mapNumericStatusToString } from '@/utils/nostrHelper';
+import { mapNumericStatusToString } from '@/utils/nostrHelper';
 import type { PendingRequest, RelayInfo, WalletInfoState } from '@/utils/types';
 import defaultRelayList from '../assets/DefaultRelays.json';
 import { useOnboarding } from './OnboardingContext';
@@ -25,7 +24,6 @@ export interface NostrServiceContextType {
   isInitialized: boolean;
   publicKey: string | null;
   sendKeyHandshake: (url: KeyHandshakeUrl) => Promise<void>;
-  getServiceName: (app: PortalAppInterface, publicKey: string) => Promise<string | null>;
   setUserProfile: (profile: Profile) => Promise<void>;
   submitNip05: (nip05: string) => Promise<void>;
   submitImage: (imageBase64: string) => Promise<void>;
@@ -303,10 +301,15 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
         const listener = createRelayStatusListener();
         const app = await PortalAppManager.getInstance(keypair, relays, listener, false);
-        ProviderRepository.register(app, 'PortalAppInterface');
 
         // Start listening and give it a moment to establish connections
         app.listen({ signal: abortController.signal });
+
+        ProviderRepository.register(app, 'PortalAppInterface');
+
+        // Save portal app instance
+        console.log('NostrService initialized successfully with public key:', publicKeyStr);
+        console.log('Running on those relays:', relays);
 
         // Mark as initialized
         setIsInitialized(true);
@@ -362,42 +365,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     [isOnboardingComplete]
   );
 
-  // Get service name with database caching
-  const getServiceName = useCallback(
-    async (app: PortalAppInterface, pubKey: string): Promise<string | null> => {
-      // Step 1: Check for valid cached entry (not expired)
-      const cachedName = await executeOperation(db => db.getCachedServiceName(pubKey), null);
-      if (cachedName) {
-        return cachedName;
-      }
-
-      // Step 2: Check relay connection status before attempting network fetch
-      if (
-        !relayStatusesRef.current.length ||
-        relayStatusesRef.current.every(r => r.status !== 'Connected')
-      ) {
-        throw new Error(
-          'No relay connections available. Please check your internet connection and try again.'
-        );
-      }
-
-      // Step 3: Fetch from network
-      const profile = await app.fetchProfile(pubKey);
-
-      // Step 4: Extract service name from profile
-      const serviceName = getServiceNameFromProfile(profile);
-
-      if (serviceName) {
-        // Step 5: Cache the result
-        await executeOperation(db => db.setCachedServiceName(pubKey, serviceName), null);
-        return serviceName;
-      } else {
-        return null;
-      }
-    },
-    [executeOperation]
-  );
-
   const setUserProfile = useCallback(async (profile: Profile) => {
     await PortalAppManager.tryGetInstance().setProfile(profile);
   }, []);
@@ -413,7 +380,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
   useEffect(() => {
     relayStatusesRef.current = relayStatuses;
-    ProviderRepository.register(new RelayStatusesProvider(relayStatusesRef));
+    ProviderRepository.register(new RelayStatusesProvider(relayStatusesRef), 'RelayStatusesProvider');
   }, [relayStatuses]);
 
   useEffect(() => {
@@ -540,7 +507,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     isInitialized,
     publicKey,
     sendKeyHandshake,
-    getServiceName,
     setUserProfile,
     closeRecurringPayment,
     startPeriodicMonitoring,

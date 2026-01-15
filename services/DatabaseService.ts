@@ -162,6 +162,29 @@ export class DatabaseService {
     await migrateDbIfNeeded(this.db);
   }
 
+  // NOTE: the name should be sql-safe, since we control it hopefully we won't fuck it up ourselves
+  async startSavepoint(name: string): Promise<void> {
+    for (let i = 0; i < 10; i++) {
+      try {
+        await this.db.runAsync(`SAVEPOINT ${name}`);
+        return;
+      } catch (error) {
+        console.error('Database is locked, retrying...');
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+
+    throw new Error('Failed to begin transaction after 10 retries');
+  }
+
+  async releaseSavepoint(name: string): Promise<void> {
+    await this.db.runAsync(`RELEASE SAVEPOINT ${name}`);
+  }
+
+  async rollbackSavepoint(name: string): Promise<void> {
+    await this.db.runAsync(`ROLLBACK TO SAVEPOINT ${name}`);
+  }
+
   // Activity methods
   async addActivity(activity: Omit<ActivityWithDates, 'id' | 'created_at'>): Promise<string> {
     if (!this.db) {

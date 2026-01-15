@@ -68,9 +68,9 @@ TaskManager.defineTask<Notifications.NotificationTaskPayload>(
 Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
 
 async function initializeDatabase() {
-  const sqlite = await openDatabaseAsync(DATABASE_NAME);
+  const sqlite = await openDatabaseAsync(DATABASE_NAME, { useNewConnection: true });
   const db = new DatabaseService(sqlite);
-  ProviderRepository.register(db);
+  ProviderRepository.register(db, 'DatabaseService');
 }
 
 initializeDatabase()
@@ -81,6 +81,6 @@ initializeDatabase()
     console.error('Error initializing database', error);
   });
 
-ProviderRepository.register(new PromptUserWithNotification(sendNotification));
-ProviderRepository.register(new NotificationProvider(sendNotification));
-ProviderRepository.register(new ActiveWalletProvider(new WalletWrapper(null)));
+ProviderRepository.register(new PromptUserWithNotification(sendNotification), 'PromptUserProvider');
+ProviderRepository.register(new NotificationProvider(sendNotification), 'NotificationProvider');
+ProviderRepository.register(new ActiveWalletProvider(new WalletWrapper(null)), 'ActiveWalletProvider');

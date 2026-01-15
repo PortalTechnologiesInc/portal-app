@@ -42,35 +42,23 @@ import type {
   PendingRequestType,
   PendingSubscription,
 } from '@/utils/types';
+import { PortalAppManager } from '@/services/PortalAppManager';
+import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
+import { getServiceNameFromProfile } from '@/utils/nostrHelper';
+import { FetchServiceProfileTask } from '@/queue/Tasks';
+import { globalEvents, getServiceNameFromMintUrl } from '@/utils/common';
 import { usePortalApp } from './PortalAppContext';
 import { useWalletManager } from './WalletManagerContext';
 
 // Helper function to get service name with fallback
+
 const getServiceNameWithFallback = async (
   nostrService: NostrServiceContextType,
   serviceKey: string
 ): Promise<string> => {
-  if (!serviceKey || serviceKey === 'Unknown Service') {
-    return 'Unknown Service';
-  }
-
-  // If it's a URL (mint URL), extract service name from it
-  if (serviceKey.startsWith('http://') || serviceKey.startsWith('https://')) {
-    return getServiceNameFromMintUrl(serviceKey);
-  }
-
-  // Try to resolve service name from Nostr (works with hex, npub, or any valid key format)
-  try {
-    const app = PortalAppManager.tryGetInstance();
-    const serviceName = await nostrService.getServiceName(app, serviceKey);
-    if (serviceName) {
-      return serviceName;
-    }
-  } catch (_error) {}
-
-  return 'Unknown Service';
+  const profile = await new FetchServiceProfileTask(serviceKey).run();
+  return getServiceNameFromProfile(profile) || 'Unknown Service';
 };
-// Note: PendingActivity and PendingSubscription are now imported from centralized types
 
 interface PendingRequestsContextType {
   getByType: (type: PendingRequestType) => PendingRequest[];
