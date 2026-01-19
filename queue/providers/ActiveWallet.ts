@@ -1,7 +1,7 @@
 import { Wallet, WALLET_TYPE, WalletConnectionStatus, WalletType } from "@/models/WalletType";
 
 export class ActiveWalletProvider {
-  constructor(public readonly activeWalletWrapper: WalletWrapper) { }
+  constructor(private readonly activeWalletWrapper: WalletWrapper) { }
 
   getWallet(): Wallet | null {
     return this.activeWalletWrapper.wallet

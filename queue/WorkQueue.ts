@@ -139,7 +139,7 @@ export abstract class Task<A extends unknown[], P extends GlobalProviderNames[],
         return await lock;
       } else {
         if (this instanceof TransactionalTask) {
-          // console.warn('Beginning transaction', key);
+          console.warn('Beginning transaction', key);
           await this.db.startSavepoint(key);
         }
 
@@ -150,7 +150,7 @@ export abstract class Task<A extends unknown[], P extends GlobalProviderNames[],
         await this.db.setCache(key, serializeValue(data), this.expiry);
         
         if (this instanceof TransactionalTask) {
-          // console.warn('Committing transaction', key);
+          console.warn('Committing transaction', key);
           await this.db.releaseSavepoint(key);
         }
         locksMap.delete(key);

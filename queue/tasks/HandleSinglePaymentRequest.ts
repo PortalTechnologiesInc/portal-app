@@ -9,16 +9,16 @@ import { SaveActivityTask } from "./SaveActivity";
 import { StartPaymentTask } from "./StartPayment";
 import { formatAmountToHumanReadable } from "@/utils/common";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { GetWalletInfoTask } from "./GetWalletInfo";
 import { RelayStatusesProvider } from "../providers/RelayStatus";
+import { ActiveWalletProvider } from "../providers/ActiveWallet";
 
-export class HandleSinglePaymentRequestTask extends Task<[SinglePaymentRequest], ['DatabaseService'], void> {
+export class HandleSinglePaymentRequestTask extends Task<[SinglePaymentRequest], ['DatabaseService', 'ActiveWalletProvider', 'RelayStatusesProvider'], void> {
   constructor(private readonly request: SinglePaymentRequest) {
-    super(['DatabaseService'], request);
+    super(['DatabaseService', 'ActiveWalletProvider', 'RelayStatusesProvider'], request);
     this.expiry = new Date(Number(request.expiresAt * 1000n));
   }
 
-  async taskLogic({ DatabaseService }: { DatabaseService: DatabaseService }, request: SinglePaymentRequest): Promise<void> {
+  async taskLogic({ DatabaseService, ActiveWalletProvider, RelayStatusesProvider }: { DatabaseService: DatabaseService, ActiveWalletProvider: ActiveWalletProvider, RelayStatusesProvider: RelayStatusesProvider }, request: SinglePaymentRequest): Promise<void> {
     let subId = request.content.subscriptionId;
     try {
       const checkAmount = new CheckAmountTask(request).run();
@@ -197,11 +197,11 @@ export class HandleSinglePaymentRequestTask extends Task<[SinglePaymentRequest],
         return;
       }
 
+      await RelayStatusesProvider.waitForRelaysConnected();
+      const walletInfo = await ActiveWalletProvider.getWallet()?.getWalletInfo();
 
-      const walletInfo = await new GetWalletInfoTask().run();
-
-      const isWalletProvided = walletInfo != null;
-      if (!isWalletProvided) {
+      if (!walletInfo) {
+        console.error('Wallet not provided')
         await new SaveActivityTask({
           type: 'pay',
           service_key: request.serviceKey,

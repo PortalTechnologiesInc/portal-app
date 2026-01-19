@@ -24,7 +24,7 @@ import { formatActivityAmount, normalizeCurrencyForComparison } from '@/utils/cu
 import type { PendingRequest } from '@/utils/types';
 import { usePendingRequests } from '../context/PendingRequestsContext';
 import { SkeletonPulse } from './PendingRequestSkeletonCard';
-import { FetchServiceNameTask } from '@/queue/tasks/ProcessAuthRequest';
+import { FetchServiceProfileTask } from '@/queue/tasks/ProcessAuthRequest';
 
 interface PendingRequestCardProps {
   request: PendingRequest;
@@ -118,7 +118,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
 
           try {
             setIsRequestorNameLoading(true);
-            const profile = await new FetchServiceNameTask(serviceKey).run();
+            const profile = await new FetchServiceProfileTask(serviceKey).run();
             const name = getServiceNameFromProfile(profile);
             if (isMounted.current) {
               setRequestorName(name);
@@ -138,7 +138,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
           if (!isMounted.current) return;
           try {
             setIsServiceNameLoading(true);
-            const profile = await new FetchServiceNameTask(serviceKey).run();
+            const profile = await new FetchServiceProfileTask(serviceKey).run();
             const name = getServiceNameFromProfile(profile);
             if (isMounted.current) {
               setServiceName(name);

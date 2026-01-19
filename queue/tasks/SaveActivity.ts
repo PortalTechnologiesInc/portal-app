@@ -3,7 +3,7 @@ import { Task, TransactionalTask } from "../WorkQueue";
 import { globalEvents } from "@/utils/common";
 
 export type SaveActivityArgs = Omit<ActivityWithDates, 'id' | 'created_at'>;
-export class SaveActivityTask extends TransactionalTask<[SaveActivityArgs], ['DatabaseService'], string> {
+export class SaveActivityTask extends Task<[SaveActivityArgs], ['DatabaseService'], string> {
   constructor(activity: SaveActivityArgs) {
     super(['DatabaseService'], activity);
   }
