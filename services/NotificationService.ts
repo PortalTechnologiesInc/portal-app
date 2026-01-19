@@ -1,50 +1,25 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
 import { openDatabaseAsync } from 'expo-sqlite';
 import {
-  type AuthChallengeEvent,
-  type AuthResponseStatus,
-  type CloseRecurringPaymentResponse,
   Currency_Tags,
-  keyToHex,
   Mnemonic,
-  type NostrConnectRequestEvent,
-  type NostrConnectResponseStatus,
-  type PaymentStatus,
-  type PaymentStatusNotifier,
-  NostrConnectResponseStatus,
-  PaymentStatus,
   PortalApp,
   type PortalAppInterface,
   parseBolt11,
-  type RecurringPaymentRequest,
-  type RecurringPaymentResponseContent,
   type RelayStatusListener,
   type SinglePaymentRequest,
 } from 'portal-app-lib';
 import { Platform } from 'react-native';
-import {
-  LocalAuthChallengeListener,
-  LocalClosedRecurringPaymentListener,
-  LocalNip46RequestListener,
-  LocalPaymentRequestListener,
-} from '@/context/PortalAppContext';
 import type { Wallet } from '@/models/WalletType';
 import type { RelayInfo } from '@/utils/common';
-import { Currency, CurrencyHelpers } from '@/utils/currency';
 import { getServiceNameFromProfile, mapNumericStatusToString } from '@/utils/nostrHelper';
 import { DatabaseService } from './DatabaseService';
-import {
-  handleCloseRecurringPaymentResponse,
-  handleNostrConnectRequest,
-} from './EventFilters';
 import { NwcService } from './NwcService';
 import { PortalAppManager } from './PortalAppManager';
 import { getMnemonic, getWalletUrl } from './SecureStorageService';
-import { Wallet } from '@/models/WalletType';
 
 const EXPO_PUSH_TOKEN_KEY = 'expo_push_token_key';
 

@@ -8,6 +8,8 @@ import type React from 'react';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { useDatabaseContext } from '@/context/DatabaseContext';
+import { RelayStatusesProvider } from '@/queue/providers/RelayStatus';
+import { ProviderRepository } from '@/queue/WorkQueue';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 import type { NwcService } from '@/services/NwcService';
 import { PortalAppManager } from '@/services/PortalAppManager';
@@ -16,8 +18,6 @@ import { mapNumericStatusToString } from '@/utils/nostrHelper';
 import type { PendingRequest, RelayInfo, WalletInfoState } from '@/utils/types';
 import defaultRelayList from '../assets/DefaultRelays.json';
 import { useOnboarding } from './OnboardingContext';
-import { ProviderRepository } from '@/queue/WorkQueue';
-import { RelayStatusesProvider } from '@/queue/providers/RelayStatus';
 
 // Context type definition
 export interface NostrServiceContextType {
@@ -380,7 +380,10 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
   useEffect(() => {
     relayStatusesRef.current = relayStatuses;
-    ProviderRepository.register(new RelayStatusesProvider(relayStatusesRef), 'RelayStatusesProvider');
+    ProviderRepository.register(
+      new RelayStatusesProvider(relayStatusesRef),
+      'RelayStatusesProvider'
+    );
   }, [relayStatuses]);
 
   useEffect(() => {

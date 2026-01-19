@@ -29,27 +29,23 @@ import { useCurrency } from '@/context/CurrencyContext';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import { useECash } from '@/context/ECashContext';
 import { type NostrServiceContextType, useNostrService } from '@/context/NostrServiceContext';
+import { FetchServiceProfileTask } from '@/queue/tasks/ProcessAuthRequest';
+import { SaveActivityAndAddPaymentStatusTransactionalTask } from '@/queue/tasks/StartPayment';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 import { fromUnixSeconds } from '@/services/DatabaseService';
-import { PortalAppManager } from '@/services/PortalAppManager';
 import { getServiceNameFromMintUrl, globalEvents } from '@/utils/common';
 import { normalizeCurrencyForComparison } from '@/utils/currency';
 import { logError } from '@/utils/errorLogger';
+import { getServiceNameFromProfile } from '@/utils/nostrHelper';
 import type {
   PendingActivity,
   PendingRequest,
   PendingRequestType,
   PendingSubscription,
 } from '@/utils/types';
-import { PortalAppManager } from '@/services/PortalAppManager';
-import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
-import { getServiceNameFromProfile } from '@/utils/nostrHelper';
-import { globalEvents, getServiceNameFromMintUrl } from '@/utils/common';
 import { usePortalApp } from './PortalAppContext';
 import { useWalletManager } from './WalletManagerContext';
-import { FetchServiceProfileTask } from '@/queue/tasks/ProcessAuthRequest';
-import { SaveActivityAndAddPaymentStatusTransactionalTask } from '@/queue/tasks/StartPayment';
 
 // Helper function to get service name with fallback
 

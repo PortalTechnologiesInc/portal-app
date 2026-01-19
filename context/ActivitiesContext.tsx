@@ -130,12 +130,12 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
         filters.size === 0
           ? { limit: ACTIVITIES_PER_PAGE, offset: offset }
           : {
-            limit: ACTIVITIES_PER_PAGE,
-            offset: offset,
-            types: types.length > 0 ? types : undefined,
-            includeSubscriptions: includeSubscriptions || undefined,
-            excludeSubscriptions: excludeSubscriptions || undefined,
-          };
+              limit: ACTIVITIES_PER_PAGE,
+              offset: offset,
+              types: types.length > 0 ? types : undefined,
+              includeSubscriptions: includeSubscriptions || undefined,
+              excludeSubscriptions: excludeSubscriptions || undefined,
+            };
 
       const fetchedActivities = await executeOperation(db => db.getActivities(filterOptions), []);
 
@@ -163,10 +163,10 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
         filters.size === 0
           ? {}
           : {
-            types: types.length > 0 ? types : undefined,
-            includeSubscriptions: includeSubscriptions || undefined,
-            excludeSubscriptions: excludeSubscriptions || undefined,
-          };
+              types: types.length > 0 ? types : undefined,
+              includeSubscriptions: includeSubscriptions || undefined,
+              excludeSubscriptions: excludeSubscriptions || undefined,
+            };
       const allActivities = await executeOperation(db => db.getActivities(countOptions), []);
       setTotalActivities(allActivities.length);
     },
@@ -290,12 +290,12 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
       filters.size === 0
         ? { limit: ACTIVITIES_PER_PAGE, offset: offset }
         : {
-          limit: ACTIVITIES_PER_PAGE,
-          offset: offset,
-          types: types.length > 0 ? types : undefined,
-          includeSubscriptions: includeSubscriptions || undefined,
-          excludeSubscriptions: excludeSubscriptions || undefined,
-        };
+            limit: ACTIVITIES_PER_PAGE,
+            offset: offset,
+            types: types.length > 0 ? types : undefined,
+            includeSubscriptions: includeSubscriptions || undefined,
+            excludeSubscriptions: excludeSubscriptions || undefined,
+          };
 
     executeOperation(db => db.getActivities(filterOptions), [])
       .then(fetchedActivities => {
@@ -308,10 +308,10 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
           filters.size === 0
             ? {}
             : {
-              types: types.length > 0 ? types : undefined,
-              includeSubscriptions: includeSubscriptions || undefined,
-              excludeSubscriptions: excludeSubscriptions || undefined,
-            };
+                types: types.length > 0 ? types : undefined,
+                includeSubscriptions: includeSubscriptions || undefined,
+                excludeSubscriptions: excludeSubscriptions || undefined,
+              };
         return executeOperation(db => db.getActivities(countOptions), []);
       })
       .then(allActivities => {

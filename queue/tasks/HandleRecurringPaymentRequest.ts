@@ -1,8 +1,12 @@
-import { PortalAppInterface, RecurringPaymentRequest, RecurringPaymentResponseContent } from "portal-app-lib";
-import { Task } from "../WorkQueue";
-import { PromptUserProvider } from "../providers/PromptUser";
-import { PendingRequest } from "@/utils/types";
-import { RelayStatusesProvider } from "../providers/RelayStatus";
+import type {
+  PortalAppInterface,
+  RecurringPaymentRequest,
+  RecurringPaymentResponseContent,
+} from 'portal-app-lib';
+import type { PendingRequest } from '@/utils/types';
+import type { PromptUserProvider } from '../providers/PromptUser';
+import type { RelayStatusesProvider } from '../providers/RelayStatus';
+import { Task } from '../WorkQueue';
 
 export class HandleRecurringPaymentRequestTask extends Task<[RecurringPaymentRequest], [], void> {
   constructor(private readonly request: RecurringPaymentRequest) {
@@ -14,7 +18,7 @@ export class HandleRecurringPaymentRequestTask extends Task<[RecurringPaymentReq
     const subResponse = await new RequireRecurringPaymentUserApprovalTask(
       request,
       'Subscription Request',
-      `Subscription request`,
+      `Subscription request`
     ).run();
     console.log('[ProcessIncomingRequestTask] User approval result:', subResponse);
 
@@ -25,7 +29,7 @@ export class HandleRecurringPaymentRequestTask extends Task<[RecurringPaymentReq
 
     await new SendRecurringPaymentResponseTask(request, subResponse).run();
 
-    const eventId = request.eventId
+    const eventId = request.eventId;
     console.log('[ProcessIncomingRequestTask] Task started for subscription request:', {
       id: eventId,
       type: 'subsctiption',
@@ -34,17 +38,33 @@ export class HandleRecurringPaymentRequestTask extends Task<[RecurringPaymentReq
 }
 Task.register(HandleRecurringPaymentRequestTask);
 
-class RequireRecurringPaymentUserApprovalTask extends Task<[RecurringPaymentRequest, string, string], ['PromptUserProvider'], RecurringPaymentResponseContent | null> {
-  constructor(private readonly request: RecurringPaymentRequest, private readonly title: string, private readonly body: string) {
+class RequireRecurringPaymentUserApprovalTask extends Task<
+  [RecurringPaymentRequest, string, string],
+  ['PromptUserProvider'],
+  RecurringPaymentResponseContent | null
+> {
+  constructor(
+    private readonly request: RecurringPaymentRequest,
+    private readonly title: string,
+    private readonly body: string
+  ) {
     super(['PromptUserProvider'], request, title, body);
   }
 
-  async taskLogic({ PromptUserProvider }: { PromptUserProvider: PromptUserProvider }, request: RecurringPaymentRequest, title: string, body: string): Promise<RecurringPaymentResponseContent | null> {
+  async taskLogic(
+    { PromptUserProvider }: { PromptUserProvider: PromptUserProvider },
+    request: RecurringPaymentRequest,
+    title: string,
+    body: string
+  ): Promise<RecurringPaymentResponseContent | null> {
     console.log('[RequireRecurringPaymentUserApprovalTask] Requesting user approval for:', {
       id: request.eventId,
       type: 'subscription',
     });
-    console.log('[RequireRecurringPaymentUserApprovalTask] SetPendingRequestsProvider available:', !!PromptUserProvider);
+    console.log(
+      '[RequireRecurringPaymentUserApprovalTask] SetPendingRequestsProvider available:',
+      !!PromptUserProvider
+    );
     return new Promise<RecurringPaymentResponseContent | null>(resolve => {
       // in the PromptUserProvider the promise will be immediatly resolved as null when the app is offline
       // hence a notification should be shown instead of a pending request and the flow should stop
@@ -61,31 +81,47 @@ class RequireRecurringPaymentUserApprovalTask extends Task<[RecurringPaymentRequ
         body: body,
         data: {
           type: 'subscription',
-        }
-      }
+        },
+      };
 
-      console.log('[RequireRecurringPaymentUserApprovalTask] Calling addPendingRequest for:', newPendingRequest.id);
+      console.log(
+        '[RequireRecurringPaymentUserApprovalTask] Calling addPendingRequest for:',
+        newPendingRequest.id
+      );
       PromptUserProvider.promptUser({
-        pendingRequest: newPendingRequest, notification: newNotification
+        pendingRequest: newPendingRequest,
+        notification: newNotification,
       });
-      console.log('[RequireRecurringPaymentUserApprovalTask] addPendingRequest called, waiting for user approval');
+      console.log(
+        '[RequireRecurringPaymentUserApprovalTask] addPendingRequest called, waiting for user approval'
+      );
     });
   }
 }
 Task.register(RequireRecurringPaymentUserApprovalTask);
 
-
-export class SendRecurringPaymentResponseTask extends Task<[RecurringPaymentRequest, RecurringPaymentResponseContent], ['PortalAppInterface', 'RelayStatusesProvider'], void> {
-  constructor(private readonly request: RecurringPaymentRequest, private readonly response: RecurringPaymentResponseContent) {
+export class SendRecurringPaymentResponseTask extends Task<
+  [RecurringPaymentRequest, RecurringPaymentResponseContent],
+  ['PortalAppInterface', 'RelayStatusesProvider'],
+  void
+> {
+  constructor(
+    private readonly request: RecurringPaymentRequest,
+    private readonly response: RecurringPaymentResponseContent
+  ) {
     super(['PortalAppInterface', 'RelayStatusesProvider'], request, response);
   }
 
-  async taskLogic({ PortalAppInterface, RelayStatusesProvider }: { PortalAppInterface: PortalAppInterface, RelayStatusesProvider: RelayStatusesProvider }, request: RecurringPaymentRequest, response: RecurringPaymentResponseContent): Promise<void> {
+  async taskLogic(
+    {
+      PortalAppInterface,
+      RelayStatusesProvider,
+    }: { PortalAppInterface: PortalAppInterface; RelayStatusesProvider: RelayStatusesProvider },
+    request: RecurringPaymentRequest,
+    response: RecurringPaymentResponseContent
+  ): Promise<void> {
     await RelayStatusesProvider.waitForRelaysConnected();
-    return await PortalAppInterface.replyRecurringPaymentRequest(
-      request,
-      response,
-    );
+    return await PortalAppInterface.replyRecurringPaymentRequest(request, response);
   }
 }
 Task.register(SendRecurringPaymentResponseTask);

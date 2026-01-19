@@ -1,14 +1,20 @@
-import { PendingRequest } from "@/utils/types";
-import { Task } from "../WorkQueue";
-import { AuthChallengeEvent, AuthResponseStatus, PortalApp, PortalAppInterface, Profile } from "portal-app-lib";
-import { getServiceNameFromProfile } from "@/utils/nostrHelper";
-import { PromptUserProvider } from "../providers/PromptUser";
-import { SaveActivityTask } from "./SaveActivity";
-import { RelayStatusesProvider } from "../providers/RelayStatus";
+import {
+  type AuthChallengeEvent,
+  type AuthResponseStatus,
+  PortalApp,
+  type PortalAppInterface,
+  type Profile,
+} from 'portal-app-lib';
+import { getServiceNameFromProfile } from '@/utils/nostrHelper';
+import type { PendingRequest } from '@/utils/types';
+import type { PromptUserProvider } from '../providers/PromptUser';
+import type { RelayStatusesProvider } from '../providers/RelayStatus';
+import { Task } from '../WorkQueue';
+import { SaveActivityTask } from './SaveActivity';
 
 export class ProcessAuthRequestTask extends Task<[AuthChallengeEvent], [], void> {
   constructor(event: AuthChallengeEvent) {
-    super([], event)
+    super([], event);
     this.expiry = new Date(Number(event.expiresAt * 1000n));
   }
 
@@ -23,7 +29,7 @@ export class ProcessAuthRequestTask extends Task<[AuthChallengeEvent], [], void>
 
     await new SendAuthChallengeResponseTask(event, authResponse).run();
 
-    const eventId = event.eventId
+    const eventId = event.eventId;
     console.log('[ProcessIncomingRequestTask] Task started for request:', {
       id: eventId,
       type: 'login',
@@ -31,10 +37,15 @@ export class ProcessAuthRequestTask extends Task<[AuthChallengeEvent], [], void>
 
     const serviceKey = event.serviceKey;
     console.log('[ProcessIncomingRequestTask] Fetching profile for serviceKey:', serviceKey);
-    const profileNameDeferred = (new FetchServiceProfileTask(serviceKey).run()).then(profile => getServiceNameFromProfile(profile));
+    const profileNameDeferred = new FetchServiceProfileTask(serviceKey)
+      .run()
+      .then(profile => getServiceNameFromProfile(profile));
     console.log('[ProcessIncomingRequestTask] Calling RequireAuthUserApprovalTask');
 
-    const name = await Promise.race([profileNameDeferred, new Promise<string>(resolve => resolve('Unknown Service'))]);
+    const name = await Promise.race([
+      profileNameDeferred,
+      new Promise<string>(resolve => resolve('Unknown Service')),
+    ]);
     await new SaveActivityTask({
       type: 'auth',
       service_key: serviceKey,
@@ -55,12 +66,22 @@ export class ProcessAuthRequestTask extends Task<[AuthChallengeEvent], [], void>
 }
 Task.register(ProcessAuthRequestTask);
 
-export class FetchServiceProfileTask extends Task<[string], ['PortalAppInterface', 'RelayStatusesProvider'], Profile | undefined> {
+export class FetchServiceProfileTask extends Task<
+  [string],
+  ['PortalAppInterface', 'RelayStatusesProvider'],
+  Profile | undefined
+> {
   constructor(key: string) {
     super(['PortalAppInterface', 'RelayStatusesProvider'], key);
   }
 
-  async taskLogic({ PortalAppInterface, RelayStatusesProvider }: { PortalAppInterface: PortalAppInterface, RelayStatusesProvider: RelayStatusesProvider }, key: string): Promise<Profile | undefined> {
+  async taskLogic(
+    {
+      PortalAppInterface,
+      RelayStatusesProvider,
+    }: { PortalAppInterface: PortalAppInterface; RelayStatusesProvider: RelayStatusesProvider },
+    key: string
+  ): Promise<Profile | undefined> {
     this.expiry = new Date(Date.now() + 1000 * 60 * 60 * 24);
 
     await RelayStatusesProvider.waitForRelaysConnected();
@@ -69,17 +90,27 @@ export class FetchServiceProfileTask extends Task<[string], ['PortalAppInterface
 }
 Task.register(FetchServiceProfileTask);
 
-class RequireAuthUserApprovalTask extends Task<[AuthChallengeEvent], ['PromptUserProvider'], AuthResponseStatus | null> {
+class RequireAuthUserApprovalTask extends Task<
+  [AuthChallengeEvent],
+  ['PromptUserProvider'],
+  AuthResponseStatus | null
+> {
   constructor(event: AuthChallengeEvent) {
-    super(['PromptUserProvider'], event)
+    super(['PromptUserProvider'], event);
   }
 
-  async taskLogic({ PromptUserProvider }: { PromptUserProvider: PromptUserProvider; }, event: AuthChallengeEvent): Promise<AuthResponseStatus | null> {
+  async taskLogic(
+    { PromptUserProvider }: { PromptUserProvider: PromptUserProvider },
+    event: AuthChallengeEvent
+  ): Promise<AuthResponseStatus | null> {
     console.log('[RequireAuthUserApprovalTask] Requesting user approval for:', {
       id: event.eventId,
       type: 'login',
     });
-    console.log('[RequireAuthUserApprovalTask] SetPendingRequestsProvider available:', !!PromptUserProvider);
+    console.log(
+      '[RequireAuthUserApprovalTask] SetPendingRequestsProvider available:',
+      !!PromptUserProvider
+    );
     return new Promise<AuthResponseStatus | null>(resolve => {
       // in the PromptUserProvider the promise will be immediatly resolved as null when the app is offline
       // hence a notification should be shown instead of a pending request and the flow should stop
@@ -97,24 +128,41 @@ class RequireAuthUserApprovalTask extends Task<[AuthChallengeEvent], ['PromptUse
         data: {
           type: 'authentication_request',
           requestId: event.eventId,
-        }
-      }
+        },
+      };
 
-      console.log('[RequireAuthUserApprovalTask] Calling addPendingRequest for:', newPendingRequest.id);
+      console.log(
+        '[RequireAuthUserApprovalTask] Calling addPendingRequest for:',
+        newPendingRequest.id
+      );
       PromptUserProvider.promptUser({
-        pendingRequest: newPendingRequest, notification: newNotification
+        pendingRequest: newPendingRequest,
+        notification: newNotification,
       });
-      console.log('[RequireAuthUserApprovalTask] addPendingRequest called, waiting for user approval');
+      console.log(
+        '[RequireAuthUserApprovalTask] addPendingRequest called, waiting for user approval'
+      );
     });
   }
 }
 Task.register(RequireAuthUserApprovalTask);
 
-class SendAuthChallengeResponseTask extends Task<[AuthChallengeEvent, AuthResponseStatus], ['PortalAppInterface', 'RelayStatusesProvider'], void> {
+class SendAuthChallengeResponseTask extends Task<
+  [AuthChallengeEvent, AuthResponseStatus],
+  ['PortalAppInterface', 'RelayStatusesProvider'],
+  void
+> {
   constructor(event: AuthChallengeEvent, response: AuthResponseStatus) {
-    super(['PortalAppInterface', 'RelayStatusesProvider'], event, response)
+    super(['PortalAppInterface', 'RelayStatusesProvider'], event, response);
   }
-  async taskLogic({ PortalAppInterface, RelayStatusesProvider }: { PortalAppInterface: PortalAppInterface; RelayStatusesProvider: RelayStatusesProvider; }, event: AuthChallengeEvent, response: AuthResponseStatus): Promise<void> {
+  async taskLogic(
+    {
+      PortalAppInterface,
+      RelayStatusesProvider,
+    }: { PortalAppInterface: PortalAppInterface; RelayStatusesProvider: RelayStatusesProvider },
+    event: AuthChallengeEvent,
+    response: AuthResponseStatus
+  ): Promise<void> {
     await RelayStatusesProvider.waitForRelaysConnected();
     return await PortalAppInterface.replyAuthChallenge(event, response);
   }

@@ -33,13 +33,13 @@ export interface QueuedTaskRecord {
 export interface ActivityRecord {
   id: string;
   type:
-  | 'auth'
-  | 'pay'
-  | 'receive'
-  | 'ticket'
-  | 'ticket_approved'
-  | 'ticket_denied'
-  | 'ticket_received';
+    | 'auth'
+    | 'pay'
+    | 'receive'
+    | 'ticket'
+    | 'ticket_approved'
+    | 'ticket_denied'
+    | 'ticket_received';
   service_name: string;
   service_key: string;
   detail: string;
@@ -1064,10 +1064,7 @@ export class DatabaseService {
   }
 
   // Payment status log methods
-  async addPaymentStatusEntry(
-    invoice: string,
-    actionType: PaymentAction,
-  ): Promise<number> {
+  async addPaymentStatusEntry(invoice: string, actionType: PaymentAction): Promise<number> {
     const now = toUnixSeconds(Date.now());
     const result = await this.db.runAsync(
       `INSERT INTO payment_status (
@@ -1325,12 +1322,12 @@ export class DatabaseService {
 
   async updateBunkerClientName(pubkey: string, name: string | null): Promise<void> {
     try {
-    await this.db.runAsync(
-      `UPDATE bunker_allowed_clients
+      await this.db.runAsync(
+        `UPDATE bunker_allowed_clients
         SET client_name = ?
         WHERE client_pubkey = ?`,
-      [name, pubkey]
-    );
+        [name, pubkey]
+      );
     } catch (error) {
       console.error('Database error while updating client name:', error);
       throw error;
@@ -1443,12 +1440,9 @@ export class DatabaseService {
    * @param options Filtering options
    * @returns Array of queued task records
    */
-  async getQueuedTasks(options: {
-    taskName?: string;
-    excludeExpired?: boolean;
-    limit?: number;
-    offset?: number;
-  } = {}): Promise<QueuedTaskRecord[]> {
+  async getQueuedTasks(
+    options: { taskName?: string; excludeExpired?: boolean; limit?: number; offset?: number } = {}
+  ): Promise<QueuedTaskRecord[]> {
     const conditions: string[] = [];
     const params: (string | number)[] = [];
 

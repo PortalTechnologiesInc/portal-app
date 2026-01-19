@@ -1,49 +1,18 @@
 import {
-  type AuthChallengeEvent,
-  type AuthChallengeListener,
-  type AuthResponseStatus,
-  type CashuDirectContentWithKey,
-  type CashuDirectListener,
-  type CashuRequestContentWithKey,
-  type CashuRequestListener,
-  CashuResponseStatus,
-  type ClosedRecurringPaymentListener,
-  type CloseRecurringPaymentResponse,
-  CloseRecurringPaymentResponse,
   IncomingPaymentRequest_Tags,
-  keyToHex,
-  type NostrConnectRequestEvent,
-  type NostrConnectRequestListener,
-  type NostrConnectResponseStatus,
-  type PaymentRequestListener,
-  type PaymentStatus,
-  type PaymentStatusNotifier,
-  parseCashuToken,
   type RecurringPaymentRequest,
-  type RecurringPaymentResponseContent,
   type SinglePaymentRequest,
-  PaymentStatus,
-  PortalApp,
-  PortalAppInterface,
-  Profile,
   RecurringPaymentRequest,
-  RecurringPaymentResponseContent,
   SinglePaymentRequest,
 } from 'portal-app-lib';
 import React, { createContext, useCallback, useEffect, useRef, useState } from 'react';
-import { AppState } from 'react-native';
-import {
-  handleAuthChallenge,
-  handleCloseRecurringPaymentResponse,
-  handleNostrConnectRequest,
-  handleRecurringPaymentRequest,
-  handleSinglePaymentRequest,
-} from '@/services/EventFilters';
+import { PromptUserWithPendingCard } from '@/queue/providers/PromptUser';
+import { HandleRecurringPaymentRequestTask } from '@/queue/tasks/HandleRecurringPaymentRequest';
+import { HandleSinglePaymentRequestTask } from '@/queue/tasks/HandleSinglePaymentRequest';
+import { ProcessAuthRequestTask } from '@/queue/tasks/ProcessAuthRequest';
+import { enqueueTask, ProviderRepository } from '@/queue/WorkQueue';
 import { PortalAppManager } from '@/services/PortalAppManager';
-import { globalEvents } from '@/utils/common';
-import { logError } from '@/utils/errorLogger';
 import { getKeypairFromKey } from '@/utils/keyHelpers';
-import { handleErrorWithToastAndReinit, showToast } from '@/utils/Toast';
 import type { PendingRequest, RelayInfo } from '@/utils/types';
 import { useCurrency } from './CurrencyContext';
 import { useDatabaseContext } from './DatabaseContext';
@@ -51,13 +20,6 @@ import { useECash } from './ECashContext';
 import { useKey } from './KeyContext';
 import { useNostrService } from './NostrServiceContext';
 import { useWalletManager } from './WalletManagerContext';
-import { enqueueTask, ProviderRepository } from '@/queue/WorkQueue';
-import { getServiceNameFromProfile } from '@/utils/nostrHelper';
-import { ActivityWithDates, DatabaseService } from '@/services/DatabaseService';
-import { ProcessAuthRequestTask } from '@/queue/tasks/ProcessAuthRequest';
-import { PromptUserWithPendingCard } from '@/queue/providers/PromptUser';
-import { HandleSinglePaymentRequestTask } from '@/queue/tasks/HandleSinglePaymentRequest';
-import { HandleRecurringPaymentRequestTask } from '@/queue/tasks/HandleRecurringPaymentRequest';
 
 interface PortalAppProviderProps {
   children: React.ReactNode;
@@ -307,7 +269,7 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
     (async () => {
       while (true) {
         try {
-          let event = await app.nextAuthChallenge();
+          const event = await app.nextAuthChallenge();
           const id = event.eventId;
           const task = new ProcessAuthRequestTask(event);
           console.log('[PortalAppContext] Enqueuing ProcessAuthRequestTask for request:', id);

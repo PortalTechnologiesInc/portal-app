@@ -1,7 +1,11 @@
-import { DatabaseService, QueuedTaskRecord, toUnixSeconds } from "@/services/DatabaseService";
-import { PortalAppInterface, CalendarInterface, parseCalendar } from "portal-app-lib";
 import { Sha256 } from '@aws-crypto/sha256-js';
-import { GlobalProviders } from "./Providers";
+import { type CalendarInterface, PortalAppInterface, parseCalendar } from 'portal-app-lib';
+import {
+  type DatabaseService,
+  type QueuedTaskRecord,
+  toUnixSeconds,
+} from '@/services/DatabaseService';
+import type { GlobalProviders } from './Providers';
 
 type Expiry = Date | 'forever';
 type Waiter<T> = (result: T | null, error: any) => void;
@@ -10,7 +14,7 @@ const locksMap = new Map<string, Promise<any>>();
 const waitersMap = new Map<number, Waiter<any>>();
 
 export abstract class Arguments<TArgs extends unknown[] = unknown[]> {
-  constructor(protected readonly args: TArgs) { }
+  constructor(protected readonly args: TArgs) {}
 
   abstract hash(): string;
 
@@ -29,15 +33,15 @@ export class JsonArguments<TArgs extends unknown[] = unknown[]> extends Argument
   }
 
   hash(): string {
-    const flattenObject = function (ob: any) {
+    const flattenObject = (ob: any) => {
       const toReturn: Record<string, any> = {};
       for (const i in ob) {
-        if (!ob.hasOwnProperty(i)) continue;
-        
-        if ((typeof ob[i]) === 'object') {
+        if (!Object.hasOwn(ob, i)) continue;
+
+        if (typeof ob[i] === 'object') {
           var flatObject = flattenObject(ob[i]);
           for (var x in flatObject) {
-            if (!flatObject.hasOwnProperty(x)) continue;
+            if (!Object.hasOwn(flatObject, x)) continue;
 
             toReturn[i + '.' + x] = flatObject[x];
           }
@@ -60,7 +64,9 @@ export class JsonArguments<TArgs extends unknown[] = unknown[]> extends Argument
     const hash = new Sha256();
     hash.update(jsonArgs);
     const result = hash.digestSync();
-    return Array.from(result).map((b) => b.toString(16).padStart(2, "0")).join("")
+    return Array.from(result)
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
   }
 }
 
@@ -75,35 +81,48 @@ function serializeValue(v: any): string {
     } else {
       return v;
     }
-  })
+  });
 }
 
 function deserializeValue(v: string): any {
   return JSON.parse(v, (_, value) => {
-    if (typeof value === 'string' && value.endsWith('n') && value.length <= 32 && !isNaN(Number(value.slice(0, -1)))) {
+    if (
+      typeof value === 'string' &&
+      value.endsWith('n') &&
+      value.length <= 32 &&
+      !isNaN(Number(value.slice(0, -1)))
+    ) {
       return BigInt(value.slice(0, -1));
     } else if (typeof value === 'string' && value.startsWith('CalendarInterface(')) {
       return parseCalendar(value.slice(18, -1));
     } else {
       return value;
     }
-  })
+  });
 }
 
 type GlobalProviderNames = GlobalProviders['name'];
 
 type ProvidersSubset<N extends GlobalProviderNames[]> = {
-  [K in GlobalProviderNames]: K extends N[number] ? Extract<GlobalProviders, { name: K }>['type'] : never;
-}
+  [K in GlobalProviderNames]: K extends N[number]
+    ? Extract<GlobalProviders, { name: K }>['type']
+    : never;
+};
 
 export abstract class Task<A extends unknown[], P extends GlobalProviderNames[], T> {
-  private static registry = new Map<string, TaskConstructor<unknown[], GlobalProviderNames[], unknown>>();
+  private static registry = new Map<
+    string,
+    TaskConstructor<unknown[], GlobalProviderNames[], unknown>
+  >();
 
   private readonly db: DatabaseService;
   protected readonly args: Arguments<A>;
   protected expiry: Expiry = 'forever';
 
-  constructor(private readonly providerNames: P, ...args: A) {
+  constructor(
+    private readonly providerNames: P,
+    ...args: A
+  ) {
     this.args = new JsonArguments(args);
 
     const db = ProviderRepository.get('DatabaseService');
@@ -148,7 +167,7 @@ export abstract class Task<A extends unknown[], P extends GlobalProviderNames[],
 
         const data = await promise;
         await this.db.setCache(key, serializeValue(data), this.expiry);
-        
+
         if (this instanceof TransactionalTask) {
           console.warn('Committing transaction', key);
           await this.db.releaseSavepoint(key);
@@ -181,11 +200,15 @@ export abstract class Task<A extends unknown[], P extends GlobalProviderNames[],
     };
   }
 
-  static register<A extends unknown[], P extends GlobalProviderNames[], T>(instance: new (...args: any[]) => Task<A, P, T>) {
+  static register<A extends unknown[], P extends GlobalProviderNames[], T>(
+    instance: new (...args: any[]) => Task<A, P, T>
+  ) {
     Task.registry.set(instance.name, instance as TaskConstructor<any[], any, any>);
   }
 
-  static getFromRegistry(name: string): TaskConstructor<unknown[], GlobalProviderNames[], unknown> | undefined {
+  static getFromRegistry(
+    name: string
+  ): TaskConstructor<unknown[], GlobalProviderNames[], unknown> | undefined {
     return Task.registry.get(name);
   }
 
@@ -200,21 +223,32 @@ export abstract class Task<A extends unknown[], P extends GlobalProviderNames[],
 
 /**
  * TransactionalTask is a Task that runs in a sqlite transaction.
- * 
+ *
  * It should only be used for tasks that modify the database. If a task is spawned internally that also modifies the database,
  * its changes and cache will not be committed until the "root" transactiona tasks completes.
- * 
+ *
  * Also note that the transaction will keep an exclusive lock on the database for the duration of the task,
  * so this should only be done for tasks that complete fairly quickly.
  */
-export abstract class TransactionalTask<A extends unknown[], P extends GlobalProviderNames[], T> extends Task<A, P, T> {}
+export abstract class TransactionalTask<
+  A extends unknown[],
+  P extends GlobalProviderNames[],
+  T,
+> extends Task<A, P, T> {}
 
-export type TaskConstructor<A extends unknown[] = unknown[], P extends GlobalProviderNames[] = GlobalProviderNames[], T = unknown> = new (...args: any[]) => Task<A, P, T>;
+export type TaskConstructor<
+  A extends unknown[] = unknown[],
+  P extends GlobalProviderNames[] = GlobalProviderNames[],
+  T = unknown,
+> = new (...args: any[]) => Task<A, P, T>;
 
 export class ProviderRepository {
   private static providers = new Map<GlobalProviderNames, any>();
 
-  static register<N extends GlobalProviderNames>(provider: Extract<GlobalProviders, { name: N }>['type'], name: N) {
+  static register<N extends GlobalProviderNames>(
+    provider: Extract<GlobalProviders, { name: N }>['type'],
+    name: N
+  ) {
     console.warn('Registering provider', name);
     ProviderRepository.providers.set(name, provider);
   }
@@ -242,7 +276,7 @@ async function runTask(db: DatabaseService, record: QueuedTaskRecord): Promise<a
 
 /**
  * Resume tasks from the database queue.
- * 
+ *
  * Resume tasks that were spawned with `enqueueTask` and are not completed yet.
  */
 export async function resumeTasks() {
@@ -264,7 +298,7 @@ export async function resumeTasks() {
 
 /**
  * Enqueue a task to the database queue.
- * 
+ *
  * Add a task to the database queue for future resumption and immediately start its execution.
  */
 export async function enqueueTask<T>(task: Task<any[], any, T>): Promise<T> {
@@ -275,7 +309,12 @@ export async function enqueueTask<T>(task: Task<any[], any, T>): Promise<T> {
 
   const record = task.serialize();
   console.log(record);
-  const id = await db.addQueuedTask(record.task_name, record.arguments, record.expires_at, record.priority);
+  const id = await db.addQueuedTask(
+    record.task_name,
+    record.arguments,
+    record.expires_at,
+    record.priority
+  );
   console.log('[WorkQueue] Added task to queue with id:', id, 'task name:', record.task_name);
 
   console.log('[WorkQueue] Running task immediately');

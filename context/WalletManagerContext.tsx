@@ -17,6 +17,8 @@ import {
   type WalletType,
   type WalletTypeMap,
 } from '@/models/WalletType';
+import { ActiveWalletProvider, WalletWrapper } from '@/queue/providers/ActiveWallet';
+import { ProviderRepository } from '@/queue/WorkQueue';
 import { BreezService } from '@/services/BreezService';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 import { NwcService } from '@/services/NwcService';
@@ -26,8 +28,6 @@ import type { WalletInfo } from '@/utils/types';
 import { useCurrency } from './CurrencyContext';
 import { useDatabaseContext } from './DatabaseContext';
 import { useKey } from './KeyContext';
-import { ProviderRepository } from '@/queue/WorkQueue';
-import { ActiveWalletProvider, WalletWrapper } from '@/queue/providers/ActiveWallet';
 
 export interface WalletManagerContextType {
   activeWallet?: Wallet;
@@ -250,7 +250,10 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
         const wallet = await getWallet(walletType);
 
         setActiveWallet(wallet);
-        ProviderRepository.register(new ActiveWalletProvider(new WalletWrapper(wallet)), 'ActiveWalletProvider');
+        ProviderRepository.register(
+          new ActiveWalletProvider(new WalletWrapper(wallet)),
+          'ActiveWalletProvider'
+        );
         setPreferredWallet(walletType);
 
         await AsyncStorage.setItem(PREFERRED_WALLET_KEY, JSON.stringify(walletType));
