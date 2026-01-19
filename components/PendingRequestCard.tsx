@@ -17,14 +17,13 @@ import { useNostrService } from '@/context/NostrServiceContext';
 import { useWalletManager } from '@/context/WalletManagerContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useWalletStatus } from '@/hooks/useWalletStatus';
+import { FetchServiceProfileTask } from '@/queue/tasks/ProcessAuthRequest';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
-import { getServiceNameFromProfile } from '@/utils/nostrHelper';
-import { PortalAppManager } from '@/services/PortalAppManager';
 import { formatActivityAmount, normalizeCurrencyForComparison } from '@/utils/currency';
+import { getServiceNameFromProfile } from '@/utils/nostrHelper';
 import type { PendingRequest } from '@/utils/types';
 import { usePendingRequests } from '../context/PendingRequestsContext';
 import { SkeletonPulse } from './PendingRequestSkeletonCard';
-import { FetchServiceProfileTask } from '@/queue/tasks/ProcessAuthRequest';
 
 interface PendingRequestCardProps {
   request: PendingRequest;
@@ -462,28 +461,26 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
               formatServiceName()
             )
           ) : // For payment/subscription requests, show service name (loading state)
-            isServiceNameLoading ? (
-              <SkeletonPulse
-                style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
-              />
-            ) : (
-              // For payment/subscription requests, show service name (loading state)
-              isServiceNameLoading ? (
-                <SkeletonPulse
-                  style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
-                />
-              ) : (
-                formatServiceName()
-              )
-            )}
+          isServiceNameLoading ? (
+            <SkeletonPulse
+              style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
+            />
+          ) : // For payment/subscription requests, show service name (loading state)
+          isServiceNameLoading ? (
+            <SkeletonPulse
+              style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
+            />
+          ) : (
+            formatServiceName()
+          )}
         </Text>
 
         <Text style={[styles.serviceInfo, { color: secondaryTextColor }]}>
           {isTicketRequest
             ? // For ticket requests, show ticket title as secondary info
-            formatSecondaryInfo()
+              formatSecondaryInfo()
             : // For payment/subscription requests, show truncated recipient pubkey
-            formatSecondaryInfo()}
+              formatSecondaryInfo()}
         </Text>
 
         {(isPaymentRequest || isSubscriptionRequest) && amount !== null && (
@@ -495,9 +492,9 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
                     const normalized = getNormalizedAmountAndCurrency();
                     return normalized
                       ? formatActivityAmount(
-                        normalized.normalizedAmount,
-                        normalized.normalizedCurrency
-                      )
+                          normalized.normalizedAmount,
+                          normalized.normalizedCurrency
+                        )
                       : '';
                   })()}
                 </Text>
@@ -511,9 +508,9 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
                   const normalized = getNormalizedAmountAndCurrency();
                   return normalized
                     ? formatActivityAmount(
-                      normalized.normalizedAmount,
-                      normalized.normalizedCurrency
-                    )
+                        normalized.normalizedAmount,
+                        normalized.normalizedCurrency
+                      )
                     : '';
                 })()}
               </Text>

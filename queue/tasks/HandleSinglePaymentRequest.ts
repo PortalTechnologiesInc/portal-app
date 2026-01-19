@@ -1,32 +1,61 @@
-import { Currency_Tags, parseBolt11, parseCalendar, PaymentStatus, PortalAppInterface, SinglePaymentRequest } from "portal-app-lib";
-import { Task } from "../WorkQueue";
-import { DatabaseService, fromUnixSeconds, SubscriptionWithDates } from "@/services/DatabaseService";
-import { CurrencyConversionService } from "@/services/CurrencyConversionService";
-import { PromptUserProvider } from "../providers/PromptUser";
-import { PendingRequest } from "@/utils/types";
-import { Currency, CurrencyHelpers, normalizeCurrencyForComparison } from "@/utils/currency";
-import { SaveActivityTask } from "./SaveActivity";
-import { StartPaymentTask } from "./StartPayment";
-import { formatAmountToHumanReadable } from "@/utils/common";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { RelayStatusesProvider } from "../providers/RelayStatus";
-import { ActiveWalletProvider } from "../providers/ActiveWallet";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  Currency_Tags,
+  PaymentStatus,
+  type PortalAppInterface,
+  parseBolt11,
+  parseCalendar,
+  type SinglePaymentRequest,
+} from 'portal-app-lib';
+import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import {
+  type DatabaseService,
+  fromUnixSeconds,
+  type SubscriptionWithDates,
+} from '@/services/DatabaseService';
+import { formatAmountToHumanReadable } from '@/utils/common';
+import { Currency, CurrencyHelpers, normalizeCurrencyForComparison } from '@/utils/currency';
+import type { PendingRequest } from '@/utils/types';
+import type { ActiveWalletProvider } from '../providers/ActiveWallet';
+import type { PromptUserProvider } from '../providers/PromptUser';
+import type { RelayStatusesProvider } from '../providers/RelayStatus';
+import { Task } from '../WorkQueue';
+import { SaveActivityTask } from './SaveActivity';
+import { StartPaymentTask } from './StartPayment';
 
-export class HandleSinglePaymentRequestTask extends Task<[SinglePaymentRequest], ['DatabaseService', 'ActiveWalletProvider', 'RelayStatusesProvider'], void> {
+export class HandleSinglePaymentRequestTask extends Task<
+  [SinglePaymentRequest],
+  ['DatabaseService', 'ActiveWalletProvider', 'RelayStatusesProvider'],
+  void
+> {
   constructor(private readonly request: SinglePaymentRequest) {
     super(['DatabaseService', 'ActiveWalletProvider', 'RelayStatusesProvider'], request);
     this.expiry = new Date(Number(request.expiresAt * 1000n));
   }
 
-  async taskLogic({ DatabaseService, ActiveWalletProvider, RelayStatusesProvider }: { DatabaseService: DatabaseService, ActiveWalletProvider: ActiveWalletProvider, RelayStatusesProvider: RelayStatusesProvider }, request: SinglePaymentRequest): Promise<void> {
-    let subId = request.content.subscriptionId;
+  async taskLogic(
+    {
+      DatabaseService,
+      ActiveWalletProvider,
+      RelayStatusesProvider,
+    }: {
+      DatabaseService: DatabaseService;
+      ActiveWalletProvider: ActiveWalletProvider;
+      RelayStatusesProvider: RelayStatusesProvider;
+    },
+    request: SinglePaymentRequest
+  ): Promise<void> {
+    const subId = request.content.subscriptionId;
     try {
       const checkAmount = new CheckAmountTask(request).run();
 
       if (!checkAmount) {
-        new SendSinglePaymentResponseTask(request, new PaymentStatus.Rejected({
-          reason: `Invoice amount does not match the requested amount.`,
-        }))
+        new SendSinglePaymentResponseTask(
+          request,
+          new PaymentStatus.Rejected({
+            reason: `Invoice amount does not match the requested amount.`,
+          })
+        );
         return;
       }
 
@@ -109,7 +138,7 @@ export class HandleSinglePaymentRequestTask extends Task<[SinglePaymentRequest],
           convertedAmount = await new ConvertCurrencyTask(
             conversionAmount,
             sourceCurrency,
-            preferredCurrency,
+            preferredCurrency
           ).run();
 
           convertedCurrency = preferredCurrency;
@@ -147,11 +176,14 @@ export class HandleSinglePaymentRequestTask extends Task<[SinglePaymentRequest],
       let subscription: SubscriptionWithDates;
       let subscriptionServiceName: string;
       try {
-        let subscriptionFromDb = await DatabaseService.getSubscription(subId);
+        const subscriptionFromDb = await DatabaseService.getSubscription(subId);
         if (!subscriptionFromDb) {
-          await new SendSinglePaymentResponseTask(request, new PaymentStatus.Rejected({
-            reason: `Subscription with ID ${subId} not found in database`,
-          })).run();
+          await new SendSinglePaymentResponseTask(
+            request,
+            new PaymentStatus.Rejected({
+              reason: `Subscription with ID ${subId} not found in database`,
+            })
+          ).run();
           console.warn(
             `🚫 Payment rejected! The request is a subscription payment, but no subscription found with id ${subId}`
           );
@@ -160,20 +192,24 @@ export class HandleSinglePaymentRequestTask extends Task<[SinglePaymentRequest],
         subscription = subscriptionFromDb;
         subscriptionServiceName = subscriptionFromDb.service_name;
       } catch (e) {
-        await new SendSinglePaymentResponseTask(request, new PaymentStatus.Rejected({
-          reason:
-            'Failed to retrieve subscription from database. Please try again or contact support if the issue persists.',
-        }
-        )).run();
+        await new SendSinglePaymentResponseTask(
+          request,
+          new PaymentStatus.Rejected({
+            reason:
+              'Failed to retrieve subscription from database. Please try again or contact support if the issue persists.',
+          })
+        ).run();
         console.warn(`🚫 Payment rejected! Failing to connect to database.`);
         return;
       }
 
       if (amount != subscription.amount || currency != subscription.currency) {
-        await new SendSinglePaymentResponseTask(request, new PaymentStatus.Rejected({
-          reason: `Payment amount does not match subscription amount.\nExpected: ${subscription.amount} ${subscription.currency}\nReceived: ${amount} ${request.content.currency}`,
-        }
-        )).run();
+        await new SendSinglePaymentResponseTask(
+          request,
+          new PaymentStatus.Rejected({
+            reason: `Payment amount does not match subscription amount.\nExpected: ${subscription.amount} ${subscription.currency}\nReceived: ${amount} ${request.content.currency}`,
+          })
+        ).run();
         console.warn(
           `🚫 Payment rejected! Amount does not match subscription amount.\nExpected: ${subscription.amount} ${subscription.currency}\nReceived: ${amount} ${request.content.currency}`
         );
@@ -185,15 +221,19 @@ export class HandleSinglePaymentRequestTask extends Task<[SinglePaymentRequest],
         subscription.recurrence_first_payment_due.getTime() / 1000
       );
       if (subscription.last_payment_date) {
-        let lastPayment = BigInt(subscription.last_payment_date.getTime() / 1000);
-        nextOccurrence = parseCalendar(subscription.recurrence_calendar).nextOccurrence(lastPayment);
+        const lastPayment = BigInt(subscription.last_payment_date.getTime() / 1000);
+        nextOccurrence = parseCalendar(subscription.recurrence_calendar).nextOccurrence(
+          lastPayment
+        );
       }
 
       if (!nextOccurrence || fromUnixSeconds(nextOccurrence) > new Date()) {
-        await new SendSinglePaymentResponseTask(request, new PaymentStatus.Rejected({
-          reason: 'Payment is not due yet. Please wait till the next payment is scheduled.',
-        }
-        )).run();
+        await new SendSinglePaymentResponseTask(
+          request,
+          new PaymentStatus.Rejected({
+            reason: 'Payment is not due yet. Please wait till the next payment is scheduled.',
+          })
+        ).run();
         return;
       }
 
@@ -201,7 +241,7 @@ export class HandleSinglePaymentRequestTask extends Task<[SinglePaymentRequest],
       const walletInfo = await ActiveWalletProvider.getWallet()?.getWalletInfo();
 
       if (!walletInfo) {
-        console.error('Wallet not provided')
+        console.error('Wallet not provided');
         await new SaveActivityTask({
           type: 'pay',
           service_key: request.serviceKey,
@@ -215,12 +255,14 @@ export class HandleSinglePaymentRequestTask extends Task<[SinglePaymentRequest],
           request_id: request.eventId,
           status: 'negative',
           subscription_id: request.content.subscriptionId || null,
-        }).run()
+        }).run();
 
-        await new SendSinglePaymentResponseTask(request, new PaymentStatus.Rejected({
-          reason: 'Recurrent payment failed: no wallet provided.',
-        }
-        )).run();
+        await new SendSinglePaymentResponseTask(
+          request,
+          new PaymentStatus.Rejected({
+            reason: 'Recurrent payment failed: no wallet provided.',
+          })
+        ).run();
 
         return;
       }
@@ -242,39 +284,47 @@ export class HandleSinglePaymentRequestTask extends Task<[SinglePaymentRequest],
           request_id: request.eventId,
           status: 'negative',
           subscription_id: request.content.subscriptionId || null,
-        }).run()
+        }).run();
 
-        await new SendSinglePaymentResponseTask(request, new PaymentStatus.Rejected({
-          reason: 'Recurrent payment failed: insufficient wallet balance.',
-        }
-        )).run();
+        await new SendSinglePaymentResponseTask(
+          request,
+          new PaymentStatus.Rejected({
+            reason: 'Recurrent payment failed: insufficient wallet balance.',
+          })
+        ).run();
 
         return;
       }
 
-      await new StartPaymentTask({
-        type: 'pay',
-        service_key: request.serviceKey,
-        service_name: subscriptionServiceName,
-        detail: 'Recurrent payment',
-        // todo: remove dates from entity. created_at already exists
-        date: new Date(),
-        amount: amount,
-        currency: currency,
-        converted_amount: convertedAmount,
-        converted_currency: convertedCurrency,
-        request_id: request.eventId,
-        status: 'pending',
-        subscription_id: request.content.subscriptionId || null,
-        invoice: request.content.invoice,
-      }, request, subId).run();
+      await new StartPaymentTask(
+        {
+          type: 'pay',
+          service_key: request.serviceKey,
+          service_name: subscriptionServiceName,
+          detail: 'Recurrent payment',
+          // todo: remove dates from entity. created_at already exists
+          date: new Date(),
+          amount: amount,
+          currency: currency,
+          converted_amount: convertedAmount,
+          converted_currency: convertedCurrency,
+          request_id: request.eventId,
+          status: 'pending',
+          subscription_id: request.content.subscriptionId || null,
+          invoice: request.content.invoice,
+        },
+        request,
+        subId
+      ).run();
 
       return;
     } catch (e) {
-      await new SendSinglePaymentResponseTask(request, new PaymentStatus.Rejected({
-        reason: `An unexpected error occurred while processing the payment: ${e}.\nPlease try again or contact support if the issue persists.`,
-      }
-      )).run();
+      await new SendSinglePaymentResponseTask(
+        request,
+        new PaymentStatus.Rejected({
+          reason: `An unexpected error occurred while processing the payment: ${e}.\nPlease try again or contact support if the issue persists.`,
+        })
+      ).run();
       console.warn(`🚫 Payment rejected! Error is: ${e}`);
     }
   }
@@ -287,7 +337,7 @@ class CheckAmountTask extends Task<[SinglePaymentRequest], [], boolean> {
   }
 
   async taskLogic(_: {}, request: SinglePaymentRequest): Promise<boolean> {
-    let invoiceData = parseBolt11(request.content.invoice);
+    const invoiceData = parseBolt11(request.content.invoice);
 
     const invoiceAmountMsat = Number(invoiceData.amountMsat);
     // 1% tolerance for amounts up to 10,000,000 msats, 0.5% for larger amounts
@@ -305,9 +355,7 @@ class CheckAmountTask extends Task<[SinglePaymentRequest], [], boolean> {
         ? fiatCurrencyRaw[0]
         : fiatCurrencyRaw;
       const fiatCurrency =
-        typeof fiatCurrencyValue === 'string'
-          ? String(fiatCurrencyValue).toUpperCase()
-          : 'UNKNOWN';
+        typeof fiatCurrencyValue === 'string' ? String(fiatCurrencyValue).toUpperCase() : 'UNKNOWN';
       const rawFiatAmount = Number(request.content.amount);
       const normalizedFiatAmount = rawFiatAmount / 100; // incoming amount is in minor units (e.g., cents)
       const amountInMsat = await CurrencyConversionService.convertAmount(
@@ -328,20 +376,31 @@ class CheckAmountTask extends Task<[SinglePaymentRequest], [], boolean> {
 }
 Task.register(CheckAmountTask);
 
-export class SendSinglePaymentResponseTask extends Task<[SinglePaymentRequest, PaymentStatus], ['PortalAppInterface', 'RelayStatusesProvider'], void> {
-  constructor(private readonly request: SinglePaymentRequest, private readonly response: PaymentStatus) {
+export class SendSinglePaymentResponseTask extends Task<
+  [SinglePaymentRequest, PaymentStatus],
+  ['PortalAppInterface', 'RelayStatusesProvider'],
+  void
+> {
+  constructor(
+    private readonly request: SinglePaymentRequest,
+    private readonly response: PaymentStatus
+  ) {
     super(['PortalAppInterface', 'RelayStatusesProvider'], request, response);
   }
 
-  async taskLogic({ PortalAppInterface, RelayStatusesProvider }: { PortalAppInterface: PortalAppInterface, RelayStatusesProvider: RelayStatusesProvider }, request: SinglePaymentRequest, response: PaymentStatus): Promise<void> {
+  async taskLogic(
+    {
+      PortalAppInterface,
+      RelayStatusesProvider,
+    }: { PortalAppInterface: PortalAppInterface; RelayStatusesProvider: RelayStatusesProvider },
+    request: SinglePaymentRequest,
+    response: PaymentStatus
+  ): Promise<void> {
     await RelayStatusesProvider.waitForRelaysConnected();
-    return await PortalAppInterface.replySinglePaymentRequest(
-      request,
-      {
-        requestId: request.eventId,
-        status: response
-      }
-    );
+    return await PortalAppInterface.replySinglePaymentRequest(request, {
+      requestId: request.eventId,
+      status: response,
+    });
   }
 }
 Task.register(SendSinglePaymentResponseTask);
@@ -350,34 +409,45 @@ export class ConvertCurrencyTask extends Task<[number, string, string], [], numb
   constructor(
     private readonly amount: number,
     private readonly fromCurreny: string,
-    private readonly toCurrency: string,
+    private readonly toCurrency: string
   ) {
     super([], amount, fromCurreny, toCurrency);
     this.expiry = new Date(Date.now() + 1000 * 60 * 4); // cache it for 4 min
   }
 
   async taskLogic(_: {}, amount: number, fromCurreny: string, toCurrency: string): Promise<number> {
-    return CurrencyConversionService.convertAmount(
-      amount,
-      fromCurreny,
-      toCurrency,
-    );
+    return CurrencyConversionService.convertAmount(amount, fromCurreny, toCurrency);
   }
 }
 Task.register(ConvertCurrencyTask);
 
-
-class RequireSinglePaymentUserApprovalTask extends Task<[SinglePaymentRequest, string, string], ['PromptUserProvider'], PaymentStatus | null> {
-  constructor(private readonly request: SinglePaymentRequest, private readonly title: string, private readonly body: string) {
+class RequireSinglePaymentUserApprovalTask extends Task<
+  [SinglePaymentRequest, string, string],
+  ['PromptUserProvider'],
+  PaymentStatus | null
+> {
+  constructor(
+    private readonly request: SinglePaymentRequest,
+    private readonly title: string,
+    private readonly body: string
+  ) {
     super(['PromptUserProvider'], request, title, body);
   }
 
-  async taskLogic({ PromptUserProvider }: { PromptUserProvider: PromptUserProvider }, request: SinglePaymentRequest, title: string, body: string): Promise<PaymentStatus | null> {
+  async taskLogic(
+    { PromptUserProvider }: { PromptUserProvider: PromptUserProvider },
+    request: SinglePaymentRequest,
+    title: string,
+    body: string
+  ): Promise<PaymentStatus | null> {
     console.log('[RequireSinglePaymentUserApprovalTask] Requesting user approval for:', {
       id: request.eventId,
       type: 'login',
     });
-    console.log('[RequireSinglePaymentUserApprovalTask] SetPendingRequestsProvider available:', !!PromptUserProvider);
+    console.log(
+      '[RequireSinglePaymentUserApprovalTask] SetPendingRequestsProvider available:',
+      !!PromptUserProvider
+    );
     return new Promise<PaymentStatus | null>(resolve => {
       // in the PromptUserProvider the promise will be immediatly resolved as null when the app is offline
       // hence a notification should be shown instead of a pending request and the flow should stop
@@ -394,14 +464,20 @@ class RequireSinglePaymentUserApprovalTask extends Task<[SinglePaymentRequest, s
         body: body,
         data: {
           type: 'payment',
-        }
-      }
+        },
+      };
 
-      console.log('[RequireAuthUserApprovalTask] Calling addPendingRequest for:', newPendingRequest.id);
+      console.log(
+        '[RequireAuthUserApprovalTask] Calling addPendingRequest for:',
+        newPendingRequest.id
+      );
       PromptUserProvider.promptUser({
-        pendingRequest: newPendingRequest, notification: newNotification
+        pendingRequest: newPendingRequest,
+        notification: newNotification,
       });
-      console.log('[RequireAuthUserApprovalTask] addPendingRequest called, waiting for user approval');
+      console.log(
+        '[RequireAuthUserApprovalTask] addPendingRequest called, waiting for user approval'
+      );
     });
   }
 }

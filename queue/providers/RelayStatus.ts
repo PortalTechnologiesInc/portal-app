@@ -1,8 +1,8 @@
-import { RelayInfo } from "@/utils/types";
-import { RefObject } from "react";
+import type { RefObject } from 'react';
+import type { RelayInfo } from '@/utils/types';
 
 export class RelayStatusesProvider {
-  constructor(private readonly relayStatuses: RefObject<RelayInfo[]>) { }
+  constructor(private readonly relayStatuses: RefObject<RelayInfo[]>) {}
 
   areRelaysConnected(): boolean {
     return this.relayStatuses.current.some(r => r.connected);

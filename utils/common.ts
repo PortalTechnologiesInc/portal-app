@@ -1,6 +1,5 @@
-import { ProviderRepository } from '@/queue/WorkQueue';
-import type { Frequency } from './types.d';
 import { Currency, CurrencyHelpers } from './currency';
+import type { Frequency } from './types.d';
 
 // Convert cents to dollars by dividing by 100 and fix to 2 decimal places
 export function formatCentsToCurrency(cents: number): string {
@@ -426,10 +425,7 @@ export function getServiceNameFromMintUrl(mintUrl: string): string {
   }
 }
 
-export function formatAmountToHumanReadable(
-  amount: number,
-  currency: string,
-): String {
+export function formatAmountToHumanReadable(amount: number, currency: string): string {
   try {
     // Format the amount - prefer converted amount if available
     let formattedAmount: string;
@@ -450,7 +446,7 @@ export function formatAmountToHumanReadable(
   } catch (error) {
     // Silently fail - notification errors shouldn't break payment flow
     console.error('Failed to format amount:', error);
-    return "";
+    return '';
   }
 }
 

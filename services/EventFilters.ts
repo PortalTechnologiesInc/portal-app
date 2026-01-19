@@ -1,43 +1,21 @@
 import * as Notifications from 'expo-notifications';
 import {
-  type AuthChallengeEvent,
-  type AuthResponseStatus,
   type CloseRecurringPaymentResponse,
-  Currency_Tags,
   keyToHex,
   NostrConnectMethod,
   type NostrConnectRequestEvent,
   CloseRecurringPaymentResponse,
   NostrConnectResponseStatus,
-  PaymentStatus,
-  parseBolt11,
-  parseCalendar,
-  type RecurringPaymentRequest,
-  type RecurringPaymentResponseContent,
-  type SinglePaymentRequest,
   NostrConnectMethod,
   keyToHex,
 } from 'portal-app-lib';
-import type { Wallet } from '@/models/WalletType';
-import { globalEvents } from '@/utils/common';
-import * as Notifications from 'expo-notifications';
-import { DatabaseService } from './DatabaseService';
-import { globalEvents } from '@/utils/common';
+import { globalEvents, globalEvents } from '@/utils/common';
 import { Currency, CurrencyHelpers } from '@/utils/currency';
 import { getMethodString } from '@/utils/nip46';
-import { CurrencyConversionService } from './CurrencyConversionService';
 import {
+  DatabaseService,
   type DatabaseService,
-  fromUnixSeconds,
-  type SubscriptionWithDates,
 } from './DatabaseService';
-import { Task } from '@/queue/WorkQueue';
-import { SignMessageRequest } from '@breeztech/breez-sdk-spark-react-native';
-import { WaitForRelaysConnectedTask } from '@/queue/tasks/WaitForRelaysConnected';
-import { PromptUserProvider } from '@/queue/providers/PromptUser';
-import { GetWalletInfoTask } from '@/queue/tasks/GetWalletInfo';
-import { SaveActivityTask } from '@/queue/tasks/SaveActivity';
-import { StartPaymentTask } from '@/queue/tasks/StartPayment';
 
 
 /**
@@ -83,7 +61,7 @@ async function sendPaymentNotification(
       },
       trigger: null, // Show immediately
     });
-  } catch (_error) {}
+  } catch (_error) { }
 }
 
 export async function handleCloseRecurringPaymentResponse(
@@ -101,7 +79,7 @@ export async function handleCloseRecurringPaymentResponse(
       subscriptionId: response.content.subscriptionId,
       status: 'cancelled',
     });
-  } catch (_error) {}
+  } catch (_error) { }
 
   resolve();
   return false;

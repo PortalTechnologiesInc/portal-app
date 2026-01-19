@@ -1,10 +1,10 @@
-import { Wallet, WALLET_TYPE, WalletConnectionStatus, WalletType } from "@/models/WalletType";
+import { type Wallet } from '@/models/WalletType';
 
 export class ActiveWalletProvider {
   constructor(private readonly activeWalletWrapper: WalletWrapper) { }
 
   getWallet(): Wallet | null {
-    return this.activeWalletWrapper.wallet
+    return this.activeWalletWrapper.wallet;
   }
 }
 

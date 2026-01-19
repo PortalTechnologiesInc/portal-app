@@ -9,11 +9,11 @@ import { DATABASE_NAME } from './app/_layout';
 // Import expo-router entry point - must be imported for app to work
 import 'expo-router/entry';
 import { openDatabaseAsync } from 'expo-sqlite';
-import { DatabaseService } from './services/DatabaseService';
-import { ProviderRepository } from './queue/WorkQueue';
-import { PromptUserWithNotification } from './queue/providers/PromptUser';
-import { NotificationProvider } from './queue/providers/Notification';
 import { ActiveWalletProvider, WalletWrapper } from './queue/providers/ActiveWallet';
+import { NotificationProvider } from './queue/providers/Notification';
+import { PromptUserWithNotification } from './queue/providers/PromptUser';
+import { ProviderRepository } from './queue/WorkQueue';
+import { DatabaseService } from './services/DatabaseService';
 
 const BACKGROUND_NOTIFICATION_TASK = 'BACKGROUND-NOTIFICATION-TASK';
 /**
@@ -83,4 +83,7 @@ initializeDatabase()
 
 ProviderRepository.register(new PromptUserWithNotification(sendNotification), 'PromptUserProvider');
 ProviderRepository.register(new NotificationProvider(sendNotification), 'NotificationProvider');
-ProviderRepository.register(new ActiveWalletProvider(new WalletWrapper(null)), 'ActiveWalletProvider');
+ProviderRepository.register(
+  new ActiveWalletProvider(new WalletWrapper(null)),
+  'ActiveWalletProvider'
+);

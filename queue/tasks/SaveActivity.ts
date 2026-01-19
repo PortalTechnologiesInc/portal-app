@@ -1,6 +1,6 @@
-import { ActivityWithDates, DatabaseService } from "@/services/DatabaseService";
-import { Task, TransactionalTask } from "../WorkQueue";
-import { globalEvents } from "@/utils/common";
+import type { ActivityWithDates, DatabaseService } from '@/services/DatabaseService';
+import { globalEvents } from '@/utils/common';
+import { Task, TransactionalTask } from '../WorkQueue';
 
 export type SaveActivityArgs = Omit<ActivityWithDates, 'id' | 'created_at'>;
 export class SaveActivityTask extends Task<[SaveActivityArgs], ['DatabaseService'], string> {
@@ -8,7 +8,10 @@ export class SaveActivityTask extends Task<[SaveActivityArgs], ['DatabaseService
     super(['DatabaseService'], activity);
   }
 
-  async taskLogic({ DatabaseService }: { 'DatabaseService': DatabaseService }, activity: SaveActivityArgs): Promise<string> {
+  async taskLogic(
+    { DatabaseService }: { DatabaseService: DatabaseService },
+    activity: SaveActivityArgs
+  ): Promise<string> {
     const activityId = await DatabaseService.addActivity(activity);
     globalEvents.emit('activityAdded', { activityId });
     return activityId;

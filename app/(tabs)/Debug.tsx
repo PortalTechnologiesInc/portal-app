@@ -1,7 +1,7 @@
 import Clipboard from '@react-native-clipboard/clipboard';
 import { router } from 'expo-router';
-import { keyToHex, parseKeyHandshakeUrl } from 'portal-app-lib';
 import { Copy } from 'lucide-react-native';
+import { keyToHex, parseKeyHandshakeUrl } from 'portal-app-lib';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,

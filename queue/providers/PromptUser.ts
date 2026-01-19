@@ -1,17 +1,21 @@
-import { PendingRequest } from "@/utils/types";
-import { NotificationContentInput, NotificationRequestInput } from "expo-notifications";
+import { type NotificationContentInput } from 'expo-notifications';
+import type { PendingRequest } from '@/utils/types';
 
 type UserPromptData = {
-  notification: NotificationContentInput,
-  pendingRequest: PendingRequest,
-}
+  notification: NotificationContentInput;
+  pendingRequest: PendingRequest;
+};
 
 export interface PromptUserProvider {
   promptUser(promptData: UserPromptData): void;
 }
 
 export class PromptUserWithPendingCard implements PromptUserProvider {
-  constructor(private readonly cb: (update: (prev: { [key: string]: PendingRequest }) => { [key: string]: PendingRequest }) => void) { }
+  constructor(
+    private readonly cb: (
+      update: (prev: { [key: string]: PendingRequest }) => { [key: string]: PendingRequest }
+    ) => void
+  ) {}
 
   promptUser(promptData: UserPromptData): void {
     const request = promptData.pendingRequest;
@@ -27,19 +31,23 @@ export class PromptUserWithPendingCard implements PromptUserProvider {
       }
       console.log('[SetPendingRequestsForeground] Adding new request to state:', request.id);
       const newState = { ...prev, [request.id]: request };
-      console.log('[SetPendingRequestsForeground] New state has', Object.keys(newState).length, 'requests');
+      console.log(
+        '[SetPendingRequestsForeground] New state has',
+        Object.keys(newState).length,
+        'requests'
+      );
       return newState;
     });
   }
 }
 
 export class PromptUserWithNotification implements PromptUserProvider {
-  constructor(private readonly sendNotification: (nci: NotificationContentInput) => void) { }
+  constructor(private readonly sendNotification: (nci: NotificationContentInput) => void) {}
 
   promptUser(promptData: UserPromptData): void {
     const notificationData = promptData.notification;
 
-    this.sendNotification(notificationData)
+    this.sendNotification(notificationData);
 
     // return null in the promise so that the flow stops
     promptData.pendingRequest.result(null);
