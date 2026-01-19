@@ -45,10 +45,11 @@ import type {
 import { PortalAppManager } from '@/services/PortalAppManager';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 import { getServiceNameFromProfile } from '@/utils/nostrHelper';
-import { FetchServiceProfileTask } from '@/queue/Tasks';
 import { globalEvents, getServiceNameFromMintUrl } from '@/utils/common';
 import { usePortalApp } from './PortalAppContext';
 import { useWalletManager } from './WalletManagerContext';
+import { FetchServiceProfileTask } from '@/queue/tasks/ProcessAuthRequest';
+import { SaveActivityAndAddPaymentStatusTransactionalTask } from '@/queue/tasks/StartPayment';
 
 // Helper function to get service name with fallback
 
@@ -396,7 +397,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               }
             }
 
-            const activityId = await addActivityWithFallback({
+            const activityId = await new SaveActivityAndAddPaymentStatusTransactionalTask({
               type: 'pay',
               service_key: metadata.serviceKey,
               service_name: serviceName,
@@ -410,16 +411,13 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               subscription_id: null,
               status: 'pending',
               invoice: metadata.content.invoice,
-            });
+            },
+              metadata.content.invoice,
+              'payment_started'
+            ).run();
 
             // Notify the approval
             await notifier(new PaymentStatus.Approved());
-
-            // Insert into payment_status table
-            await executeOperation(
-              db => db.addPaymentStatusEntry(metadata.content.invoice, 'payment_started'),
-              null
-            );
 
             try {
               const _response = await walletService.sendPayment(
@@ -1006,8 +1004,8 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
               const serviceName = nostrServiceKey
                 ? await getServiceNameWithFallback(nostrService, nostrServiceKey).catch(() =>
-                    mintUrl ? getServiceNameFromMintUrl(mintUrl) : 'Unknown Service'
-                  )
+                  mintUrl ? getServiceNameFromMintUrl(mintUrl) : 'Unknown Service'
+                )
                 : mintUrl
                   ? getServiceNameFromMintUrl(mintUrl)
                   : 'Unknown Service';

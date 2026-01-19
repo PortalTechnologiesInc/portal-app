@@ -31,7 +31,7 @@ export class ProcessAuthRequestTask extends Task<[AuthChallengeEvent], [], void>
 
     const serviceKey = event.serviceKey;
     console.log('[ProcessIncomingRequestTask] Fetching profile for serviceKey:', serviceKey);
-    const profileNameDeferred = (new FetchServiceNameTask(serviceKey).run()).then(profile => getServiceNameFromProfile(profile));
+    const profileNameDeferred = (new FetchServiceProfileTask(serviceKey).run()).then(profile => getServiceNameFromProfile(profile));
     console.log('[ProcessIncomingRequestTask] Calling RequireAuthUserApprovalTask');
 
     const name = await Promise.race([profileNameDeferred, new Promise<string>(resolve => resolve('Unknown Service'))]);
@@ -55,7 +55,7 @@ export class ProcessAuthRequestTask extends Task<[AuthChallengeEvent], [], void>
 }
 Task.register(ProcessAuthRequestTask);
 
-export class FetchServiceNameTask extends Task<[string], ['PortalAppInterface', 'RelayStatusesProvider'], Profile | undefined> {
+export class FetchServiceProfileTask extends Task<[string], ['PortalAppInterface', 'RelayStatusesProvider'], Profile | undefined> {
   constructor(key: string) {
     super(['PortalAppInterface', 'RelayStatusesProvider'], key);
   }
@@ -67,7 +67,7 @@ export class FetchServiceNameTask extends Task<[string], ['PortalAppInterface', 
     return await PortalAppInterface.fetchProfile(key);
   }
 }
-Task.register(FetchServiceNameTask);
+Task.register(FetchServiceProfileTask);
 
 class RequireAuthUserApprovalTask extends Task<[AuthChallengeEvent], ['PromptUserProvider'], AuthResponseStatus | null> {
   constructor(event: AuthChallengeEvent) {

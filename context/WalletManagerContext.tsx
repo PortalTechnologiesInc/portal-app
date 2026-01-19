@@ -250,7 +250,7 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
         const wallet = await getWallet(walletType);
 
         setActiveWallet(wallet);
-        ProviderRepository.register(new ActiveWalletProvider(new WalletWrapper(wallet)));
+        ProviderRepository.register(new ActiveWalletProvider(new WalletWrapper(wallet)), 'ActiveWalletProvider');
         setPreferredWallet(walletType);
 
         await AsyncStorage.setItem(PREFERRED_WALLET_KEY, JSON.stringify(walletType));
