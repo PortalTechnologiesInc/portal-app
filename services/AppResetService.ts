@@ -72,7 +72,7 @@ export class AppResetService {
 
     try {
       // Step 4: Reset navigation to onboarding
-      router.replace('/onboarding');
+      router.replace('/(onboarding)/welcome');
     } catch (error) {
       errors.push({ step: 'Navigation', error });
     }
