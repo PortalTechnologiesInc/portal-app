@@ -45,6 +45,7 @@ result
 # local env files
 .env.local
 .local
+.env.maestro
 
 # typescript
 *.tsbuildinfo

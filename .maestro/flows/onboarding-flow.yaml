@@ -9,13 +9,7 @@ appId: cc.getportal.portal
 - tapOn: I Understand - Continue
 - tapOn: Import Existing Seed Phrase, Restore your identity using an existing 12-word seed phrase
 - tapOn: Enter your 12-word seed phrase separated by spaces
-- inputText: "machine hollow rather peasant crack rose actor final upgrade rigid amazing garden"
+- inputText: "${MAESTRO_TEST_SEED_PHRASE}"
 - tapOn: Import
-
-
-# Note: Add specific onboarding steps here based on your actual onboarding flow
-# Example steps (uncomment and modify as needed):
-# - tapOn: "Get Started"
-# - inputText: "Test User"
-# - tapOn: "Continue"
-# - assertVisible: "Welcome"
+- tapOn: Skip
+- assertVisible: Welcome to Portal App!

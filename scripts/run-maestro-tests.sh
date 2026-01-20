@@ -36,6 +36,20 @@ else
   echo "⏭️  Skipping build and install (--nobuild flag set)"
 fi
 
+# Load environment variables from .env.maestro if it exists
+if [ -f ".env.maestro" ]; then
+  echo "📝 Loading environment variables from .env.maestro..."
+  # Source the env file and export variables for Maestro
+  set -a
+  source .env.maestro
+  set +a
+  export MAESTRO_TEST_SEED_PHRASE
+  export MAESTRO_TEST_NSEC
+else
+  echo "ℹ️  No .env.maestro file found. Create one from .env.maestro.example to use test seed phrase."
+  echo "   Tests will use hardcoded seed phrase if available in flow files."
+fi
+
 # Determine which flows to run
 case "$TEST_TYPE" in
   "push")
@@ -50,4 +64,5 @@ case "$TEST_TYPE" in
 esac
 
 echo "🧪 Running Maestro tests..."
+# Maestro will automatically pick up exported environment variables
 maestro test $FLOWS

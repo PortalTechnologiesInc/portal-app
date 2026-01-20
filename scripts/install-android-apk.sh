@@ -51,14 +51,24 @@ if [ "$DEVICES" -eq 0 ]; then
   
   echo "⏳ Waiting for emulator to boot (this may take a minute)..."
   
-  # Wait for emulator to be ready (max 120 seconds)
-  TIMEOUT=120
+  # Wait for emulator to be ready (max 180 seconds)
+  TIMEOUT=180
   ELAPSED=0
+  DEVICES=0
+  PACKAGE_MANAGER_READY=false
+  
   while [ $ELAPSED -lt $TIMEOUT ]; do
+    # Check if device is connected
     DEVICES=$(adb devices | grep -v "List" | grep "device$" | wc -l)
+    
     if [ "$DEVICES" -gt 0 ]; then
-      echo "✅ Emulator is ready!"
-      break
+      # Check if package manager service is ready
+      if adb shell "pm list packages" > /dev/null 2>&1; then
+        PACKAGE_MANAGER_READY=true
+        echo ""
+        echo "✅ Emulator is ready and package manager is available!"
+        break
+      fi
     fi
     sleep 2
     ELAPSED=$((ELAPSED + 2))
@@ -72,7 +82,12 @@ if [ "$DEVICES" -eq 0 ]; then
     exit 1
   fi
   
-  echo ""
+  if [ "$PACKAGE_MANAGER_READY" = "false" ]; then
+    echo ""
+    echo "❌ Error: Package manager service not ready after $TIMEOUT seconds."
+    echo "   The emulator may still be booting. Try waiting a bit longer."
+    exit 1
+  fi
 else
   echo "✅ Found $DEVICES device(s) already connected"
 fi
