@@ -1,0 +1,21 @@
+appId: cc.getportal.portal
+tags:
+  - smoke
+  - onboarding
+  - import-nsec
+---
+# Onboarding flow: import an existing nsec.
+- tapOn: "Settings"
+- tapOn: "Preferred Currency"
+
+# Try to tap the element below the checkmark
+- runFlow:
+    when:
+      visible:
+        id: "currency-checkmark" # Or whatever identifier marks selection
+    commands:
+      - tapOn:
+          below:
+            id: "currency-checkmark"
+- tapOn: "Home"
+- assertVisible: "Welcome back, .*"

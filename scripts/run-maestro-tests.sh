@@ -4,27 +4,32 @@ set -e
 
 PLATFORM="${1:-android}"
 TEST_TYPE="${2:-regular}"
+shift 2 || true
+
+MAESTRO_ARGS=()
 
 # Check for --nobuild flag in all arguments (npm passes args after --)
-NO_BUILD=false
+SKIP_BUILD=false
 for arg in "$@"; do
   if [ "$arg" = "--nobuild" ] || [ "$arg" = "--no-build" ]; then
-    NO_BUILD=true
-    break
+    SKIP_BUILD=true
+  else
+    MAESTRO_ARGS+=("$arg")
   fi
 done
 
 # Also check for NO_BUILD environment variable
-if [ "$NO_BUILD" = "false" ] && [ "${NO_BUILD:-}" = "true" ]; then
-  NO_BUILD=true
+if [ "$SKIP_BUILD" = "false" ] && [ "${NO_BUILD:-}" = "true" ]; then
+  SKIP_BUILD=true
 fi
 
-if [ "$NO_BUILD" = "false" ]; then
+if [ "$SKIP_BUILD" = "false" ]; then
   echo "🔨 Building and installing app..."
   
   if [ "$PLATFORM" = "android" ]; then
-    bash scripts/build-android-apk.sh
-    bash scripts/install-android-apk.sh
+    ANDROID_VARIANT="${MAESTRO_ANDROID_VARIANT:-debug}"
+    APK_PATH="$(bash scripts/build-android-apk.sh "$ANDROID_VARIANT")"
+    bash scripts/install-android-apk.sh "$APK_PATH"
   elif [ "$PLATFORM" = "ios" ]; then
     bash scripts/build-ios-ipa.sh
     bash scripts/install-ios-ipa.sh
@@ -51,18 +56,21 @@ else
 fi
 
 # Determine which flows to run
+EXTRA_ARGS=()
 case "$TEST_TYPE" in
   "push")
-    FLOWS=".maestro/flows/push-notifications.yaml"
+    FLOWS=( ".maestro/flows/push-notifications.yaml" )
     ;;
   "all")
-    FLOWS=".maestro/flows/"
+    FLOWS=( ".maestro/flows/" )
+    # Exclude manual-only flows (e.g. physical-device push notification checks).
+    EXTRA_ARGS=( "--exclude-tags" "manual" )
     ;;
   *)
-    FLOWS=".maestro/flows/app-launch.yaml .maestro/flows/onboarding-flow.yaml"
+    FLOWS=( ".maestro/flows/app-launch.yaml" ".maestro/flows/onboarding-flow.yaml" )
     ;;
 esac
 
 echo "🧪 Running Maestro tests..."
 # Maestro will automatically pick up exported environment variables
-maestro test $FLOWS
+maestro test "${FLOWS[@]}" "${EXTRA_ARGS[@]}" "${MAESTRO_ARGS[@]}"

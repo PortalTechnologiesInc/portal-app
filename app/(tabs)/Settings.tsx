@@ -670,7 +670,7 @@ export default function SettingsScreen() {
             </ThemedText>
           </View>
         </View>
-        {preferredCurrency === item && <Check size={20} color={statusConnectedColor} />}
+        {preferredCurrency === item && <Check testID='currency-checkmark' size={20} color={statusConnectedColor} />}
       </View>
     </TouchableOpacity>
   );

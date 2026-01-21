@@ -1,0 +1,27 @@
+appId: cc.getportal.portal
+tags:
+  - smoke
+  - onboarding
+  - import-nsec
+---
+# Onboarding flow: import an existing nsec.
+
+- runFlow: ../reset.yaml
+- waitForAnimationToEnd
+- assertVisible: "Welcome to Portal"
+
+- tapOn: "Get Started"
+- tapOn: "I Understand - Continue"
+- tapOn: "Import Nsec"
+
+- waitForAnimationToEnd
+- assertVisible: "Import Nsec"
+- tapOn: "Enter your Nsec private key (nsec1...)"
+- inputText: "nsec1h767p69k8697wlct7p4smw2gpjgaa8szf4yyk7ux6dc57c8f35uquvlyh8"
+- tapOn: "Import"
+
+- waitForAnimationToEnd
+- assertVisible: "Secure Portal with a PIN"
+- tapOn: "Skip"
+- waitForAnimationToEnd
+- assertVisible: "Welcome back, .*"

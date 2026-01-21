@@ -1,0 +1,27 @@
+appId: cc.getportal.portal
+---
+# Helper flow to import seed phrase from environment variable
+# This flow is meant to be included by other flows (runFlow), not executed directly in CI.
+# Requires MAESTRO_TEST_SEED_PHRASE environment variable to be set.
+
+- launchApp
+- waitForAnimationToEnd
+- waitForAnimationToEnd
+
+# Navigate to import screen if needed
+- runFlow:
+    when:
+      visible: "Import Existing Seed Phrase"
+    commands:
+      - tapOn: "Import Existing Seed Phrase"
+      - waitForAnimationToEnd
+
+# Enter the seed phrase from environment variable
+- tapOn: "Enter your 12-word seed phrase separated by spaces"
+- inputText: "${MAESTRO_TEST_SEED_PHRASE}"
+- waitForAnimationToEnd
+
+# Tap import button
+- tapOn: "Import"
+- waitForAnimationToEnd
+
