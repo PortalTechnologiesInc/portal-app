@@ -4,9 +4,11 @@ import { useDatabaseContext } from '@/context/DatabaseContext';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 import type { DatabaseService } from '@/services/DatabaseService';
 import { getCashuSeedFromKey, hasKey } from '@/utils/keyHelpers';
+import { ProviderRepository } from '@/queue/WorkQueue';
+import { CashuWalletMethodsProvider } from '@/queue/providers/CashuWallets';
 
 // Centralized wallet key creation with unit normalization
-const createWalletKey = (mintUrl: string, unit: string): string =>
+export const createWalletKey = (mintUrl: string, unit: string): string =>
   `${mintUrl}-${unit.toLowerCase()}`;
 
 /**
@@ -108,6 +110,10 @@ export function ECashProvider({
       unregisterContextReset(resetECash);
     };
   }, [resetECash]);
+
+  useEffect(() => {
+    ProviderRepository.register(new CashuWalletMethodsProvider(addWallet, getWallet, removeWallet), 'CashuWalletMethodsProvider');
+  }, [addWallet, getWallet, removeWallet]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: createWalletKey is a pure function defined outside the component, stable and doesn't need to be in dependencies
   useEffect(() => {
