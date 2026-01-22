@@ -1,7 +1,7 @@
-import { type Wallet } from '@/models/WalletType';
+import type { Wallet } from '@/models/WalletType';
 
 export class ActiveWalletProvider {
-  constructor(private readonly activeWalletWrapper: WalletWrapper) { }
+  constructor(private readonly activeWalletWrapper: WalletWrapper) {}
 
   getWallet(): Wallet | null {
     return this.activeWalletWrapper.wallet;
@@ -9,5 +9,5 @@ export class ActiveWalletProvider {
 }
 
 export class WalletWrapper {
-  constructor(public readonly wallet: Wallet | null) { }
+  constructor(public readonly wallet: Wallet | null) {}
 }

@@ -58,7 +58,7 @@ TaskManager.defineTask<Notifications.NotificationTaskPayload>(
             await handleHeadlessNotification(eventContentValue, DATABASE_NAME);
           }
         }
-      } catch (_e) {}
+      } catch (_e) { }
     } else {
     }
   }
