@@ -379,11 +379,14 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   const stopPeriodicMonitoring = useCallback(() => {}, []);
 
   useEffect(() => {
-    relayStatusesRef.current = relayStatuses;
     ProviderRepository.register(
       new RelayStatusesProvider(relayStatusesRef),
       'RelayStatusesProvider'
     );
+  }, [relayStatusesRef]);
+
+  useEffect(() => {
+    relayStatusesRef.current = relayStatuses;
   }, [relayStatuses]);
 
   useEffect(() => {
