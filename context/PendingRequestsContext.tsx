@@ -393,21 +393,22 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               }
             }
 
-            const activityId = await new SaveActivityAndAddPaymentStatusTransactionalTask({
-              type: 'pay',
-              service_key: metadata.serviceKey,
-              service_name: serviceName,
-              detail: 'Payment approved',
-              date: new Date(),
-              amount: amount,
-              currency: currency,
-              converted_amount: convertedAmount,
-              converted_currency: convertedCurrency,
-              request_id: id,
-              subscription_id: null,
-              status: 'pending',
-              invoice: metadata.content.invoice,
-            },
+            const activityId = await new SaveActivityAndAddPaymentStatusTransactionalTask(
+              {
+                type: 'pay',
+                service_key: metadata.serviceKey,
+                service_name: serviceName,
+                detail: 'Payment approved',
+                date: new Date(),
+                amount: amount,
+                currency: currency,
+                converted_amount: convertedAmount,
+                converted_currency: convertedCurrency,
+                request_id: id,
+                subscription_id: null,
+                status: 'pending',
+                invoice: metadata.content.invoice,
+              },
               metadata.content.invoice,
               'payment_started'
             ).run();
@@ -1000,8 +1001,8 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
               const serviceName = nostrServiceKey
                 ? await getServiceNameWithFallback(nostrService, nostrServiceKey).catch(() =>
-                  mintUrl ? getServiceNameFromMintUrl(mintUrl) : 'Unknown Service'
-                )
+                    mintUrl ? getServiceNameFromMintUrl(mintUrl) : 'Unknown Service'
+                  )
                 : mintUrl
                   ? getServiceNameFromMintUrl(mintUrl)
                   : 'Unknown Service';

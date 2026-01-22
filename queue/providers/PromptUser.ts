@@ -1,4 +1,4 @@
-import { type NotificationContentInput } from 'expo-notifications';
+import type { NotificationContentInput } from 'expo-notifications';
 import type { PendingRequest } from '@/utils/types';
 
 type UserPromptData = {
@@ -15,7 +15,7 @@ export class PromptUserWithPendingCard implements PromptUserProvider {
     private readonly cb: (
       update: (prev: { [key: string]: PendingRequest }) => { [key: string]: PendingRequest }
     ) => void
-  ) {}
+  ) { }
 
   promptUser(promptData: UserPromptData): void {
     const request = promptData.pendingRequest;
@@ -42,7 +42,7 @@ export class PromptUserWithPendingCard implements PromptUserProvider {
 }
 
 export class PromptUserWithNotification implements PromptUserProvider {
-  constructor(private readonly sendNotification: (nci: NotificationContentInput) => void) {}
+  constructor(private readonly sendNotification: (nci: NotificationContentInput) => void) { }
 
   promptUser(promptData: UserPromptData): void {
     const notificationData = promptData.notification;

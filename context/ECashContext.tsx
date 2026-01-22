@@ -75,7 +75,7 @@ export function ECashProvider({
         ),
       ]);
 
-      await wallet.restoreProofs().catch(_error => {});
+      await wallet.restoreProofs().catch(_error => { });
 
       setWallets(prev => ({ ...prev, [walletKey]: wallet }));
       return wallet;
@@ -92,7 +92,7 @@ export function ECashProvider({
         delete newMap[walletKey];
         return newMap;
       });
-    } catch (_error) {}
+    } catch (_error) { }
   };
 
   const getWallet = (mintUrl: string, unit: string): CashuWalletInterface | null => {
@@ -149,7 +149,7 @@ export function ECashProvider({
             const [_mintUrl, _unit] = uniquePairs[index];
           }
         });
-      } catch (_error) {}
+      } catch (_error) { }
       setIsLoading(false);
     };
 
@@ -180,7 +180,7 @@ export function useECash() {
 }
 
 class CashuStorage implements CashuLocalStore {
-  constructor(private db: DatabaseService) {}
+  constructor(private db: DatabaseService) { }
 
   async getProofs(
     mintUrl: string | undefined,
