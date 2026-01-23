@@ -1,5 +1,6 @@
 import {
   IncomingPaymentRequest_Tags,
+  keyToHex,
   type RecurringPaymentRequest,
   type SinglePaymentRequest,
 } from 'portal-app-lib';
@@ -20,6 +21,7 @@ import { useWalletManager } from './WalletManagerContext';
 import { HandleCancelSubscriptionResponseTask } from '@/queue/tasks/HandleCancelSubscriptionResponse';
 import { HandleCashuDirectContentTask } from '@/queue/tasks/HandleCashuDirectContent';
 import { HandleCashuBurnRequestTask } from '@/queue/tasks/HandleCashuBurnRequest';
+import { HandleNostrConnectRequestTask } from '@/queue/tasks/HandleNostrConnectRequest';
 
 interface PortalAppProviderProps {
   children: React.ReactNode;
@@ -160,41 +162,21 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
       }
     })();
 
-    // app
-    //   .listenForNip46Request(
-    //     new LocalNip46RequestListener((event: NostrConnectRequestEvent) => {
-    //       const id = event.id;
-    //       return new Promise<NostrConnectResponseStatus>(resolve => {
-    //         handleNostrConnectRequest(
-    //           event,
-    //           keyToHex(publicKeyStr),
-    //           executeOperation,
-    //           resolve
-    //         ).then(askUser => {
-    //           if (askUser) {
-    //             const newRequest: PendingRequest = {
-    //               id,
-    //               metadata: event,
-    //               timestamp: new Date(),
-    //               type: 'nostrConnect',
-    //               result: resolve,
-    //             };
-
-    //             setPendingRequests(prev => {
-    //               // Check if request already exists to prevent duplicates
-    //               if (prev[id]) {
-    //                 return prev;
-    //               }
-    //               return { ...prev, [id]: newRequest };
-    //             });
-    //           }
-    //         });
-    //       });
-    //     })
-    //   )
-    //   .catch(e => {
-    //     console.error('Error listening for nip46 requests.', e);
-    //   });
+    (async () => {
+      while (true) {
+        try {
+          const event = await app.nextNip46Request();
+          const task = new HandleNostrConnectRequestTask(
+            event,
+            keyToHex(publicKeyStr)
+          );
+          console.log('[PortalAppContext] Enqueuing HandleNostrConnectRequestTask');
+          enqueueTask(task);
+        } catch (error) {
+          console.error('[PortalAppContext] Error running task', error);
+        }
+      }
+    })();
   }, [executeOperation, executeOnNostr, activeWallet, preferredCurrency]);
 
   const dismissPendingRequest = useCallback((id: string) => {
