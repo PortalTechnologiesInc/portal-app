@@ -7,7 +7,6 @@ node_modules/
 .expo/
 dist/
 web-build/
-expo-env.d.ts
 android
 ios
 modules
@@ -63,3 +62,17 @@ google-services.json
 
 # vscode
 .vscode
+
+# claude code
+.claude/
+
+# build artifacts
+*.apk
+*.aab
+*.ipa
+*.apks
+
+# debug database dumps
+*.db
+*.db-shm
+*.db-wal

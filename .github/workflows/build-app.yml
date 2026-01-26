@@ -17,15 +17,15 @@ jobs:
 
       - name: Install dependencies
         run: |
-          nix develop --command npm ci --foreground-scripts=true
+          nix develop --command bun install --frozen-lockfile
 
       - name: Run TypeScript type check
         run: |
-          nix develop --command npm run typecheck
+          nix develop --command bun run typecheck
 
       - name: Run Biome lint
         run: |
-          nix develop --command npm run check
+          nix develop --command bun run check
 
   build-bundle:
     runs-on: [self-hosted, nixos]
@@ -37,7 +37,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          nix develop --command npm ci --foreground-scripts=true
+          nix develop --command bun install --frozen-lockfile
 
       - name: Copy environment file
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
@@ -47,7 +47,7 @@ jobs:
 
       - name: Prebuild Android project
         run: |
-          nix develop --command npx expo prebuild --platform android --clean
+          nix develop --command bunx expo prebuild --platform android --clean
 
       - name: Build Android bundle
         working-directory: android

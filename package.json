@@ -4,10 +4,10 @@
   "version": "1.0.9",
   "type": "module",
   "scripts": {
-    "start": "npm run typecheck && npm run check && expo start",
-    "android": "npm run typecheck && npm run check && expo run:android",
-    "android-release": "npm run typecheck && npm run check && expo run:android --variant release",
-    "ios": "npm run typecheck && npm run check && expo run:ios",
+    "start": "bun run typecheck && bun run check && expo start",
+    "android": "bun run typecheck && bun run check && expo run:android",
+    "android-release": "bun run typecheck && bun run check && expo run:android --variant release",
+    "ios": "bun run typecheck && bun run check && expo run:ios",
     "test": "jest --watchAll",
     "test:maestro": "bash scripts/run-maestro-tests.sh android regular",
     "test:maestro:android": "bash scripts/run-maestro-tests.sh android regular",
@@ -103,5 +103,5 @@
     "typescript": "~5.8.3"
   },
   "private": true,
-  "packageManager": "yarn@4.7.0+sha512.5a0afa1d4c1d844b3447ee3319633797bcd6385d9a44be07993ae52ff4facabccafb4af5dcd1c2f9a94ac113e5e9ff56f6130431905884414229e284e37bb7c9"
+  "packageManager": "bun@1.2.5"
 }

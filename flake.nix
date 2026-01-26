@@ -223,17 +223,16 @@
         devShells = {
           ios = pkgs.stdenvNoCC.mkDerivation {
             name = "portal-ios-dev-shell";
-            buildInputs = with pkgs; [ nodejs cocoapods ];
+            buildInputs = with pkgs; [ nodejs bun cocoapods ];
 
             shellHook = ''
-              export PATH="$HOME/.npm-global/bin:$PATH"
+              export PATH="$HOME/.bun/bin:$PATH"
               export PATH="./node_modules/.bin:$PATH"
               export LANG=en_US.UTF-8
-              npm config set prefix "$HOME/.npm-global"
 
-              if ! command -v npx expo &> /dev/null; then
+              if ! command -v expo &> /dev/null; then
                 echo "installing expo..."
-                npm install -g @expo/cli
+                bun install -g @expo/cli
               fi
 
               # This is set somewhere by nix
@@ -249,6 +248,7 @@
             # Packages included in the environment
             buildInputs = with pkgs; [
               aider-chat
+              bun
               curl
               nodejs_24
               openjdk17
@@ -270,18 +270,17 @@
             # Run when the shell is started up
             shellHook = ''
               export BIOME_BINARY="${pkgs.biome}/bin/biome"
-              export PATH="$HOME/.npm-global/bin:$PATH"
+              export PATH="$HOME/.bun/bin:$PATH"
               export PATH="./node_modules/.bin:$PATH"
-              npm config set prefix "$HOME/.npm-global"
 
               if ! command -v eas &> /dev/null; then
-                echo "installing eas-cli..."      
-                npm install -g eas-cli
+                echo "installing eas-cli..."
+                bun install -g eas-cli
               fi
 
-              if ! command -v npx expo &> /dev/null; then
+              if ! command -v expo &> /dev/null; then
                 echo "installing expo..."
-                npm install -g @expo/cli
+                bun install -g @expo/cli
               fi
 
               if ! command -v maestro &> /dev/null; then

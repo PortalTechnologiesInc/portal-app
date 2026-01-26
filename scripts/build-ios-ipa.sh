@@ -10,7 +10,7 @@ fi
 echo "🔨 Building production iOS app..."
 
 # Build the iOS app
-npm run ios
+bun run ios
 
 echo "✅ iOS app built successfully"
 echo "Note: For iOS Simulator, the app is automatically installed during build"

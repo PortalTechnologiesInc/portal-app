@@ -1,2 +1,2 @@
-npm run typecheck
-npm run check
+bun run typecheck
+bun run check
