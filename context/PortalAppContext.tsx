@@ -158,11 +158,8 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
     // Prevent re-registering listeners if they're already initialized
     // This prevents Rust panics from trying to register listeners multiple times
     if (listenersInitializedRef.current) {
-      console.log('[PORTAL_APP]: Listeners already initialized, skipping');
       return;
     }
-
-    console.log('[PORTAL_APP]: Initializing app and setting up listeners');
     const app = PortalAppManager.tryGetInstance();
 
     const keypair = getKeypairFromKey({ mnemonic, nsec });
@@ -321,23 +318,12 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
               }
 
               if (!wallet) {
-                // Auto-reject - wallet not found (expected behavior)
-                console.log('[CASHU_REQUEST]: Auto-rejecting - wallet not found', {
-                  mintUrl: requiredMintUrl,
-                  unit: requiredUnit,
-                });
                 return new CashuResponseStatus.InsufficientFunds();
               }
 
               // Check if we have sufficient balance
               const balance = await wallet.getBalance();
               if (balance < requiredAmount) {
-                console.log('[CASHU_REQUEST]: Auto-rejecting - insufficient balance', {
-                  balance: balance.toString(),
-                  requiredAmount: requiredAmount.toString(),
-                  mintUrl: requiredMintUrl,
-                  unit: requiredUnit,
-                });
                 return new CashuResponseStatus.InsufficientFunds();
               }
             } catch (error) {
@@ -555,7 +541,6 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
         // Reset the flag so it can be retried manually if needed
         if (e?.message?.includes('panic') || e?.message?.includes('Rust')) {
           listenersInitializedRef.current = false;
-          console.log('[PORTAL_APP]: Rust panic detected, resetting listener flag');
         }
         // Don't call handleErrorWithToastAndReinit to avoid infinite retry loop
       });
@@ -616,14 +601,12 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
         logError('AUTH_CHALLENGE', 'listenForAuthChallenge - setup', e);
         // Don't retry on Rust panics - listeners might already be registered
         if (e?.message?.includes('panic') || e?.message?.includes('Rust')) {
-          console.log('[PORTAL_APP]: Rust panic detected in auth challenge listener');
         }
       });
 
     // Mark listeners as initialized after attempting all registrations
     // Note: Even if some fail, we mark as initialized to prevent retry loops
     listenersInitializedRef.current = true;
-    console.log('[PORTAL_APP]: Listener initialization complete');
   }, [
     executeOperation,
     executeOnNostr,

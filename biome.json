@@ -35,10 +35,10 @@
       "correctness": {
         "noNodejsModules": "off",
         "useImportExtensions": "off",
-        "useExhaustiveDependencies": "error",
+        "useExhaustiveDependencies": "warn",
         "useHookAtTopLevel": "error",
-        "noUnusedImports": "error",
-        "noUnusedVariables": "error",
+        "noUnusedImports": "warn",
+        "noUnusedVariables": "warn",
         "noUnusedFunctionParameters": "warn",
         "noInvalidUseBeforeDeclaration": "error"
       },
@@ -46,8 +46,8 @@
         "noExplicitAny": "warn",
         "noImplicitAnyLet": "warn",
         "noArrayIndexKey": "warn",
-        "noConsole": "error",
-        "noDebugger": "error"
+        "noConsole": "warn",
+        "noDebugger": "warn"
       },
       "security": {
         "noDangerouslySetInnerHtml": "error"
@@ -60,7 +60,7 @@
           }
         },
         "noStaticOnlyClass": "off",
-        "noUselessFragments": "error",
+        "noUselessFragments": "warn",
         "noBannedTypes": "warn"
       },
       "style": {

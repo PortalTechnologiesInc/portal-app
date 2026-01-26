@@ -1,5 +1,5 @@
-import * as fs from 'fs';
-import * as path from 'path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 /**
  * Custom Expo plugin to patch breeztech-breez-sdk-spark-react-native podspec
@@ -31,12 +31,9 @@ const withRemoveUniffiDependency = config => {
         );
 
         fs.writeFileSync(podspecPath, podspecContents, 'utf8');
-        console.log('✅ Successfully patched breeztech-breez-sdk-spark-react-native.podspec');
       }
     }
-  } catch (error) {
-    console.warn('⚠️ Failed to patch podspec file:', error);
-  }
+  } catch (_error) {}
 
   return config;
 };

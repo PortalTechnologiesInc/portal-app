@@ -2,9 +2,9 @@ import { router } from 'expo-router';
 import { AlertTriangle } from 'lucide-react-native';
 import { ScrollView, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { onboardingStyles as styles } from '@/components/onboarding/styles';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { onboardingStyles as styles } from '@/components/onboarding/styles';
 import { useThemeColor } from '@/hooks/useThemeColor';
 
 export default function ProfileSetupError() {
@@ -64,4 +64,3 @@ export default function ProfileSetupError() {
     </SafeAreaView>
   );
 }
-

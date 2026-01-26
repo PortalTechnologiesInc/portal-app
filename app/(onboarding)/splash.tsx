@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
 import { Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ThemedView } from '@/components/ThemedView';
 import { onboardingLogo } from '@/components/onboarding/assets';
 import { onboardingStyles as styles } from '@/components/onboarding/styles';
+import { ThemedView } from '@/components/ThemedView';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 
@@ -26,4 +26,3 @@ export default function OnboardingSplash() {
     </SafeAreaView>
   );
 }
-

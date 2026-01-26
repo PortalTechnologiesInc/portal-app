@@ -308,8 +308,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         // Mark as initialized
         setIsInitialized(true);
         setPublicKey(publicKeyStr);
-      } catch (error) {
-        console.error('Failed to initialize NostrService:', error);
+      } catch (_error) {
         setIsInitialized(false);
       }
     };
@@ -320,7 +319,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     } else {
       // If already initialized, check if instance exists and is working
       try {
-        const existingInstance = PortalAppManager.tryGetInstance();
+        const _existingInstance = PortalAppManager.tryGetInstance();
         // If instance exists, we're good - don't re-initialize
       } catch {
         // Instance doesn't exist, re-initialize
@@ -332,7 +331,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     return () => {
       abortController.abort();
     };
-  }, [mnemonic, nsec, executeOperation]);
+  }, [mnemonic, nsec, executeOperation, createRelayStatusListener, isInitialized, publicKey]);
 
   // Send auth init
   const sendKeyHandshake = useCallback(

@@ -4,10 +4,10 @@
   "version": "1.0.9",
   "type": "module",
   "scripts": {
-    "start": "npm run typecheck && npm run lint:dev && expo start",
-    "android": "npm run typecheck && npm run lint:dev && expo run:android",
-    "android-release": "npm run typecheck && npm run lint:dev && expo run:android --variant release",
-    "ios": "npm run typecheck && npm run lint:dev && expo run:ios",
+    "start": "npm run typecheck && npm run check && expo start",
+    "android": "npm run typecheck && npm run check && expo run:android",
+    "android-release": "npm run typecheck && npm run check && expo run:android --variant release",
+    "ios": "npm run typecheck && npm run check && expo run:ios",
     "test": "jest --watchAll",
     "test:maestro": "bash scripts/run-maestro-tests.sh android regular",
     "test:maestro:android": "bash scripts/run-maestro-tests.sh android regular",
@@ -16,20 +16,24 @@
     "test:maestro:all": "bash scripts/run-maestro-tests.sh android all",
     "test:maestro:flow": "maestro test",
     "test:maestro:build-only": "bash scripts/build-android-apk.sh",
-    "typecheck": "bash scripts/typecheck.sh",
+    "typecheck": "tsc --noEmit 2>&1 | grep -v 'node_modules' | grep 'error TS' && exit 1 || exit 0",
     "lint": "biome lint .",
     "lint:strict": "biome lint --error-on-warnings .",
-    "lint:dev": "bash scripts/check-ci.sh",
     "lint:fix": "biome lint --write .",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "check": "biome check .",
-    "check:ci": "bash scripts/check-ci.sh",
     "check:strict": "biome check --error-on-warnings .",
-    "check:fix": "biome check --write ."
+    "check:fix": "biome check --write .",
+    "prepare": "husky"
   },
   "jest": {
     "preset": "jest-expo"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,json,jsonc}": [
+      "biome check --write --no-errors-on-unmatched --files-ignore-unknown=true"
+    ]
   },
   "dependencies": {
     "@breeztech/breez-sdk-spark-react-native": "^0.5.2",
@@ -91,8 +95,10 @@
     "@types/jest": "~29.5.12",
     "@types/react": "~19.0.10",
     "@types/react-test-renderer": "~18.3.0",
+    "husky": "^9.1.7",
     "jest": "~29.7.0",
     "jest-expo": "~53.0.9",
+    "lint-staged": "^16.2.7",
     "react-test-renderer": "18.3.1",
     "typescript": "~5.8.3"
   },
