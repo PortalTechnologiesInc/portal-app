@@ -1256,7 +1256,7 @@ export class DatabaseService {
       `UPDATE bunker_secrets
         SET used = ?
         WHERE secret = ?`,
-      [secret, 1]
+      [1, secret]
     );
   }
 

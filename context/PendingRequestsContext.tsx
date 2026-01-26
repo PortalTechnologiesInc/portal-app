@@ -1,6 +1,7 @@
 import type {
   KeyHandshakeUrl,
-  NostrConnectRequestEvent,
+  NostrConnectEvent,
+  NostrConnectRequest,
   RecurringPaymentRequest,
   SinglePaymentRequest,
 } from 'portal-app-lib';
@@ -28,7 +29,7 @@ import { useActivities } from '@/context/ActivitiesContext';
 import { useCurrency } from '@/context/CurrencyContext';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import { useECash } from '@/context/ECashContext';
-import { type NostrServiceContextType, useNostrService } from '@/context/NostrServiceContext';
+import { useNostrService } from '@/context/NostrServiceContext';
 import { FetchServiceProfileTask } from '@/queue/tasks/ProcessAuthRequest';
 import { SaveActivityAndAddPaymentStatusTransactionalTask } from '@/queue/tasks/StartPayment';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
@@ -50,7 +51,6 @@ import { useWalletManager } from './WalletManagerContext';
 // Helper function to get service name with fallback
 
 const getServiceNameWithFallback = async (
-  nostrService: NostrServiceContextType,
   serviceKey: string
 ): Promise<string> => {
   const profile = await new FetchServiceProfileTask(serviceKey).run();
@@ -302,7 +302,6 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
           // Add an activity record directly via the database service
           getServiceNameWithFallback(
-            nostrService,
             (request.metadata as SinglePaymentRequest).serviceKey
           ).then(serviceName => {
             addActivityWithFallback({
@@ -327,7 +326,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           const metadata = request.metadata as SinglePaymentRequest;
 
           (async () => {
-            const serviceName = await getServiceNameWithFallback(nostrService, metadata.serviceKey);
+            const serviceName = await getServiceNameWithFallback(metadata.serviceKey);
 
             // Convert BigInt to number if needed
             const rawAmount =
@@ -480,7 +479,6 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
             (async () => {
               const serviceName = await getServiceNameWithFallback(
-                nostrService,
                 (request.metadata as RecurringPaymentRequest).serviceKey
               );
 
@@ -632,7 +630,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
               // Resolve service name from Nostr service key if available
               const serviceName = nostrServiceKey
-                ? await getServiceNameWithFallback(nostrService, nostrServiceKey)
+                ? await getServiceNameWithFallback(nostrServiceKey)
                 : getServiceNameFromMintUrl(mintUrl);
 
               // Get ticket title for detail field
@@ -682,14 +680,16 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           }
           break;
         case 'nostrConnect': {
-          const connectEvent = request.metadata as NostrConnectRequestEvent;
+          const connectEvent = request.metadata as NostrConnectEvent;
+          const connectRequest = (connectEvent.message.inner[0] as NostrConnectRequest);
+          const nostrClientPubkey = connectEvent.nostrClientPubkey;
 
-          const requestedPermissions = connectEvent.params.at(2) ?? null;
+          const requestedPermissions = connectRequest.params.at(2) ?? null;
           try {
             // whitelist the nostr client
             executeOperation(db =>
               db.addAllowedBunkerClient(
-                keyToHex(connectEvent.nostrClientPubkey),
+                keyToHex(nostrClientPubkey),
                 null,
                 requestedPermissions
               )
@@ -699,9 +699,9 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               requestId: id,
               clientPubkey: connectEvent.nostrClientPubkey,
             });
-            addActivityWithFallback({
+            await addActivityWithFallback({
               type: 'auth',
-              service_key: (request.metadata as NostrConnectRequestEvent).nostrClientPubkey,
+              service_key: nostrClientPubkey,
               detail: 'Login with bunker failed',
               date: new Date(),
               service_name: 'Nostr client',
@@ -715,11 +715,9 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             });
           }
 
-          // Create NostrConnectResponseStatus for approved bunker connection
-          request.result(new NostrConnectResponseStatus.Approved());
-          addActivityWithFallback({
+          await addActivityWithFallback({
             type: 'auth',
-            service_key: (request.metadata as NostrConnectRequestEvent).nostrClientPubkey,
+            service_key: nostrClientPubkey,
             detail: 'User approved bunker login',
             date: new Date(),
             service_name: 'Nostr client',
@@ -731,6 +729,9 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             subscription_id: null,
             status: 'positive',
           });
+
+          // Create NostrConnectResponseStatus for approved bunker connection
+          request.result(new NostrConnectResponseStatus.Approved());
           break;
         }
       }
@@ -770,7 +771,6 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
           // Add denied login activity to database
           getServiceNameWithFallback(
-            nostrService,
             (request.metadata as SinglePaymentRequest).serviceKey
           ).then(serviceName => {
             addActivityWithFallback({
@@ -847,7 +847,6 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             Promise.all([
               notifier(new PaymentStatus.Rejected({ reason: 'User rejected' })),
               getServiceNameWithFallback(
-                nostrService,
                 (request.metadata as SinglePaymentRequest).serviceKey
               ).then(serviceName => {
                 return addActivityWithFallback({
@@ -935,7 +934,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             let serviceName = 'Unknown Service';
             try {
               serviceName = nostrServiceKey
-                ? await getServiceNameWithFallback(nostrService, nostrServiceKey)
+                ? await getServiceNameWithFallback(nostrServiceKey)
                 : mintUrl
                   ? getServiceNameFromMintUrl(mintUrl)
                   : 'Unknown Service';
@@ -1000,7 +999,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               const nostrServiceKey = cashuEvent?.serviceKey || cashuEvent?.mainKey || null;
 
               const serviceName = nostrServiceKey
-                ? await getServiceNameWithFallback(nostrService, nostrServiceKey).catch(() =>
+                ? await getServiceNameWithFallback(nostrServiceKey).catch(() =>
                     mintUrl ? getServiceNameFromMintUrl(mintUrl) : 'Unknown Service'
                   )
                 : mintUrl
@@ -1030,7 +1029,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           );
           addActivityWithFallback({
             type: 'auth',
-            service_key: (request.metadata as NostrConnectRequestEvent).nostrClientPubkey,
+            service_key: (request.metadata as NostrConnectEvent).nostrClientPubkey,
             detail: 'User declined bunker login',
             date: new Date(),
             service_name: 'Nostr client',
