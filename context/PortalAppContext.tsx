@@ -100,7 +100,6 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
     /**
      * these logic go inside the new listeners that will be implemented
      */
-    // end
     (async () => {
       while (true) {
         try {

@@ -60,18 +60,21 @@ export class HandleNostrConnectRequestTask extends Task<
         return;
       }
 
-      const isSecretValid = await new UseBunkerSecretTask(secret).run();
+      const isSecretValid = await new UseBunkerSecretTransactionalTask(secret).run();
       if (!isSecretValid) {
+        console.log('[HandleNostrConnectRequestTask] Connect request has invalid secret');
         await this.declineRequest(event, 'Secret param is invalid');
         return;
       }
 
+      console.warn('[HandleNostrConnectRequestTask] Connect request requires user approval');
       const responseStatus = await new RequireNostrConnectUserApprovalTask(
         event,
         'Authentication Request',
         'Authentication request requires approval'
       ).run();
 
+      console.log('[HandleNostrConnectRequestTask] User approval result:', responseStatus);
       if (responseStatus) {
         return await new SendNostrConnectResponseTask(
           event,
@@ -158,6 +161,7 @@ export class HandleNostrConnectRequestTask extends Task<
     }
   }
 }
+Task.register(HandleNostrConnectRequestTask);
 
 class RequireNostrConnectUserApprovalTask extends Task<
   [NostrConnectEvent, string, string],
@@ -180,7 +184,7 @@ class RequireNostrConnectUserApprovalTask extends Task<
   ): Promise<NostrConnectResponseStatus | null> {
     console.log('[RequireNostrConnectUserApprovalTask] Requesting user approval for:', {
       id: event,
-      type: 'login',
+      type: 'nostrConnect',
     });
     console.log(
       '[RequireNostrConnectUserApprovalTask] SetPendingRequestsProvider available:',
@@ -251,7 +255,7 @@ Task.register(SendNostrConnectResponseTask);
 
 
 // returns true if the secret was valid and marked as used, false otherwise
-class UseBunkerSecretTask extends TransactionalTask<
+class UseBunkerSecretTransactionalTask extends TransactionalTask<
   [string],
   ['DatabaseService'],
   boolean
@@ -278,7 +282,7 @@ class UseBunkerSecretTask extends TransactionalTask<
     return isSecretValid
   }
 }
-Task.register(UseBunkerSecretTask);
+Task.register(UseBunkerSecretTransactionalTask);
 
 class GetBunkerClientTask extends TransactionalTask<
   [string],

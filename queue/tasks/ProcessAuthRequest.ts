@@ -73,6 +73,7 @@ export class FetchServiceProfileTask extends Task<
 > {
   constructor(key: string) {
     super(['PortalAppInterface', 'RelayStatusesProvider'], key);
+    this.expiry = new Date(Date.now() + 1000 * 60 * 60 * 24);
   }
 
   async taskLogic(
@@ -82,8 +83,6 @@ export class FetchServiceProfileTask extends Task<
     }: { PortalAppInterface: PortalAppInterface; RelayStatusesProvider: RelayStatusesProvider },
     key: string
   ): Promise<Profile | undefined> {
-    this.expiry = new Date(Date.now() + 1000 * 60 * 60 * 24);
-
     await RelayStatusesProvider.waitForRelaysConnected();
     return await PortalAppInterface.fetchProfile(key);
   }

@@ -177,7 +177,7 @@ export abstract class Task<A extends unknown[], P extends GlobalProviderNames[],
         return data;
       }
     } catch (error) {
-      console.log(error);
+      console.error(error);
 
       if (this instanceof TransactionalTask) {
         // console.warn('Rolling back transaction', key);
@@ -308,7 +308,7 @@ export async function enqueueTask<T>(task: Task<any[], any, T>): Promise<T> {
   }
 
   const record = task.serialize();
-  console.log(record);
+  console.log('Record to serialize is:', record);
   const id = await db.addQueuedTask(
     record.task_name,
     record.arguments,
