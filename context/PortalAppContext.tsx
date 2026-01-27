@@ -22,6 +22,7 @@ import { HandleCancelSubscriptionResponseTask } from '@/queue/tasks/HandleCancel
 import { HandleCashuDirectContentTask } from '@/queue/tasks/HandleCashuDirectContent';
 import { HandleCashuBurnRequestTask } from '@/queue/tasks/HandleCashuBurnRequest';
 import { HandleNostrConnectRequestTask } from '@/queue/tasks/HandleNostrConnectRequest';
+import { listenForAuthChallenge, listenForCashuDirect, listenForCashuRequest, listenForDeletedSubscription, listenForNostrConnectRequest, listenForPaymentRequest } from '@/listeners/NostrEventsListeners';
 
 interface PortalAppProviderProps {
   children: React.ReactNode;
@@ -69,113 +70,13 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
     const keypair = getKeypairFromKey({ mnemonic, nsec });
     const publicKeyStr = keypair.publicKey().toString();
 
-    //cashu receive token
-    (async () => {
-      while (true) {
-        try {
-          const event = await app.nextCashuDirect();
-          const task = new HandleCashuDirectContentTask(event);
-          console.log('[PortalAppContext] Enqueuing HandleCashuDirectContentTask.');
-          enqueueTask(task);
-        } catch (error) {
-          console.error('[PortalAppContext] Error running task', error);
-        }
-      }
-    })();
+    listenForCashuDirect(app);
+    listenForCashuRequest(app);
+    listenForAuthChallenge(app);
+    listenForPaymentRequest(app);
+    listenForDeletedSubscription(app);
+    listenForNostrConnectRequest(app, publicKeyStr);
 
-    // listener to burn tokens
-    (async () => {
-      while (true) {
-        try {
-          const event = await app.nextCashuRequest();
-          const task = new HandleCashuBurnRequestTask(event);
-          console.log('[PortalAppContext] Enqueuing HandleCashuBurnRequestTask.');
-          enqueueTask(task);
-        } catch (error) {
-          console.error('[PortalAppContext] Error running task', error);
-        }
-      }
-    })();
-
-    /**
-     * these logic go inside the new listeners that will be implemented
-     */
-    (async () => {
-      while (true) {
-        try {
-          const event = await app.nextAuthChallenge();
-          const id = event.eventId;
-          const task = new ProcessAuthRequestTask(event);
-          console.log('[PortalAppContext] Enqueuing ProcessAuthRequestTask for request:', id);
-          enqueueTask(task);
-        } catch (error) {
-          console.error('[PortalAppContext] Error running task', error);
-        }
-      }
-    })();
-
-    (async () => {
-      while (true) {
-        try {
-          const event = await app.nextPaymentRequest();
-          switch (event.tag) {
-            case IncomingPaymentRequest_Tags.Single: {
-              const singlePaymentRequest = event.inner[0] as SinglePaymentRequest;
-              const task = await new HandleSinglePaymentRequestTask(singlePaymentRequest);
-              console.log(
-                '[PortalAppContext] Enqueuing HandleSinglePaymentRequestTask for request:',
-                singlePaymentRequest.eventId
-              );
-              enqueueTask(task);
-              break;
-            }
-            case IncomingPaymentRequest_Tags.Recurring: {
-              const recurringPaymentRequest = event.inner[0] as RecurringPaymentRequest;
-              const task = await new HandleRecurringPaymentRequestTask(recurringPaymentRequest);
-              console.log(
-                '[PortalAppContext] Enqueuing HandleRecurringPaymentRequestTask for request:',
-                recurringPaymentRequest.eventId
-              );
-              enqueueTask(task);
-              break;
-            }
-          }
-          const id = event.inner[0].eventId;
-        } catch (error) {
-          console.error('[PortalAppContext] Error running task', error);
-        }
-      }
-    })();
-
-    // Listen for closed recurring payments
-    (async () => {
-      while (true) {
-        try {
-          const event = await app.nextClosedRecurringPayment();
-          const task = new HandleCancelSubscriptionResponseTask(event);
-          console.log('[PortalAppContext] Enqueuing HandleCancelSubscriptionResponseTask');
-          enqueueTask(task);
-        } catch (error) {
-          console.error('[PortalAppContext] Error running task', error);
-        }
-      }
-    })();
-
-    (async () => {
-      while (true) {
-        try {
-          const event = await app.nextNip46Request();
-          const task = new HandleNostrConnectRequestTask(
-            event,
-            keyToHex(publicKeyStr)
-          );
-          console.log('[PortalAppContext] Enqueuing HandleNostrConnectRequestTask');
-          enqueueTask(task);
-        } catch (error) {
-          console.error('[PortalAppContext] Error running task', error);
-        }
-      }
-    })();
   }, [executeOperation, executeOnNostr, activeWallet, preferredCurrency]);
 
   const dismissPendingRequest = useCallback((id: string) => {

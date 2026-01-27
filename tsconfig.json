@@ -32,6 +32,7 @@
     "queue/**/*.ts",
     "queue/**/*.tsx",
     "services/*.ts",
+    "listeners/*.ts",
     "*.ts",
     "*.tsx",
     ".expo/types/**/*.ts",
