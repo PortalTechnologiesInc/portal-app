@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react-native';
 import {
+  CashuDirectContentWithKey,
   Currency_Tags,
   type NostrConnectEvent,
   NostrConnectMethod,
@@ -83,12 +84,16 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const isSubscriptionRequest = type === 'subscription';
     const isTicketRequest = type === 'ticket';
     const isNostrConnect = type === 'nostrConnect';
-    const nostrConnectMethod = (
-      (metadata as NostrConnectEvent).message.inner[0] as NostrConnectRequest
-    ).method;
-    const nostrConnectParams = (
-      (metadata as NostrConnectEvent).message.inner[0] as NostrConnectRequest
-    ).params;
+    let nostrConnectMethod: NostrConnectMethod | undefined;
+    let nostrConnectParams: string[] | undefined;
+    if (isNostrConnect) {
+      nostrConnectMethod = (
+        (metadata as NostrConnectEvent).message.inner[0] as NostrConnectRequest
+      ).method;
+      nostrConnectParams = (
+        (metadata as NostrConnectEvent).message.inner[0] as NostrConnectRequest
+      ).params;
+    }
     const content = (metadata as SinglePaymentRequest)?.content;
     const amount = content?.amount ?? (isTicketRequest ? (metadata as any)?.inner?.amount : null);
 
@@ -121,16 +126,15 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
       // Reset mounted flag at the start of each effect
       isMounted.current = true;
 
+      console.warn(metadata);
+
       let serviceKey: string;
       if (type === 'nostrConnect' && 'nostrClientPubkey' in (metadata as any)) {
         serviceKey = (metadata as NostrConnectEvent).nostrClientPubkey;
+      } else if (type === 'ticket' && 'mainKey' in (metadata as any)) {
+        serviceKey = (metadata as CashuDirectContentWithKey).mainKey;
       } else if ('serviceKey' in (metadata as any)) {
         serviceKey = (metadata as any).serviceKey;
-      } else {
-        console.error(
-          `[PendingRequestCard] Unable to determine service key for request type: ${type}`
-        );
-        throw new Error('Service key not found in request metadata');
       }
 
       if (type === 'ticket' && request.ticketTitle) {
@@ -253,7 +257,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
                 canPay = true;
                 break;
               }
-            } catch (_error) {}
+            } catch (_error) { }
           }
 
           setHasInsufficientBalance(!canPay);
@@ -477,26 +481,26 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
               formatServiceName()
             )
           ) : // For payment/subscription requests, show service name (loading state)
-          isServiceNameLoading ? (
-            <SkeletonPulse
-              style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
-            />
-          ) : // For payment/subscription requests, show service name (loading state)
-          isServiceNameLoading ? (
-            <SkeletonPulse
-              style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
-            />
-          ) : (
-            formatServiceName()
-          )}
+            isServiceNameLoading ? (
+              <SkeletonPulse
+                style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
+              />
+            ) : // For payment/subscription requests, show service name (loading state)
+              isServiceNameLoading ? (
+                <SkeletonPulse
+                  style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
+                />
+              ) : (
+                formatServiceName()
+              )}
         </Text>
 
         <Text style={[styles.serviceInfo, { color: secondaryTextColor }]}>
           {isTicketRequest
             ? // For ticket requests, show ticket title as secondary info
-              formatSecondaryInfo()
+            formatSecondaryInfo()
             : // For payment/subscription requests, show truncated recipient pubkey
-              formatSecondaryInfo()}
+            formatSecondaryInfo()}
         </Text>
 
         {(isPaymentRequest || isSubscriptionRequest) && amount !== null && (
@@ -508,9 +512,9 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
                     const normalized = getNormalizedAmountAndCurrency();
                     return normalized
                       ? formatActivityAmount(
-                          normalized.normalizedAmount,
-                          normalized.normalizedCurrency
-                        )
+                        normalized.normalizedAmount,
+                        normalized.normalizedCurrency
+                      )
                       : '';
                   })()}
                 </Text>
@@ -524,9 +528,9 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
                   const normalized = getNormalizedAmountAndCurrency();
                   return normalized
                     ? formatActivityAmount(
-                        normalized.normalizedAmount,
-                        normalized.normalizedCurrency
-                      )
+                      normalized.normalizedAmount,
+                      normalized.normalizedCurrency
+                    )
                     : '';
                 })()}
               </Text>
@@ -576,7 +580,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
             {(() => {
               // For Connect method (nip46), show requested permissions
               if (nostrConnectMethod === NostrConnectMethod.Connect) {
-                const requestedPermissions = nostrConnectParams.at(2);
+                const requestedPermissions = nostrConnectParams?.at(2);
 
                 if (!requestedPermissions) return null;
 

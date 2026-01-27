@@ -37,21 +37,17 @@ export class ProcessAuthRequestTask extends Task<[AuthChallengeEvent], [], void>
 
     const serviceKey = event.serviceKey;
     console.log('[ProcessIncomingRequestTask] Fetching profile for serviceKey:', serviceKey);
-    const profileNameDeferred = new FetchServiceProfileTask(serviceKey)
+    const name = await new FetchServiceProfileTask(serviceKey)
       .run()
       .then(profile => getServiceNameFromProfile(profile));
     console.log('[ProcessIncomingRequestTask] Calling RequireAuthUserApprovalTask');
 
-    const name = await Promise.race([
-      profileNameDeferred,
-      new Promise<string>(resolve => resolve('Unknown Service')),
-    ]);
     await new SaveActivityTask({
       type: 'auth',
       service_key: serviceKey,
       detail: 'User approved login',
       date: new Date(),
-      service_name: name!,
+      service_name: name ?? 'Unknown Service',
       amount: null,
       currency: null,
       converted_amount: null,
