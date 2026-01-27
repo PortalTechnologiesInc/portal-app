@@ -13,6 +13,14 @@ import {
   type SinglePaymentRequest,
 } from 'portal-app-lib';
 import { Platform } from 'react-native';
+import {
+  listenForAuthChallenge,
+  listenForCashuDirect,
+  listenForCashuRequest,
+  listenForDeletedSubscription,
+  listenForNostrConnectRequest,
+  listenForPaymentRequest,
+} from '@/listeners/NostrEventsListeners';
 import type { Wallet } from '@/models/WalletType';
 import type { RelayInfo } from '@/utils/common';
 import { getServiceNameFromProfile, mapNumericStatusToString } from '@/utils/nostrHelper';
@@ -20,7 +28,6 @@ import { DatabaseService } from './DatabaseService';
 import { NwcService } from './NwcService';
 import { PortalAppManager } from './PortalAppManager';
 import { getMnemonic, getWalletUrl } from './SecureStorageService';
-import { listenForAuthChallenge, listenForCashuDirect, listenForCashuRequest, listenForDeletedSubscription, listenForNostrConnectRequest, listenForPaymentRequest } from '@/listeners/NostrEventsListeners';
 
 const EXPO_PUSH_TOKEN_KEY = 'expo_push_token_key';
 
@@ -68,7 +75,7 @@ async function subscribeToNotificationService(expoPushToken: string, pubkeys: st
   try {
     await SecureStore.deleteItemAsync(EXPO_PUSH_TOKEN_KEY);
     await SecureStore.setItemAsync(EXPO_PUSH_TOKEN_KEY, expoPushToken);
-  } catch (_e) { }
+  } catch (_e) {}
 }
 
 Notifications.setNotificationHandler({
@@ -99,7 +106,7 @@ Notifications.setNotificationHandler({
   },
 });
 
-function handleRegistrationError(_errorMessage: string) { }
+function handleRegistrationError(_errorMessage: string) {}
 
 /**
  * Formats the expected amount from a payment request for display in notifications
@@ -148,7 +155,7 @@ async function getServiceNameForNotification(
         await executeOperation(db => db.setCachedServiceName(serviceKey, serviceName), null);
         return serviceName;
       }
-    } catch (_fetchError) { }
+    } catch (_fetchError) {}
 
     // Step 3: Fallback to default
     return 'Unknown Service';
@@ -178,7 +185,7 @@ export async function sendPaymentAmountMismatchNotification(
     let serviceName = 'Unknown Service';
     try {
       serviceName = await getServiceNameForNotification(request.serviceKey, app, executeOperation);
-    } catch (_error) { }
+    } catch (_error) {}
 
     const body = formattedAmount
       ? `${serviceName} requested more than the expected amount (${formattedAmount.amount} ${formattedAmount.currency}). The request was automatically rejected.`
@@ -203,7 +210,7 @@ export async function sendPaymentAmountMismatchNotification(
       },
       trigger: null,
     });
-  } catch (_error) { }
+  } catch (_error) {}
 }
 
 export default async function registerPubkeysForPushNotificationsAsync(pubkeys: string[]) {
@@ -291,7 +298,7 @@ export async function handleHeadlessNotification(_event: string, databaseName: s
       // Properly initialize SQLite database
       const sqlite = await openDatabaseAsync(databaseName);
       const db = new DatabaseService(sqlite);
-      relayListener = new NotificationRelayStatusListener(db)
+      relayListener = new NotificationRelayStatusListener(db);
     } catch (error: any) {
       throw error;
     }
@@ -321,7 +328,6 @@ export async function handleHeadlessNotification(_event: string, databaseName: s
     listenForPaymentRequest(app);
     listenForDeletedSubscription(app);
     listenForNostrConnectRequest(app, keypair.publicKey());
-
   } catch (e) {
     console.error(e);
   }
@@ -396,7 +402,7 @@ class NotificationRelayStatusListener implements RelayStatusListener {
           setTimeout(async () => {
             try {
               await PortalAppManager.tryGetInstance().reconnectRelay(relay_url);
-            } catch (_error) { }
+            } catch (_error) {}
           }, 2000);
         }
       }

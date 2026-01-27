@@ -50,9 +50,7 @@ import { useWalletManager } from './WalletManagerContext';
 
 // Helper function to get service name with fallback
 
-const getServiceNameWithFallback = async (
-  serviceKey: string
-): Promise<string> => {
+const getServiceNameWithFallback = async (serviceKey: string): Promise<string> => {
   const profile = await new FetchServiceProfileTask(serviceKey).run();
   return getServiceNameFromProfile(profile) || 'Unknown Service';
 };
@@ -301,24 +299,24 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           request.result(approvedAuthResponse);
 
           // Add an activity record directly via the database service
-          getServiceNameWithFallback(
-            (request.metadata as SinglePaymentRequest).serviceKey
-          ).then(serviceName => {
-            addActivityWithFallback({
-              type: 'auth',
-              service_key: (request.metadata as SinglePaymentRequest).serviceKey,
-              detail: 'User approved login',
-              date: new Date(),
-              service_name: serviceName,
-              amount: null,
-              currency: null,
-              converted_amount: null,
-              converted_currency: null,
-              request_id: id,
-              subscription_id: null,
-              status: 'positive',
-            });
-          });
+          getServiceNameWithFallback((request.metadata as SinglePaymentRequest).serviceKey).then(
+            serviceName => {
+              addActivityWithFallback({
+                type: 'auth',
+                service_key: (request.metadata as SinglePaymentRequest).serviceKey,
+                detail: 'User approved login',
+                date: new Date(),
+                service_name: serviceName,
+                amount: null,
+                currency: null,
+                converted_amount: null,
+                converted_currency: null,
+                request_id: id,
+                subscription_id: null,
+                status: 'positive',
+              });
+            }
+          );
           break;
         }
         case 'payment': {
@@ -681,18 +679,14 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           break;
         case 'nostrConnect': {
           const connectEvent = request.metadata as NostrConnectEvent;
-          const connectRequest = (connectEvent.message.inner[0] as NostrConnectRequest);
+          const connectRequest = connectEvent.message.inner[0] as NostrConnectRequest;
           const nostrClientPubkey = connectEvent.nostrClientPubkey;
 
           const requestedPermissions = connectRequest.params.at(2) ?? null;
           try {
             // whitelist the nostr client
             executeOperation(db =>
-              db.addAllowedBunkerClient(
-                keyToHex(nostrClientPubkey),
-                null,
-                requestedPermissions
-              )
+              db.addAllowedBunkerClient(keyToHex(nostrClientPubkey), null, requestedPermissions)
             );
           } catch (e) {
             logError('PENDING_REQUESTS', 'approve - nostrConnect - addAllowedBunkerClient', e, {
@@ -770,24 +764,24 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           request.result(deniedAuthResponse);
 
           // Add denied login activity to database
-          getServiceNameWithFallback(
-            (request.metadata as SinglePaymentRequest).serviceKey
-          ).then(serviceName => {
-            addActivityWithFallback({
-              type: 'auth',
-              service_key: (request.metadata as SinglePaymentRequest).serviceKey,
-              detail: 'User denied login',
-              date: new Date(),
-              service_name: serviceName,
-              amount: null,
-              currency: null,
-              converted_amount: null,
-              converted_currency: null,
-              request_id: id,
-              subscription_id: null,
-              status: 'negative',
-            });
-          });
+          getServiceNameWithFallback((request.metadata as SinglePaymentRequest).serviceKey).then(
+            serviceName => {
+              addActivityWithFallback({
+                type: 'auth',
+                service_key: (request.metadata as SinglePaymentRequest).serviceKey,
+                detail: 'User denied login',
+                date: new Date(),
+                service_name: serviceName,
+                amount: null,
+                currency: null,
+                converted_amount: null,
+                converted_currency: null,
+                request_id: id,
+                subscription_id: null,
+                status: 'negative',
+              });
+            }
+          );
           break;
         }
         case 'payment': {

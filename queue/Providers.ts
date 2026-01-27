@@ -1,11 +1,11 @@
 import type { PortalAppInterface } from 'portal-app-lib';
 import type { DatabaseService } from '@/services/DatabaseService';
+import type NostrStoreService from '@/services/NostrStoreService';
 import type { ActiveWalletProvider } from './providers/ActiveWallet';
+import type { CashuWalletMethodsProvider } from './providers/CashuWallets';
 import type { NotificationProvider } from './providers/Notification';
 import type { PromptUserProvider } from './providers/PromptUser';
 import type { RelayStatusesProvider } from './providers/RelayStatus';
-import { CashuWalletMethodsProvider } from './providers/CashuWallets';
-import NostrStoreService from '@/services/NostrStoreService';
 
 export type GlobalProviders =
   | { name: 'DatabaseService'; type: DatabaseService }

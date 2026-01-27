@@ -1,7 +1,7 @@
-import { CloseRecurringPaymentResponse } from "portal-app-lib";
-import { Task } from "../WorkQueue";
-import { globalEvents } from "@/utils/common";
-import { DatabaseService } from "@/services/DatabaseService";
+import type { CloseRecurringPaymentResponse } from 'portal-app-lib';
+import type { DatabaseService } from '@/services/DatabaseService';
+import { globalEvents } from '@/utils/common';
+import { Task } from '../WorkQueue';
 
 export class HandleCancelSubscriptionResponseTask extends Task<
   [CloseRecurringPaymentResponse],

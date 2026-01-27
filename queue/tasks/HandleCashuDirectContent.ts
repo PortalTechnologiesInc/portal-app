@@ -1,11 +1,15 @@
-import { CashuDirectContentWithKey, CashuWalletInterface, parseCashuToken, TokenInfo } from "portal-app-lib";
-import { Task } from "../WorkQueue";
+import {
+  type CashuDirectContentWithKey,
+  parseCashuToken,
+  type TokenInfo,
+} from 'portal-app-lib';
+import type NostrStoreService from '@/services/NostrStoreService';
+import { globalEvents } from '@/utils/common';
+import { showToast } from '@/utils/Toast';
 import type { DatabaseService } from '../../services/DatabaseService';
-import { CashuWalletMethodsProvider } from "../providers/CashuWallets";
-import NostrStoreService from "@/services/NostrStoreService";
-import { globalEvents } from "@/utils/common";
-import { showToast } from "@/utils/Toast";
-import { SaveActivityTask } from "./SaveActivity";
+import type { CashuWalletMethodsProvider } from '../providers/CashuWallets';
+import { Task } from '../WorkQueue';
+import { SaveActivityTask } from './SaveActivity';
 
 export class HandleCashuDirectContentTask extends Task<
   [CashuDirectContentWithKey],
@@ -17,7 +21,13 @@ export class HandleCashuDirectContentTask extends Task<
   }
 
   async taskLogic(
-    { NostrStoreService, CashuWalletMethodsProvider }: { NostrStoreService: NostrStoreService, CashuWalletMethodsProvider: CashuWalletMethodsProvider },
+    {
+      NostrStoreService,
+      CashuWalletMethodsProvider,
+    }: {
+      NostrStoreService: NostrStoreService;
+      CashuWalletMethodsProvider: CashuWalletMethodsProvider;
+    },
     event: CashuDirectContentWithKey
   ): Promise<void> {
     try {
@@ -103,15 +113,15 @@ export class MarkCashuTokenAsProcessedTask extends Task<[string], ['DatabaseServ
 
   async taskLogic(
     { DatabaseService }: { DatabaseService: DatabaseService },
-    token: string,
+    token: string
   ): Promise<boolean> {
     const tokenInfo = await new ParseCashuTokenTask(token).run();
     return DatabaseService.markCashuTokenAsProcessed(
       token,
       tokenInfo.mintUrl,
       tokenInfo.unit,
-      Number(tokenInfo.amount),
-    )
+      Number(tokenInfo.amount)
+    );
   }
 }
 Task.register(MarkCashuTokenAsProcessedTask);

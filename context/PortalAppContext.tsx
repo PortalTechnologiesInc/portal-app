@@ -1,15 +1,14 @@
-import {
-  IncomingPaymentRequest_Tags,
-  keyToHex,
-  type RecurringPaymentRequest,
-  type SinglePaymentRequest,
-} from 'portal-app-lib';
 import React, { createContext, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  listenForAuthChallenge,
+  listenForCashuDirect,
+  listenForCashuRequest,
+  listenForDeletedSubscription,
+  listenForNostrConnectRequest,
+  listenForPaymentRequest,
+} from '@/listeners/NostrEventsListeners';
 import { PromptUserWithPendingCard } from '@/queue/providers/PromptUser';
-import { HandleRecurringPaymentRequestTask } from '@/queue/tasks/HandleRecurringPaymentRequest';
-import { HandleSinglePaymentRequestTask } from '@/queue/tasks/HandleSinglePaymentRequest';
-import { ProcessAuthRequestTask } from '@/queue/tasks/ProcessAuthRequest';
-import { enqueueTask, ProviderRepository, Task } from '@/queue/WorkQueue';
+import { ProviderRepository, Task } from '@/queue/WorkQueue';
 import { PortalAppManager } from '@/services/PortalAppManager';
 import { getKeypairFromKey } from '@/utils/keyHelpers';
 import type { PendingRequest, RelayInfo } from '@/utils/types';
@@ -18,11 +17,6 @@ import { useDatabaseContext } from './DatabaseContext';
 import { useKey } from './KeyContext';
 import { useNostrService } from './NostrServiceContext';
 import { useWalletManager } from './WalletManagerContext';
-import { HandleCancelSubscriptionResponseTask } from '@/queue/tasks/HandleCancelSubscriptionResponse';
-import { HandleCashuDirectContentTask } from '@/queue/tasks/HandleCashuDirectContent';
-import { HandleCashuBurnRequestTask } from '@/queue/tasks/HandleCashuBurnRequest';
-import { HandleNostrConnectRequestTask } from '@/queue/tasks/HandleNostrConnectRequest';
-import { listenForAuthChallenge, listenForCashuDirect, listenForCashuRequest, listenForDeletedSubscription, listenForNostrConnectRequest, listenForPaymentRequest } from '@/listeners/NostrEventsListeners';
 
 interface PortalAppProviderProps {
   children: React.ReactNode;
@@ -76,7 +70,6 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
     listenForPaymentRequest(app);
     listenForDeletedSubscription(app);
     listenForNostrConnectRequest(app, publicKeyStr);
-
   }, [executeOperation, executeOnNostr, activeWallet, preferredCurrency]);
 
   const dismissPendingRequest = useCallback((id: string) => {

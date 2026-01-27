@@ -1,12 +1,13 @@
 import {
-  CashuRequestContentWithKey, CashuResponseStatus,
+  type CashuRequestContentWithKey,
+  CashuResponseStatus,
   type PortalAppInterface,
 } from 'portal-app-lib';
-import { Task } from "../WorkQueue";
-import { CashuWalletMethodsProvider } from "../providers/CashuWallets";
-import { PendingRequest } from "@/utils/types";
-import { PromptUserProvider } from "../providers/PromptUser";
+import type { PendingRequest } from '@/utils/types';
+import type { CashuWalletMethodsProvider } from '../providers/CashuWallets';
+import type { PromptUserProvider } from '../providers/PromptUser';
 import type { RelayStatusesProvider } from '../providers/RelayStatus';
+import { Task } from '../WorkQueue';
 
 export class HandleCashuBurnRequestTask extends Task<
   [CashuRequestContentWithKey],
@@ -81,28 +82,23 @@ export class HandleCashuBurnRequestTask extends Task<
       // if null the app is offline, so a notification might already been scheduled
       return;
     }
-    return await new SendCashuResponseStatusTask(
-      event,
-      status,
-    ).run();
+    return await new SendCashuResponseStatusTask(event, status).run();
   }
 }
-Task.register(HandleCashuBurnRequestTask)
+Task.register(HandleCashuBurnRequestTask);
 
 class RequireTicketBurnUserApprovalTask extends Task<
   [CashuRequestContentWithKey],
   ['PromptUserProvider'],
   CashuResponseStatus | null
 > {
-  constructor(
-    private readonly request: CashuRequestContentWithKey,
-  ) {
+  constructor(private readonly request: CashuRequestContentWithKey) {
     super(['PromptUserProvider'], request);
   }
 
   async taskLogic(
     { PromptUserProvider }: { PromptUserProvider: PromptUserProvider },
-    event: CashuRequestContentWithKey,
+    event: CashuRequestContentWithKey
   ): Promise<CashuResponseStatus | null> {
     console.log('[RequireTicketBurnUserApprovalTask] Requesting user approval for:', {
       id: event.inner.requestId,
@@ -147,7 +143,7 @@ class SendCashuResponseStatusTask extends Task<
 > {
   constructor(
     private readonly event: CashuRequestContentWithKey,
-    private readonly status: CashuResponseStatus,
+    private readonly status: CashuResponseStatus
   ) {
     super(['PortalAppInterface', 'RelayStatusesProvider'], event, status);
   }
@@ -158,7 +154,7 @@ class SendCashuResponseStatusTask extends Task<
       RelayStatusesProvider,
     }: { PortalAppInterface: PortalAppInterface; RelayStatusesProvider: RelayStatusesProvider },
     event: CashuRequestContentWithKey,
-    status: CashuResponseStatus,
+    status: CashuResponseStatus
   ): Promise<void> {
     await RelayStatusesProvider.waitForRelaysConnected();
     return await PortalAppInterface.replyCashuRequest(event, status);
