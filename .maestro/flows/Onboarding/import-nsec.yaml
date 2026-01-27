@@ -1,4 +1,5 @@
 appId: cc.getportal.portal
+jsEngine: graaljs
 tags:
   - smoke
   - onboarding
@@ -25,3 +26,7 @@ tags:
 - tapOn: "Skip"
 - waitForAnimationToEnd
 - assertVisible: "Welcome back, .*"
+
+# TODO: add public key (it can be hardcoded since the nsec is also hardcoded)
+- runScript:
+    file: ../js/requestLogin.js
