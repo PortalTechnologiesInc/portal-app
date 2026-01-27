@@ -8,7 +8,9 @@
     "android": "bun run typecheck && bun run check && expo run:android",
     "android-release": "bun run typecheck && bun run check && expo run:android --variant release",
     "ios": "bun run typecheck && bun run check && expo run:ios",
+
     "test": "jest --watchAll",
+
     "test:maestro": "bash scripts/run-maestro-tests.sh android regular",
     "test:maestro:android": "bash scripts/run-maestro-tests.sh android regular",
     "test:maestro:ios": "bash scripts/run-maestro-tests.sh ios regular",
@@ -16,15 +18,22 @@
     "test:maestro:all": "bash scripts/run-maestro-tests.sh android all",
     "test:maestro:flow": "maestro test",
     "test:maestro:build-only": "bash scripts/build-android-apk.sh",
+
     "typecheck": "tsc --noEmit 2>&1 | grep -v 'node_modules' | grep 'error TS' && exit 1 || exit 0",
-    "lint": "biome lint .",
+
+    "lint": "biome lint --diagnostic-level=error .",
+    "lint:warnings": "biome lint --diagnostic-level=warn .",
     "lint:strict": "biome lint --error-on-warnings .",
-    "lint:fix": "biome lint --write .",
+    "lint:fix": "biome lint --write --diagnostic-level=error .",
+
     "format": "biome format --write .",
     "format:check": "biome format .",
-    "check": "biome check .",
+
+    "check": "biome check --diagnostic-level=error .",
+    "check:warnings": "biome check --diagnostic-level=warn .",
     "check:strict": "biome check --error-on-warnings .",
-    "check:fix": "biome check --write .",
+    "check:fix": "biome check --write --diagnostic-level=error .",
+
     "prepare": "husky"
   },
   "jest": {
@@ -99,6 +108,7 @@
     "jest": "~29.7.0",
     "jest-expo": "~53.0.9",
     "lint-staged": "^16.2.7",
+    "portal-sdk": "^0.1.4",
     "react-test-renderer": "^19.0.0",
     "typescript": "~5.8.3"
   },

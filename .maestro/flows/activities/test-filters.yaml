@@ -1,0 +1,16 @@
+appId: cc.getportal.portal
+tags:
+  - activities
+---
+- tapOn: Activities
+- tapOn: Logins
+- tapOn: Payments
+- tapOn: Subscriptions
+- tapOn: Tickets
+- tapOn: Payments
+- tapOn: Subscriptions
+- tapOn: Home
+- tapOn: Activities
+- assertVisible: Your activities
+- tapOn: Home
+- assertVisible: "Welcome back, .*"

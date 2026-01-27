@@ -1,0 +1,7 @@
+appId: cc.getportal.portal
+tags:
+  - tickets
+---
+# Tickets flow: open and inspect a ticket detail page.
+# TODO: implement — requires a logged-in user with at least one ticket.
+- launchApp

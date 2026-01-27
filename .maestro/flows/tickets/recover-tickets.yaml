@@ -1,0 +1,7 @@
+appId: cc.getportal.portal
+tags:
+  - tickets
+---
+# Tickets flow: recover tickets from mint server URLs.
+# TODO: implement — requires a logged-in user and valid mint server URLs.
+- launchApp

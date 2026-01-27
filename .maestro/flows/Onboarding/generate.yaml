@@ -1,13 +1,8 @@
-#appId: cc.getportal.portal
-#---
-#- copyTextFrom:
-#    id: "word-1"
-#- tapOn: "I've Written It Down"
-#- tapOn:
-#    id: "verification-input-1"
-#- inputText: ${maestro.copiedText}
-
 appId: cc.getportal.portal
+tags:
+  - smoke
+  - onboarding
+  - generate
 ---
 # --- Seed generation screen (shows 1..12 lines like "1. word") ---
 - runFlow: ../reset.yaml
@@ -67,12 +62,12 @@ appId: cc.getportal.portal
 
 # Extract the first position number from the label text
 - copyTextFrom:
-    text: "Enter word #.*"
+    text: 'Enter word #.*'
     index: 0
 - evalScript: ${output.verifyPos1 = maestro.copiedText.match(/#(\d+)/)[1]}
 # Extract the first position number from the label text
 - copyTextFrom:
-    text: "Enter word #.*"
+    text: 'Enter word #.*'
     index: 1
 - evalScript: ${output.verifyPos2 = maestro.copiedText.match(/#(\d+)/)[1]}
 
@@ -93,7 +88,7 @@ appId: cc.getportal.portal
 
 # Importing a seed phrase should take us to the PIN setup screen.
 - waitForAnimationToEnd
-- assertVisible: "Secure Portal with a PIN"
-- tapOn: "Skip"
+- assertVisible: 'Secure Portal with a PIN'
+- tapOn: 'Skip'
 - waitForAnimationToEnd
-- assertVisible: "Welcome back, .*"
+- assertVisible: 'Welcome back, .*'

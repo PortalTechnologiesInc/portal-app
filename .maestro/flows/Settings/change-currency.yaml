@@ -6,7 +6,6 @@ tags:
 ---
 # Settings flow: change preferred currency.
 - tapOn: "Settings"
-- evalScript: ${http.get('https://asiddbuiocwdbuoebuo.free.beeceptor.com');}
 - tapOn: "Preferred Currency"
 
 # Try to tap the element below the checkmark

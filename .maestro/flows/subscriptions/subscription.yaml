@@ -1,0 +1,7 @@
+appId: cc.getportal.portal
+tags:
+  - subscriptions
+---
+# Subscriptions flow: create or manage a recurring payment subscription.
+# TODO: implement — requires a logged-in user with a connected wallet.
+- launchApp

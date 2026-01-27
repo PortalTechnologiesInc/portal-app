@@ -1,0 +1,9 @@
+appId: cc.getportal.portal
+tags:
+  - manual
+  - nfc
+---
+# NFC flow: scan an NFC tag for authentication or ticket validation.
+# WARNING: requires a physical device with NFC hardware.
+# TODO: implement — requires a logged-in user and a physical NFC tag.
+- launchApp

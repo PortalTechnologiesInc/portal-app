@@ -8,7 +8,6 @@ env:
   # EXAMPLE:
   # API_URL: "https://api.example.com"
   # ENV: "development"
-
 # Device/emulator preferences
 # Maestro will use the default connected device/emulator
 # To specify a device, use: maestro test --device <device-id> <flow.yaml>

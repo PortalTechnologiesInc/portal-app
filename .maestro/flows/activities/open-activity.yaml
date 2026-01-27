@@ -1,0 +1,19 @@
+appId: cc.getportal.portal
+tags:
+  - activities
+---
+# Activities flow: open and inspect an activity detail page.
+- assertVisible: Payment
+- tapOn: Payment
+- assertNotVisible: Undefined
+- assertNotVisible: undefined
+- assertNotVisible: N/A
+- assertNotVisible: n/a
+- scrollUntilVisible:
+    element: .* Information
+- assertNotVisible: Undefined
+- assertNotVisible: undefined
+- assertNotVisible: N/A
+- assertNotVisible: n/a
+- tapOn: 
+- assertVisible: "Welcome back, .*"

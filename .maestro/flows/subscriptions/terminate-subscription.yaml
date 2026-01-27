@@ -1,0 +1,7 @@
+appId: cc.getportal.portal
+tags:
+  - subscriptions
+---
+# Subscriptions flow: terminate an active subscription.
+# TODO: implement — requires a logged-in user with an active subscription.
+- launchApp

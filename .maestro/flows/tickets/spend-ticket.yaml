@@ -1,0 +1,7 @@
+appId: cc.getportal.portal
+tags:
+  - tickets
+---
+# Tickets flow: spend/redeem a ticket via NFC or QR.
+# TODO: implement — requires a logged-in user with a valid ticket.
+- launchApp

@@ -1,0 +1,7 @@
+appId: cc.getportal.portal
+tags:
+  - payments
+---
+# Payments flow: handle a payment request (Lightning or Cashu).
+# TODO: implement — requires a logged-in user with a connected wallet.
+- launchApp
