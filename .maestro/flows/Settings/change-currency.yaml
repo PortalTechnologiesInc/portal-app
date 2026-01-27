@@ -1,11 +1,12 @@
 appId: cc.getportal.portal
+jsEngine: graaljs
 tags:
   - smoke
-  - onboarding
-  - import-nsec
+  - settings
 ---
-# Onboarding flow: import an existing nsec.
+# Settings flow: change preferred currency.
 - tapOn: "Settings"
+- evalScript: ${http.get('https://asiddbuiocwdbuoebuo.free.beeceptor.com');}
 - tapOn: "Preferred Currency"
 
 # Try to tap the element below the checkmark

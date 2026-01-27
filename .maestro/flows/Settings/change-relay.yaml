@@ -1,9 +1,9 @@
 appId: cc.getportal.portal
 tags:
   - smoke
-  - onboarding
-  - import-nsec
+  - settings
 ---
+# Settings flow: change Nostr relays.
 - tapOn: "Settings"
 
 - tapOn: "Nostr relays"

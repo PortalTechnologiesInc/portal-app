@@ -273,11 +273,6 @@
               export PATH="$HOME/.bun/bin:$PATH"
               export PATH="./node_modules/.bin:$PATH"
 
-              if ! command -v eas &> /dev/null; then
-                echo "installing eas-cli..."
-                bun install -g eas-cli
-              fi
-
               if ! command -v expo &> /dev/null; then
                 echo "installing expo..."
                 bun install -g @expo/cli

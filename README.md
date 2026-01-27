@@ -77,7 +77,6 @@ This project uses [Nix flakes](https://nixos.org/manual/nix/stable/command-ref/n
 - **OpenJDK 17** - For Android Gradle builds
 - **Android SDK** - Build tools, platform, NDK
 - **Biome** - Linting and formatting
-- **EAS CLI** - Expo Application Services
 - **Expo CLI** - Expo development tools
 - **Maestro** - Mobile E2E testing framework
 
@@ -294,24 +293,27 @@ const authResult = await BiometricAuthService.authenticate();
 
 ## 📦 Building & Deployment
 
-### EAS Build
+### Local Builds
 
-The project uses Expo Application Services (EAS) for cloud builds:
+The project is fully self-managed — no cloud build services. Build scripts handle APK/IPA creation and device installation:
 
 ```bash
-# Build for development
-eas build --profile development
+# Build Android APK (release)
+bash scripts/build-android-apk.sh release
 
-# Build for production
-eas build --profile production
+# Build and install on connected Android device/emulator
+bash scripts/install-android-apk.sh
 
-# Submit to app stores
-eas submit
+# Build iOS app (macOS only)
+bash scripts/build-ios-ipa.sh
+
+# Install on iOS Simulator
+bash scripts/install-ios-ipa.sh
 ```
 
 ### Reproducible Nix Build
 
-For fully reproducible Android builds without EAS:
+For fully reproducible Android builds:
 
 ```bash
 nix build .#android-bundle

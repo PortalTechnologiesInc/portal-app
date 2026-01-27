@@ -67,7 +67,8 @@ case "$TEST_TYPE" in
     EXTRA_ARGS=( "--exclude-tags" "manual" )
     ;;
   *)
-    FLOWS=( ".maestro/flows/app-launch.yaml" ".maestro/flows/onboarding-flow.yaml" )
+    # Default: run onboarding flows as a smoke test
+    FLOWS=( ".maestro/flows/Onboarding/" )
     ;;
 esac
 
