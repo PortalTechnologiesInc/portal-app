@@ -2,9 +2,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react-native';
 import {
   Currency_Tags,
-  NostrConnectEvent,
+  type NostrConnectEvent,
   NostrConnectMethod,
-  NostrConnectRequest,
+  type NostrConnectRequest,
   type RecurringPaymentRequest,
   type SinglePaymentRequest,
 } from 'portal-app-lib';
@@ -83,8 +83,12 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const isSubscriptionRequest = type === 'subscription';
     const isTicketRequest = type === 'ticket';
     const isNostrConnect = type === 'nostrConnect';
-    const nostrConnectMethod = ((metadata as NostrConnectEvent).message.inner[0] as NostrConnectRequest).method;
-    const nostrConnectParams = ((metadata as NostrConnectEvent).message.inner[0] as NostrConnectRequest).params;
+    const nostrConnectMethod = (
+      (metadata as NostrConnectEvent).message.inner[0] as NostrConnectRequest
+    ).method;
+    const nostrConnectParams = (
+      (metadata as NostrConnectEvent).message.inner[0] as NostrConnectRequest
+    ).params;
     const content = (metadata as SinglePaymentRequest)?.content;
     const amount = content?.amount ?? (isTicketRequest ? (metadata as any)?.inner?.amount : null);
 
@@ -123,7 +127,9 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
       } else if ('serviceKey' in (metadata as any)) {
         serviceKey = (metadata as any).serviceKey;
       } else {
-        console.error(`[PendingRequestCard] Unable to determine service key for request type: ${type}`);
+        console.error(
+          `[PendingRequestCard] Unable to determine service key for request type: ${type}`
+        );
         throw new Error('Service key not found in request metadata');
       }
 

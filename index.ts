@@ -12,10 +12,10 @@ import { openDatabaseAsync } from 'expo-sqlite';
 import { ActiveWalletProvider, WalletWrapper } from './queue/providers/ActiveWallet';
 import { NotificationProvider } from './queue/providers/Notification';
 import { PromptUserWithNotification } from './queue/providers/PromptUser';
+import { GetRelaysTask } from './queue/tasks/GetRelays';
 import { ProviderRepository } from './queue/WorkQueue';
 import { DatabaseService } from './services/DatabaseService';
 import NostrStoreService from './services/NostrStoreService';
-import { GetRelaysTask } from './queue/tasks/GetRelays';
 import { getMnemonic, getNsec } from './services/SecureStorageService';
 import { getKeypairFromKey } from './utils/keyHelpers';
 
@@ -62,7 +62,7 @@ TaskManager.defineTask<Notifications.NotificationTaskPayload>(
             await handleHeadlessNotification(eventContentValue, DATABASE_NAME);
           }
         }
-      } catch (_e) { }
+      } catch (_e) {}
     } else {
     }
   }
@@ -115,7 +115,6 @@ initializeDatabase()
   .catch(error => {
     console.error('Error initializing database', error);
   });
-
 
 ProviderRepository.register(new PromptUserWithNotification(sendNotification), 'PromptUserProvider');
 ProviderRepository.register(new NotificationProvider(sendNotification), 'NotificationProvider');

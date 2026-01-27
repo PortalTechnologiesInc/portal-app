@@ -1,21 +1,24 @@
-import { keyToHex, NostrConnectEvent, NostrConnectMethod, NostrConnectRequest, NostrConnectResponseStatus } from "portal-app-lib";
-import { Task, TransactionalTask } from "../WorkQueue";
-import { PendingRequest } from "@/models/PendingRequest";
-import type { PromptUserProvider } from '../providers/PromptUser';
 import {
+  keyToHex,
+  type NostrConnectEvent,
+  NostrConnectMethod,
+  type NostrConnectRequest,
+  NostrConnectResponseStatus,
   type PortalAppInterface,
 } from 'portal-app-lib';
-import type { RelayStatusesProvider } from '../providers/RelayStatus';
+import type { PendingRequest } from '@/models/PendingRequest';
 import type { AllowedBunkerClientWithDates, DatabaseService } from '@/services/DatabaseService';
-import { getMethodString } from "@/utils/nip46";
-import { SaveActivityTask } from "./SaveActivity";
+import { getMethodString } from '@/utils/nip46';
+import type { PromptUserProvider } from '../providers/PromptUser';
+import type { RelayStatusesProvider } from '../providers/RelayStatus';
+import { Task, TransactionalTask } from '../WorkQueue';
+import { SaveActivityTask } from './SaveActivity';
 
-export class HandleNostrConnectRequestTask extends Task<
-  [NostrConnectEvent, string],
-  [],
-  void
-> {
-  constructor(private readonly event: NostrConnectEvent, private readonly signerPubkey: string) {
+export class HandleNostrConnectRequestTask extends Task<[NostrConnectEvent, string], [], void> {
+  constructor(
+    private readonly event: NostrConnectEvent,
+    private readonly signerPubkey: string
+  ) {
     super([], event, signerPubkey);
   }
 
@@ -28,11 +31,7 @@ export class HandleNostrConnectRequestTask extends Task<
     ).run();
   }
 
-  async taskLogic(
-    _: {},
-    event: NostrConnectEvent,
-    signerPubkey: string,
-  ): Promise<void> {
+  async taskLogic(_: {}, event: NostrConnectEvent, signerPubkey: string): Promise<void> {
     const message = event.message.inner[0];
     if ('method' in message === false) {
       // if the message in the nostr connect event contains a response we just ignore it
@@ -51,7 +50,10 @@ export class HandleNostrConnectRequestTask extends Task<
       }
 
       if (eventSignerPubkey !== signerPubkey) {
-        await this.declineRequest(event, 'Connect request contains a pubkey different from this signer');
+        await this.declineRequest(
+          event,
+          'Connect request contains a pubkey different from this signer'
+        );
         return;
       }
 
@@ -76,10 +78,7 @@ export class HandleNostrConnectRequestTask extends Task<
 
       console.log('[HandleNostrConnectRequestTask] User approval result:', responseStatus);
       if (responseStatus) {
-        return await new SendNostrConnectResponseTask(
-          event,
-          responseStatus,
-        ).run();
+        return await new SendNostrConnectResponseTask(event, responseStatus).run();
       }
 
       return;
@@ -128,7 +127,10 @@ export class HandleNostrConnectRequestTask extends Task<
           const eventToSignObj = JSON.parse(serializedEventToSign);
           const eventToSignKind = eventToSignObj.kind;
           if (!eventToSignKind) {
-            this.declineRequest(event, 'No event to sign in the parameters. Event to sign has no kind');
+            this.declineRequest(
+              event,
+              'No event to sign in the parameters. Event to sign has no kind'
+            );
             return;
           }
 
@@ -137,7 +139,10 @@ export class HandleNostrConnectRequestTask extends Task<
 
           const eventToSignKindStr = String(eventToSignKind);
           if (!allowedKinds.includes(eventToSignKindStr)) {
-            this.declineRequest(event, `Event kind ${eventToSignKind} is not permitted. Allowed kinds: ${allowedKinds.join(', ')}`);
+            this.declineRequest(
+              event,
+              `Event kind ${eventToSignKind} is not permitted. Allowed kinds: ${allowedKinds.join(', ')}`
+            );
             return;
           }
         }
@@ -147,13 +152,12 @@ export class HandleNostrConnectRequestTask extends Task<
         event.nostrClientPubkey,
         methodString,
         nostrClient.client_name ?? 'Nostr client',
-        message.id,
+        message.id
       ).run();
-
 
       return new SendNostrConnectResponseTask(
         event,
-        new NostrConnectResponseStatus.Approved(),
+        new NostrConnectResponseStatus.Approved()
       ).run();
     } catch (_e) {
       this.declineRequest(event, 'Error while checking client permissions');
@@ -253,16 +257,13 @@ class SendNostrConnectResponseTask extends Task<
 }
 Task.register(SendNostrConnectResponseTask);
 
-
 // returns true if the secret was valid and marked as used, false otherwise
 class UseBunkerSecretTransactionalTask extends TransactionalTask<
   [string],
   ['DatabaseService'],
   boolean
 > {
-  constructor(
-    private readonly secret: string,
-  ) {
+  constructor(private readonly secret: string) {
     console.log('[UseSecretTask] starting task');
     super(['DatabaseService'], secret);
     this.expiry = new Date(Date.now());
@@ -270,7 +271,7 @@ class UseBunkerSecretTransactionalTask extends TransactionalTask<
 
   async taskLogic(
     { DatabaseService }: { DatabaseService: DatabaseService },
-    secret: string,
+    secret: string
   ): Promise<boolean> {
     const secretRecord = await DatabaseService.getBunkerSecretOrNull(secret);
     const isSecretValid: boolean = !(secretRecord?.used ?? true);
@@ -279,7 +280,7 @@ class UseBunkerSecretTransactionalTask extends TransactionalTask<
       await DatabaseService.markBunkerSecretAsUsed(secret);
     }
 
-    return isSecretValid
+    return isSecretValid;
   }
 }
 Task.register(UseBunkerSecretTransactionalTask);
@@ -289,9 +290,7 @@ class GetBunkerClientTask extends TransactionalTask<
   ['DatabaseService'],
   AllowedBunkerClientWithDates | null
 > {
-  constructor(
-    private readonly npub: string,
-  ) {
+  constructor(private readonly npub: string) {
     console.log('[GetBunkerClientTask] starting task');
     super(['DatabaseService'], npub);
     this.expiry = new Date(Date.now());
@@ -299,7 +298,7 @@ class GetBunkerClientTask extends TransactionalTask<
 
   async taskLogic(
     { DatabaseService }: { DatabaseService: DatabaseService },
-    npub: string,
+    npub: string
   ): Promise<AllowedBunkerClientWithDates | null> {
     const hexPubkey = keyToHex(npub);
     const client = await DatabaseService.getBunkerClientOrNull(hexPubkey);
@@ -317,7 +316,7 @@ class SaveActivityAndUpdateClientLastSeenTransactionalTask extends Transactional
     private readonly clientNpub: string,
     private readonly methodString: string,
     private readonly clientName: string,
-    private readonly requestId: string,
+    private readonly requestId: string
   ) {
     console.log('[SaveActivityAndUpdateClientLastSeenTransactionalTask] starting task');
     super(['DatabaseService'], clientNpub, methodString, clientName, requestId);

@@ -1,12 +1,18 @@
-import { HandleCancelSubscriptionResponseTask } from "@/queue/tasks/HandleCancelSubscriptionResponse";
-import { HandleCashuBurnRequestTask } from "@/queue/tasks/HandleCashuBurnRequest";
-import { HandleCashuDirectContentTask } from "@/queue/tasks/HandleCashuDirectContent";
-import { HandleNostrConnectRequestTask } from "@/queue/tasks/HandleNostrConnectRequest";
-import { HandleRecurringPaymentRequestTask } from "@/queue/tasks/HandleRecurringPaymentRequest";
-import { HandleSinglePaymentRequestTask } from "@/queue/tasks/HandleSinglePaymentRequest";
-import { ProcessAuthRequestTask } from "@/queue/tasks/ProcessAuthRequest";
-import { enqueueTask } from "@/queue/WorkQueue";
-import { IncomingPaymentRequest_Tags, keyToHex, PortalApp, PortalAppInterface, RecurringPaymentRequest, SinglePaymentRequest } from "portal-app-lib";
+import {
+  IncomingPaymentRequest_Tags,
+  keyToHex,
+  type PortalAppInterface,
+  type RecurringPaymentRequest,
+  type SinglePaymentRequest,
+} from 'portal-app-lib';
+import { HandleCancelSubscriptionResponseTask } from '@/queue/tasks/HandleCancelSubscriptionResponse';
+import { HandleCashuBurnRequestTask } from '@/queue/tasks/HandleCashuBurnRequest';
+import { HandleCashuDirectContentTask } from '@/queue/tasks/HandleCashuDirectContent';
+import { HandleNostrConnectRequestTask } from '@/queue/tasks/HandleNostrConnectRequest';
+import { HandleRecurringPaymentRequestTask } from '@/queue/tasks/HandleRecurringPaymentRequest';
+import { HandleSinglePaymentRequestTask } from '@/queue/tasks/HandleSinglePaymentRequest';
+import { ProcessAuthRequestTask } from '@/queue/tasks/ProcessAuthRequest';
+import { enqueueTask } from '@/queue/WorkQueue';
 
 //cashu receive token
 export async function listenForCashuDirect(app: PortalAppInterface) {
@@ -101,10 +107,7 @@ export async function listenForNostrConnectRequest(app: PortalAppInterface, port
   while (true) {
     try {
       const event = await app.nextNip46Request();
-      const task = new HandleNostrConnectRequestTask(
-        event,
-        keyToHex(portalAppNpub)
-      );
+      const task = new HandleNostrConnectRequestTask(event, keyToHex(portalAppNpub));
       console.log('[PortalAppContext] Enqueuing HandleNostrConnectRequestTask');
       enqueueTask(task);
     } catch (error) {

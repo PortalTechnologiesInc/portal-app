@@ -1,11 +1,11 @@
 import { type CashuLocalStore, CashuWallet, type CashuWalletInterface } from 'portal-app-lib';
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from 'react';
 import { useDatabaseContext } from '@/context/DatabaseContext';
+import { CashuWalletMethodsProvider } from '@/queue/providers/CashuWallets';
+import { ProviderRepository } from '@/queue/WorkQueue';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 import type { DatabaseService } from '@/services/DatabaseService';
 import { getCashuSeedFromKey, hasKey } from '@/utils/keyHelpers';
-import { ProviderRepository } from '@/queue/WorkQueue';
-import { CashuWalletMethodsProvider } from '@/queue/providers/CashuWallets';
 
 // Centralized wallet key creation with unit normalization
 export const createWalletKey = (mintUrl: string, unit: string): string =>
@@ -77,7 +77,7 @@ export function ECashProvider({
         ),
       ]);
 
-      await wallet.restoreProofs().catch(_error => { });
+      await wallet.restoreProofs().catch(_error => {});
 
       setWallets(prev => ({ ...prev, [walletKey]: wallet }));
       return wallet;
@@ -94,7 +94,7 @@ export function ECashProvider({
         delete newMap[walletKey];
         return newMap;
       });
-    } catch (_error) { }
+    } catch (_error) {}
   };
 
   const getWallet = (mintUrl: string, unit: string): CashuWalletInterface | null => {
@@ -112,7 +112,10 @@ export function ECashProvider({
   }, [resetECash]);
 
   useEffect(() => {
-    ProviderRepository.register(new CashuWalletMethodsProvider(addWallet, getWallet, removeWallet), 'CashuWalletMethodsProvider');
+    ProviderRepository.register(
+      new CashuWalletMethodsProvider(addWallet, getWallet, removeWallet),
+      'CashuWalletMethodsProvider'
+    );
   }, [addWallet, getWallet, removeWallet]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: createWalletKey is a pure function defined outside the component, stable and doesn't need to be in dependencies
@@ -155,7 +158,7 @@ export function ECashProvider({
             const [_mintUrl, _unit] = uniquePairs[index];
           }
         });
-      } catch (_error) { }
+      } catch (_error) {}
       setIsLoading(false);
     };
 
@@ -186,7 +189,7 @@ export function useECash() {
 }
 
 class CashuStorage implements CashuLocalStore {
-  constructor(private db: DatabaseService) { }
+  constructor(private db: DatabaseService) {}
 
   async getProofs(
     mintUrl: string | undefined,
