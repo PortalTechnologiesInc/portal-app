@@ -18,5 +18,3 @@ fi
 curl -sS -X POST "${SERVER_URL%/}/eval" \
   -H 'content-type: text/plain; charset=utf-8' \
   --data-binary @"$FILE"
-
-

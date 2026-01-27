@@ -317,7 +317,8 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         // Mark as initialized
         setIsInitialized(true);
         setPublicKey(publicKeyStr);
-      } catch (_error) {
+      } catch (error) {
+        console.error('Failed to initialize NostrService:', error);
         setIsInitialized(false);
       }
     };
@@ -328,7 +329,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     } else {
       // If already initialized, check if instance exists and is working
       try {
-        const _existingInstance = PortalAppManager.tryGetInstance();
+        PortalAppManager.tryGetInstance();
         // If instance exists, we're good - don't re-initialize
       } catch {
         // Instance doesn't exist, re-initialize
@@ -340,7 +341,8 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     return () => {
       abortController.abort();
     };
-  }, [mnemonic, nsec, executeOperation, createRelayStatusListener, isInitialized, publicKey]);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: isInitialized and publicKey are set inside this effect — adding them causes an init→abort→reinit loop that tears down relay connections
+  }, [mnemonic, nsec, executeOperation, createRelayStatusListener]);
 
   // Send auth init
   const sendKeyHandshake = useCallback(
