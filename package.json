@@ -1,5 +1,8 @@
 {
   "name": "cc.getportal.portal",
+  "trustedDependencies": [
+    "@breeztech/breez-sdk-spark-react-native"
+  ],
   "main": "index.ts",
   "version": "1.0.9",
   "type": "module",
