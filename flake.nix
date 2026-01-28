@@ -248,7 +248,8 @@
             name = "rn-shell";
             # Packages included in the environment
             buildInputs = with pkgs; [
-              aider-chat
+              typescript
+              typescript-language-server
               curl
               nodejs_24
               openjdk17

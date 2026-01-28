@@ -1,7 +1,6 @@
 import type {
   KeyHandshakeUrl,
   KeypairInterface,
-  PortalAppInterface,
   Profile,
   RelayStatusListener,
 } from 'portal-app-lib';
@@ -9,11 +8,13 @@ import type React from 'react';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { useDatabaseContext } from '@/context/DatabaseContext';
+import { RelayStatusesProvider } from '@/queue/providers/RelayStatus';
+import { ProviderRepository } from '@/queue/WorkQueue';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 import type { NwcService } from '@/services/NwcService';
 import { PortalAppManager } from '@/services/PortalAppManager';
 import { getKeypairFromKey, hasKey } from '@/utils/keyHelpers';
-import { getServiceNameFromProfile, mapNumericStatusToString } from '@/utils/nostrHelper';
+import { mapNumericStatusToString } from '@/utils/nostrHelper';
 import type { PendingRequest, RelayInfo, WalletInfoState } from '@/utils/types';
 import defaultRelayList from '../assets/DefaultRelays.json';
 import { useOnboarding } from './OnboardingContext';
@@ -23,7 +24,6 @@ export interface NostrServiceContextType {
   isInitialized: boolean;
   publicKey: string | null;
   sendKeyHandshake: (url: KeyHandshakeUrl) => Promise<void>;
-  getServiceName: (app: PortalAppInterface, publicKey: string) => Promise<string | null>;
   setUserProfile: (profile: Profile) => Promise<void>;
   submitNip05: (nip05: string) => Promise<void>;
   submitImage: (imageBase64: string) => Promise<void>;
@@ -140,11 +140,11 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
       onRelayStatusChange: (relay_url: string, status: number): Promise<void> => {
         const execOp = executeOperationRef.current;
         const setStatuses = setRelayStatusesRef.current;
+        const statusString = mapNumericStatusToString(status);
 
         if (!execOp || !setStatuses) {
           // If refs are not available, still try to update status using direct setter
           // This fallback should rarely be needed since refs are set immediately
-          const statusString = mapNumericStatusToString(status);
           setRelayStatuses(prev => {
             const index = prev.findIndex(relay => relay.url === relay_url);
             if (index === -1) {
@@ -162,8 +162,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
         return execOp(db => db.getRelays())
           .then(relays => {
-            const statusString = mapNumericStatusToString(status);
-
             if (!relays.map(r => r.ws_uri).includes(relay_url)) {
               return;
             }
@@ -305,6 +303,12 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         // Start listening and give it a moment to establish connections
         app.listen({ signal: abortController.signal });
 
+        ProviderRepository.register(app, 'PortalAppInterface');
+
+        // Save portal app instance
+        console.log('NostrService initialized successfully with public key:', publicKeyStr);
+        console.log('Running on those relays:', relays);
+
         // Mark as initialized
         setIsInitialized(true);
         setPublicKey(publicKeyStr);
@@ -359,42 +363,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     [isOnboardingComplete]
   );
 
-  // Get service name with database caching
-  const getServiceName = useCallback(
-    async (app: PortalAppInterface, pubKey: string): Promise<string | null> => {
-      // Step 1: Check for valid cached entry (not expired)
-      const cachedName = await executeOperation(db => db.getCachedServiceName(pubKey), null);
-      if (cachedName) {
-        return cachedName;
-      }
-
-      // Step 2: Check relay connection status before attempting network fetch
-      if (
-        !relayStatusesRef.current.length ||
-        relayStatusesRef.current.every(r => r.status !== 'Connected')
-      ) {
-        throw new Error(
-          'No relay connections available. Please check your internet connection and try again.'
-        );
-      }
-
-      // Step 3: Fetch from network
-      const profile = await app.fetchProfile(pubKey);
-
-      // Step 4: Extract service name from profile
-      const serviceName = getServiceNameFromProfile(profile);
-
-      if (serviceName) {
-        // Step 5: Cache the result
-        await executeOperation(db => db.setCachedServiceName(pubKey, serviceName), null);
-        return serviceName;
-      } else {
-        return null;
-      }
-    },
-    [executeOperation]
-  );
-
   const setUserProfile = useCallback(async (profile: Profile) => {
     await PortalAppManager.tryGetInstance().setProfile(profile);
   }, []);
@@ -407,6 +375,13 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   const startPeriodicMonitoring = useCallback(() => {}, []);
 
   const stopPeriodicMonitoring = useCallback(() => {}, []);
+
+  useEffect(() => {
+    ProviderRepository.register(
+      new RelayStatusesProvider(relayStatusesRef),
+      'RelayStatusesProvider'
+    );
+  }, [relayStatusesRef]);
 
   useEffect(() => {
     relayStatusesRef.current = relayStatuses;
@@ -536,7 +511,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     isInitialized,
     publicKey,
     sendKeyHandshake,
-    getServiceName,
     setUserProfile,
     closeRecurringPayment,
     startPeriodicMonitoring,
