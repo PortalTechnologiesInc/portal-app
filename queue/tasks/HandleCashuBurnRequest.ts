@@ -78,10 +78,6 @@ export class HandleCashuBurnRequestTask extends Task<
     }
 
     const status = await new RequireTicketBurnUserApprovalTask(event).run();
-    if (!status) {
-      // if null the app is offline, so a notification might already been scheduled
-      return;
-    }
     return await new SendCashuResponseStatusTask(event, status).run();
   }
 }
@@ -90,7 +86,7 @@ Task.register(HandleCashuBurnRequestTask);
 class RequireTicketBurnUserApprovalTask extends Task<
   [CashuRequestContentWithKey],
   ['PromptUserProvider'],
-  CashuResponseStatus | null
+  CashuResponseStatus
 > {
   constructor(private readonly request: CashuRequestContentWithKey) {
     super(['PromptUserProvider'], request);
@@ -99,7 +95,7 @@ class RequireTicketBurnUserApprovalTask extends Task<
   async taskLogic(
     { PromptUserProvider }: { PromptUserProvider: PromptUserProvider },
     event: CashuRequestContentWithKey
-  ): Promise<CashuResponseStatus | null> {
+  ): Promise<CashuResponseStatus> {
     console.log('[RequireTicketBurnUserApprovalTask] Requesting user approval for:', {
       id: event.inner.requestId,
       type: 'ticket',
@@ -108,9 +104,10 @@ class RequireTicketBurnUserApprovalTask extends Task<
       '[RequireTicketBurnUserApprovalTask] PromptUserProvider available:',
       !!PromptUserProvider
     );
-    return new Promise<CashuResponseStatus | null>(resolve => {
-      // in the PromptUserProvider the promise will be immediatly resolved as null when the app is offline
-      // hence a notification should be shown instead of a pending request and the flow should stop
+    return new Promise<CashuResponseStatus>(resolve => {
+      // in the PromptUserProvider the promise will never be resolved when the app is offline.
+      // that's ok because a notification is sent and the task must be resumed when the app is opened
+      // starting from this task (prompting user with a pending instead of a notification).
       const newPendingRequest: PendingRequest = {
         id: event.inner.requestId,
         metadata: event,

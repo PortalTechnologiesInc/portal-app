@@ -163,11 +163,7 @@ export class HandleSinglePaymentRequestTask extends Task<
           `Payment request of: ${formatAmountToHumanReadable(notificationAmount, notificationCurrency)}`
         ).run();
 
-        if (paymentResponse) {
-          await new SendSinglePaymentResponseTask(request, paymentResponse).run();
-        }
-
-        return;
+        return await new SendSinglePaymentResponseTask(request, paymentResponse).run();
       }
 
       console.log(
@@ -424,7 +420,7 @@ Task.register(ConvertCurrencyTask);
 class RequireSinglePaymentUserApprovalTask extends Task<
   [SinglePaymentRequest, string, string],
   ['PromptUserProvider'],
-  PaymentStatus | null
+  PaymentStatus
 > {
   constructor(
     private readonly request: SinglePaymentRequest,
@@ -439,18 +435,19 @@ class RequireSinglePaymentUserApprovalTask extends Task<
     request: SinglePaymentRequest,
     title: string,
     body: string
-  ): Promise<PaymentStatus | null> {
+  ): Promise<PaymentStatus> {
     console.log('[RequireSinglePaymentUserApprovalTask] Requesting user approval for:', {
       id: request.eventId,
-      type: 'login',
+      type: 'payment',
     });
     console.log(
       '[RequireSinglePaymentUserApprovalTask] SetPendingRequestsProvider available:',
       !!PromptUserProvider
     );
-    return new Promise<PaymentStatus | null>(resolve => {
-      // in the PromptUserProvider the promise will be immediatly resolved as null when the app is offline
-      // hence a notification should be shown instead of a pending request and the flow should stop
+    return new Promise<PaymentStatus>(resolve => {
+      // in the PromptUserProvider the promise will never be resolved when the app is offline.
+      // that's ok because a notification is sent and the task must be resumed when the app is opened
+      // starting from this task (prompting user with a pending instead of a notification).
       const newPendingRequest: PendingRequest = {
         id: request.eventId,
         metadata: request,

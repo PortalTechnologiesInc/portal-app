@@ -48,8 +48,5 @@ export class PromptUserWithNotification implements PromptUserProvider {
     const notificationData = promptData.notification;
 
     this.sendNotification(notificationData);
-
-    // return null in the promise so that the flow stops
-    promptData.pendingRequest.result(null);
   }
 }

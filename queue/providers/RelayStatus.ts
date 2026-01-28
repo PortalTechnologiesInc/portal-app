@@ -8,7 +8,7 @@ export class RelayStatusesProvider {
     return this.relayStatuses.current.some(r => r.connected);
   }
   waitForRelaysConnected(): Promise<void> {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const interval = setInterval(() => {
         if (this.areRelaysConnected()) {
           clearInterval(interval);

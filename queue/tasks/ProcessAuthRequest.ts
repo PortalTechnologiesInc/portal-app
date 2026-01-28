@@ -22,11 +22,6 @@ export class ProcessAuthRequestTask extends Task<[AuthChallengeEvent], [], void>
     const authResponse = await new RequireAuthUserApprovalTask(event).run();
     console.log('[ProcessIncomingRequestTask] User approval result:', authResponse);
 
-    if (!authResponse) {
-      // if null the app is offline, so a notification has already been scheduled
-      return;
-    }
-
     await new SendAuthChallengeResponseTask(event, authResponse).run();
 
     const eventId = event.eventId;
@@ -88,7 +83,7 @@ Task.register(FetchServiceProfileTask);
 class RequireAuthUserApprovalTask extends Task<
   [AuthChallengeEvent],
   ['PromptUserProvider'],
-  AuthResponseStatus | null
+  AuthResponseStatus
 > {
   constructor(event: AuthChallengeEvent) {
     super(['PromptUserProvider'], event);
@@ -97,7 +92,7 @@ class RequireAuthUserApprovalTask extends Task<
   async taskLogic(
     { PromptUserProvider }: { PromptUserProvider: PromptUserProvider },
     event: AuthChallengeEvent
-  ): Promise<AuthResponseStatus | null> {
+  ): Promise<AuthResponseStatus> {
     console.log('[RequireAuthUserApprovalTask] Requesting user approval for:', {
       id: event.eventId,
       type: 'login',
@@ -106,9 +101,10 @@ class RequireAuthUserApprovalTask extends Task<
       '[RequireAuthUserApprovalTask] SetPendingRequestsProvider available:',
       !!PromptUserProvider
     );
-    return new Promise<AuthResponseStatus | null>(resolve => {
-      // in the PromptUserProvider the promise will be immediatly resolved as null when the app is offline
-      // hence a notification should be shown instead of a pending request and the flow should stop
+    return new Promise<AuthResponseStatus>(resolve => {
+      // in the PromptUserProvider the promise will never be resolved when the app is offline.
+      // that's ok because a notification is sent and the task must be resumed when the app is opened
+      // starting from this task (prompting user with a pending instead of a notification).
       const newPendingRequest: PendingRequest = {
         id: event.eventId,
         metadata: event,
