@@ -1,0 +1,8 @@
+appId: cc.getportal.portal
+onFlowComplete:
+  - killApp
+---
+# Bunker connection flow: test Nostr Bunker (NIP-46) remote signing connection.
+# TODO: implement — requires a logged-in user and Bunker connection setup.
+- launchApp
+- takeScreenshot: bunker-step-1

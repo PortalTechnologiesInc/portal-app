@@ -1,7 +1,8 @@
 appId: cc.getportal.portal
-tags:
-  - subscriptions
+onFlowComplete:
+  - killApp
 ---
 # Subscriptions flow: terminate an active subscription.
 # TODO: implement — requires a logged-in user with an active subscription.
 - launchApp
+- takeScreenshot: terminate-subscription-step-1

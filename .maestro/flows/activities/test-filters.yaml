@@ -1,16 +1,30 @@
 appId: cc.getportal.portal
-tags:
-  - activities
+onFlowComplete:
+  - killApp
 ---
+# Activities flow: test filter navigation
+- launchApp
+- takeScreenshot: test-filters-step-1
 - tapOn: Activities
+- takeScreenshot: test-filters-step-2
 - tapOn: Logins
+- takeScreenshot: test-filters-step-3
 - tapOn: Payments
+- takeScreenshot: test-filters-step-4
 - tapOn: Subscriptions
+- takeScreenshot: test-filters-step-5
 - tapOn: Tickets
+- takeScreenshot: test-filters-step-6
 - tapOn: Payments
+- takeScreenshot: test-filters-step-7
 - tapOn: Subscriptions
+- takeScreenshot: test-filters-step-8
 - tapOn: Home
+- takeScreenshot: test-filters-step-9
 - tapOn: Activities
+- takeScreenshot: test-filters-step-10
 - assertVisible: Your activities
+- takeScreenshot: test-filters-step-11
 - tapOn: Home
+- takeScreenshot: test-filters-step-12
 - assertVisible: "Welcome back, .*"

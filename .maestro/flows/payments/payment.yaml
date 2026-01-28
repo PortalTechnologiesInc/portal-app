@@ -1,7 +1,8 @@
 appId: cc.getportal.portal
-tags:
-  - payments
+onFlowComplete:
+  - killApp
 ---
 # Payments flow: handle a payment request (Lightning or Cashu).
 # TODO: implement — requires a logged-in user with a connected wallet.
 - launchApp
+- takeScreenshot: payment-step-1

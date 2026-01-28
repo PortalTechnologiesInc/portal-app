@@ -1,8 +1,8 @@
 appId: cc.getportal.portal
-tags:
-  - camera
-  - wallet
+onFlowComplete:
+  - killApp
 ---
 # Camera flow: scan a QR code for wallet connection (NWC).
 # TODO: implement — requires a logged-in user and a valid NWC QR payload.
 - launchApp
+- takeScreenshot: qr-wallet-step-1

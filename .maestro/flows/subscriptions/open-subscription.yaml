@@ -1,7 +1,8 @@
 appId: cc.getportal.portal
-tags:
-  - subscriptions
+onFlowComplete:
+  - killApp
 ---
 # Subscriptions flow: open and inspect a subscription detail page.
 # TODO: implement — requires a logged-in user with at least one subscription.
 - launchApp
+- takeScreenshot: open-subscription-step-1

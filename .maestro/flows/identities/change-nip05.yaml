@@ -1,30 +1,48 @@
 appId: cc.getportal.portal
-tags:
-  - identities
+onFlowComplete:
+  - killApp
 ---
 # Identities flow: change the NIP-05 identifier.
+- launchApp
+- takeScreenshot: change-nip05-step-1
 - tapOn: npub.*
+- takeScreenshot: change-nip05-step-2
 - longPressOn:
     text: username
     index: 1
+- takeScreenshot: change-nip05-step-3
 - copyTextFrom:
     text: username
     index: 1
+- takeScreenshot: change-nip05-step-4
 - eraseText
+- takeScreenshot: change-nip05-step-5
 - inputText: niptest12312321
+- takeScreenshot: change-nip05-step-6
 - tapOn: Save Changes
+- takeScreenshot: change-nip05-step-7
 - tapOn: Save Changes
+- takeScreenshot: change-nip05-step-8
 - tapOn:
     point: 6%,8%
+- takeScreenshot: change-nip05-step-9
 - assertVisible: "niptest12312321@getportal.cc"
+- takeScreenshot: change-nip05-step-10
 - tapOn: npub.*
+- takeScreenshot: change-nip05-step-11
 - longPressOn:
     text: username
     index: 1
+- takeScreenshot: change-nip05-step-12
 - eraseText
+- takeScreenshot: change-nip05-step-13
 - pasteText
+- takeScreenshot: change-nip05-step-14
 - tapOn: Save Changes
+- takeScreenshot: change-nip05-step-15
 - tapOn: Save Changes
+- takeScreenshot: change-nip05-step-16
 - tapOn:
     point: 6%,8%
+- takeScreenshot: change-nip05-step-17
 - assertVisible: "Welcome back, .*"

@@ -1,0 +1,45 @@
+appId: cc.getportal.portal
+onFlowComplete:
+  - killApp
+---
+# Entrypoint flow: Generate seed phrase onboarding, then run all test suites
+# If onboarding fails, the entire flow fails and aborts
+
+# Step 1: Run onboarding (if this fails, whole flow fails)
+- runFlow: Onboarding/generate.yaml
+
+# Step 2: Run all test suites (these can fail independently)
+# Activities
+- runFlow: activities/open-activity.yaml
+- runFlow: activities/test-filters.yaml
+
+# Camera/QR
+- runFlow: camera/qr-auth.yaml
+- runFlow: camera/qr-ticket.yaml
+- runFlow: camera/qr-wallet.yaml
+
+# Identities
+- runFlow: identities/change-display-name.yaml
+- runFlow: identities/change-nip05.yaml
+- runFlow: identities/change-propic.yaml
+
+# Payments
+- runFlow: payments/payment.yaml
+
+# Settings
+- runFlow: Settings/change-currency.yaml
+- runFlow: Settings/change-relay.yaml
+- runFlow: Settings/change-wallet.yaml
+
+# Subscriptions
+- runFlow: subscriptions/open-subscription.yaml
+- runFlow: subscriptions/subscription.yaml
+- runFlow: subscriptions/terminate-subscription.yaml
+
+# Tickets
+- runFlow: tickets/open-ticket.yaml
+- runFlow: tickets/recover-tickets.yaml
+- runFlow: tickets/spend-ticket.yaml
+
+# Extra
+- runFlow: extra/bunker.yaml
