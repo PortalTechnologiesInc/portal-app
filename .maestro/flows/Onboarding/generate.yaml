@@ -1,8 +1,4 @@
 appId: cc.getportal.portal
-tags:
-  - smoke
-  - onboarding
-  - generate
 ---
 # --- Seed generation screen (shows 1..12 lines like "1. word") ---
 - runFlow: ../reset.yaml

@@ -1,8 +1,4 @@
 appId: cc.getportal.portal
-tags:
-  - smoke
-  - onboarding
-  - import-seed
 ---
 # Onboarding flow test
 - runFlow: ../reset.yaml

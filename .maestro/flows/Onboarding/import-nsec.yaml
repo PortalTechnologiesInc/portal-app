@@ -1,9 +1,5 @@
 appId: cc.getportal.portal
 jsEngine: graaljs
-tags:
-  - smoke
-  - onboarding
-  - import-nsec
 ---
 # Onboarding flow: import an existing nsec.
 

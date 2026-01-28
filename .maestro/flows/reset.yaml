@@ -1,7 +1,4 @@
 appId: cc.getportal.portal
-tags:
-  - reset
-  - cleanup
 ---
 - clearState # Clear current app state
 - launchApp:
