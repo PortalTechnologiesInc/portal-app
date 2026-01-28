@@ -28,6 +28,9 @@ import { DatabaseService } from './DatabaseService';
 import { NwcService } from './NwcService';
 import { PortalAppManager } from './PortalAppManager';
 import { getMnemonic, getWalletUrl } from './SecureStorageService';
+import { ProviderRepository } from '@/queue/WorkQueue';
+import { RelayStatusesProvider } from '@/queue/providers/RelayStatus';
+import type { RefObject } from 'react';
 
 const EXPO_PUSH_TOKEN_KEY = 'expo_push_token_key';
 
@@ -316,6 +319,7 @@ export async function handleHeadlessNotification(_event: string, databaseName: s
         nwcWallet = await NwcService.create(walletUrl);
       }
     } catch (error) {
+      console.error('NWC initialization failed', error);
       await notifyBackgroundError('NWC initialization failed', error);
     }
 
@@ -334,16 +338,17 @@ export async function handleHeadlessNotification(_event: string, databaseName: s
 }
 class NotificationRelayStatusListener implements RelayStatusListener {
   db: DatabaseService;
-  private relayStatuses: RelayInfo[] = [];
+  private relayStatuses: RefObject<RelayInfo[]> = { current: [] };
   private removedRelays: Set<string> = new Set();
   private lastReconnectAttempts: Map<string, number> = new Map();
 
   public constructor(db: DatabaseService) {
     this.db = db;
+    ProviderRepository.register(new RelayStatusesProvider(this.relayStatuses), 'RelayStatusesProvider');
   }
 
   getRelayStatuses(): RelayInfo[] {
-    return [...this.relayStatuses];
+    return [...this.relayStatuses.current];
   }
 
   getRemovedRelays(): Set<string> {
@@ -376,7 +381,7 @@ class NotificationRelayStatusListener implements RelayStatusListener {
       // Check if this relay has been marked as removed by user
       if (this.removedRelays.has(relay_url)) {
         // Don't add removed relays back to the status list
-        this.relayStatuses = this.relayStatuses.filter(relay => relay.url !== relay_url);
+        this.relayStatuses.current = this.relayStatuses.current.filter(relay => relay.url !== relay_url);
         return;
       }
 
@@ -407,27 +412,26 @@ class NotificationRelayStatusListener implements RelayStatusListener {
         }
       }
 
-      const index = this.relayStatuses.findIndex(relay => relay.url === relay_url);
+      const index = this.relayStatuses.current.findIndex(relay => relay.url === relay_url);
       let newStatuses: RelayInfo[];
 
       // If relay is not in the list, add it
       if (index === -1) {
         newStatuses = [
-          ...this.relayStatuses,
+          ...this.relayStatuses.current,
           { url: relay_url, status: statusString, connected: status === 3 },
         ];
       }
       // Otherwise, update the relay list
       else {
         newStatuses = [
-          ...this.relayStatuses.slice(0, index),
+          ...this.relayStatuses.current.slice(0, index),
           { url: relay_url, status: statusString, connected: status === 3 },
-          ...this.relayStatuses.slice(index + 1),
+          ...this.relayStatuses.current.slice(index + 1),
         ];
       }
 
-      this.relayStatuses = newStatuses;
-
+      this.relayStatuses.current = newStatuses;
       return Promise.resolve();
     });
   }

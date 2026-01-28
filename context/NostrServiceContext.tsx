@@ -140,11 +140,11 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
       onRelayStatusChange: (relay_url: string, status: number): Promise<void> => {
         const execOp = executeOperationRef.current;
         const setStatuses = setRelayStatusesRef.current;
+        const statusString = mapNumericStatusToString(status);
 
         if (!execOp || !setStatuses) {
           // If refs are not available, still try to update status using direct setter
           // This fallback should rarely be needed since refs are set immediately
-          const statusString = mapNumericStatusToString(status);
           setRelayStatuses(prev => {
             const index = prev.findIndex(relay => relay.url === relay_url);
             if (index === -1) {
@@ -162,8 +162,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
         return execOp(db => db.getRelays())
           .then(relays => {
-            const statusString = mapNumericStatusToString(status);
-
             if (!relays.map(r => r.ws_uri).includes(relay_url)) {
               return;
             }

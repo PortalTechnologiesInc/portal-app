@@ -77,11 +77,7 @@ export class HandleNostrConnectRequestTask extends Task<[NostrConnectEvent, stri
       ).run();
 
       console.log('[HandleNostrConnectRequestTask] User approval result:', responseStatus);
-      if (responseStatus) {
-        return await new SendNostrConnectResponseTask(event, responseStatus).run();
-      }
-
-      return;
+      return await new SendNostrConnectResponseTask(event, responseStatus).run();
     }
 
     try {
@@ -170,7 +166,7 @@ Task.register(HandleNostrConnectRequestTask);
 class RequireNostrConnectUserApprovalTask extends Task<
   [NostrConnectEvent, string, string],
   ['PromptUserProvider'],
-  NostrConnectResponseStatus | null
+  NostrConnectResponseStatus
 > {
   constructor(
     private readonly event: NostrConnectEvent,
@@ -185,7 +181,7 @@ class RequireNostrConnectUserApprovalTask extends Task<
     event: NostrConnectEvent,
     title: string,
     body: string
-  ): Promise<NostrConnectResponseStatus | null> {
+  ): Promise<NostrConnectResponseStatus> {
     console.log('[RequireNostrConnectUserApprovalTask] Requesting user approval for:', {
       id: event,
       type: 'nostrConnect',
@@ -194,10 +190,11 @@ class RequireNostrConnectUserApprovalTask extends Task<
       '[RequireNostrConnectUserApprovalTask] SetPendingRequestsProvider available:',
       !!PromptUserProvider
     );
-    return new Promise<NostrConnectResponseStatus | null>(resolve => {
+    return new Promise<NostrConnectResponseStatus>(resolve => {
       const id = event.message.inner[0].id;
-      // in the PromptUserProvider the promise will be immediatly resolved as null when the app is offline
-      // hence a notification should be shown instead of a pending request and the flow should stop
+      // in the PromptUserProvider the promise will never be resolved when the app is offline.
+      // that's ok because a notification is sent and the task must be resumed when the app is opened
+      // starting from this task (prompting user with a pending instead of a notification).
       const newPendingRequest: PendingRequest = {
         id: id,
         metadata: event,

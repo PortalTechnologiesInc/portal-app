@@ -22,11 +22,6 @@ export class HandleRecurringPaymentRequestTask extends Task<[RecurringPaymentReq
     ).run();
     console.log('[ProcessIncomingRequestTask] User approval result:', subResponse);
 
-    if (!subResponse) {
-      // if null the app is offline, so a notification has already been scheduled
-      return;
-    }
-
     await new SendRecurringPaymentResponseTask(request, subResponse).run();
 
     const eventId = request.eventId;
@@ -41,7 +36,7 @@ Task.register(HandleRecurringPaymentRequestTask);
 class RequireRecurringPaymentUserApprovalTask extends Task<
   [RecurringPaymentRequest, string, string],
   ['PromptUserProvider'],
-  RecurringPaymentResponseContent | null
+  RecurringPaymentResponseContent
 > {
   constructor(
     private readonly request: RecurringPaymentRequest,
@@ -56,7 +51,7 @@ class RequireRecurringPaymentUserApprovalTask extends Task<
     request: RecurringPaymentRequest,
     title: string,
     body: string
-  ): Promise<RecurringPaymentResponseContent | null> {
+  ): Promise<RecurringPaymentResponseContent> {
     console.log('[RequireRecurringPaymentUserApprovalTask] Requesting user approval for:', {
       id: request.eventId,
       type: 'subscription',
@@ -65,9 +60,10 @@ class RequireRecurringPaymentUserApprovalTask extends Task<
       '[RequireRecurringPaymentUserApprovalTask] SetPendingRequestsProvider available:',
       !!PromptUserProvider
     );
-    return new Promise<RecurringPaymentResponseContent | null>(resolve => {
-      // in the PromptUserProvider the promise will be immediatly resolved as null when the app is offline
-      // hence a notification should be shown instead of a pending request and the flow should stop
+    return new Promise<RecurringPaymentResponseContent>(resolve => {
+      // in the PromptUserProvider the promise will never be resolved when the app is offline.
+      // that's ok because a notification is sent and the task must be resumed when the app is opened
+      // starting from this task (prompting user with a pending instead of a notification).
       const newPendingRequest: PendingRequest = {
         id: request.eventId,
         metadata: request,
