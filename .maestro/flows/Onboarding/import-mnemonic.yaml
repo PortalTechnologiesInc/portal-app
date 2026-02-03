@@ -1,4 +1,6 @@
 appId: cc.getportal.portal
+env:
+  TEST_MNEMONIC: ${MAESTRO_TEST_MNEMONIC}
 ---
 # Onboarding flow test
 - runFlow: ../reset.yaml
@@ -11,7 +13,7 @@ appId: cc.getportal.portal
 - tapOn: "I Understand - Continue"
 - tapOn: "Import Existing Seed Phrase"
 - tapOn: "Enter your 12-word seed phrase separated by spaces"
-- inputText: "machine hollow rather peasant crack rose actor final upgrade rigid amazing garden"
+- inputText: "${TEST_MNEMONIC}"
 - tapOn: "Import"
 
 # Importing a seed phrase should take us to the PIN setup screen.
@@ -20,3 +22,5 @@ appId: cc.getportal.portal
 - tapOn: "Skip"
 - waitForAnimationToEnd
 - assertVisible: "Welcome back, .*"
+- tapOn: 'Dismiss Welcome'
+- assertVisible: 'Pending Requests'

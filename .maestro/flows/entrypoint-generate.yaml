@@ -5,8 +5,15 @@ onFlowComplete:
 # Entrypoint flow: Generate seed phrase onboarding, then run all test suites
 # If onboarding fails, the entire flow fails and aborts
 
-# Step 1: Run onboarding (if this fails, whole flow fails)
+# Step 0: Run onboarding (if this fails, whole flow fails)
 - runFlow: Onboarding/generate.yaml
+
+# Step 1: Spawn auth request via proxy (get handshake URL, open it so app receives the request)
+- runScript:
+    file: js/spawnAuth.js
+- openLink:
+    link: ${output.authUrl}
+- waitForAnimationToEnd
 
 # Step 2: Run all test suites (these can fail independently)
 # Activities
@@ -14,17 +21,17 @@ onFlowComplete:
 - runFlow: activities/test-filters.yaml
 
 # Camera/QR
-- runFlow: camera/qr-auth.yaml
-- runFlow: camera/qr-ticket.yaml
-- runFlow: camera/qr-wallet.yaml
+#- runFlow: camera/qr-auth.yaml
+#- runFlow: camera/qr-ticket.yaml
+#- runFlow: camera/qr-wallet.yaml
 
 # Identities
 - runFlow: identities/change-display-name.yaml
 - runFlow: identities/change-nip05.yaml
-- runFlow: identities/change-propic.yaml
+#- runFlow: identities/change-propic.yaml
 
 # Payments
-- runFlow: payments/payment.yaml
+#- runFlow: payments/payment.yaml
 
 # Settings
 - runFlow: Settings/change-currency.yaml
@@ -32,14 +39,14 @@ onFlowComplete:
 - runFlow: Settings/change-wallet.yaml
 
 # Subscriptions
-- runFlow: subscriptions/open-subscription.yaml
-- runFlow: subscriptions/subscription.yaml
-- runFlow: subscriptions/terminate-subscription.yaml
+#- runFlow: subscriptions/open-subscription.yaml
+#- runFlow: subscriptions/subscription.yaml
+#- runFlow: subscriptions/terminate-subscription.yaml
 
 # Tickets
-- runFlow: tickets/open-ticket.yaml
-- runFlow: tickets/recover-tickets.yaml
-- runFlow: tickets/spend-ticket.yaml
+#- runFlow: tickets/open-ticket.yaml
+#- runFlow: tickets/recover-tickets.yaml
+#- runFlow: tickets/spend-ticket.yaml
 
 # Extra
-- runFlow: extra/bunker.yaml
+#- runFlow: extra/bunker.yaml

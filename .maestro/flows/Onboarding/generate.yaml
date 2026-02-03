@@ -88,3 +88,5 @@ appId: cc.getportal.portal
 - tapOn: 'Skip'
 - waitForAnimationToEnd
 - assertVisible: 'Welcome back, .*'
+- tapOn: 'Dismiss Welcome'
+- assertVisible: 'Pending Requests'
