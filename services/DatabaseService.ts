@@ -518,29 +518,6 @@ export class DatabaseService {
     );
   }
 
-  // Helper method to get upcoming payments
-  async getUpcomingPayments(limit = 5): Promise<UpcomingPayment[]> {
-    const now = toUnixSeconds(Date.now());
-    const subscriptions = await this.db.getAllAsync<SubscriptionRecord>(
-      `SELECT * FROM subscriptions
-       WHERE status = 'active'
-       AND next_payment_date > ?
-       ORDER BY next_payment_date ASC
-       LIMIT ?`,
-      [now, limit]
-    );
-
-    return subscriptions.map(sub => ({
-      id: sub.id,
-      serviceName: sub.service_name,
-      amount: sub.amount,
-      currency: sub.currency as Currency,
-      convertedAmount: sub.converted_amount,
-      convertedCurrency: sub.converted_currency,
-      dueDate: fromUnixSeconds(sub.next_payment_date ?? 0),
-    }));
-  }
-
   // Get payment activities for a specific subscription
   async getSubscriptionPayments(subscriptionId: string): Promise<ActivityWithDates[]> {
     const records = await this.db.getAllAsync<ActivityRecord>(
