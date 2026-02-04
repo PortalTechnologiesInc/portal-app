@@ -127,10 +127,10 @@ export const getActivityDescription = (
         return 'Authentication request';
     }
   } else if (
-    type === 'ticket' ||
-    type === 'ticket_approved' ||
-    type === 'ticket_denied' ||
-    type === 'ticket_received'
+    type === ActivityType.Ticket ||
+    type === ActivityType.TicketApproved ||
+    type === ActivityType.TicketDenied ||
+    type === ActivityType.TicketReceived
   ) {
     switch (status) {
       case 'success':
@@ -143,6 +143,19 @@ export const getActivityDescription = (
         return 'Ticket was received and stored';
       default:
         return 'Ticket activity';
+    }
+  } else if (
+    type === ActivityType.Receive
+  ) {
+    switch (status) {
+      case 'success':
+        return 'Payment was successfully received';
+      case 'failed':
+        return 'Payment could not be received';
+      case 'pending':
+        return 'Payment is being received';
+      default:
+        return 'Incoming payment';
     }
   } else {
     switch (status) {
