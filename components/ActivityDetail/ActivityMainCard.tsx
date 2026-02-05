@@ -44,12 +44,12 @@ export const ActivityMainCard: React.FC<ActivityMainCardProps> = ({
   const statusErrorColor = useThemeColor({}, 'statusError');
 
   const isAuth = activityType === ActivityType.Auth;
-  const isPayment = activityType === ActivityType.Pay;
+  const isPayment = activityType === ActivityType.Pay || activityType === ActivityType.Receive;
   const isTicket =
     activityType === ActivityType.Ticket ||
-    activityType === 'ticket_approved' ||
-    activityType === 'ticket_denied' ||
-    activityType === 'ticket_received';
+    activityType === ActivityType.TicketApproved ||
+    activityType === ActivityType.TicketDenied ||
+    activityType === ActivityType.TicketReceived;
 
   const statusColors = {
     statusConnected: statusConnectedColor,
