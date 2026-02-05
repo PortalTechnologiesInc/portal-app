@@ -282,7 +282,11 @@ const RemoteSigningScreen = () => {
               <ThemedText style={[styles.connectionIndex, { color: textSecondary }]}>
                 {String(index + 1).padStart(2, '0')}
               </ThemedText>
-              <ThemedText style={[styles.connectionTitle, { color: textPrimary }]}>
+              <ThemedText
+                style={[styles.connectionTitle, { color: textPrimary }]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
                 {item.client_name ? item.client_name : item.client_pubkey}
               </ThemedText>
             </View>
