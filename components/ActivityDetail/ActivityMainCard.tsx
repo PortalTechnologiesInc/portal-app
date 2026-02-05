@@ -127,7 +127,7 @@ export const ActivityMainCard: React.FC<ActivityMainCardProps> = ({
       )}
 
       <ThemedText style={[styles.description, { color: secondaryTextColor }]}>
-        {getActivityDescription(activityType, activityStatus, detail)}
+        {getActivityDescription(activityType, activityStatus, detail, amount)}
       </ThemedText>
     </View>
   );

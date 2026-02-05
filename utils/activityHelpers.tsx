@@ -110,7 +110,8 @@ export const getActivityTypeText = (type: string): string => {
 export const getActivityDescription = (
   type: string,
   status: ActivityStatus,
-  detail: string
+  detail: string,
+  amount?: number | null
 ): string => {
   if (type === ActivityType.Auth) {
     switch (status) {
@@ -132,6 +133,20 @@ export const getActivityDescription = (
     type === ActivityType.TicketDenied ||
     type === ActivityType.TicketReceived
   ) {
+    if (amount && amount > 1) {
+      switch (status) {
+        case 'success':
+          return 'Tickets were successfully processed';
+        case 'failed':
+          return 'Tickets processing failed';
+        case 'pending':
+          return 'Tickets are being processed';
+        case 'received':
+          return 'Tickets were received and stored';
+        default:
+          return 'Tickets activity';
+      }
+    }
     switch (status) {
       case 'success':
         return 'Ticket was successfully processed';
