@@ -2,8 +2,8 @@ import * as Clipboard from 'expo-clipboard';
 import * as Constants from 'expo-constants';
 import * as Linking from 'expo-linking';
 import { useLocalSearchParams } from 'expo-router';
-import { keyToHex } from 'portal-app-lib';
 import { AlertCircle, AlertTriangle, XCircle } from 'lucide-react-native';
+import { keyToHex } from 'portal-app-lib';
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Alert, AppState, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,11 +16,11 @@ import { useKey } from '@/context/KeyContext';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { usePendingRequests } from '@/context/PendingRequestsContext';
+import { useTheme } from '@/context/ThemeContext';
 import { useUserProfile } from '@/context/UserProfileContext';
 import { useWalletManager } from '@/context/WalletManagerContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { WALLET_CONNECTION_STATUS, WALLET_TYPE } from '@/models/WalletType';
-import { useTheme } from '@/context/ThemeContext';
 
 const iconMap: Record<string, React.ReactNode> = {
   alert: <AlertTriangle size={48} color="#FFB300" />,

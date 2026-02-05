@@ -1,12 +1,14 @@
 import { type CashuLocalStore, CashuWallet, type CashuWalletInterface } from 'portal-app-lib';
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from 'react';
 import { useDatabaseContext } from '@/context/DatabaseContext';
+import { CashuWalletMethodsProvider } from '@/queue/providers/CashuWallets';
+import { ProviderRepository } from '@/queue/WorkQueue';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 import type { DatabaseService } from '@/services/DatabaseService';
 import { getCashuSeedFromKey, hasKey } from '@/utils/keyHelpers';
 
 // Centralized wallet key creation with unit normalization
-const createWalletKey = (mintUrl: string, unit: string): string =>
+export const createWalletKey = (mintUrl: string, unit: string): string =>
   `${mintUrl}-${unit.toLowerCase()}`;
 
 /**
@@ -108,6 +110,13 @@ export function ECashProvider({
       unregisterContextReset(resetECash);
     };
   }, [resetECash]);
+
+  useEffect(() => {
+    ProviderRepository.register(
+      new CashuWalletMethodsProvider(addWallet, getWallet, removeWallet),
+      'CashuWalletMethodsProvider'
+    );
+  }, [addWallet, getWallet, removeWallet]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: createWalletKey is a pure function defined outside the component, stable and doesn't need to be in dependencies
   useEffect(() => {

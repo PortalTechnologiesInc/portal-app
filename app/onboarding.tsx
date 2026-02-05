@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Clipboard from 'expo-clipboard';
+import { useLocalSearchParams } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import {
   AlertTriangle,
@@ -12,7 +13,6 @@ import {
   Zap,
 } from 'lucide-react-native';
 import { generateMnemonic, Mnemonic, Nsec } from 'portal-app-lib';
-import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -39,9 +39,9 @@ import { useNostrService } from '@/context/NostrServiceContext';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { useUserProfile } from '@/context/UserProfileContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { generateRandomGamertag } from '@/utils/common';
 import { WALLET_TYPE } from '@/models/WalletType';
 import { PIN_MAX_LENGTH, PIN_MIN_LENGTH } from '@/services/AppLockService';
+import { generateRandomGamertag } from '@/utils/common';
 import { showToast } from '@/utils/Toast';
 
 // Preload all required assets

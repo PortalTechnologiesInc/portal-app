@@ -166,7 +166,7 @@ export interface Ticket {
  */
 export interface PendingRequest {
   id: string;
-  metadata: unknown; // Portal-app-lib types (AuthChallengeEvent | RecurringPaymentRequest | SinglePaymentRequest)
+  metadata: unknown; // Portal-app-lib types (AuthChallengeEvent | RecurringPaymentRequest | SinglePaymentRequest | NostrConnectEvent)
   type: PendingRequestType;
   timestamp: Date;
   result: (value: any) => void; // Portal-app-lib response types (AuthResponseStatus | PaymentResponseContent | RecurringPaymentResponseContent)
