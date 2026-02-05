@@ -1,0 +1,8 @@
+appId: cc.getportal.portal
+onFlowComplete:
+  - killApp
+---
+# Camera flow: scan a QR code for ticket redemption.
+# TODO: implement — requires a logged-in user and a valid ticket QR payload.
+- launchApp
+- takeScreenshot: qr-ticket-step-1

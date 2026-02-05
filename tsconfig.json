@@ -37,12 +37,7 @@
   ],
   "exclude": [
     "node_modules",
-    "**/node_modules/**",
-    "node_modules/**",
-    "**/node_modules/**/*.ts",
-    "**/node_modules/**/*.tsx",
     ".expo",
-    ".expo/**",
     "android",
     "ios",
     "build",

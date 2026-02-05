@@ -1,0 +1,5 @@
+appId: cc.getportal.portal
+---
+- clearState # Clear current app state
+- launchApp:
+    clearState: true # Clear app state before launching

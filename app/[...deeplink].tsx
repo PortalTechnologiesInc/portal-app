@@ -14,7 +14,7 @@ export default function DeeplinkHandler() {
 
   useEffect(() => {
     if (!isOnboardingComplete) {
-      router.replace('/onboarding');
+      router.replace('/(onboarding)/welcome');
       return;
     }
     if (!isInitialized) return;

@@ -2,8 +2,8 @@ import * as Clipboard from 'expo-clipboard';
 import * as Constants from 'expo-constants';
 import * as Linking from 'expo-linking';
 import { useLocalSearchParams } from 'expo-router';
-import { keyToHex } from 'portal-app-lib';
 import { AlertCircle, AlertTriangle, XCircle } from 'lucide-react-native';
+import { keyToHex } from 'portal-app-lib';
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Alert, AppState, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,11 +16,11 @@ import { useKey } from '@/context/KeyContext';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { usePendingRequests } from '@/context/PendingRequestsContext';
+import { useTheme } from '@/context/ThemeContext';
 import { useUserProfile } from '@/context/UserProfileContext';
 import { useWalletManager } from '@/context/WalletManagerContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { WALLET_CONNECTION_STATUS, WALLET_TYPE } from '@/models/WalletType';
-import { useTheme } from '@/context/ThemeContext';
 
 const iconMap: Record<string, React.ReactNode> = {
   alert: <AlertTriangle size={48} color="#FFB300" />,
@@ -32,7 +32,7 @@ const iconMap: Record<string, React.ReactNode> = {
 // Moved outside component to avoid useExhaustiveDependencies warnings in useMemo hooks
 const sanitizeForReact = (obj: any): any => {
   if (obj === null || obj === undefined) return obj;
-  if (typeof obj === 'bigint') return obj.toString() + 'n';
+  if (typeof obj === 'bigint') return `${obj.toString()}n`;
   if (Array.isArray(obj)) return obj.map(sanitizeForReact);
   if (obj instanceof Map) {
     const sanitized = new Map();
@@ -162,7 +162,7 @@ export default function ErrorScreen() {
     if (typeof value === 'boolean') return value ? 'true' : 'false';
     if (typeof value === 'string') return value || '(empty)';
     if (typeof value === 'number') return value.toString();
-    if (typeof value === 'bigint') return value.toString() + 'n';
+    if (typeof value === 'bigint') return `${value.toString()}n`;
     if (Array.isArray(value)) return `[${value.length} items]`;
     if (value instanceof Map) {
       const entries = Array.from(value.entries())
@@ -175,7 +175,7 @@ export default function ErrorScreen() {
         // Handle BigInt in objects by converting to string
         return JSON.stringify(
           value,
-          (_key, val) => (typeof val === 'bigint' ? val.toString() + 'n' : val),
+          (_key, val) => (typeof val === 'bigint' ? `${val.toString()}n` : val),
           2
         );
       } catch {

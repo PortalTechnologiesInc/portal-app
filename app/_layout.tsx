@@ -12,6 +12,7 @@ import { AppLifecycleHandler } from '@/components/AppLifecycleHandler';
 import { AppLockScreen } from '@/components/AppLockScreen';
 import { DevTag } from '@/components/DevTag';
 import { Colors } from '@/constants/Colors';
+import { DATABASE_NAME } from '@/constants/Database';
 import { ActivitiesProvider } from '@/context/ActivitiesContext';
 import { AppLockProvider } from '@/context/AppLockContext';
 import { CurrencyProvider } from '@/context/CurrencyContext';
@@ -33,9 +34,6 @@ import registerPubkeysForPushNotificationsAsync from '@/services/NotificationSer
 
 // Prevent splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
-
-// Database name constant to ensure consistency
-export const DATABASE_NAME = 'portal-app.db';
 
 const NotificationConfigurator = () => {
   const { publicKey } = useNostrService();
@@ -124,7 +122,12 @@ const AuthenticatedAppContent = () => {
                   <PaymentControllerProvider>
                     <DeeplinkProvider>
                       <NotificationConfigurator />
-                      <Stack screenOptions={{ headerShown: false }} />
+                      <Stack
+                        screenOptions={{
+                          headerShown: false,
+                          contentStyle: { backgroundColor },
+                        }}
+                      />
                     </DeeplinkProvider>
                   </PaymentControllerProvider>
                 </PendingRequestsProvider>

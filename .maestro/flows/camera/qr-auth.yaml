@@ -1,0 +1,8 @@
+appId: cc.getportal.portal
+onFlowComplete:
+  - killApp
+---
+# Camera flow: scan a QR code for Nostr authentication.
+# TODO: implement — requires a logged-in user and a valid auth QR payload.
+- launchApp
+- takeScreenshot: qr-auth-step-1

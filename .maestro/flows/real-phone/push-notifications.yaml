@@ -1,0 +1,24 @@
+appId: cc.getportal.portal
+tags:
+  - manual
+  - push
+onFlowComplete:
+  - killApp
+---
+# Push notification tests
+# WARNING: These tests require a physical device (not emulator/simulator)
+# Real device tokens are needed for APNs (iOS) and FCM (Android)
+
+- launchApp
+- takeScreenshot: push-notifications-step-1
+- waitForAnimationToEnd
+- takeScreenshot: push-notifications-step-2
+- assertVisible: "Portal"
+- takeScreenshot: push-notifications-step-3
+
+# Note: Add push notification test steps here
+# Example steps (uncomment and modify as needed):
+# - sendNotification:
+#     title: "Test Notification"
+#     body: "This is a test notification"
+# - assertVisible: "Test Notification"

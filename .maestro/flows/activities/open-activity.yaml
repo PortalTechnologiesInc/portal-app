@@ -1,0 +1,33 @@
+appId: cc.getportal.portal
+onFlowComplete:
+  - killApp
+---
+# Activities flow: open and inspect an activity detail page.
+- launchApp
+- takeScreenshot: open-activity-step-1
+- assertVisible: Payment
+- takeScreenshot: open-activity-step-2
+- tapOn: Payment
+- takeScreenshot: open-activity-step-3
+- assertNotVisible: Undefined
+- takeScreenshot: open-activity-step-4
+- assertNotVisible: undefined
+- takeScreenshot: open-activity-step-5
+- assertNotVisible: N/A
+- takeScreenshot: open-activity-step-6
+- assertNotVisible: n/a
+- takeScreenshot: open-activity-step-7
+- scrollUntilVisible:
+    element: .* Information
+- takeScreenshot: open-activity-step-8
+- assertNotVisible: Undefined
+- takeScreenshot: open-activity-step-9
+- assertNotVisible: undefined
+- takeScreenshot: open-activity-step-10
+- assertNotVisible: N/A
+- takeScreenshot: open-activity-step-11
+- assertNotVisible: n/a
+- takeScreenshot: open-activity-step-12
+- tapOn: 
+- takeScreenshot: open-activity-step-13
+- assertVisible: "Welcome back, .*"

@@ -1,0 +1,10 @@
+# Maestro ignore patterns
+node_modules/
+.git/
+*.log
+.DS_Store
+android/
+ios/
+.expo/
+dist/
+build/
