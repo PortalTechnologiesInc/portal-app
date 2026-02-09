@@ -4,7 +4,7 @@ import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 import { AppState } from 'react-native';
 import { handleHeadlessNotification } from '@/services/NotificationService';
-import { DATABASE_NAME } from './app/_layout';
+import { DATABASE_NAME } from './constants/Database';
 
 // Import expo-router entry point - must be imported for app to work
 import 'expo-router/entry';
