@@ -350,4 +350,3 @@ export const onboardingStyles = StyleSheet.create({
     marginBottom: -50,
   },
 });
-

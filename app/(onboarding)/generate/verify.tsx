@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
 import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
@@ -11,11 +12,10 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as SecureStore from 'expo-secure-store';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
 import { OnboardingHeader } from '@/components/onboarding/OnboardingHeader';
 import { onboardingStyles as styles } from '@/components/onboarding/styles';
+import { ThemedText } from '@/components/ThemedText';
+import { ThemedView } from '@/components/ThemedView';
 import { useKey } from '@/context/KeyContext';
 import { SEED_ORIGIN_KEY, useOnboardingFlow } from '@/context/OnboardingFlowContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
@@ -39,7 +39,7 @@ export default function VerifySeed() {
   useEffect(() => {
     // Don't redirect if we're in the middle of verifying
     if (isVerifying) return;
-    
+
     if (!seedPhrase || !verificationChallenge) {
       router.replace('/(onboarding)/generate');
     }
@@ -64,8 +64,10 @@ export default function VerifySeed() {
   const handleVerificationComplete = async () => {
     if (!verificationChallenge) return;
 
-    const isWord1Correct = word1.trim().toLowerCase() === verificationChallenge.word1.value.toLowerCase();
-    const isWord2Correct = word2.trim().toLowerCase() === verificationChallenge.word2.value.toLowerCase();
+    const isWord1Correct =
+      word1.trim().toLowerCase() === verificationChallenge.word1.value.toLowerCase();
+    const isWord2Correct =
+      word2.trim().toLowerCase() === verificationChallenge.word2.value.toLowerCase();
 
     if (!isWord1Correct || !isWord2Correct) {
       Alert.alert(
@@ -96,11 +98,11 @@ export default function VerifySeed() {
     try {
       await setMnemonic(seedPhrase);
       await SecureStore.setItemAsync(SEED_ORIGIN_KEY, 'generated');
-      
+
       // Clear state after saving
       clearVerificationChallenge();
       clearSeedPhrase();
-      
+
       // Navigate to PIN setup
       router.push('/(onboarding)/pin-setup');
     } catch (_error) {
@@ -144,7 +146,7 @@ export default function VerifySeed() {
                     Enter word #{verificationChallenge.word1.index + 1}:
                   </ThemedText>
                   <TextInput
-                    testID='verification-input-1'
+                    testID="verification-input-1"
                     style={[
                       styles.verificationInput,
                       { backgroundColor: inputBackground, color: textPrimary },
@@ -161,7 +163,7 @@ export default function VerifySeed() {
                     Enter word #{verificationChallenge.word2.index + 1}:
                   </ThemedText>
                   <TextInput
-                    testID='verification-input-2'
+                    testID="verification-input-2"
                     style={[
                       styles.verificationInput,
                       { backgroundColor: inputBackground, color: textPrimary },
