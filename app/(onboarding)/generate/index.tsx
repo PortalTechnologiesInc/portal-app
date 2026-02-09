@@ -96,7 +96,11 @@ export default function GenerateSeed() {
                     key={`word-${index}-${word}`}
                     style={[styles.wordContainer, { backgroundColor: surfaceSecondary }]}
                   >
-                    <ThemedText style={styles.wordText}>
+                    <ThemedText 
+                      testID={`word-${index + 1}`}
+                      style={styles.wordText}
+                      selectable={true}
+                    >
                       {index + 1}. {word}
                     </ThemedText>
                   </View>
@@ -129,4 +133,3 @@ export default function GenerateSeed() {
     </SafeAreaView>
   );
 }
-
