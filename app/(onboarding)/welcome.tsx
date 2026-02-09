@@ -1,12 +1,12 @@
 import { router } from 'expo-router';
+import { ArrowRight, Shield, Zap } from 'lucide-react-native';
 import { useEffect } from 'react';
 import { BackHandler, Image, Platform, ScrollView, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowRight, Shield, Zap } from 'lucide-react-native';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
 import { onboardingLogo } from '@/components/onboarding/assets';
 import { onboardingStyles as styles } from '@/components/onboarding/styles';
+import { ThemedText } from '@/components/ThemedText';
+import { ThemedView } from '@/components/ThemedView';
 import { useThemeColor } from '@/hooks/useThemeColor';
 
 export default function Welcome() {
@@ -38,9 +38,7 @@ export default function Welcome() {
               <ThemedText type="title" style={styles.mainTitle}>
                 Welcome to Portal
               </ThemedText>
-              <ThemedText style={styles.subtitle}>
-                Your sovereign digital identity app
-              </ThemedText>
+              <ThemedText style={styles.subtitle}>Your sovereign digital identity app</ThemedText>
 
               <View style={styles.featureContainer}>
                 <View style={[styles.featureCard, { backgroundColor: cardBackgroundColor }]}>
@@ -82,4 +80,3 @@ export default function Welcome() {
     </SafeAreaView>
   );
 }
-

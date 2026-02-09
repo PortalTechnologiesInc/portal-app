@@ -1,13 +1,13 @@
 import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
 import { useCallback, useEffect } from 'react';
 import { BackHandler, Platform, ScrollView, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as SecureStore from 'expo-secure-store';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
 import { OnboardingHeader } from '@/components/onboarding/OnboardingHeader';
 import { onboardingStyles as styles } from '@/components/onboarding/styles';
+import { ThemedText } from '@/components/ThemedText';
+import { ThemedView } from '@/components/ThemedView';
 import { useKey } from '@/context/KeyContext';
 import { SEED_ORIGIN_KEY, useOnboardingFlow } from '@/context/OnboardingFlowContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
@@ -96,7 +96,7 @@ export default function GenerateSeed() {
                     key={`word-${index}-${word}`}
                     style={[styles.wordContainer, { backgroundColor: surfaceSecondary }]}
                   >
-                    <ThemedText 
+                    <ThemedText
                       testID={`word-${index + 1}`}
                       style={styles.wordText}
                       selectable={true}

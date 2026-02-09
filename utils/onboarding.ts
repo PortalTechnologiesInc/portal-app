@@ -40,7 +40,9 @@ export function validateImportedNsec(nsec: string): ValidationResult {
     return {
       isValid: false,
       error:
-        error instanceof Error ? error.message : 'Invalid Nsec. Please check your Nsec and try again.',
+        error instanceof Error
+          ? error.message
+          : 'Invalid Nsec. Please check your Nsec and try again.',
     };
   }
 }
@@ -66,4 +68,3 @@ export function createVerificationChallenge(seedPhrase: string): VerificationCha
     word2: { index: secondIndex, value: words[secondIndex] },
   };
 }
-

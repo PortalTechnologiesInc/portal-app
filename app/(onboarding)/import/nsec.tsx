@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
 import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
@@ -12,7 +13,6 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as SecureStore from 'expo-secure-store';
 import { OnboardingHeader } from '@/components/onboarding/OnboardingHeader';
 import { onboardingStyles as styles } from '@/components/onboarding/styles';
 import { ThemedText } from '@/components/ThemedText';
@@ -103,9 +103,7 @@ export default function ImportNsec() {
                   <ThemedText type="title" style={styles.title}>
                     Import Nsec
                   </ThemedText>
-                  <ThemedText style={styles.subtitle}>
-                    Enter your Nsec private key
-                  </ThemedText>
+                  <ThemedText style={styles.subtitle}>Enter your Nsec private key</ThemedText>
                 </View>
 
                 <View style={styles.inputContainer}>
@@ -128,11 +126,7 @@ export default function ImportNsec() {
             </ScrollView>
 
             <View
-              style={[
-                styles.footer,
-                styles.footerStack,
-                isKeyboardVisible && styles.footerCompact,
-              ]}
+              style={[styles.footer, styles.footerStack, isKeyboardVisible && styles.footerCompact]}
             >
               <TouchableOpacity
                 style={[styles.button, styles.finishButton, { backgroundColor: buttonPrimary }]}
@@ -149,4 +143,3 @@ export default function ImportNsec() {
     </SafeAreaView>
   );
 }
-
