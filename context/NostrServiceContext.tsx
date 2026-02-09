@@ -138,6 +138,9 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   const createRelayStatusListener = useCallback((): RelayStatusListener => {
     return {
       onRelayStatusChange: (relay_url: string, status: number): Promise<void> => {
+        console.log(
+          `Relay status change: ${relay_url} -> ${status} (${mapNumericStatusToString(status)})`
+        );
         const execOp = executeOperationRef.current;
         const setStatuses = setRelayStatusesRef.current;
         const statusString = mapNumericStatusToString(status);
@@ -170,6 +173,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
               // Check if this relay has been marked as removed by user
               if (removedRelaysRef.current.has(relay_url)) {
                 // Don't add removed relays back to the status list
+                console.log(`Ignoring status update for removed relay: ${relay_url}`);
                 return prev.filter(relay => relay.url !== relay_url);
               }
 
@@ -275,16 +279,19 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
           const dbRelays = (await executeOperation(db => db.getRelays(), [])).map(
             relay => relay.ws_uri
           );
+          console.log('Database relays:', dbRelays);
           if (dbRelays.length > 0) {
             relays = dbRelays;
           } else {
             // If no relays in database, use defaults and update database
             relays = [...defaultRelayList];
+            console.log('Using default relays:', relays);
             await executeOperation(db => db.updateRelays(defaultRelayList), null);
           }
         } catch (_error) {
           // Fallback to default relays if database access fails
           relays = [...defaultRelayList];
+          console.log('Database error, using default relays:', relays);
           await executeOperation(db => db.updateRelays(defaultRelayList), null);
         }
 
@@ -298,9 +305,11 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         }
 
         const listener = createRelayStatusListener();
+        console.log('Creating PortalAppManager with relays:', relays);
         const app = await PortalAppManager.getInstance(keypair, relays, listener);
 
         // Start listening and give it a moment to establish connections
+        console.log('Starting app.listen()...');
         app.listen({ signal: abortController.signal });
 
         ProviderRepository.register(app, 'PortalAppInterface');
@@ -324,7 +333,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     } else {
       // If already initialized, check if instance exists and is working
       try {
-        const existingInstance = PortalAppManager.tryGetInstance();
+        PortalAppManager.tryGetInstance();
         // If instance exists, we're good - don't re-initialize
       } catch {
         // Instance doesn't exist, re-initialize
@@ -336,7 +345,8 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     return () => {
       abortController.abort();
     };
-  }, [mnemonic, nsec, executeOperation]);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: isInitialized and publicKey are set inside this effect — adding them causes an init→abort→reinit loop that tears down relay connections
+  }, [mnemonic, nsec, executeOperation, createRelayStatusListener]);
 
   // Send auth init
   const sendKeyHandshake = useCallback(
@@ -385,6 +395,11 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
 
   useEffect(() => {
     relayStatusesRef.current = relayStatuses;
+    console.log('Relay statuses updated:', {
+      count: relayStatuses.length,
+      connected: relayStatuses.filter(r => r.connected).length,
+      relays: relayStatuses.map(r => ({ url: r.url, status: r.status, connected: r.connected })),
+    });
   }, [relayStatuses]);
 
   useEffect(() => {
@@ -404,12 +419,10 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     // Update ref immediately for status listener
     removedRelaysRef.current.add(relayUrl);
 
-    // Defer state updates to next tick to avoid setState during render
-    setTimeout(() => {
-      setRemovedRelays(prev => new Set([...prev, relayUrl]));
-      // Also immediately remove it from relay statuses to avoid showing disconnected removed relays
-      setRelayStatuses(prev => prev.filter(relay => relay.url !== relayUrl));
-    }, 0);
+    // Update state synchronously to avoid race conditions
+    setRemovedRelays(prev => new Set([...prev, relayUrl]));
+    // Also immediately remove it from relay statuses to avoid showing disconnected removed relays
+    setRelayStatuses(prev => prev.filter(relay => relay.url !== relayUrl));
   }, []);
 
   const clearRemovedRelay = useCallback((relayUrl: string) => {
