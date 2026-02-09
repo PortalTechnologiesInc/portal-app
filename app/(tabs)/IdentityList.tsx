@@ -146,8 +146,10 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
         setLocalAvatarRefreshKey(Date.now());
         previousAvatarUriRef.current = newUri;
       }
-    } catch (_error) {
-      Alert.alert('Error', 'Failed to select image. Please try again.');
+    } catch (error) {
+      console.error('Error selecting image:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to select image';
+      Alert.alert('Error', `${errorMessage}. Please try again.`);
     } finally {
       // Clear file picker active flag and disable lock suppression
       // Use setTimeout to ensure this happens after app state transitions complete
@@ -218,6 +220,7 @@ export default function IdentityList({ onManageIdentity }: IdentityListProps) {
       // Show success message
       showToast('Updated profile', 'success');
     } catch (error) {
+      console.error('Error saving profile:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to save profile';
       showToast(errorMessage, 'error');
 

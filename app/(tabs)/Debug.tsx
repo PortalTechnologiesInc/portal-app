@@ -80,7 +80,7 @@ function ReactStateMonitor({
     if (Array.isArray(value)) return `[${value.length}]`;
     if (value instanceof Map) return `Map(${value.size})`;
     if (value instanceof Set) return `Set(${value.size})`;
-    if (typeof value === 'object') return JSON.stringify(value).substring(0, 30) + '...';
+    if (typeof value === 'object') return `${JSON.stringify(value).substring(0, 30)}...`;
     return String(value);
   };
 

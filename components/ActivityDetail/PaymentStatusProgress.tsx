@@ -26,8 +26,7 @@ export const convertPaymentStatusToSteps = (
     invoice: string;
     action_type: 'payment_started' | 'payment_completed' | 'payment_failed';
     created_at: Date;
-  }>,
-  receiving = false,
+  }>
 ): PaymentStep[] => {
   const steps: PaymentStep[] = [];
   let stepId = 1;
@@ -40,14 +39,14 @@ export const convertPaymentStatusToSteps = (
           id: `${stepId++}`,
           status: 'success',
           title: 'Payment started',
-          subtitle: receiving ? 'Payment has been created' : 'Your payment has been created',
+          subtitle: 'Your payment has been created',
           timestamp: entry.created_at,
         });
         steps.push({
           id: `${stepId++}`,
           status: 'pending',
           title: 'Pending...',
-          subtitle: receiving ? 'Payment is processing' : 'Processing your payment',
+          subtitle: 'Processing your payment',
           timestamp: entry.created_at,
         });
         break;
@@ -65,7 +64,7 @@ export const convertPaymentStatusToSteps = (
             ...steps[lastPendingIndex],
             status: 'success',
             title: 'Payment completed',
-            subtitle: receiving ? 'Payment was received' : 'Your payment was successful',
+            subtitle: 'Your payment was successful',
             timestamp: entry.created_at,
           };
         } else {
@@ -74,7 +73,7 @@ export const convertPaymentStatusToSteps = (
             id: `${stepId++}`,
             status: 'success',
             title: 'Payment completed',
-            subtitle: receiving ? 'Payment was received' : 'Your payment was successful',
+            subtitle: 'Your payment was successful',
             timestamp: entry.created_at,
           });
         }
