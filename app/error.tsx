@@ -32,7 +32,7 @@ const iconMap: Record<string, React.ReactNode> = {
 // Moved outside component to avoid useExhaustiveDependencies warnings in useMemo hooks
 const sanitizeForReact = (obj: any): any => {
   if (obj === null || obj === undefined) return obj;
-  if (typeof obj === 'bigint') return obj.toString() + 'n';
+  if (typeof obj === 'bigint') return `${obj.toString()}n`;
   if (Array.isArray(obj)) return obj.map(sanitizeForReact);
   if (obj instanceof Map) {
     const sanitized = new Map();
@@ -162,7 +162,7 @@ export default function ErrorScreen() {
     if (typeof value === 'boolean') return value ? 'true' : 'false';
     if (typeof value === 'string') return value || '(empty)';
     if (typeof value === 'number') return value.toString();
-    if (typeof value === 'bigint') return value.toString() + 'n';
+    if (typeof value === 'bigint') return `${value.toString()}n`;
     if (Array.isArray(value)) return `[${value.length} items]`;
     if (value instanceof Map) {
       const entries = Array.from(value.entries())
@@ -175,7 +175,7 @@ export default function ErrorScreen() {
         // Handle BigInt in objects by converting to string
         return JSON.stringify(
           value,
-          (_key, val) => (typeof val === 'bigint' ? val.toString() + 'n' : val),
+          (_key, val) => (typeof val === 'bigint' ? `${val.toString()}n` : val),
           2
         );
       } catch {
