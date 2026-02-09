@@ -1,10 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { generateMnemonic } from 'portal-app-lib';
 import type React from 'react';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { generateMnemonic } from 'portal-app-lib';
 import { WALLET_TYPE } from '@/models/WalletType';
-import { showToast } from '@/utils/Toast';
 import { createVerificationChallenge, type VerificationChallenge } from '@/utils/onboarding';
+import { showToast } from '@/utils/Toast';
 
 // Key to track if seed was generated or imported (used by profile setup step)
 export const SEED_ORIGIN_KEY = 'portal_seed_origin';
@@ -100,7 +100,7 @@ export const OnboardingFlowProvider: React.FC<{ children: React.ReactNode }> = (
   // Defensive: if seed phrase changes, the previous challenge is no longer valid.
   useEffect(() => {
     setVerificationChallenge(null);
-  }, [seedPhrase]);
+  }, []);
 
   const value = useMemo<OnboardingFlowContextType>(
     () => ({
@@ -123,7 +123,6 @@ export const OnboardingFlowProvider: React.FC<{ children: React.ReactNode }> = (
     }),
     [
       seedPhrase,
-      setSeedPhrase,
       clearSeedPhrase,
       generateNewSeedPhrase,
       verificationChallenge,
@@ -146,4 +145,3 @@ export function useOnboardingFlow() {
   }
   return context;
 }
-

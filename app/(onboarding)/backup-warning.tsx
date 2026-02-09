@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { AlertTriangle, CheckCircle } from 'lucide-react-native';
-import { useWindowDimensions, ScrollView, TouchableOpacity, View } from 'react-native';
+import { ScrollView, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { OnboardingHeader } from '@/components/onboarding/OnboardingHeader';
 import { onboardingStyles as styles } from '@/components/onboarding/styles';
@@ -101,4 +101,3 @@ export default function BackupWarning() {
     </SafeAreaView>
   );
 }
-

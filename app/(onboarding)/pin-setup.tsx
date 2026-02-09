@@ -3,15 +3,15 @@ import { Shield } from 'lucide-react-native';
 import { useCallback, useEffect, useState } from 'react';
 import { BackHandler, Platform, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { OnboardingHeader } from '@/components/onboarding/OnboardingHeader';
+import { onboardingStyles as styles } from '@/components/onboarding/styles';
 import { PINKeypad } from '@/components/PINKeypad';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { OnboardingHeader } from '@/components/onboarding/OnboardingHeader';
-import { onboardingStyles as styles } from '@/components/onboarding/styles';
 import { useAppLock } from '@/context/AppLockContext';
 import { useOnboardingFlow } from '@/context/OnboardingFlowContext';
-import { PIN_MAX_LENGTH, PIN_MIN_LENGTH } from '@/services/AppLockService';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { PIN_MAX_LENGTH, PIN_MIN_LENGTH } from '@/services/AppLockService';
 
 export default function PinSetup() {
   const { setupPIN, setLockEnabled } = useAppLock();
@@ -103,7 +103,9 @@ export default function PinSetup() {
             <View style={styles.pinKeypadContainer}>
               <View style={styles.pinErrorContainer}>
                 {pinError ? (
-                  <ThemedText style={[styles.errorText, styles.pinErrorText, { color: buttonDanger }]}>
+                  <ThemedText
+                    style={[styles.errorText, styles.pinErrorText, { color: buttonDanger }]}
+                  >
                     {pinError}
                   </ThemedText>
                 ) : null}
@@ -129,4 +131,3 @@ export default function PinSetup() {
     </SafeAreaView>
   );
 }
-

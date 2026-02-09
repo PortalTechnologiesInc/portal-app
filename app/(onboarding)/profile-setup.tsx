@@ -1,11 +1,11 @@
 import { router } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
 import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as SecureStore from 'expo-secure-store';
+import { onboardingStyles as styles } from '@/components/onboarding/styles';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { onboardingStyles as styles } from '@/components/onboarding/styles';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { SEED_ORIGIN_KEY } from '@/context/OnboardingFlowContext';
 import { useUserProfile } from '@/context/UserProfileContext';
@@ -93,4 +93,3 @@ export default function ProfileSetup() {
     </SafeAreaView>
   );
 }
-
