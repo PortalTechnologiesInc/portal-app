@@ -41,36 +41,57 @@ Portal is a mobile identity wallet for secure authentication and payments using 
 
 ### Core Technologies
 
-- **[React Native](https://reactnative.dev/)** - Cross-platform mobile development
-- **[Expo](https://expo.dev/)** - Development platform and SDK
-- **[TypeScript](https://www.typescriptlang.org/)** - Type-safe development
-- **[Expo Router](https://docs.expo.dev/router/introduction/)** - File-based navigation
+- **[React Native](https://reactnative.dev/)** - Cross-platform mobile development (New Architecture enabled)
+- **[Expo](https://expo.dev/)** SDK 53 - Development platform and SDK
+- **[TypeScript](https://www.typescriptlang.org/)** - Type-safe development with strict mode
+- **[Expo Router](https://docs.expo.dev/router/introduction/)** - File-based navigation with typed routes
 
 ### Storage & Security
 
-- **[Expo SQLite](https://docs.expo.dev/versions/latest/sdk/sqlite/)** - Local database storage
+- **[Expo SQLite](https://docs.expo.dev/versions/latest/sdk/sqlite/)** - Local database storage with migrations
 - **[Expo SecureStore](https://docs.expo.dev/versions/latest/sdk/securestore/)** - Secure key storage
 - **[Expo LocalAuthentication](https://docs.expo.dev/versions/latest/sdk/local-authentication/)** - Biometric authentication
 
 ### Nostr & Payments
 
 - **[Nostr Protocol](https://nostr.com)** - Decentralized identity and messaging
-- **[Custom Rust lib](https://github.com/PortalTechnologiesInc/lib)** - Core Nostr logic and cryptography
+- **[Custom Rust lib](https://github.com/PortalTechnologiesInc/lib)** - Core Nostr logic and cryptography (via UniFFI bindings)
 - **NWC Integration** - Nostr Wallet Connect for Lightning payments
+- **[Breez SDK](https://breez.technology/sdk/)** - Lightning Network payments
 
-### UI & Theming
+### UI & Tooling
 
-- **[Lucide React Native](https://lucide.dev/)** - Beautiful icon library
-- **Custom Theme System** - Adaptive dark/light theme support
-- **Safe Area Context** - Proper device-safe rendering
+- **[Lucide React Native](https://lucide.dev/)** - Icon library
+- **[Biome](https://biomejs.dev/)** - Linting and formatting
+- **[Bun](https://bun.sh/)** - Package manager
+- **[Husky](https://typicode.github.io/husky/)** + **lint-staged** - Git hooks
+
+## 🧰 Development Environment
+
+### Nix DevShell
+
+This project uses [Nix flakes](https://nixos.org/manual/nix/stable/command-ref/new-cli/nix3-develop.html) to provide a reproducible development environment. Running `nix develop` gives you:
+
+- **Node.js** - JavaScript runtime (required by Metro/Expo)
+- **Bun** - Package manager
+- **OpenJDK 17** - For Android Gradle builds
+- **Android SDK** - Build tools, platform, NDK
+- **Biome** - Linting and formatting
+- **Expo CLI** - Expo development tools
+### Git Hooks
+
+The project uses Husky for Git hooks, installed automatically on `bun install`:
+
+- **pre-commit**: Runs lint-staged which applies `biome check --write` on staged files (auto-fixes formatting and import sorting)
+- **pre-push**: Runs `typecheck` and `check` on the full project to ensure quality before pushing
+
+These same checks run in CI, so if your push passes locally, it passes in CI.
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 
-- **Node.js** (v18 or higher)
-- **npm** or **yarn**
-- **Expo CLI**: `npm install -g @expo/cli`
+- **[Nix](https://nixos.org/download/)** with flakes enabled
 - **iOS Simulator** (Mac) or **Android Studio** (for emulators)
 
 ### Installation
@@ -82,38 +103,44 @@ Portal is a mobile identity wallet for secure authentication and payments using 
    cd Portal-App
    ```
 
-2. **Install dependencies**:
+2. **Enter the Nix development shell**:
 
    ```bash
-   npm install
+   nix develop
    ```
 
-3. **Start the development server**:
+   This provides Node.js, Bun, Android SDK, Java, and all required tooling.
+
+3. **Install dependencies**:
 
    ```bash
-   npx expo start
+   bun install
    ```
 
-4. **Run on device/simulator**:
+4. **Start the development server**:
 
    ```bash
-   # iOS
-   npx expo run:ios
+   bun run start
+   ```
 
+5. **Run on device/simulator**:
+
+   ```bash
    # Android
-   npx expo run:android
+   bun run android
 
-   # Web (development only)
-   npx expo start --web
+   # iOS (macOS only)
+   bun run ios
    ```
 
 ## 📱 Usage Guide
 
 ### First-Time Setup
 
-1. **Generate Identity**: Create a new Nostr private key or import existing seed phrase
-2. **Profile Configuration**: Set up your identity information
-3. **Wallet Connection**: Connect your NWC-compatible Lightning wallet
+1. **Generate Identity**: Create a new Nostr private key or import existing seed phrase/nsec
+2. **Set PIN**: Configure a PIN for app lock
+3. **Profile Configuration**: Set up your identity information
+4. **Wallet Connection**: Connect your NWC-compatible Lightning wallet
 
 ### Authentication Flow
 
@@ -136,39 +163,41 @@ Portal is a mobile identity wallet for secure authentication and payments using 
 
 ```
 portal-app/
-├── app/                    # Expo Router pages
-│   ├── (tabs)/            # Tab navigation screens
-│   │   ├── ActivityList.tsx
-│   │   ├── Certificates.tsx
-│   │   ├── Debug.tsx
-│   │   ├── IdentityList.tsx
-│   │   ├── Settings.tsx
+├── app/                       # Expo Router pages (file-based routing)
+│   ├── (tabs)/                # Tab navigation screens
+│   │   ├── index.tsx          # Home screen
+│   │   ├── Activities.tsx
 │   │   ├── Subscriptions.tsx
-│   │   └── Tickets.tsx
-│   ├── activity/[id]/     # Dynamic activity detail pages
-│   ├── nfc/               # NFC scanner flow
-│   ├── qr/               # QR scanner flow
-│   ├── subscription/[id]/ # Subscription management
-│   ├── (onboarding)/     # First-time setup flow
-│   ├── wallet.tsx        # Wallet management
-│   ├── recoverTickets.tsx # Ticket recovery
-│   └── relays.tsx        # Nostr relay configuration
-├── components/            # Reusable UI components
-│   ├── ActivityDetail/   # Activity-specific components
-│   └── ui/              # Base UI components
-├── context/              # React Context providers
-│   ├── ActivitiesContext.tsx
-│   ├── ECashContext.tsx
-│   ├── NostrServiceContext.tsx
-│   └── ThemeContext.tsx
-├── services/             # Core business logic
-│   ├── DatabaseService.ts
-│   ├── BiometricAuthService.ts
-│   └── SecureStorageService.ts
-├── hooks/               # Custom React hooks
-├── models/              # TypeScript interfaces
-├── constants/           # App constants and configuration
-└── utils/               # Helper functions and utilities
+│   │   ├── Tickets.tsx
+│   │   ├── Wallet.tsx
+│   │   └── Settings.tsx
+│   ├── (onboarding)/          # First-time setup flow
+│   │   ├── generate/          # Key generation
+│   │   └── import/            # Key import (mnemonic/nsec)
+│   ├── activity/[id]/         # Dynamic activity detail pages
+│   ├── subscription/[id]/     # Subscription management
+│   ├── breezwallet/           # Breez wallet pay/receive
+│   ├── nfc/                   # NFC scanner flow
+│   ├── qr/                    # QR scanner flow
+│   ├── wallet.tsx             # Wallet management
+│   ├── relays.tsx             # Nostr relay configuration
+│   ├── error.tsx              # Error boundary
+│   └── [...deeplink].tsx      # Deep link catch-all
+├── components/                # Reusable UI components
+│   ├── ActivityDetail/        # Activity-specific components
+│   ├── onboarding/            # Onboarding-specific components
+│   └── ui/                    # Base UI components
+├── context/                   # React Context providers
+├── services/                  # Core business logic
+├── hooks/                     # Custom React hooks
+├── models/                    # TypeScript interfaces
+├── constants/                 # App constants and configuration
+├── utils/                     # Helper functions and utilities
+├── migrations/                # SQLite database migrations
+├── plugins/                   # Custom Expo config plugins
+├── scripts/                   # Build and device management scripts
+├── debug-scripts/             # Database debugging tools
+└── .github/workflows/         # CI/CD pipeline
 ```
 
 ### State Management
@@ -182,23 +211,25 @@ portal-app/
 ### Available Scripts
 
 ```bash
-# Start development server
-npm start
+# Development (runs typecheck + lint first)
+bun run start
+bun run android
+bun run android-release
+bun run ios
 
-# Run on specific platforms
-npm run android
-npm run ios
-npm run web
+# Type checking
+bun run typecheck
 
-# Code formatting
-npm run format
-npm run format:check
-
-# Linting
-npm run lint
+# Linting and formatting (Biome)
+bun run lint                   # lint only
+bun run check                  # lint + format
+bun run check:strict           # lint + format, warnings as errors
+bun run check:fix              # lint + format with auto-fix
+bun run format                 # format with auto-write
+bun run format:check           # format check only
 
 # Testing
-npm test
+bun run test                   # Jest unit tests (watch mode)
 ```
 
 ### Key Development Patterns
@@ -240,38 +271,51 @@ const authResult = await BiometricAuthService.authenticate();
 
 ## 📦 Building & Deployment
 
-### EAS Build Configuration
+### Local Builds
 
-The project uses Expo Application Services (EAS) for building and deployment:
+The project is fully self-managed — no cloud build services. Build scripts handle APK/IPA creation and device installation:
 
 ```bash
-# Install EAS CLI
-npm install -g eas-cli
+# Build Android APK (release)
+bash scripts/build-android-apk.sh release
 
-# Build for development
-eas build --profile development
+# Build and install on connected Android device/emulator
+bash scripts/install-android-apk.sh
 
-# Build for production
-eas build --profile production
+# Build iOS app (macOS only)
+bash scripts/build-ios-ipa.sh
 
-# Submit to app stores
-eas submit
+# Install on iOS Simulator
+bash scripts/install-ios-ipa.sh
 ```
+
+### Reproducible Nix Build
+
+For fully reproducible Android builds:
+
+```bash
+nix build .#android-bundle
+```
+
+This produces a signed AAB bundle using hermetic Nix derivations.
 
 ## 🤝 Contributing
 
 1. **Fork the repository**
-2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
-3. **Commit changes**: `git commit -m 'Add amazing feature'`
-4. **Push to branch**: `git push origin feature/amazing-feature`
-5. **Open a Pull Request**
+2. **Enter Nix shell**: `nix develop`
+3. **Install dependencies**: `bun install`
+4. **Create a feature branch**: `git checkout -b feature/amazing-feature`
+5. **Make changes** — Git hooks will auto-lint staged files on commit
+6. **Push to branch**: `git push origin feature/amazing-feature` (pre-push runs full typecheck + lint)
+7. **Open a Pull Request**
 
 ### Development Guidelines
 
-- **TypeScript**: All new code must be written in TypeScript
+- **TypeScript**: All new code must be written in TypeScript with strict mode
 - **Theme Support**: All components must support dark/light themes
+- **Biome**: Code must pass `bun run check` (enforced by Git hooks and CI)
 - **Security First**: Follow secure coding practices, especially for key management
-- **Component Architecture**: Create reusable, well-documented components
+- **Expo Router**: Follow file-based routing conventions for new screens
 - **Context Usage**: Use appropriate context providers for state management
 
 ## 📄 License

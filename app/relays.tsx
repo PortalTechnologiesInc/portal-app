@@ -43,6 +43,7 @@ export default function NostrRelayManagementScreen() {
 
   const [customRelayTextFieldValue, setCustomRelayTextFieldValue] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [filterText, setFilterText] = useState<string>('');
   const [showCustomRelayInput, setShowCustomRelayInput] = useState<boolean>(false);
   const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -113,6 +114,7 @@ export default function NostrRelayManagementScreen() {
       return;
     }
 
+    setIsUpdating(true);
     const newlySelectedRelays = selectedRelays;
 
     const removePromises: Promise<void>[] = [];
@@ -164,6 +166,8 @@ export default function NostrRelayManagementScreen() {
         ToastAndroid.LONG,
         ToastAndroid.CENTER
       );
+    } finally {
+      setIsUpdating(false);
     }
   }, [selectedRelays, activeRelaysList, nostrService, executeOperation]);
 
@@ -302,6 +306,11 @@ export default function NostrRelayManagementScreen() {
               {MIN_RELAY_CONNECTIONS === 1 ? 'connection is' : 'connections are'} required (maximum{' '}
               {MAX_RELAY_CONNECTIONS}).
             </ThemedText>
+            {isUpdating && (
+              <ThemedText style={[styles.updatingText, { color: secondaryTextColor }]}>
+                Updating relays...
+              </ThemedText>
+            )}
 
             {/* Add Relays Input */}
             <ThemedText style={styles.titleText}>Popular relays:</ThemedText>
@@ -335,8 +344,8 @@ export default function NostrRelayManagementScreen() {
                             opacity:
                               (!selectedRelays.includes(relay) &&
                                 selectedRelays.length >= MAX_RELAY_CONNECTIONS) ||
-                                (selectedRelays.includes(relay) &&
-                                  selectedRelays.length <= MIN_RELAY_CONNECTIONS)
+                              (selectedRelays.includes(relay) &&
+                                selectedRelays.length <= MIN_RELAY_CONNECTIONS)
                                 ? 0.5
                                 : 1,
                           },

@@ -44,12 +44,12 @@ export const ActivityMainCard: React.FC<ActivityMainCardProps> = ({
   const statusErrorColor = useThemeColor({}, 'statusError');
 
   const isAuth = activityType === ActivityType.Auth;
-  const isPayment = activityType === ActivityType.Pay || activityType === ActivityType.Receive;
+  const isPayment = activityType === ActivityType.Pay;
   const isTicket =
     activityType === ActivityType.Ticket ||
-    activityType === ActivityType.TicketApproved ||
-    activityType === ActivityType.TicketDenied ||
-    activityType === ActivityType.TicketReceived;
+    activityType === 'ticket_approved' ||
+    activityType === 'ticket_denied' ||
+    activityType === 'ticket_received';
 
   const statusColors = {
     statusConnected: statusConnectedColor,
@@ -127,7 +127,7 @@ export const ActivityMainCard: React.FC<ActivityMainCardProps> = ({
       )}
 
       <ThemedText style={[styles.description, { color: secondaryTextColor }]}>
-        {getActivityDescription(activityType, activityStatus, detail, amount)}
+        {getActivityDescription(activityType, activityStatus, detail)}
       </ThemedText>
     </View>
   );

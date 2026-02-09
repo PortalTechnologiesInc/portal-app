@@ -130,26 +130,49 @@ export default function ActivityDetailScreen() {
       try {
         setLoading(true);
 
-        const resolvedActivity =
-          activities.find(a => a.id === id) ??
-          (await executeOperation(db => db.getActivity(id as string), null));
+        // First, check if activity is already in context (optimization for navigation from list)
+        const cachedActivity = activities.find(a => a.id === id);
+        if (cachedActivity) {
+          setActivity(cachedActivity);
+          setLoading(false);
 
-        if (resolvedActivity) {
-          setActivity(resolvedActivity);
-
-          const needsPaymentSteps =
-            resolvedActivity.type === ActivityType.Pay ||
-            (resolvedActivity.type === ActivityType.Receive && resolvedActivity.invoice);
-          if (needsPaymentSteps) {
+          // Still fetch payment status entries if needed (these aren't in the cached activity)
+          if (
+            cachedActivity.type === ActivityType.Pay ||
+            (cachedActivity.type === ActivityType.Receive && cachedActivity.invoice)
+          ) {
             try {
               const paymentStatusEntries = await executeOperation(
-                db => db.getPaymentStatusEntries(resolvedActivity.invoice!),
+                db => db.getPaymentStatusEntries(cachedActivity.invoice!),
                 []
               );
-              setPaymentSteps(convertPaymentStatusToSteps(
-                paymentStatusEntries,
-                resolvedActivity.type === ActivityType.Receive,
-              ));
+              const steps = convertPaymentStatusToSteps(paymentStatusEntries);
+              setPaymentSteps(steps);
+            } catch (_err) {
+              setPaymentSteps([]);
+            }
+          }
+          return;
+        }
+
+        // Activity not in context, fetch from database (e.g., deep link or removed from cache)
+        const activityData = await executeOperation(db => db.getActivity(id as string), null);
+
+        if (activityData) {
+          setActivity(activityData);
+
+          // If this is a payment activity, fetch payment status entries
+          if (
+            activityData.type === ActivityType.Pay ||
+            (activityData.type === ActivityType.Receive && activityData.invoice)
+          ) {
+            try {
+              const paymentStatusEntries = await executeOperation(
+                db => db.getPaymentStatusEntries(activityData.invoice!),
+                []
+              );
+              const steps = convertPaymentStatusToSteps(paymentStatusEntries);
+              setPaymentSteps(steps);
             } catch (_err) {
               setPaymentSteps([]);
             }

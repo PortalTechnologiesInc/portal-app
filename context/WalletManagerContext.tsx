@@ -195,10 +195,7 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
    */
   const getWallet = useCallback(
     async <T extends WalletType>(walletType: T): Promise<WalletTypeMap[T]> => {
-      if (!nsec && !mnemonic) {
-        console.error('Missing nsec or mnemonic for wallet creation');
-        throw new Error('Missing nsec or mnemonic for wallet creation');
-      }
+      if (!nsec && !mnemonic) throw new Error('Missing nsec or mnemonic for wallet creation');
       if (walletCacheRef.current.has(walletType)) {
         return walletCacheRef.current.get(walletType)! as WalletTypeMap[T];
       }
@@ -244,16 +241,12 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
    */
   const switchActiveWallet = useCallback(
     async (walletType: WalletType) => {
-      try {
-        const wallet = await getWallet(walletType);
+      const wallet = await getWallet(walletType);
 
-        setActiveWallet(wallet);
-        setPreferredWallet(walletType);
+      setActiveWallet(wallet);
+      setPreferredWallet(walletType);
 
-        await AsyncStorage.setItem(PREFERRED_WALLET_KEY, JSON.stringify(walletType));
-      } catch (error) {
-        console.error('Failed to switch active wallet:', error);
-      }
+      await AsyncStorage.setItem(PREFERRED_WALLET_KEY, JSON.stringify(walletType));
     },
     [getWallet]
   );
@@ -267,35 +260,33 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
     setWalletInfo(balance);
   }, [activeWallet]);
 
-  const initializeWalletManager = useCallback(async () => {
-    try {
-      // Initialize Breez wallet at startup
-      await getWallet(WALLET_TYPE.BREEZ);
-
-      // Restore preferred wallet
-      const stored = await AsyncStorage.getItem(PREFERRED_WALLET_KEY);
-      if (stored) {
-        const walletType = JSON.parse(stored) as WalletType;
-        await switchActiveWallet(walletType);
-      } else {
-        // Default to Breez
-        await switchActiveWallet(WALLET_TYPE.BREEZ);
-      }
-
-      setIsWalletManagerInitialized(true);
-    } catch (error) {
-      console.error('Failed to initialize wallet manager:', error);
-      setIsWalletManagerInitialized(false);
-    }
-
-  }, [getWallet, switchActiveWallet]);
-
   /**
    * Single initialization effect - runs only once to set up wallets
    */
   useEffect(() => {
-    initializeWalletManager();
-  }, [initializeWalletManager]);
+    const init = async () => {
+      if (!nsec && !mnemonic) return;
+
+      try {
+        // Initialize Breez wallet at startup
+        await getWallet(WALLET_TYPE.BREEZ);
+
+        // Restore preferred wallet
+        const stored = await AsyncStorage.getItem(PREFERRED_WALLET_KEY);
+        if (stored) {
+          const walletType = JSON.parse(stored) as WalletType;
+          await switchActiveWallet(walletType);
+        } else {
+          // Default to Breez
+          await switchActiveWallet(WALLET_TYPE.BREEZ);
+        }
+
+        setIsWalletManagerInitialized(true);
+      } catch (_error) {}
+    };
+
+    init();
+  }, [getWallet, nsec, switchActiveWallet, mnemonic]);
 
   /**
    * If wallet url is removed, update global status and switch to breez as preferred
