@@ -52,11 +52,8 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
     // Prevent re-registering listeners if they're already initialized
     // This prevents Rust panics from trying to register listeners multiple times
     if (listenersInitializedRef.current) {
-      console.log('[PORTAL_APP]: Listeners already initialized, skipping');
       return;
     }
-
-    console.log('[PORTAL_APP]: Initializing app and setting up listeners');
     const app = PortalAppManager.tryGetInstance();
 
     const keypair = getKeypairFromKey({ mnemonic, nsec });
