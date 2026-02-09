@@ -4,7 +4,7 @@ import { Currency, PortalSDK, Timestamp } from 'portal-sdk';
 const HOST = process.env.HOST ?? '127.0.0.1';
 const PORT = Number(process.env.PORT ?? 3500);
 const REST_WS = process.env.REST_WS ?? 'ws://localhost:3000/ws';
-const REST_AUTH_TOKEN = process.env.REST_AUTH_TOKEN ?? 'your-auth-token';
+const REST_AUTH_TOKEN = process.env.REST_AUTH_TOKEN ?? 'your-secret-token';
 
 // Initialize the client
 const client = new PortalSDK({
@@ -65,10 +65,12 @@ const server = http.createServer(async (req: http.IncomingMessage, res: http.Ser
       const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor as new (
         ...args: string[]
       ) => (...fnArgs: unknown[]) => Promise<unknown>;
-      const fn = new AsyncFunction('client', `"use strict";\n${code}`) as (
-        client: PortalSDK
+      const fn = new AsyncFunction('client', 'Currency', 'Timestamp', `"use strict";\n${code}`) as (
+        client: PortalSDK,
+        Currency: any,
+        Timestamp: any
       ) => Promise<unknown>;
-      const result = await fn(client);
+      const result = await fn(client, Currency, Timestamp);
       return sendJson(res, 200, { result });
     }
 

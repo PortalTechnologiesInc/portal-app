@@ -4,20 +4,12 @@ onFlowComplete:
 ---
 # Identities flow: change the user display name.
 - launchApp
-- takeScreenshot: change-display-name-step-1
 - tapOn: npub.*
-- takeScreenshot: change-display-name-step-2
 - longPressOn: Your display name (optional)
-- takeScreenshot: change-display-name-step-3
 - eraseText
-- takeScreenshot: change-display-name-step-4
 - inputText: TestDisplayName123
-- takeScreenshot: change-display-name-step-5
 - tapOn: Save Changes
-- takeScreenshot: change-display-name-step-6
 - tapOn: Save Changes
-- takeScreenshot: change-display-name-step-7
 - tapOn:
     point: 6%,8%
-- takeScreenshot: change-display-name-step-8
 - assertVisible: "Welcome back, TestDisplayName123 .*"

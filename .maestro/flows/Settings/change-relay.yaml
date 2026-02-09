@@ -4,43 +4,29 @@ onFlowComplete:
 ---
 # Settings flow: change Nostr relays.
 - launchApp
-- takeScreenshot: change-relay-step-1
 - tapOn: "Settings"
-- takeScreenshot: change-relay-step-2
+
 - tapOn: "Nostr relays"
-- takeScreenshot: change-relay-step-3
 - assertVisible: "Popular relays:"
-- takeScreenshot: change-relay-step-4
 - tapOn: "wss://eden.nostr.land"
-- takeScreenshot: change-relay-step-5
 - tapOn:
     point: 6%,8%
-- takeScreenshot: change-relay-step-6
+
 - tapOn: "Home"
-- takeScreenshot: change-relay-step-7
 - tapOn:
     point: 91%,7%
-- takeScreenshot: change-relay-step-8
 - tapOn: "More info"
-- takeScreenshot: change-relay-step-9
 - assertVisible: "wss://eden.nostr.land"
-- takeScreenshot: change-relay-step-10
 - tapOn: "Less info"
-- takeScreenshot: change-relay-step-11
+
 - tapOn:
     point: 85%,26%
-- takeScreenshot: change-relay-step-12
+
 - tapOn: "Settings"
-- takeScreenshot: change-relay-step-13
 - tapOn: "Nostr relays"
-- takeScreenshot: change-relay-step-14
 - assertVisible: "Popular relays:"
-- takeScreenshot: change-relay-step-15
 - tapOn: "wss://eden.nostr.land"
-- takeScreenshot: change-relay-step-16
 - tapOn:
     point: 6%,8%
-- takeScreenshot: change-relay-step-17
 - tapOn: "Home"
-- takeScreenshot: change-relay-step-18
 - assertVisible: "Welcome back, .*"

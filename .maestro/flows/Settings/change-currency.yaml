@@ -5,11 +5,9 @@ onFlowComplete:
 ---
 # Settings flow: change preferred currency.
 - launchApp
-- takeScreenshot: change-currency-step-1
 - tapOn: "Settings"
-- takeScreenshot: change-currency-step-2
 - tapOn: "Preferred Currency"
-- takeScreenshot: change-currency-step-3
+
 # Try to tap the element below the checkmark
 - runFlow:
     when:
@@ -19,7 +17,5 @@ onFlowComplete:
       - tapOn:
           below:
             id: "currency-checkmark"
-- takeScreenshot: change-currency-step-4
 - tapOn: "Home"
-- takeScreenshot: change-currency-step-5
 - assertVisible: "Welcome back, .*"

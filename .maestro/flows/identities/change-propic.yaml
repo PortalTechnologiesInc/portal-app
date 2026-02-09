@@ -3,26 +3,16 @@ onFlowComplete:
   - killApp
 ---
 # Identities flow: change the profile picture.
-# TODO - we need to set the emulator in workflow to have a test image inside the phone gallery
 - launchApp
-- takeScreenshot: change-propic-step-1
 - tapOn: npub.*
-- takeScreenshot: change-propic-step-2
 - tapOn:
     point: 45%,21%
-- takeScreenshot: change-propic-step-3
 - tapOn:
     point: 0%,54%
-- takeScreenshot: change-propic-step-4
 - tapOn: Done
-- takeScreenshot: change-propic-step-5
 - tapOn: CROP
-- takeScreenshot: change-propic-step-6
 - tapOn: Save Changes
-- takeScreenshot: change-propic-step-7
 - tapOn: Save Changes
-- takeScreenshot: change-propic-step-8
 - tapOn:
     point: 6%,8%
-- takeScreenshot: change-propic-step-9
 - assertVisible: "Welcome back, .*"

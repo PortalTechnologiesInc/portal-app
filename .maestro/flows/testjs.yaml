@@ -1,0 +1,12 @@
+appId: cc.getportal.portal
+---
+
+# Step 1: Spawn ticket request via proxy
+- runScript:
+    file: js/spawnTicket.js
+    env:
+      MAESTRO_TEST_NPUB: ${MAESTRO_TEST_NPUB}
+      MAESTRO_TICKET_MINT_URL: ${MAESTRO_TICKET_MINT_URL:-https://mint.minibits.cash}
+      MAESTRO_TICKET_UNIT: ${MAESTRO_TICKET_UNIT:-sat}
+      MAESTRO_TICKET_AMOUNT: ${MAESTRO_TICKET_AMOUNT:-10000}
+- waitForAnimationToEnd

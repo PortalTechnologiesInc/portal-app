@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  portal:
+    image: getportal/sdk-daemon:latest
+    container_name: portal-sdk-daemon
+    ports:
+      - "3000:3000"
+    environment:
+      - PORTAL__AUTH__AUTH_TOKEN=${PORTAL__AUTH__AUTH_TOKEN}
+      - PORTAL__NOSTR__PRIVATE_KEY=${PORTAL__NOSTR__PRIVATE_KEY}
+      - PORTAL__WALLET__LN_BACKEND=${PORTAL__WALLET__LN_BACKEND:-none}
+      - PORTAL__WALLET__NWC__URL=${PORTAL__WALLET__NWC__URL:-}
+      - PORTAL__NOSTR__RELAYS=${PORTAL__NOSTR__RELAYS:-wss://relay.getportal.cc,wss://relay.okazakee.dev,wss://nos.lol,wss://relay.damus.io}
+      - NOSTR_KEY=${NOSTR_KEY}
+      - REST_AUTH_TOKEN=${REST_AUTH_TOKEN}
+      - NOSTR_KEY=${NOSTR_KEY}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
