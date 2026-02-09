@@ -706,7 +706,7 @@ function DebugActions({
       <TouchableOpacity
         style={[styles.actionButton, { backgroundColor: buttonColor }]}
         onPress={() => {
-          router.push('/onboarding?step=profile-setup-error');
+          router.push('/(onboarding)/profile-setup-error');
         }}
       >
         <ThemedText style={[styles.actionButtonText, { color: buttonTextColor }]}>
