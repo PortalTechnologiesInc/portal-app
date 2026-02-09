@@ -23,5 +23,5 @@ export default function Index() {
   }
 
   // Simple navigation decision based on onboarding completion
-  return <Redirect href={isOnboardingComplete ? '/(tabs)' : '/onboarding'} />;
+  return <Redirect href={isOnboardingComplete ? '/(tabs)' : '/(onboarding)/welcome'} />;
 }

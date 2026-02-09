@@ -124,7 +124,12 @@ const AuthenticatedAppContent = () => {
                   <PaymentControllerProvider>
                     <DeeplinkProvider>
                       <NotificationConfigurator />
-                      <Stack screenOptions={{ headerShown: false }} />
+                      <Stack
+                        screenOptions={{
+                          headerShown: false,
+                          contentStyle: { backgroundColor },
+                        }}
+                      />
                     </DeeplinkProvider>
                   </PaymentControllerProvider>
                 </PendingRequestsProvider>
