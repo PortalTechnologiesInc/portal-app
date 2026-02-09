@@ -27,6 +27,7 @@ export default function VerifySeed() {
 
   const [word1, setWord1] = useState('');
   const [word2, setWord2] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const backgroundColor = useThemeColor({}, 'background');
   const inputBackground = useThemeColor({}, 'inputBackground');
@@ -36,10 +37,13 @@ export default function VerifySeed() {
   const buttonPrimaryText = useThemeColor({}, 'buttonPrimaryText');
 
   useEffect(() => {
+    // Don't redirect if we're in the middle of verifying
+    if (isVerifying) return;
+    
     if (!seedPhrase || !verificationChallenge) {
       router.replace('/(onboarding)/generate');
     }
-  }, [seedPhrase, verificationChallenge]);
+  }, [seedPhrase, verificationChallenge, isVerifying]);
 
   const handleBack = useCallback(() => {
     clearVerificationChallenge();
@@ -87,12 +91,20 @@ export default function VerifySeed() {
       return;
     }
 
+    setIsVerifying(true);
+
     try {
       await setMnemonic(seedPhrase);
       await SecureStore.setItemAsync(SEED_ORIGIN_KEY, 'generated');
+      
+      // Clear state after saving
+      clearVerificationChallenge();
+      clearSeedPhrase();
+      
+      // Navigate to PIN setup
+      router.push('/(onboarding)/pin-setup');
     } catch (_error) {
       // Proceed even if saving fails (legacy behavior).
-    } finally {
       clearVerificationChallenge();
       clearSeedPhrase();
       router.push('/(onboarding)/pin-setup');
@@ -132,6 +144,7 @@ export default function VerifySeed() {
                     Enter word #{verificationChallenge.word1.index + 1}:
                   </ThemedText>
                   <TextInput
+                    testID='verification-input-1'
                     style={[
                       styles.verificationInput,
                       { backgroundColor: inputBackground, color: textPrimary },
@@ -148,6 +161,7 @@ export default function VerifySeed() {
                     Enter word #{verificationChallenge.word2.index + 1}:
                   </ThemedText>
                   <TextInput
+                    testID='verification-input-2'
                     style={[
                       styles.verificationInput,
                       { backgroundColor: inputBackground, color: textPrimary },
@@ -167,6 +181,7 @@ export default function VerifySeed() {
               <TouchableOpacity
                 style={[styles.button, styles.finishButton, { backgroundColor: buttonPrimary }]}
                 onPress={handleVerificationComplete}
+                disabled={isVerifying}
               >
                 <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>
                   Verify and Continue
@@ -179,4 +194,3 @@ export default function VerifySeed() {
     </SafeAreaView>
   );
 }
-
