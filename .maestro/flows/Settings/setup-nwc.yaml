@@ -1,0 +1,20 @@
+appId: cc.getportal.portal
+env:
+  NWC_URL: ${MAESTRO_NWC_URL}
+onFlowComplete:
+  - killApp
+---
+# Settings flow: change wallet connection (NWC URL).
+- launchApp
+- takeScreenshot: change-wallet-step-1
+- tapOn: "Settings"
+- takeScreenshot: change-wallet-step-2
+- tapOn: Wallet Configuration, Manage your wallet configurations
+- takeScreenshot: change-wallet-step-3
+- tapOn:
+    point: 86%,29%
+- inputText: "${NWC_URL}"
+- takeScreenshot: change-wallet-step-4
+- tapOn: "Home"
+- takeScreenshot: change-wallet-step-5
+- assertVisible: "Welcome back, .*"

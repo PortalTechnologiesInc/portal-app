@@ -1,0 +1,16 @@
+# Maestro Configuration
+# Default app ID for Android
+appId: cc.getportal.portal
+
+# Test environment settings
+env:
+  MAESTRO_PROXY_PORT: ${MAESTRO_PROXY_PORT}
+  TEST_NSEC: ${MAESTRO_TEST_NSEC}
+  TEST_NPUB: ${MAESTRO_TEST_NPUB}
+  MAESTRO_TEST_NPUB: ${MAESTRO_TEST_NPUB}
+  TEST_MNEMONIC: ${MAESTRO_TEST_MNEMONIC}
+  NWC_URL: ${MAESTRO_NWC_URL}
+  REST_AUTH_TOKEN: ${MAESTRO_REST_AUTH_TOKEN}
+# Device/emulator preferences
+# Maestro will use the default connected device/emulator
+# To specify a device, use: maestro test --device <device-id> <flow.yaml>

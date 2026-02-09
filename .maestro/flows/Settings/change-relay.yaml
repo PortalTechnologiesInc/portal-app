@@ -1,0 +1,32 @@
+appId: cc.getportal.portal
+onFlowComplete:
+  - killApp
+---
+# Settings flow: change Nostr relays.
+- launchApp
+- tapOn: "Settings"
+
+- tapOn: "Nostr relays"
+- assertVisible: "Popular relays:"
+- tapOn: "wss://eden.nostr.land"
+- tapOn:
+    point: 6%,8%
+
+- tapOn: "Home"
+- tapOn:
+    point: 91%,7%
+- tapOn: "More info"
+- assertVisible: "wss://eden.nostr.land"
+- tapOn: "Less info"
+
+- tapOn:
+    point: 85%,26%
+
+- tapOn: "Settings"
+- tapOn: "Nostr relays"
+- assertVisible: "Popular relays:"
+- tapOn: "wss://eden.nostr.land"
+- tapOn:
+    point: 6%,8%
+- tapOn: "Home"
+- assertVisible: "Welcome back, .*"

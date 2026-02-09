@@ -1,0 +1,32 @@
+appId: cc.getportal.portal
+jsEngine: graaljs
+env:
+  TEST_NSEC: ${MAESTRO_TEST_NSEC}
+---
+# Onboarding flow: import an existing nsec.
+
+- runFlow: ../reset.yaml
+- waitForAnimationToEnd
+- assertVisible: "Welcome to Portal"
+
+- tapOn: "Get Started"
+- tapOn: "I Understand - Continue"
+- tapOn: "Import Nsec"
+
+- waitForAnimationToEnd
+- assertVisible: "Import Nsec"
+- tapOn: "Enter your Nsec private key (nsec1...)"
+- inputText: "${TEST_NSEC}"
+- tapOn: "Import"
+
+- waitForAnimationToEnd
+- assertVisible: "Secure Portal with a PIN"
+- tapOn: "Skip"
+- waitForAnimationToEnd
+- assertVisible: "Welcome back, .*"
+- tapOn: 'Dismiss Welcome'
+- assertVisible: 'Pending Requests'
+
+# TODO: add public key (it can be hardcoded since the nsec is also hardcoded)
+- runScript:
+    file: ../js/requestLogin.js

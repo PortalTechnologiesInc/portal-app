@@ -1,0 +1,15 @@
+appId: cc.getportal.portal
+onFlowComplete:
+  - killApp
+---
+# Identities flow: change the user display name.
+- launchApp
+- tapOn: npub.*
+- longPressOn: Your display name (optional)
+- eraseText
+- inputText: TestDisplayName123
+- tapOn: Save Changes
+- tapOn: Save Changes
+- tapOn:
+    point: 6%,8%
+- assertVisible: "Welcome back, TestDisplayName123 .*"

@@ -1,0 +1,18 @@
+appId: cc.getportal.portal
+onFlowComplete:
+  - killApp
+---
+# Activities flow: test filter navigation
+- launchApp
+- tapOn: Activities
+- tapOn: Logins
+- tapOn: Payments
+- tapOn: Subscriptions
+- tapOn: Tickets
+- tapOn: Payments
+- tapOn: Subscriptions
+- tapOn: Home
+- tapOn: Activities
+- assertVisible: Your activities
+- tapOn: Home
+- assertVisible: "Welcome back, .*"

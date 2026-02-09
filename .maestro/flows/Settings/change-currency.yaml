@@ -1,0 +1,21 @@
+appId: cc.getportal.portal
+jsEngine: graaljs
+onFlowComplete:
+  - killApp
+---
+# Settings flow: change preferred currency.
+- launchApp
+- tapOn: "Settings"
+- tapOn: "Preferred Currency"
+
+# Try to tap the element below the checkmark
+- runFlow:
+    when:
+      visible:
+        id: "currency-checkmark" # Or whatever identifier marks selection
+    commands:
+      - tapOn:
+          below:
+            id: "currency-checkmark"
+- tapOn: "Home"
+- assertVisible: "Welcome back, .*"

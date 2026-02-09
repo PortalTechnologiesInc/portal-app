@@ -1,0 +1,26 @@
+appId: cc.getportal.portal
+env:
+  TEST_MNEMONIC: ${MAESTRO_TEST_MNEMONIC}
+---
+# Onboarding flow test
+- runFlow: ../reset.yaml
+
+# Wait for app to load
+- waitForAnimationToEnd
+# Check if app loaded - "Welcome" appears on first launch or home screen
+- assertVisible: "Welcome to Portal"
+- tapOn: "Get Started"
+- tapOn: "I Understand - Continue"
+- tapOn: "Import Existing Seed Phrase"
+- tapOn: "Enter your 12-word seed phrase separated by spaces"
+- inputText: "${TEST_MNEMONIC}"
+- tapOn: "Import"
+
+# Importing a seed phrase should take us to the PIN setup screen.
+- waitForAnimationToEnd
+- assertVisible: "Secure Portal with a PIN"
+- tapOn: "Skip"
+- waitForAnimationToEnd
+- assertVisible: "Welcome back, .*"
+- tapOn: 'Dismiss Welcome'
+- assertVisible: 'Pending Requests'

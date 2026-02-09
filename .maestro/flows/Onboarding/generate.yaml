@@ -1,0 +1,92 @@
+appId: cc.getportal.portal
+---
+# --- Seed generation screen (shows 1..12 lines like "1. word") ---
+- runFlow: ../reset.yaml
+# Wait for app to load
+- waitForAnimationToEnd
+# Check if app loaded - "Welcome" appears on first launch or home screen
+- assertVisible: 'Welcome to Portal'
+- tapOn: 'Get Started'
+- tapOn: 'I Understand - Continue'
+- tapOn: 'Generate New Seed Phrase'
+# Handle the seed phrase screen: extract all 12 words using testIDs
+- assertVisible: 'Your Seed Phrase'
+
+# Extract all 12 words
+- copyTextFrom:
+    id: 'word-1'
+- evalScript: ${output.word1 = maestro.copiedText.split('. ')[1].trim()}
+- copyTextFrom:
+    id: 'word-2'
+- evalScript: ${output.word2 = maestro.copiedText.split('. ')[1].trim()}
+- copyTextFrom:
+    id: 'word-3'
+- evalScript: ${output.word3 = maestro.copiedText.split('. ')[1].trim()}
+- copyTextFrom:
+    id: 'word-4'
+- evalScript: ${output.word4 = maestro.copiedText.split('. ')[1].trim()}
+- copyTextFrom:
+    id: 'word-5'
+- evalScript: ${output.word5 = maestro.copiedText.split('. ')[1].trim()}
+- copyTextFrom:
+    id: 'word-6'
+- evalScript: ${output.word6 = maestro.copiedText.split('. ')[1].trim()}
+- copyTextFrom:
+    id: 'word-7'
+- evalScript: ${output.word7 = maestro.copiedText.split('. ')[1].trim()}
+- copyTextFrom:
+    id: 'word-8'
+- evalScript: ${output.word8 = maestro.copiedText.split('. ')[1].trim()}
+- copyTextFrom:
+    id: 'word-9'
+- evalScript: ${output.word9 = maestro.copiedText.split('. ')[1].trim()}
+- copyTextFrom:
+    id: 'word-10'
+- evalScript: ${output.word10 = maestro.copiedText.split('. ')[1].trim()}
+- copyTextFrom:
+    id: 'word-11'
+- evalScript: ${output.word11 = maestro.copiedText.split('. ')[1].trim()}
+- copyTextFrom:
+    id: 'word-12'
+- evalScript: ${output.word12 = maestro.copiedText.split('. ')[1].trim()}
+
+# Proceed to verification
+- tapOn: "I've Written It Down"
+
+# Handle the verification screen
+- assertVisible: 'Verify Your Seed Phrase'
+
+# Extract the first position number from the label text
+- copyTextFrom:
+    text: 'Enter word #.*'
+    index: 0
+- evalScript: ${output.verifyPos1 = maestro.copiedText.match(/#(\d+)/)[1]}
+# Extract the first position number from the label text
+- copyTextFrom:
+    text: 'Enter word #.*'
+    index: 1
+- evalScript: ${output.verifyPos2 = maestro.copiedText.match(/#(\d+)/)[1]}
+
+# Set the verification words based on positions
+- evalScript: ${output.verifyWord1 = output['word' + output.verifyPos1]}
+- evalScript: ${output.verifyWord2 = output['word' + output.verifyPos2]}
+
+# Fill the two inputs using testIDs
+- tapOn:
+    id: 'verification-input-1'
+- inputText: ${output.verifyWord1}
+
+- tapOn:
+    id: 'verification-input-2'
+- inputText: ${output.verifyWord2}
+
+- tapOn: 'Verify and Continue'
+
+# Importing a seed phrase should take us to the PIN setup screen.
+- waitForAnimationToEnd
+- assertVisible: 'Secure Portal with a PIN'
+- tapOn: 'Skip'
+- waitForAnimationToEnd
+- assertVisible: 'Welcome back, .*'
+- tapOn: 'Dismiss Welcome'
+- assertVisible: 'Pending Requests'

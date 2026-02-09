@@ -1,0 +1,18 @@
+appId: cc.getportal.portal
+onFlowComplete:
+  - killApp
+---
+# Identities flow: change the profile picture.
+- launchApp
+- tapOn: npub.*
+- tapOn:
+    point: 45%,21%
+- tapOn:
+    point: 0%,54%
+- tapOn: Done
+- tapOn: CROP
+- tapOn: Save Changes
+- tapOn: Save Changes
+- tapOn:
+    point: 6%,8%
+- assertVisible: "Welcome back, .*"

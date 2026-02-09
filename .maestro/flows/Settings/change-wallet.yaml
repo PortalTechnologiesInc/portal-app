@@ -1,0 +1,13 @@
+appId: cc.getportal.portal
+onFlowComplete:
+  - killApp
+---
+# Settings flow: change wallet connection (NWC URL).
+- launchApp
+- tapOn: "Settings"
+- tapOn: Wallet Configuration, Manage your wallet configurations
+- tapOn:
+    point: 86%,29%
+# TODO CONFIGURE NWC BEFORE RUNNING THIS
+- tapOn: "Home"
+- assertVisible: "Welcome back, .*"

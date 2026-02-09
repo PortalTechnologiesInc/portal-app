@@ -1,0 +1,31 @@
+appId: cc.getportal.portal
+onFlowComplete:
+  - killApp
+---
+# Identities flow: change the NIP-05 identifier.
+- launchApp
+- tapOn: npub.*
+- longPressOn:
+    text: username
+    index: 1
+- copyTextFrom:
+    text: username
+    index: 1
+- eraseText
+- inputText: niptest12312321
+- tapOn: Save Changes
+- tapOn: Save Changes
+- tapOn:
+    point: 6%,8%
+- assertVisible: "niptest12312321@getportal.cc"
+- tapOn: npub.*
+- longPressOn:
+    text: username
+    index: 1
+- eraseText
+- pasteText
+- tapOn: Save Changes
+- tapOn: Save Changes
+- tapOn:
+    point: 6%,8%
+- assertVisible: "Welcome back, .*"
