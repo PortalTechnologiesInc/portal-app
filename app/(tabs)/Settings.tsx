@@ -626,7 +626,7 @@ export default function SettingsScreen() {
                   // Even if there's an error, try to navigate to onboarding
                   // as the reset likely succeeded partially
                   try {
-                    router.replace('/onboarding');
+                    router.replace('/(onboarding)/welcome');
                   } catch (_navError) {
                     Alert.alert(
                       'Reset Error',
