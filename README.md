@@ -149,7 +149,7 @@ portal-app/
 │   ├── nfc/               # NFC scanner flow
 │   ├── qr/               # QR scanner flow
 │   ├── subscription/[id]/ # Subscription management
-│   ├── onboarding.tsx    # First-time setup flow
+│   ├── (onboarding)/     # First-time setup flow
 │   ├── wallet.tsx        # Wallet management
 │   ├── recoverTickets.tsx # Ticket recovery
 │   └── relays.tsx        # Nostr relay configuration
