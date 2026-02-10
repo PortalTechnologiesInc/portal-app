@@ -5,7 +5,7 @@ import { createContext, type ReactNode, useCallback, useContext, useEffect } fro
 import { Alert } from 'react-native';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { usePendingRequests } from '@/context/PendingRequestsContext';
-import { getServiceNameFromMintUrl, globalEvents } from '@/utils/common';
+import { ActivityStatus, ActivityType, getServiceNameFromMintUrl, globalEvents } from '@/utils/common';
 import { useDatabaseContext } from './DatabaseContext';
 import { useECash } from './ECashContext';
 import { useOnboarding } from './OnboardingContext';
@@ -77,7 +77,7 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
 
                 // Add activity to database using ActivitiesContext directly
                 const activity = {
-                  type: 'ticket_received' as const,
+                  type: ActivityType.TicketReceived,
                   service_key: serviceKey,
                   service_name: serviceName, // Use readable service name from mint URL
                   detail: ticketTitle, // Use ticket title as detail
@@ -86,7 +86,7 @@ export const DeeplinkProvider = ({ children }: { children: ReactNode }) => {
                   currency: null,
                   request_id: `cashu-direct-${Date.now()}`,
                   subscription_id: null,
-                  status: 'neutral' as const,
+                  status: ActivityStatus.Neutral,
                   converted_amount: null,
                   converted_currency: null,
                 };

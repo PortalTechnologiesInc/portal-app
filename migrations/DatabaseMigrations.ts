@@ -2,7 +2,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 
 // Function to migrate database schema if needed
 export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
-  const DATABASE_VERSION = 21;
+  const DATABASE_VERSION = 24;
 
   try {
     let { user_version: currentDbVersion } = (await db.getFirstAsync<{
@@ -483,6 +483,48 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
         CREATE UNIQUE INDEX IF NOT EXISTS idx_activities_request_id_unique ON activities(request_id);
       `);
       currentDbVersion = 21;
+    }
+
+    if (currentDbVersion <= 21) {
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS key_value_cache (
+          key TEXT PRIMARY KEY NOT NULL,
+          value TEXT NOT NULL,
+          expires_at INTEGER -- Unix timestamp in seconds, NULL means never expires
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_key_value_cache_expires_at ON key_value_cache(expires_at);
+      `);
+      currentDbVersion = 22;
+    }
+
+    if (currentDbVersion <= 22) {
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS queued_tasks (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          task_name TEXT NOT NULL,
+          arguments TEXT NOT NULL,
+          added_at INTEGER NOT NULL,
+          expires_at INTEGER, -- Unix timestamp in seconds, NULL means never expires
+          priority INTEGER NOT NULL DEFAULT 0 -- Higher numbers = higher priority
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_queued_tasks_task_name ON queued_tasks(task_name);
+        CREATE INDEX IF NOT EXISTS idx_queued_tasks_added_at ON queued_tasks(added_at);
+        CREATE INDEX IF NOT EXISTS idx_queued_tasks_expires_at ON queued_tasks(expires_at);
+        CREATE INDEX IF NOT EXISTS idx_queued_tasks_priority_added_at ON queued_tasks(priority DESC, added_at ASC);
+      `);
+
+      currentDbVersion = 23;
+    }
+
+    if (currentDbVersion <= 23) {
+      await db.execAsync(`
+        -- Add refunded_activity_id column to activities table for refund activities
+        ALTER TABLE activities ADD COLUMN refunded_activity_id TEXT REFERENCES activities(id) ON DELETE SET NULL;
+        CREATE INDEX IF NOT EXISTS idx_activities_refunded_activity_id ON activities(refunded_activity_id);
+      `);
+      currentDbVersion = 24;
     }
 
     await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);

@@ -1,7 +1,8 @@
 import { createContext, type ReactNode, useContext, useEffect } from 'react';
-import { globalEvents } from '@/utils/common';
+import { ActivityStatus, globalEvents } from '@/utils/common';
 import { useDatabaseContext } from './DatabaseContext';
 import { useNostrService } from './NostrServiceContext';
+import { PaymentAction } from '@/utils/types';
 
 type PaymentControllerContextType = Record<string, never>;
 
@@ -9,7 +10,7 @@ const PaymentControllerContext = createContext<PaymentControllerContextType | un
 
 export function PaymentControllerProvider({ children }: { children: ReactNode }) {
   const { executeOperation } = useDatabaseContext();
-  const { nwcWallet } = useNostrService();
+  const { nwcWallet } = useNostrService(); //TODO: handle other wallets
 
   useEffect(() => {
     if (!nwcWallet) return;
@@ -20,25 +21,42 @@ export function PaymentControllerProvider({ children }: { children: ReactNode })
         if (!invoice) {
           continue;
         }
+        const activityToBeRefunded = element.refunded_activity_id;
+        const invoiceToBeRefunded =
+          activityToBeRefunded ?
+            ((await db.getActivity(activityToBeRefunded))?.invoice ?? null)
+            : null;
 
         try {
           const lookupResponse = await nwcWallet.lookupInvoice(invoice);
           if (lookupResponse.settledAt || lookupResponse.preimage) {
-            await db.updateActivityStatus(element.id, 'positive', 'Payment completed');
+            await db.updateActivityStatus(element.id, ActivityStatus.Positive, 'Payment completed');
+            await db.addPaymentStatusEntry(invoice, PaymentAction.PaymentCompleted);
             globalEvents.emit('activityUpdated', { activityId: element.id });
-            await db.addPaymentStatusEntry(invoice, 'payment_completed');
+            if (activityToBeRefunded && invoiceToBeRefunded) {
+              await db.updateActivityStatus(activityToBeRefunded, ActivityStatus.Neutral, 'Payment has been refunded');
+              await db.addPaymentStatusEntry(invoiceToBeRefunded, PaymentAction.RefundCompleted);
+              globalEvents.emit('activityUpdated', { activityId: activityToBeRefunded });
+            }
           } else if (
             !lookupResponse.settledAt &&
             lookupResponse.expiresAt &&
             Number(lookupResponse.expiresAt) * 1000 < Date.now()
           ) {
-            await db.updateActivityStatus(element.id, 'negative', 'Invoice expired');
+            await db.updateActivityStatus(element.id, ActivityStatus.Negative, 'Invoice expired');
+            await db.addPaymentStatusEntry(invoice, PaymentAction.PaymentFailed);
             globalEvents.emit('activityUpdated', { activityId: element.id });
-            await db.addPaymentStatusEntry(invoice, 'payment_failed');
+            if (activityToBeRefunded && invoiceToBeRefunded) {
+              await db.addPaymentStatusEntry(invoiceToBeRefunded, PaymentAction.RefundFailed);
+            }
           }
         } catch (_error) {
-          await db.updateActivityStatus(element.id, 'negative', 'Payment failed');
+          await db.updateActivityStatus(element.id, ActivityStatus.Negative, 'Payment failed');
+          await db.addPaymentStatusEntry(invoice, PaymentAction.PaymentFailed);
           globalEvents.emit('activityUpdated', { activityId: element.id });
+          if (activityToBeRefunded && invoiceToBeRefunded) {
+            await db.addPaymentStatusEntry(invoiceToBeRefunded, PaymentAction.RefundFailed);
+          }
         }
       }
     });

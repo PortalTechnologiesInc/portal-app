@@ -1,6 +1,8 @@
 // Central type definitions for Portal App
 // This file contains common interfaces and types used across multiple components and contexts
 
+import { Currency } from '@/utils/currency';
+
 // =============================================================================
 // CONNECTION & NETWORK TYPES
 // =============================================================================
@@ -70,10 +72,33 @@ export enum ActivityType {
   Auth = 'auth',
   Pay = 'pay',
   Receive = 'receive',
+  Refund = 'refund',
   Ticket = 'ticket',
   TicketApproved = 'ticket_approved',
   TicketDenied = 'ticket_denied',
   TicketReceived = 'ticket_received',
+}
+
+/**
+ * Activity statuses supported by the app
+ */
+export enum ActivityStatus {
+  Pending = 'pending',
+  Negative = 'negative',
+  Positive = 'positive',
+  Neutral = 'neutral',
+}
+
+/**
+ * Payment actions supported by the app
+ */
+export enum PaymentAction {
+  PaymentStarted = 'payment_started',
+  PaymentCompleted = 'payment_completed',
+  PaymentFailed = 'payment_failed',
+  RefundStarted = 'refund_started',
+  RefundCompleted = 'refund_completed',
+  RefundFailed = 'refund_failed',
 }
 
 /**
@@ -166,7 +191,7 @@ export interface Ticket {
  */
 export interface PendingRequest {
   id: string;
-  metadata: unknown; // Portal-app-lib types (AuthChallengeEvent | RecurringPaymentRequest | SinglePaymentRequest)
+  metadata: unknown; // Portal-app-lib types (AuthChallengeEvent | RecurringPaymentRequest | SinglePaymentRequest | NostrConnectEvent)
   type: PendingRequestType;
   timestamp: Date;
   result: (value: any) => void; // Portal-app-lib response types (AuthResponseStatus | PaymentResponseContent | RecurringPaymentResponseContent)

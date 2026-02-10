@@ -48,10 +48,10 @@ export const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
         return <Key size={20} color={iconColor} />;
       case ActivityType.Pay:
         return <BanknoteIcon size={20} color={iconColor} />;
-      case 'ticket':
-      case 'ticket_approved':
-      case 'ticket_denied':
-      case 'ticket_received':
+      case ActivityType.Ticket:
+      case ActivityType.TicketApproved:
+      case ActivityType.TicketDenied:
+      case ActivityType.TicketReceived:
         return <Ticket size={20} color={iconColor} />;
       default:
         return <BanknoteIcon size={20} color={iconColor} />;
@@ -66,10 +66,10 @@ export const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
         return 'Payment';
       case ActivityType.Receive:
         return 'Incoming';
-      case 'ticket':
-      case 'ticket_approved':
-      case 'ticket_denied':
-      case 'ticket_received':
+      case ActivityType.Ticket:
+      case ActivityType.TicketApproved:
+      case ActivityType.TicketDenied:
+      case ActivityType.TicketReceived:
         return 'Ticket';
       default:
         return 'Activity';
@@ -78,10 +78,10 @@ export const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
 
   const isTicketActivity = () => {
     return (
-      activity.type === 'ticket' ||
-      activity.type === 'ticket_approved' ||
-      activity.type === 'ticket_denied' ||
-      activity.type === 'ticket_received'
+      activity.type === ActivityType.Ticket ||
+      activity.type === ActivityType.TicketApproved ||
+      activity.type === ActivityType.TicketDenied ||
+      activity.type === ActivityType.TicketReceived
     );
   };
 
@@ -123,10 +123,10 @@ export const ActivityRow: React.FC<ActivityRowProps> = ({ activity }) => {
                 : formatActivityAmount(activity.amount, activity.currency)}
             </ThemedText>
           )}
-        {(activity.type === 'ticket' ||
-          activity.type === 'ticket_approved' ||
-          activity.type === 'ticket_denied' ||
-          activity.type === 'ticket_received') &&
+        {(activity.type === ActivityType.Ticket ||
+          activity.type === ActivityType.TicketApproved ||
+          activity.type === ActivityType.TicketDenied ||
+          activity.type === ActivityType.TicketReceived) &&
           activity.amount !== null &&
           activity.amount > 1 && (
             <ThemedText style={[styles.amount, { color: primaryTextColor }]}>

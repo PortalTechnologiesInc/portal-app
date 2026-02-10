@@ -22,7 +22,7 @@ import { useECash } from '@/context/ECashContext';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { usePendingRequests } from '@/context/PendingRequestsContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { getServiceNameFromMintUrl, globalEvents } from '@/utils/common';
+import { ActivityStatus, ActivityType, getServiceNameFromMintUrl, globalEvents } from '@/utils/common';
 
 // Define the type for the barcode scanner result
 type BarcodeResult = {
@@ -269,7 +269,7 @@ export default function QRScannerScreen() {
 
             // Add activity to database using ActivitiesContext directly
             const activity = {
-              type: 'ticket_received' as const,
+              type: ActivityType.TicketReceived,
               service_key: serviceKey,
               service_name: serviceName, // Use readable service name from mint URL
               detail: ticketTitle, // Use ticket title as detail
@@ -278,7 +278,7 @@ export default function QRScannerScreen() {
               currency: null,
               request_id: `cashu-direct-${Date.now()}`,
               subscription_id: null,
-              status: 'neutral' as const,
+              status: ActivityStatus.Neutral,
               converted_amount: null,
               converted_currency: null,
             };

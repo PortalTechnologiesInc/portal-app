@@ -17,15 +17,18 @@ import {
   type WalletType,
   type WalletTypeMap,
 } from '@/models/WalletType';
+import { ActiveWalletProvider, WalletWrapper } from '@/queue/providers/ActiveWallet';
+import { ProviderRepository } from '@/queue/WorkQueue';
 import { BreezService } from '@/services/BreezService';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 import { NwcService } from '@/services/NwcService';
-import { ActivityType, globalEvents } from '@/utils/common';
+import { ActivityStatus, ActivityType, globalEvents } from '@/utils/common';
 import { deriveNsecFromMnemonic } from '@/utils/keyHelpers';
 import type { WalletInfo } from '@/utils/types';
 import { useCurrency } from './CurrencyContext';
 import { useDatabaseContext } from './DatabaseContext';
 import { useKey } from './KeyContext';
+import { PaymentAction } from '@/utils/types';
 
 export interface WalletManagerContextType {
   activeWallet?: Wallet;
@@ -102,9 +105,9 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
         if (pType === PaymentType.Send) return;
 
         const statusMap = {
-          pending: { status: 'pending' as const, statusEntry: null },
-          succeeded: { status: 'positive' as const, statusEntry: 'payment_completed' as const },
-          failed: { status: 'negative' as const, statusEntry: 'payment_failed' as const },
+          pending: { status: ActivityStatus.Pending, statusEntry: PaymentAction.PaymentStarted },
+          succeeded: { status: ActivityStatus.Positive, statusEntry: PaymentAction.PaymentCompleted },
+          failed: { status: ActivityStatus.Negative, statusEntry: PaymentAction.PaymentFailed },
         };
 
         const activityTypeMap = {
@@ -170,8 +173,8 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
             const createdActivity = await executeOperation(db => db.getActivity(activityId), null);
             if (createdActivity) {
               globalEvents.emit(
-                status === 'pending' ? 'activityAdded' : 'activityUpdated',
-                status === 'pending' ? createdActivity : { activityId }
+                status === ActivityStatus.Pending ? 'activityAdded' : 'activityUpdated',
+                status === ActivityStatus.Pending ? createdActivity : { activityId }
               );
             }
           }
@@ -248,6 +251,10 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
         const wallet = await getWallet(walletType);
 
         setActiveWallet(wallet);
+        ProviderRepository.register(
+          new ActiveWalletProvider(new WalletWrapper(wallet)),
+          'ActiveWalletProvider'
+        );
         setPreferredWallet(walletType);
 
         await AsyncStorage.setItem(PREFERRED_WALLET_KEY, JSON.stringify(walletType));
@@ -287,7 +294,6 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
       console.error('Failed to initialize wallet manager:', error);
       setIsWalletManagerInitialized(false);
     }
-
   }, [getWallet, switchActiveWallet]);
 
   /**
