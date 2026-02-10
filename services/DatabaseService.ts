@@ -45,6 +45,7 @@ export interface ActivityRecord {
   subscription_id: string | null;
   status: ActivityStatus;
   invoice?: string | null; // Invoice for payment activities (optional)
+  refunded_activity_id?: string | null; // ID of the activity being refunded (for refund activities)
 }
 
 export interface SubscriptionRecord {
@@ -273,9 +274,24 @@ export class DatabaseService {
     };
   }
 
+  async getActivityFromInvoice(invoice: string): Promise<ActivityWithDates | null> {
+    const record = await this.db.getFirstAsync<ActivityRecord>(
+      'SELECT * FROM activities WHERE invoice = ?',
+      [invoice]
+    );
+
+    if (!record) return null;
+
+    return {
+      ...record,
+      date: fromUnixSeconds(record.date),
+      created_at: fromUnixSeconds(record.created_at),
+    };
+  }
+
   async updateActivityStatus(
     id: string,
-    status: 'neutral' | 'positive' | 'negative' | 'pending',
+    status: ActivityStatus,
     statusDetail: string
   ): Promise<void> {
     await this.db.runAsync('UPDATE activities SET status = ?, detail = ? WHERE id = ?', [
@@ -1097,6 +1113,7 @@ export class DatabaseService {
       invoice: string | null;
       action_type: PaymentAction;
       created_at: Date;
+      refunded_activity_id: string | null;
     }>
   > {
     try {
@@ -1111,6 +1128,7 @@ export class DatabaseService {
         invoice: record.invoice ?? null,
         action_type: PaymentAction.PaymentStarted, // All pending payments are started
         created_at: fromUnixSeconds(record.created_at),
+        refunded_activity_id: record.refunded_activity_id ?? null,
       }));
     } catch (_error) {
       return [];
