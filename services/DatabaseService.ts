@@ -1,8 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import uuid from 'react-native-uuid';
 import migrateDbIfNeeded from '@/migrations/DatabaseMigrations';
-import type { Currency } from '@/utils/currency';
-import type { ActivityType, UpcomingPayment } from '@/utils/types';
+import { PaymentAction, type ActivityStatus, type ActivityType } from '@/utils/types';
 import { generateResetSQL } from './StorageRegistry';
 
 // Timestamp utilities
@@ -32,14 +31,7 @@ export interface QueuedTaskRecord {
 // Database record types (as stored in SQLite)
 export interface ActivityRecord {
   id: string;
-  type:
-    | 'auth'
-    | 'pay'
-    | 'receive'
-    | 'ticket'
-    | 'ticket_approved'
-    | 'ticket_denied'
-    | 'ticket_received';
+  type: ActivityType;
   service_name: string;
   service_key: string;
   detail: string;
@@ -51,7 +43,7 @@ export interface ActivityRecord {
   request_id: string;
   created_at: number; // Unix timestamp in seconds
   subscription_id: string | null;
-  status: 'neutral' | 'positive' | 'negative' | 'pending';
+  status: ActivityStatus;
   invoice?: string | null; // Invoice for payment activities (optional)
 }
 
@@ -145,10 +137,8 @@ export interface AllowedBunkerClientWithDates
   created_at: Date;
 }
 
-export type PaymentAction = 'payment_started' | 'payment_completed' | 'payment_failed';
-
 export class DatabaseService {
-  constructor(private db: SQLiteDatabase) {}
+  constructor(private db: SQLiteDatabase) { }
 
   /**
    * Force database reinitialization after reset
@@ -1093,10 +1083,7 @@ export class DatabaseService {
 
       return records.map(record => ({
         ...record,
-        action_type: record.action_type as
-          | 'payment_started'
-          | 'payment_completed'
-          | 'payment_failed',
+        action_type: record.action_type as PaymentAction,
         created_at: fromUnixSeconds(record.created_at),
       }));
     } catch (_error) {
@@ -1108,7 +1095,7 @@ export class DatabaseService {
     Array<{
       id: string;
       invoice: string | null;
-      action_type: 'payment_started' | 'payment_completed' | 'payment_failed';
+      action_type: PaymentAction;
       created_at: Date;
     }>
   > {
@@ -1122,7 +1109,7 @@ export class DatabaseService {
       return records.map(record => ({
         id: record.id,
         invoice: record.invoice ?? null,
-        action_type: 'payment_started' as const, // All pending payments are started
+        action_type: PaymentAction.PaymentStarted, // All pending payments are started
         created_at: fromUnixSeconds(record.created_at),
       }));
     } catch (_error) {

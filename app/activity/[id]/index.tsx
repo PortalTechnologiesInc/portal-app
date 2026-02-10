@@ -32,7 +32,7 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 import type { ActivityWithDates } from '@/services/DatabaseService';
 import { getActivityStatus } from '@/utils/activityHelpers';
-import { ActivityType, formatDayAndDate } from '@/utils/common';
+import { ActivityStatus, ActivityType, formatDayAndDate } from '@/utils/common';
 import {
   type Currency,
   formatActivityAmount,
@@ -420,16 +420,16 @@ export default function ActivityDetailScreen() {
                       activity.service_name,
                       activity.detail
                     )}
-                    {activityStatus === 'success' &&
+                    {activityStatus === ActivityStatus.Positive &&
                       getSuccessStatusText(isAuth, isTicket, activity.type)}
-                    {activityStatus === 'failed' &&
+                    {activityStatus === ActivityStatus.Negative &&
                       getFailedStatusText(
                         isAuth,
                         isTicket,
                         activity.detail,
                         activity.detail.toLowerCase().includes('denied')
                       )}
-                    {activityStatus === 'pending' &&
+                    {activityStatus === ActivityStatus.Pending &&
                       !isAuth &&
                       !isTicket &&
                       ' The payment is still being processed.'}

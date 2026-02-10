@@ -22,7 +22,8 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 import { WALLET_TYPE } from '@/models/WalletType';
 import type { BreezService } from '@/services/BreezService';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
-import { ActivityType, globalEvents } from '@/utils/common';
+import { ActivityStatus, ActivityType, globalEvents } from '@/utils/common';
+import { PaymentAction } from '@/utils/types';
 
 enum PageState {
   PaymentRecap = 0,
@@ -126,12 +127,12 @@ export default function MyWalletManagementSecret() {
           converted_currency: preferredCurrency,
           request_id: invoice,
           subscription_id: null, // TODO: link to subscription if applicable
-          status: 'neutral',
+          status: ActivityStatus.Neutral,
           invoice,
         })
       );
 
-      await executeOperation(db => db.addPaymentStatusEntry(invoice, 'payment_started'), null);
+      await executeOperation(db => db.addPaymentStatusEntry(invoice, PaymentAction.PaymentStarted), null);
       if (activityId) {
         const createdActivity = await executeOperation(db => db.getActivity(activityId), null);
         if (createdActivity) {
@@ -142,9 +143,9 @@ export default function MyWalletManagementSecret() {
       await breezWallet.sendPaymentWithPrepareResponse(prepareSendPaymentResponse);
 
       await executeOperation(db =>
-        db.updateActivityStatus(activityId, 'positive', 'Payment completed')
+        db.updateActivityStatus(activityId, ActivityStatus.Positive, 'Payment completed')
       );
-      await executeOperation(db => db.addPaymentStatusEntry(invoice, 'payment_completed'), null);
+      await executeOperation(db => db.addPaymentStatusEntry(invoice, PaymentAction.PaymentCompleted), null);
       globalEvents.emit('activityUpdated', { activityId });
     } catch (_error) { }
 

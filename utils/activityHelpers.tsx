@@ -1,32 +1,20 @@
 import { AlertCircle, CheckCircle, Clock, Info, XCircle } from 'lucide-react-native';
 import type React from 'react';
 import type { ActivityWithDates } from '@/services/DatabaseService';
-import { ActivityType } from '@/utils/common';
-
-export type ActivityStatus = 'success' | 'failed' | 'pending' | 'received';
+import { ActivityStatus, ActivityType } from '@/utils/common';
 
 export const getActivityStatus = (activity: ActivityWithDates): ActivityStatus => {
-  // Map database status to ActivityStatus
-  switch (activity.status) {
-    case 'positive':
-      return 'success';
-    case 'negative':
-      return 'failed';
-    case 'pending':
-      return 'pending';
-    default:
-      // For ticket activities, determine status based on type
-      if (activity.type === 'ticket_received') {
-        return 'received'; // Neutral status for received tickets
-      } else if (activity.type === 'ticket_approved') {
-        return 'success'; // Approved tickets are success
-      } else if (activity.type === 'ticket_denied') {
-        return 'failed'; // Denied tickets are failed
-      } else if (activity.type === 'ticket') {
-        return 'pending'; // Legacy ticket type (if any) are pending
-      }
-      return 'pending'; // Default for neutral status
+  // For ticket activities, determine status based on type
+  if (activity.type === ActivityType.TicketReceived) {
+    return ActivityStatus.Neutral; // Neutral status for received tickets
+  } else if (activity.type === ActivityType.TicketApproved) {
+    return ActivityStatus.Positive; // Approved tickets are success
+  } else if (activity.type === ActivityType.TicketDenied) {
+    return ActivityStatus.Negative; // Denied tickets are failed
+  } else if (activity.type === ActivityType.Ticket) {
+    return ActivityStatus.Pending; // Legacy ticket type (if any) are pending
   }
+  return activity.status; // Default to normal status
 };
 
 export const getStatusColor = (
@@ -39,13 +27,13 @@ export const getStatusColor = (
   }
 ): string => {
   switch (status) {
-    case 'success':
+    case ActivityStatus.Positive:
       return colors.statusConnected;
-    case 'pending':
+    case ActivityStatus.Pending:
       return colors.statusWarning;
-    case 'failed':
+    case ActivityStatus.Negative:
       return colors.statusError;
-    case 'received':
+    case ActivityStatus.Neutral:
       return colors.textSecondary; // Neutral color for received
     default:
       return colors.textSecondary;
@@ -63,13 +51,13 @@ export const getStatusIcon = (
   size = 16
 ): React.ReactElement => {
   switch (status) {
-    case 'success':
+    case ActivityStatus.Positive:
       return <CheckCircle size={size} color={colors.statusConnected} />;
-    case 'pending':
+    case ActivityStatus.Pending:
       return <Clock size={size} color={colors.statusWarning} />;
-    case 'failed':
+    case ActivityStatus.Negative:
       return <XCircle size={size} color={colors.statusError} />;
-    case 'received':
+    case ActivityStatus.Neutral:
       return <Info size={size} color={colors.textSecondary} />;
     default:
       return <AlertCircle size={size} color={colors.textSecondary} />;
@@ -78,13 +66,13 @@ export const getStatusIcon = (
 
 export const getStatusText = (status: ActivityStatus): string => {
   switch (status) {
-    case 'success':
+    case ActivityStatus.Positive:
       return 'Completed';
-    case 'pending':
+    case ActivityStatus.Pending:
       return 'Pending';
-    case 'failed':
+    case ActivityStatus.Negative:
       return 'Failed';
-    case 'received':
+    case ActivityStatus.Neutral:
       return 'Received';
     default:
       return 'Unknown';
@@ -115,14 +103,14 @@ export const getActivityDescription = (
 ): string => {
   if (type === ActivityType.Auth) {
     switch (status) {
-      case 'success':
+      case ActivityStatus.Positive:
         return 'You successfully authenticated with this service';
-      case 'failed':
+      case ActivityStatus.Negative:
         if (detail.toLowerCase().includes('denied')) {
           return 'You denied the authentication request';
         }
         return 'Authentication was denied or failed';
-      case 'pending':
+      case ActivityStatus.Pending:
         return 'Authentication is being processed';
       default:
         return 'Authentication request';
@@ -135,53 +123,51 @@ export const getActivityDescription = (
   ) {
     if (amount && amount > 1) {
       switch (status) {
-        case 'success':
+        case ActivityStatus.Positive:
           return 'Tickets were successfully processed';
-        case 'failed':
+        case ActivityStatus.Negative:
           return 'Tickets processing failed';
-        case 'pending':
+        case ActivityStatus.Pending:
           return 'Tickets are being processed';
-        case 'received':
+        case ActivityStatus.Neutral:
           return 'Tickets were received and stored';
         default:
           return 'Tickets activity';
       }
     }
     switch (status) {
-      case 'success':
+      case ActivityStatus.Positive:
         return 'Ticket was successfully processed';
-      case 'failed':
+      case ActivityStatus.Negative:
         return 'Ticket processing failed';
-      case 'pending':
+      case ActivityStatus.Pending:
         return 'Ticket is being processed';
-      case 'received':
+      case ActivityStatus.Neutral:
         return 'Ticket was received and stored';
       default:
         return 'Ticket activity';
     }
-  } else if (
-    type === ActivityType.Receive
-  ) {
+  } else if (type === ActivityType.Receive) {
     switch (status) {
-      case 'success':
+      case ActivityStatus.Positive:
         return 'Payment was successfully received';
-      case 'failed':
+      case ActivityStatus.Negative:
         return 'Payment could not be received';
-      case 'pending':
+      case ActivityStatus.Pending:
         return 'Payment is being received';
       default:
         return 'Incoming payment';
     }
   } else {
     switch (status) {
-      case 'success':
+      case ActivityStatus.Positive:
         return 'Payment was successfully processed';
-      case 'failed':
+      case ActivityStatus.Negative:
         if (detail.toLowerCase().includes('insufficient')) {
           return 'Payment failed due to insufficient funds';
         }
         return 'Payment was declined or failed';
-      case 'pending':
+      case ActivityStatus.Pending:
         return 'Payment is being processed';
       default:
         return 'Payment activity';

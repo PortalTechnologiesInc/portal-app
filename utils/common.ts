@@ -1,5 +1,4 @@
 import { Currency, CurrencyHelpers } from './currency';
-import type { Frequency } from './types.d';
 
 // Convert cents to dollars by dividing by 100 and fix to 2 decimal places
 export function formatCentsToCurrency(cents: number): string {
@@ -379,4 +378,4 @@ export function formatAmountToHumanReadable(amount: number, currency: string): s
 // =============================================================================
 
 // Export all common types from the centralized types file
-export * from './types.d';
+export * from './types';

@@ -2,8 +2,9 @@ import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { PaymentAction } from '@/utils/types';
 
-export type PaymentStepStatus = 'completed' | 'pending' | 'success' | 'error';
+export type PaymentStepStatus = 'started' | 'pending' | 'success' | 'error';
 
 export interface PaymentStep {
   id: string;
@@ -24,10 +25,10 @@ export const convertPaymentStatusToSteps = (
   paymentStatusEntries: Array<{
     id: number;
     invoice: string;
-    action_type: 'payment_started' | 'payment_completed' | 'payment_failed';
+    action_type: PaymentAction;
     created_at: Date;
   }>,
-  receiving = false,
+  receiving = false
 ): PaymentStep[] => {
   const steps: PaymentStep[] = [];
   let stepId = 1;
@@ -35,7 +36,7 @@ export const convertPaymentStatusToSteps = (
   // Add steps based on payment status entries
   for (const entry of paymentStatusEntries) {
     switch (entry.action_type) {
-      case 'payment_started':
+      case PaymentAction.PaymentStarted:
         steps.push({
           id: `${stepId++}`,
           status: 'success',
@@ -51,7 +52,7 @@ export const convertPaymentStatusToSteps = (
           timestamp: entry.created_at,
         });
         break;
-      case 'payment_completed': {
+      case PaymentAction.PaymentCompleted: {
         // Update the last pending step to completed
         let lastPendingIndex = -1;
         for (let i = steps.length - 1; i >= 0; i--) {
@@ -80,7 +81,7 @@ export const convertPaymentStatusToSteps = (
         }
         break;
       }
-      case 'payment_failed': {
+      case PaymentAction.PaymentFailed: {
         // Update the last pending step to error
         let lastPendingStepIndex = -1;
         for (let i = steps.length - 1; i >= 0; i--) {
@@ -124,7 +125,6 @@ export function PaymentStatusProgress({ steps, onRetry }: PaymentStatusProgressP
   const primaryColor = useThemeColor({}, 'tint');
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
-  const _surfaceSecondaryColor = useThemeColor({}, 'surfaceSecondary');
   const statusConnectedColor = useThemeColor({}, 'statusConnected');
   const statusErrorColor = useThemeColor({}, 'statusError');
   const buttonSecondaryColor = useThemeColor({}, 'buttonSecondary');
@@ -134,7 +134,7 @@ export function PaymentStatusProgress({ steps, onRetry }: PaymentStatusProgressP
   const defaultSteps: PaymentStep[] = [
     {
       id: '1',
-      status: 'completed',
+      status: 'started',
       title: 'Payment initiated',
       subtitle: 'Your payment has been created',
     },
@@ -226,7 +226,7 @@ export function PaymentStatusProgress({ steps, onRetry }: PaymentStatusProgressP
 
   const renderDot = (step: PaymentStep, isLast: boolean, nextStep?: PaymentStep) => {
     switch (step.status) {
-      case 'completed':
+      case 'started':
         return (
           <View style={styles.dotContainer}>
             <View style={[styles.completedDotOuter, { borderColor: primaryColor }]}>

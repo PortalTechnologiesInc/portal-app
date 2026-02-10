@@ -1,6 +1,6 @@
 import { type CashuDirectContentWithKey, parseCashuToken, type TokenInfo } from 'portal-app-lib';
 import type NostrStoreService from '@/services/NostrStoreService';
-import { globalEvents } from '@/utils/common';
+import { ActivityStatus, ActivityType, globalEvents } from '@/utils/common';
 import { showToast } from '@/utils/Toast';
 import type { DatabaseService } from '../../services/DatabaseService';
 import type { CashuWalletMethodsProvider } from '../providers/CashuWallets';
@@ -65,7 +65,7 @@ export class HandleCashuDirectContentTask extends Task<
         const ticketTitle = unitInfo?.title || wallet.unit();
 
         const activity = {
-          type: 'ticket_received' as const,
+          type: ActivityType.TicketReceived,
           service_key: serviceKey,
           service_name: ticketTitle, // Always use ticket title
           detail: ticketTitle, // Always use ticket title
@@ -74,7 +74,7 @@ export class HandleCashuDirectContentTask extends Task<
           currency: null,
           request_id: `cashu-direct-${Date.now()}`,
           subscription_id: null,
-          status: 'neutral' as const,
+          status: ActivityStatus.Neutral,
           converted_amount: null,
           converted_currency: null,
         };

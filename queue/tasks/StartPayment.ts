@@ -1,6 +1,7 @@
 import { PaymentStatus, type SinglePaymentRequest } from 'portal-app-lib';
-import type { DatabaseService, PaymentAction } from '@/services/DatabaseService';
-import { globalEvents } from '@/utils/common';
+import { DatabaseService } from '@/services/DatabaseService';
+import { PaymentAction } from '@/utils/types';
+import { ActivityStatus, globalEvents } from '@/utils/common';
 import type { ActiveWalletProvider } from '../providers/ActiveWallet';
 import type { RelayStatusesProvider } from '../providers/RelayStatus';
 import { Task, TransactionalTask } from '../WorkQueue';
@@ -32,7 +33,7 @@ export class StartPaymentTask extends Task<
     const id = await new SaveActivityAndAddPaymentStatusTransactionalTask(
       initialActivityData,
       request.content.invoice,
-      'payment_started'
+      PaymentAction.PaymentStarted
     ).run();
     await new SendSinglePaymentResponseTask(request, new PaymentStatus.Approved()).run();
 
@@ -44,7 +45,7 @@ export class StartPaymentTask extends Task<
       if (!preimage) {
         await new UpdateActivityStatusTask(
           id,
-          'negative',
+          ActivityStatus.Negative,
           'Recurrent payment failed: no wallet is connected.'
         ).run();
         await new SendSinglePaymentResponseTask(
@@ -62,10 +63,10 @@ export class StartPaymentTask extends Task<
 
       await new UpdatePaymentResultTransactionalTask(
         id,
-        'positive',
+        ActivityStatus.Positive,
         'Payment Completed',
         request.content.invoice,
-        'payment_completed',
+        PaymentAction.PaymentCompleted,
         subscriptionId
       ).run();
     } catch (error) {
@@ -76,10 +77,10 @@ export class StartPaymentTask extends Task<
 
       await new UpdatePaymentResultTransactionalTask(
         id,
-        'negative',
+        ActivityStatus.Negative,
         'Payment approved but failed to process',
         request.content.invoice,
-        'payment_failed',
+        PaymentAction.PaymentFailed,
         null
       ).run();
 
@@ -123,13 +124,13 @@ export class SaveActivityAndAddPaymentStatusTransactionalTask extends Transactio
 Task.register(SaveActivityAndAddPaymentStatusTransactionalTask);
 
 export class UpdatePaymentResultTransactionalTask extends TransactionalTask<
-  [string, ActivityPaymentStatus, string, string, PaymentAction, string | null],
+  [string, ActivityStatus, string, string, PaymentAction, string | null],
   [],
   void
 > {
   constructor(
     private readonly activityId: string,
-    private readonly activityStatus: ActivityPaymentStatus,
+    private readonly activityStatus: ActivityStatus,
     private readonly statusDesctiption: string,
     private readonly invoice: string,
     private readonly action: PaymentAction,
@@ -142,7 +143,7 @@ export class UpdatePaymentResultTransactionalTask extends TransactionalTask<
   async taskLogic(
     _: {},
     activityId: string,
-    activityStatus: ActivityPaymentStatus,
+    activityStatus: ActivityStatus,
     statusDesctiption: string,
     invoice: string,
     action: PaymentAction,
@@ -161,7 +162,7 @@ Task.register(UpdatePaymentResultTransactionalTask);
 class AddPaymentStatusTask extends Task<[string, PaymentAction], ['DatabaseService'], void> {
   constructor(
     private readonly invoice: string,
-    action: PaymentAction
+    private readonly action: PaymentAction
   ) {
     console.log('[AddPaymentStatusTask] getting DatabaseService');
     super(['DatabaseService'], invoice, action);
@@ -214,15 +215,14 @@ class UpdateSubscriptionLastPaymentTask extends Task<[string], ['DatabaseService
 }
 Task.register(UpdateSubscriptionLastPaymentTask);
 
-type ActivityPaymentStatus = 'neutral' | 'positive' | 'negative' | 'pending';
 class UpdateActivityStatusTask extends Task<
-  [string, ActivityPaymentStatus, string],
+  [string, ActivityStatus, string],
   ['DatabaseService'],
   void
 > {
   constructor(
     private readonly id: string,
-    private readonly status: ActivityPaymentStatus,
+    private readonly status: ActivityStatus,
     private readonly statusDetail: string
   ) {
     console.log('[UpdateActivityStatusTask] getting DatabaseService');
@@ -232,7 +232,7 @@ class UpdateActivityStatusTask extends Task<
   async taskLogic(
     { DatabaseService }: { DatabaseService: DatabaseService },
     id: string,
-    status: ActivityPaymentStatus,
+    status: ActivityStatus,
     statusDetail: string
   ): Promise<void> {
     await DatabaseService.updateActivityStatus(id, status, statusDetail);
