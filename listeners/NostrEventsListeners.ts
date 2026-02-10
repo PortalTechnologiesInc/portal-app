@@ -5,6 +5,7 @@ import {
   type RecurringPaymentRequest,
   type SinglePaymentRequest,
 } from 'portal-app-lib';
+import { HandleAuthRequestTask } from '@/queue/tasks/HandleAuthRequest';
 import { HandleCancelSubscriptionResponseTask } from '@/queue/tasks/HandleCancelSubscriptionResponse';
 import { HandleCashuBurnRequestTask } from '@/queue/tasks/HandleCashuBurnRequest';
 import { HandleCashuDirectContentTask } from '@/queue/tasks/HandleCashuDirectContent';
@@ -109,6 +110,20 @@ export async function listenForNostrConnectRequest(app: PortalAppInterface, port
       const event = await app.nextNip46Request();
       const task = new HandleNostrConnectRequestTask(event, keyToHex(portalAppNpub));
       console.log('[PortalAppContext] Enqueuing HandleNostrConnectRequestTask');
+      enqueueTask(task);
+    } catch (error) {
+      console.error('[PortalAppContext] Error running task', error);
+    }
+  }
+}
+
+export async function listenForInvoiceRequest(app: PortalAppInterface) {
+  while (true) {
+    try {
+      const event = await app.nextInvoiceRequest();
+
+      const task = new HandleInvoiceRequestTask(event);
+      console.log('[PortalAppContext] Enqueuing HandleInvoiceRequestTask');
       enqueueTask(task);
     } catch (error) {
       console.error('[PortalAppContext] Error running task', error);

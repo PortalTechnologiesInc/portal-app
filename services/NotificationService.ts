@@ -19,6 +19,7 @@ import {
   listenForCashuDirect,
   listenForCashuRequest,
   listenForDeletedSubscription,
+  listenForInvoiceRequest,
   listenForNostrConnectRequest,
   listenForPaymentRequest,
 } from '@/listeners/NostrEventsListeners';
@@ -332,6 +333,7 @@ export async function handleHeadlessNotification(_event: string, databaseName: s
     listenForPaymentRequest(app);
     listenForDeletedSubscription(app);
     listenForNostrConnectRequest(app, keypair.publicKey());
+    listenForInvoiceRequest(app);
   } catch (e) {
     console.error(e);
   }
