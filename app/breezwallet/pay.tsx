@@ -146,7 +146,7 @@ export default function MyWalletManagementSecret() {
       );
       await executeOperation(db => db.addPaymentStatusEntry(invoice, 'payment_completed'), null);
       globalEvents.emit('activityUpdated', { activityId });
-    } catch (_error) {}
+    } catch (_error) { }
 
     setIsSendPaymentLoading(false);
 

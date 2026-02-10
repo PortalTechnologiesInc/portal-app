@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react-native';
 import {
-  CashuDirectContentWithKey,
+  type CashuDirectContentWithKey,
   Currency_Tags,
   type NostrConnectEvent,
   NostrConnectMethod,
@@ -19,7 +19,7 @@ import { useNostrService } from '@/context/NostrServiceContext';
 import { useWalletManager } from '@/context/WalletManagerContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useWalletStatus } from '@/hooks/useWalletStatus';
-import { FetchServiceProfileTask } from '@/queue/tasks/ProcessAuthRequest';
+import { FetchServiceProfileTask } from '@/queue/tasks/HandleAuthRequest';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 import { formatActivityAmount, normalizeCurrencyForComparison } from '@/utils/currency';
 import { getServiceNameFromProfile } from '@/utils/nostrHelper';
@@ -87,12 +87,10 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     let nostrConnectMethod: NostrConnectMethod | undefined;
     let nostrConnectParams: string[] | undefined;
     if (isNostrConnect) {
-      nostrConnectMethod = (
-        (metadata as NostrConnectEvent).message.inner[0] as NostrConnectRequest
-      ).method;
-      nostrConnectParams = (
-        (metadata as NostrConnectEvent).message.inner[0] as NostrConnectRequest
-      ).params;
+      nostrConnectMethod = ((metadata as NostrConnectEvent).message.inner[0] as NostrConnectRequest)
+        .method;
+      nostrConnectParams = ((metadata as NostrConnectEvent).message.inner[0] as NostrConnectRequest)
+        .params;
     }
     const content = (metadata as SinglePaymentRequest)?.content;
     const amount = content?.amount ?? (isTicketRequest ? (metadata as any)?.inner?.amount : null);
@@ -257,7 +255,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
                 canPay = true;
                 break;
               }
-            } catch (_error) { }
+            } catch (_error) {}
           }
 
           setHasInsufficientBalance(!canPay);
@@ -481,26 +479,26 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
               formatServiceName()
             )
           ) : // For payment/subscription requests, show service name (loading state)
-            isServiceNameLoading ? (
-              <SkeletonPulse
-                style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
-              />
-            ) : // For payment/subscription requests, show service name (loading state)
-              isServiceNameLoading ? (
-                <SkeletonPulse
-                  style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
-                />
-              ) : (
-                formatServiceName()
-              )}
+          isServiceNameLoading ? (
+            <SkeletonPulse
+              style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
+            />
+          ) : // For payment/subscription requests, show service name (loading state)
+          isServiceNameLoading ? (
+            <SkeletonPulse
+              style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
+            />
+          ) : (
+            formatServiceName()
+          )}
         </Text>
 
         <Text style={[styles.serviceInfo, { color: secondaryTextColor }]}>
           {isTicketRequest
             ? // For ticket requests, show ticket title as secondary info
-            formatSecondaryInfo()
+              formatSecondaryInfo()
             : // For payment/subscription requests, show truncated recipient pubkey
-            formatSecondaryInfo()}
+              formatSecondaryInfo()}
         </Text>
 
         {(isPaymentRequest || isSubscriptionRequest) && amount !== null && (
@@ -512,9 +510,9 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
                     const normalized = getNormalizedAmountAndCurrency();
                     return normalized
                       ? formatActivityAmount(
-                        normalized.normalizedAmount,
-                        normalized.normalizedCurrency
-                      )
+                          normalized.normalizedAmount,
+                          normalized.normalizedCurrency
+                        )
                       : '';
                   })()}
                 </Text>
@@ -528,9 +526,9 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
                   const normalized = getNormalizedAmountAndCurrency();
                   return normalized
                     ? formatActivityAmount(
-                      normalized.normalizedAmount,
-                      normalized.normalizedCurrency
-                    )
+                        normalized.normalizedAmount,
+                        normalized.normalizedCurrency
+                      )
                     : '';
                 })()}
               </Text>

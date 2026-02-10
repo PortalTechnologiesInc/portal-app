@@ -839,10 +839,10 @@ export class DatabaseService {
 
       return tx
         ? JSON.stringify({
-            ...tx,
-            ys: JSON.parse(tx.ys),
-            metadata: tx.metadata ? JSON.parse(tx.metadata) : null,
-          })
+          ...tx,
+          ys: JSON.parse(tx.ys),
+          metadata: tx.metadata ? JSON.parse(tx.metadata) : null,
+        })
         : undefined;
     } catch (_error) {
       return undefined;
@@ -1194,7 +1194,7 @@ export class DatabaseService {
          WHERE id = ?`,
         [npub, id]
       );
-    } catch (_error) {}
+    } catch (_error) { }
   }
 
   // get last unused created secret

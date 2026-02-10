@@ -12,6 +12,7 @@ import {
   type RelayStatusListener,
   type SinglePaymentRequest,
 } from 'portal-app-lib';
+import type { RefObject } from 'react';
 import { Platform } from 'react-native';
 import {
   listenForAuthChallenge,
@@ -22,15 +23,14 @@ import {
   listenForPaymentRequest,
 } from '@/listeners/NostrEventsListeners';
 import type { Wallet } from '@/models/WalletType';
+import { RelayStatusesProvider } from '@/queue/providers/RelayStatus';
+import { ProviderRepository } from '@/queue/WorkQueue';
 import type { RelayInfo } from '@/utils/common';
 import { getServiceNameFromProfile, mapNumericStatusToString } from '@/utils/nostrHelper';
 import { DatabaseService } from './DatabaseService';
 import { NwcService } from './NwcService';
 import { PortalAppManager } from './PortalAppManager';
 import { getMnemonic, getWalletUrl } from './SecureStorageService';
-import { ProviderRepository } from '@/queue/WorkQueue';
-import { RelayStatusesProvider } from '@/queue/providers/RelayStatus';
-import type { RefObject } from 'react';
 
 const EXPO_PUSH_TOKEN_KEY = 'expo_push_token_key';
 
@@ -344,7 +344,10 @@ class NotificationRelayStatusListener implements RelayStatusListener {
 
   public constructor(db: DatabaseService) {
     this.db = db;
-    ProviderRepository.register(new RelayStatusesProvider(this.relayStatuses), 'RelayStatusesProvider');
+    ProviderRepository.register(
+      new RelayStatusesProvider(this.relayStatuses),
+      'RelayStatusesProvider'
+    );
   }
 
   getRelayStatuses(): RelayInfo[] {
@@ -381,7 +384,9 @@ class NotificationRelayStatusListener implements RelayStatusListener {
       // Check if this relay has been marked as removed by user
       if (this.removedRelays.has(relay_url)) {
         // Don't add removed relays back to the status list
-        this.relayStatuses.current = this.relayStatuses.current.filter(relay => relay.url !== relay_url);
+        this.relayStatuses.current = this.relayStatuses.current.filter(
+          relay => relay.url !== relay_url
+        );
         return;
       }
 

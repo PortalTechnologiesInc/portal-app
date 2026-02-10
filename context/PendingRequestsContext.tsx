@@ -30,7 +30,7 @@ import { useCurrency } from '@/context/CurrencyContext';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import { useECash } from '@/context/ECashContext';
 import { useNostrService } from '@/context/NostrServiceContext';
-import { FetchServiceProfileTask } from '@/queue/tasks/ProcessAuthRequest';
+import { FetchServiceProfileTask } from '@/queue/tasks/HandleAuthRequest';
 import { SaveActivityAndAddPaymentStatusTransactionalTask } from '@/queue/tasks/StartPayment';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
@@ -870,48 +870,6 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             }),
             requestId: (request.metadata as RecurringPaymentRequest).content.requestId,
           });
-
-          // TODO: same as for the approve, we shouldn't add a "pay" activity for a rejected subscription
-          // Add denied subscription activity to database
-          // try {
-          //   // Convert BigInt to number if needed
-          //   const amount =
-          //     typeof (request.metadata as RecurringPaymentRequest).content.amount === 'bigint'
-          //       ? Number((request.metadata as RecurringPaymentRequest).content.amount)
-          //       : (request.metadata as RecurringPaymentRequest).content.amount;
-
-          //   // Extract currency symbol from the Currency object
-          //   let currency: string | null = null;
-          //   const currencyObj = (request.metadata as RecurringPaymentRequest).content.currency;
-          //   if (currencyObj) {
-          //     // If it's a simple string, use it directly
-          //     if (typeof currencyObj === 'string') {
-          //       currency = currencyObj;
-          //     } else {
-          //       currency = 'sats';
-          //     }
-          //   }
-
-          //   getServiceNameWithFallback(
-          //     nostrService,
-          //     (request.metadata as RecurringPaymentRequest).serviceKey
-          //   ).then(serviceName => {
-          //     addActivityWithFallback({
-          //       type: 'pay',
-          //       service_key: (request.metadata as RecurringPaymentRequest).serviceKey,
-          //       service_name: serviceName,
-          //       detail: 'Subscription denied by user',
-          //       date: new Date(),
-          //       amount: Number(amount) / 1000,
-          //       currency,
-          //       request_id: id,
-          //       subscription_id: null,
-          //       status: 'negative',
-          //     });
-          //   });
-          // } catch (err) {
-          //   console.log('Error adding denied subscription activity:', err);
-          // }
           break;
         case 'ticket':
           // Handle Cashu request denial (sending tokens only)

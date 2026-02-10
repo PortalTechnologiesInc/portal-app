@@ -8,10 +8,10 @@ import {
 import { HandleCancelSubscriptionResponseTask } from '@/queue/tasks/HandleCancelSubscriptionResponse';
 import { HandleCashuBurnRequestTask } from '@/queue/tasks/HandleCashuBurnRequest';
 import { HandleCashuDirectContentTask } from '@/queue/tasks/HandleCashuDirectContent';
+import { HandleInvoiceRequestTask } from '@/queue/tasks/HandleInvoiceRequest';
 import { HandleNostrConnectRequestTask } from '@/queue/tasks/HandleNostrConnectRequest';
 import { HandleRecurringPaymentRequestTask } from '@/queue/tasks/HandleRecurringPaymentRequest';
 import { HandleSinglePaymentRequestTask } from '@/queue/tasks/HandleSinglePaymentRequest';
-import { ProcessAuthRequestTask } from '@/queue/tasks/ProcessAuthRequest';
 import { enqueueTask } from '@/queue/WorkQueue';
 
 //cashu receive token
@@ -47,7 +47,7 @@ export async function listenForAuthChallenge(app: PortalAppInterface) {
     try {
       const event = await app.nextAuthChallenge();
       const id = event.eventId;
-      const task = new ProcessAuthRequestTask(event);
+      const task = new HandleAuthRequestTask(event);
       console.log('[PortalAppContext] Enqueuing ProcessAuthRequestTask for request:', id);
       enqueueTask(task);
     } catch (error) {

@@ -335,8 +335,8 @@ export default function NostrRelayManagementScreen() {
                             opacity:
                               (!selectedRelays.includes(relay) &&
                                 selectedRelays.length >= MAX_RELAY_CONNECTIONS) ||
-                                (selectedRelays.includes(relay) &&
-                                  selectedRelays.length <= MIN_RELAY_CONNECTIONS)
+                              (selectedRelays.includes(relay) &&
+                                selectedRelays.length <= MIN_RELAY_CONNECTIONS)
                                 ? 0.5
                                 : 1,
                           },
