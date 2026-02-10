@@ -97,26 +97,29 @@ export class StartPaymentTask extends Task<
 Task.register(StartPaymentTask);
 
 export class SaveActivityAndAddPaymentStatusTransactionalTask extends TransactionalTask<
-  [SaveActivityArgs, string, PaymentAction],
+  [SaveActivityArgs, string, string | undefined],
   [],
   string
 > {
   constructor(
     private readonly activity: SaveActivityArgs,
     private readonly invoice: string,
-    private readonly action: PaymentAction
+    private readonly invoiceToBeRefunded?: string | undefined,
   ) {
     console.log('[SaveActivityAndAddPaymentStatusTransactionalTask] starting task');
-    super([], activity, invoice, action);
+    super([], activity, invoice, invoiceToBeRefunded);
   }
 
   async taskLogic(
     _: {},
     activity: SaveActivityArgs,
     invoice: string,
-    action: PaymentAction
+    invoiceToBeRefunded?: string | undefined,
   ): Promise<string> {
-    await new AddPaymentStatusTask(invoice, action).run();
+    await new AddPaymentStatusTask(invoice, PaymentAction.PaymentStarted).run();
+    if (invoiceToBeRefunded) {
+      await new AddPaymentStatusTask(invoiceToBeRefunded, PaymentAction.RefundStarted).run();
+    }
     const id = await new SaveActivityTask(activity).run();
     return id;
   }

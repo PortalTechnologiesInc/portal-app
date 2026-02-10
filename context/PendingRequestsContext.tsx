@@ -410,7 +410,6 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 invoice: metadata.content.invoice,
               },
               metadata.content.invoice,
-              'payment_started'
             ).run();
 
             // Notify the approval

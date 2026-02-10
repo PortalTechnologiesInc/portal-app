@@ -112,6 +112,83 @@ export const convertPaymentStatusToSteps = (
         }
         break;
       }
+      case PaymentAction.RefundStarted: {
+        steps.push({
+          id: `${stepId++}`,
+          status: 'success',
+          title: 'Refund started',
+          subtitle: 'Refund has been created',
+          timestamp: entry.created_at,
+        });
+        steps.push({
+          id: `${stepId++}`,
+          status: 'pending',
+          title: 'Pending...',
+          subtitle: 'Refund is processing',
+          timestamp: entry.created_at,
+        });
+        break;
+      }
+      case PaymentAction.RefundCompleted: {
+        // Update the last pending step to completed
+        let lastPendingIndex = -1;
+        for (let i = steps.length - 1; i >= 0; i--) {
+          if (steps[i].status === 'pending') {
+            lastPendingIndex = i;
+            break;
+          }
+        }
+        if (lastPendingIndex !== -1) {
+          steps[lastPendingIndex] = {
+            ...steps[lastPendingIndex],
+            status: 'success',
+            title: 'Refund completed',
+            subtitle: 'Refund was successful',
+            timestamp: entry.created_at,
+          };
+        } else {
+          // If no pending step found, add a completed step
+          steps.push({
+            id: `${stepId++}`,
+            status: 'success',
+            title: 'Refund completed',
+            subtitle: 'Refund was successful',
+            timestamp: entry.created_at,
+          });
+        }
+        break;
+      }
+      case PaymentAction.RefundFailed: {
+        // Update the last pending step to error
+        let lastPendingStepIndex = -1;
+        for (let i = steps.length - 1; i >= 0; i--) {
+          if (steps[i].status === 'pending') {
+            lastPendingStepIndex = i;
+            break;
+          }
+        }
+        if (lastPendingStepIndex !== -1) {
+          steps[lastPendingStepIndex] = {
+            ...steps[lastPendingStepIndex],
+            status: 'error',
+            title: 'Refund failed',
+            subtitle: 'Refund could not be completed',
+            timestamp: entry.created_at,
+            errorType: 'unknown_error',
+          };
+        } else {
+          // If no pending step found, add an error step
+          steps.push({
+            id: `${stepId++}`,
+            status: 'error',
+            title: 'Refund failed',
+            subtitle: 'Refund could not be completed',
+            timestamp: entry.created_at,
+            errorType: 'unknown_error',
+          });
+        }
+        break;
+      }
     }
   }
 
