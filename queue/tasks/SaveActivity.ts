@@ -13,7 +13,6 @@ export class SaveActivityTask extends Task<[SaveActivityArgs], ['DatabaseService
     activity: SaveActivityArgs
   ): Promise<string> {
     const activityId = await DatabaseService.addActivity(activity);
-    globalEvents.emit('activityAdded', { activityId });
     return activityId;
   }
 }

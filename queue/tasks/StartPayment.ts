@@ -236,7 +236,6 @@ class UpdateActivityStatusTask extends Task<
     statusDetail: string
   ): Promise<void> {
     await DatabaseService.updateActivityStatus(id, status, statusDetail);
-    globalEvents.emit('activityUpdated', { activityId: id });
   }
 }
 Task.register(UpdateActivityStatusTask);

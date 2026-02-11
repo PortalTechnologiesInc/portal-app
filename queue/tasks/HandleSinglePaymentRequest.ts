@@ -47,10 +47,10 @@ export class HandleSinglePaymentRequestTask extends Task<
   ): Promise<void> {
     const subId = request.content.subscriptionId;
     try {
-      const checkAmount = new CheckAmountTask(request).run();
+      const checkAmount = await new CheckAmountTask(request).run();
 
       if (!checkAmount) {
-        new SendSinglePaymentResponseTask(
+        await new SendSinglePaymentResponseTask(
           request,
           new PaymentStatus.Rejected({
             reason: `Invoice amount does not match the requested amount.`,

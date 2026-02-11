@@ -410,6 +410,8 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               'payment_started'
             ).run();
 
+            globalEvents.emit('activityAdded', { activityId: activityId });
+
             // Notify the approval
             await notifier(new PaymentStatus.Approved());
 

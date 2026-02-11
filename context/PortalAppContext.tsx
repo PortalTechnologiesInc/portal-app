@@ -33,7 +33,6 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
   const { isInitialized } = useNostrService();
   const { executeOperation, executeOnNostr } = useDatabaseContext();
   const [pendingRequests, setPendingRequests] = useState<{ [key: string]: PendingRequest }>({});
-  const pendingRequestsRef = useRef<{ [key: string]: PendingRequest }>({});
   const listenersInitializedRef = useRef(false);
   const { activeWallet } = useWalletManager();
   const { preferredCurrency } = useCurrency();
@@ -41,7 +40,6 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
 
   // Keep ref in sync with state so listeners always access current value
   useEffect(() => {
-    pendingRequestsRef.current = pendingRequests;
     console.log('[PortalAppContext] Registering providers');
     ProviderRepository.register(
       new PromptUserWithPendingCard(setPendingRequests),
