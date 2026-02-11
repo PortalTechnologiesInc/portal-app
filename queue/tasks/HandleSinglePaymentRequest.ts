@@ -162,6 +162,7 @@ export class HandleSinglePaymentRequestTask extends Task<
           'Payment Request',
           `Payment request of: ${formatAmountToHumanReadable(notificationAmount, notificationCurrency)}`
         ).run();
+        console.log('paymentResponse', paymentResponse);
 
         return await new SendSinglePaymentResponseTask(request, paymentResponse).run();
       }
@@ -393,6 +394,10 @@ export class SendSinglePaymentResponseTask extends Task<
     response: PaymentStatus
   ): Promise<void> {
     await RelayStatusesProvider.waitForRelaysConnected();
+    console.log('sending response', {
+      requestId: request.eventId,
+      status: response,
+    });
     return await PortalAppInterface.replySinglePaymentRequest(request, {
       requestId: request.eventId,
       status: response,

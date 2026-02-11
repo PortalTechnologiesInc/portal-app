@@ -298,7 +298,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
         }
 
         const listener = createRelayStatusListener();
-        const app = await PortalAppManager.getInstance(keypair, relays, listener, false);
+        const app = await PortalAppManager.getInstance(keypair, relays, listener);
 
         // Start listening and give it a moment to establish connections
         app.listen({ signal: abortController.signal });
