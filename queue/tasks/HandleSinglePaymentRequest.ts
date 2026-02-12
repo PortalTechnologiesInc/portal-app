@@ -399,7 +399,7 @@ export class SendSinglePaymentResponseTask extends Task<
       status: response,
     });
     return await PortalAppInterface.replySinglePaymentRequest(request, {
-      requestId: request.eventId,
+      requestId: request.content.requestId,
       status: response,
     });
   }
