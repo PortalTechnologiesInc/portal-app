@@ -19,6 +19,7 @@ export class NwcService implements Wallet {
     walletUrl: string,
     onStatusChange?: (status: WalletConnectionStatus) => void
   ): Promise<NwcService> {
+    console.log('Creating NWC Service');
     const instance = new NwcService();
     instance.onStatusChange = onStatusChange || null;
     await instance.init(walletUrl);
@@ -28,11 +29,9 @@ export class NwcService implements Wallet {
   private async init(walletUrl: string) {
     try {
       this.client = new Nwc(walletUrl, this.createRelayStatusListener());
-
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
       await this.getWalletInfo();
     } catch (error) {
+      console.error('Error initializing NWC wallet:', error);
       throw new Error(
         `Failed to initialize wallet: ${error instanceof Error ? error.message : 'Unknown error'}`
       );

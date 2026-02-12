@@ -17,6 +17,8 @@ import {
   type WalletType,
   type WalletTypeMap,
 } from '@/models/WalletType';
+import { ActiveWalletProvider, WalletWrapper } from '@/queue/providers/ActiveWallet';
+import { ProviderRepository } from '@/queue/WorkQueue';
 import { BreezService } from '@/services/BreezService';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 import { NwcService } from '@/services/NwcService';
@@ -180,12 +182,12 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
           if (statusEntry && invoice) {
             try {
               await executeOperation(db => db.addPaymentStatusEntry(invoice, statusEntry), null);
-            } catch (_statusError) {}
+            } catch (_statusError) { }
           }
-        } catch (_error) {}
+        } catch (_error) { }
       };
 
-      breezWallet.addEventListener({ onEvent: handler }).catch(_error => {});
+      breezWallet.addEventListener({ onEvent: handler }).catch(_error => { });
     },
     [executeOperation, preferredCurrency]
   );
@@ -248,6 +250,10 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
         const wallet = await getWallet(walletType);
 
         setActiveWallet(wallet);
+        ProviderRepository.register(
+          new ActiveWalletProvider(new WalletWrapper(wallet)),
+          'ActiveWalletProvider'
+        );
         setPreferredWallet(walletType);
 
         await AsyncStorage.setItem(PREFERRED_WALLET_KEY, JSON.stringify(walletType));
