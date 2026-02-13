@@ -1,5 +1,3 @@
-import type { Frequency } from './types.d';
-
 // Convert cents to dollars by dividing by 100 and fix to 2 decimal places
 export function formatCentsToCurrency(cents: number): string {
   const dollars = (cents / 100).toFixed(2);
@@ -62,82 +60,6 @@ export function formatDayAndDate(date: Date): string {
   });
 
   return `${dayOfWeek} ${datePart}, ${timePart}`;
-}
-
-export function getNextRecurrenceDay(
-  startDate: Date,
-  freq: Frequency,
-  today: Date = new Date()
-): string {
-  // Clone to avoid mutating inputs
-  const next = new Date(startDate);
-
-  // bump until strictly after today
-  const advance = () => {
-    switch (freq) {
-      case 'daily':
-        next.setDate(next.getDate() + 1);
-        break;
-      case 'weekly':
-        next.setDate(next.getDate() + 7);
-        break;
-      case 'monthly':
-        next.setMonth(next.getMonth() + 1);
-        break;
-      case 'annually':
-        next.setFullYear(next.getFullYear() + 1);
-        break;
-    }
-  };
-
-  // If the start date is already past, advance until it's > today
-  while (next <= today) {
-    advance();
-  }
-
-  // compute raw difference in milliseconds
-  const diffMs = next.getTime() - today.getTime();
-  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-  const unit = diffDays === 1 ? 'day' : 'days';
-
-  return `${diffDays} ${unit}`;
-}
-
-export function getRemainingRecurrenceCount(
-  startDate: Date,
-  freq: Frequency,
-  recurrenceCount: number,
-  today: Date = new Date()
-): number {
-  // Clone to avoid mutating inputs
-  const next = new Date(startDate);
-
-  // bump until strictly after today
-  const advance = () => {
-    switch (freq) {
-      case 'daily':
-        next.setDate(next.getDate() + 1);
-        break;
-      case 'weekly':
-        next.setDate(next.getDate() + 7);
-        break;
-      case 'monthly':
-        next.setMonth(next.getMonth() + 1);
-        break;
-      case 'annually':
-        next.setFullYear(next.getFullYear() + 1);
-        break;
-    }
-  };
-
-  var pastRecurrenceCount = 0;
-  // If the start date is already past, advance until it's > today
-  while (next <= today) {
-    advance();
-    pastRecurrenceCount++;
-  }
-
-  return recurrenceCount - pastRecurrenceCount;
 }
 
 // Generate a random Xbox-like gamertag

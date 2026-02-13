@@ -110,7 +110,8 @@ export const getActivityTypeText = (type: string): string => {
 export const getActivityDescription = (
   type: string,
   status: ActivityStatus,
-  detail: string
+  detail: string,
+  amount?: number | null
 ): string => {
   if (type === ActivityType.Auth) {
     switch (status) {
@@ -127,11 +128,25 @@ export const getActivityDescription = (
         return 'Authentication request';
     }
   } else if (
-    type === 'ticket' ||
-    type === 'ticket_approved' ||
-    type === 'ticket_denied' ||
-    type === 'ticket_received'
+    type === ActivityType.Ticket ||
+    type === ActivityType.TicketApproved ||
+    type === ActivityType.TicketDenied ||
+    type === ActivityType.TicketReceived
   ) {
+    if (amount && amount > 1) {
+      switch (status) {
+        case 'success':
+          return 'Tickets were successfully processed';
+        case 'failed':
+          return 'Tickets processing failed';
+        case 'pending':
+          return 'Tickets are being processed';
+        case 'received':
+          return 'Tickets were received and stored';
+        default:
+          return 'Tickets activity';
+      }
+    }
     switch (status) {
       case 'success':
         return 'Ticket was successfully processed';
@@ -143,6 +158,17 @@ export const getActivityDescription = (
         return 'Ticket was received and stored';
       default:
         return 'Ticket activity';
+    }
+  } else if (type === ActivityType.Receive) {
+    switch (status) {
+      case 'success':
+        return 'Payment was successfully received';
+      case 'failed':
+        return 'Payment could not be received';
+      case 'pending':
+        return 'Payment is being received';
+      default:
+        return 'Incoming payment';
     }
   } else {
     switch (status) {
