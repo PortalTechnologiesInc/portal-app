@@ -24,6 +24,8 @@ const BunkerConnectionDetailsScreen = () => {
   const surfaceSecondary = useThemeColor({}, 'surfaceSecondary');
   const inputBorder = useThemeColor({}, 'inputBorder');
   const buttonPrimary = useThemeColor({}, 'buttonPrimary');
+  const buttonDanger = useThemeColor({}, 'buttonDanger');
+  const buttonDangerText = useThemeColor({}, 'buttonDangerText');
   const [client, setClient] = useState<AllowedBunkerClientWithDates>();
   const [editableName, setEditableName] = useState('');
   const [grantedPermissions, setGrantedPermissions] = useState('');
@@ -116,6 +118,18 @@ const BunkerConnectionDetailsScreen = () => {
     }
   };
 
+  const handleRevoke = async () => {
+    if (!client) return;
+
+    try {
+      await executeOperation(db => db.revokeBunkerClient(client.client_pubkey));
+      showToast('Connection revoked', 'success');
+      router.back();
+    } catch (_error) {
+      showToast('Unable to revoke connection. Please try again.', 'error');
+    }
+  };
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
       <ThemedView style={styles.container}>
@@ -182,6 +196,16 @@ const BunkerConnectionDetailsScreen = () => {
               ))}
             </ThemedView>
           )}
+
+          <TouchableOpacity
+            style={[styles.revokeButton, { backgroundColor: buttonDanger }]}
+            onPress={handleRevoke}
+            disabled={!client}
+          >
+            <ThemedText style={[styles.revokeButtonText, { color: buttonDangerText }]}>
+              Revoke
+            </ThemedText>
+          </TouchableOpacity>
         </ScrollView>
       </ThemedView>
     </SafeAreaView>
@@ -281,6 +305,16 @@ const styles = StyleSheet.create({
   },
   permissionLabel: {
     fontSize: 14,
+  },
+  revokeButton: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  revokeButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 
