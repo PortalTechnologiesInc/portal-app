@@ -159,9 +159,7 @@ export const getActivityDescription = (
       default:
         return 'Ticket activity';
     }
-  } else if (
-    type === ActivityType.Receive
-  ) {
+  } else if (type === ActivityType.Receive) {
     switch (status) {
       case 'success':
         return 'Payment was successfully received';

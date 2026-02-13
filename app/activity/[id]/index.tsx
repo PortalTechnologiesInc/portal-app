@@ -146,10 +146,12 @@ export default function ActivityDetailScreen() {
                 db => db.getPaymentStatusEntries(resolvedActivity.invoice!),
                 []
               );
-              setPaymentSteps(convertPaymentStatusToSteps(
-                paymentStatusEntries,
-                resolvedActivity.type === ActivityType.Receive,
-              ));
+              setPaymentSteps(
+                convertPaymentStatusToSteps(
+                  paymentStatusEntries,
+                  resolvedActivity.type === ActivityType.Receive
+                )
+              );
             } catch (_err) {
               setPaymentSteps([]);
             }

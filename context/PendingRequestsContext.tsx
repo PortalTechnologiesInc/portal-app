@@ -91,8 +91,9 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
   const [isLoadingRequest, setIsLoadingRequest] = useState(false);
   const [pendingUrl, setPendingUrl] = useState<KeyHandshakeUrl | undefined>(undefined);
   const [requestFailed, setRequestFailed] = useState(false);
-  const [timeoutId, setTimeoutId] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const [_timeoutId, setTimeoutId] = useState<ReturnType<typeof setTimeout> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingUrlSetAtRef = useRef<number | null>(null);
 
   // Simple database access
   const { executeOperation } = useDatabaseContext();
@@ -1088,12 +1089,13 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
     setIsLoadingRequest(true);
     setPendingUrl(parsedUrl);
     setRequestFailed(false);
+    pendingUrlSetAtRef.current = Date.now();
 
-    // Set new timeout for 15 seconds
+    // Set new timeout for 5 seconds
     const newTimeoutId = setTimeout(() => {
       setIsLoadingRequest(false);
       setRequestFailed(true);
-    }, 15000);
+    }, 5000);
 
     timeoutRef.current = newTimeoutId;
     setTimeoutId(newTimeoutId);
@@ -1105,6 +1107,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
       timeoutRef.current = null;
     }
     setTimeoutId(null);
+    pendingUrlSetAtRef.current = null;
 
     setIsLoadingRequest(false);
     setRequestFailed(false);
@@ -1114,16 +1117,40 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
   // Check for expected pending requests and clear skeleton loader
   useEffect(() => {
     // Check for removing skeleton when we get the expected request
-    if (timeoutId) {
-      for (const request of Object.values(appService.pendingRequests)) {
-        const serviceKey = (request.metadata as SinglePaymentRequest).serviceKey;
+    if (!pendingUrl || !pendingUrlSetAtRef.current) return;
 
-        if (serviceKey === pendingUrl?.mainKey) {
-          cancelSkeletonLoader();
-        }
+    for (const request of Object.values(appService.pendingRequests)) {
+      let serviceKey: string | undefined;
+      let matches = false;
+
+      // Handle different request types
+      if (request.type === 'login') {
+        // For login requests, AuthChallengeEvent might not have serviceKey directly
+        // Match by checking if request appeared within 5 seconds of setting pendingUrl
+        const metadata = request.metadata as any;
+        serviceKey = metadata?.serviceKey || metadata?.mainKey;
+        const requestTime = request.timestamp.getTime();
+        const timeSincePendingUrl = requestTime - pendingUrlSetAtRef.current;
+        // Match if serviceKey matches OR if request appeared within 5 seconds
+        matches =
+          serviceKey === pendingUrl.mainKey ||
+          (timeSincePendingUrl >= 0 && timeSincePendingUrl < 5000);
+      } else if (request.type === 'payment' || request.type === 'subscription') {
+        serviceKey = (request.metadata as SinglePaymentRequest | RecurringPaymentRequest)
+          .serviceKey;
+        matches = serviceKey === pendingUrl.mainKey;
+      } else if (request.type === 'ticket') {
+        const metadata = request.metadata as any;
+        serviceKey = metadata?.serviceKey || metadata?.mainKey;
+        matches = serviceKey === pendingUrl.mainKey;
+      }
+
+      if (matches) {
+        cancelSkeletonLoader();
+        break; // Found matching request, no need to continue
       }
     }
-  }, [appService.pendingRequests, cancelSkeletonLoader, pendingUrl, timeoutId]);
+  }, [appService.pendingRequests, cancelSkeletonLoader, pendingUrl]);
 
   // Memoize the context value to prevent recreation on every render
   const contextValue = useMemo(

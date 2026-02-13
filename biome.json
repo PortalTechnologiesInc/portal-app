@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.3.10/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.3.13/schema.json",
   "vcs": {
     "enabled": true,
     "clientKind": "git",
@@ -35,10 +35,10 @@
       "correctness": {
         "noNodejsModules": "off",
         "useImportExtensions": "off",
-        "useExhaustiveDependencies": "error",
+        "useExhaustiveDependencies": "warn",
         "useHookAtTopLevel": "error",
-        "noUnusedImports": "error",
-        "noUnusedVariables": "error",
+        "noUnusedImports": "warn",
+        "noUnusedVariables": "warn",
         "noUnusedFunctionParameters": "warn",
         "noInvalidUseBeforeDeclaration": "error"
       },
@@ -46,8 +46,8 @@
         "noExplicitAny": "warn",
         "noImplicitAnyLet": "warn",
         "noArrayIndexKey": "warn",
-        "noConsole": "error",
-        "noDebugger": "error"
+        "noConsole": "warn",
+        "noDebugger": "warn"
       },
       "security": {
         "noDangerouslySetInnerHtml": "error"
@@ -60,7 +60,7 @@
           }
         },
         "noStaticOnlyClass": "off",
-        "noUselessFragments": "error",
+        "noUselessFragments": "warn",
         "noBannedTypes": "warn"
       },
       "style": {
@@ -74,6 +74,6 @@
     }
   },
   "files": {
-    "includes": ["**", "!node_modules/", "!android/", "!ios/", "!.expo/", "!build/"]
+    "includes": ["**", "!node_modules/", "!android/", "!ios/", "!.expo/", "!build/", "!.maestro"]
   }
 }

@@ -55,14 +55,10 @@ const validateImage = async (uri: string): Promise<{ isValid: boolean; error?: s
       }
 
       return { isValid: true };
-    } catch (fileSystemError) {
-      // If FileSystem.getInfoAsync fails, but it's a valid-looking image URI, allow it
-      // React Native Image component can handle URIs that FileSystem can't access
-      console.warn('FileSystem validation failed, but URI looks valid:', uri);
+    } catch (_fileSystemError) {
       return { isValid: true };
     }
-  } catch (error) {
-    console.error('Image validation error:', error);
+  } catch (_error) {
     // If validation completely fails, still allow the URI - let React Native Image handle it
     // This prevents blocking valid URIs that we can't validate
     return { isValid: true };
@@ -148,7 +144,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return () => {
       unregisterContextReset(resetProfile);
     };
-  }, []);
+  }, [resetProfile]);
 
   const nostrService = useNostrService();
 
@@ -174,9 +170,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         if (savedAvatarUri) {
           setAvatarUriState(savedAvatarUri);
         }
-      } catch (e) {
-        console.error('Failed to load local user profile:', e);
-      }
+      } catch (_e) {}
     };
 
     loadLocalProfile();
@@ -507,15 +501,15 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
               // Auto-save the generated profile to the network with empty display name
               try {
                 await setProfile(randomUsername, ''); // Explicitly set empty display name
-              } catch (error) {
+              } catch (_error) {
                 // Don't throw - let user manually save later
               }
             }
-          } catch (error) {
+          } catch (_error) {
             // Could not check seed origin, skipping auto-generation
           }
         }
-      } catch (error) {
+      } catch (_error) {
         // Auto-fetch failed - this is a background operation
       }
     };
@@ -531,26 +525,19 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
   ]);
 
   const setAvatarUri = useCallback(async (uri: string | null) => {
-    try {
-      if (uri) {
-        // Validate the image
-        const validation = await validateImage(uri);
-        if (!validation.isValid) {
-          throw new Error(validation.error || 'Invalid image');
-        }
+    if (uri) {
+      // Validate the image
+      const validation = await validateImage(uri);
+      if (!validation.isValid) {
+        throw new Error(validation.error || 'Invalid image');
       }
-
-      // Update both state and refresh key together to ensure Image component updates
-      // Use a new timestamp for the refresh key to force cache invalidation
-      const newRefreshKey = Date.now();
-      setAvatarUriState(uri);
-      setAvatarRefreshKey(newRefreshKey);
-
-      // Note: Image processing and uploading is now handled by setProfile method
-    } catch (e) {
-      console.error('Failed to set avatar URI:', e);
-      throw e; // Re-throw so the UI can handle the error
     }
+
+    // Update both state and refresh key together to ensure Image component updates
+    // Use a new timestamp for the refresh key to force cache invalidation
+    const newRefreshKey = Date.now();
+    setAvatarUriState(uri);
+    setAvatarRefreshKey(newRefreshKey);
   }, []);
 
   // Check if profile (nip-05) is assigned

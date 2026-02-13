@@ -27,7 +27,7 @@ export const convertPaymentStatusToSteps = (
     action_type: 'payment_started' | 'payment_completed' | 'payment_failed';
     created_at: Date;
   }>,
-  receiving = false,
+  receiving = false
 ): PaymentStep[] => {
   const steps: PaymentStep[] = [];
   let stepId = 1;

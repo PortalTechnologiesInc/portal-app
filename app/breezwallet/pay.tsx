@@ -352,19 +352,15 @@ export default function MyWalletManagementSecret() {
                 >
                   {isSendPaymentLoading ? (
                     <ActivityIndicator size="small" color={buttonPrimaryTextColor} />
-                  ) : (
+                  ) : canPay ? (
                     <>
-                      {canPay ? (
-                        <>
-                          <Send color={buttonPrimaryTextColor} />
-                          <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
-                            Pay
-                          </ThemedText>
-                        </>
-                      ) : (
-                        <Ban color={buttonPrimaryTextColor} />
-                      )}
+                      <Send color={buttonPrimaryTextColor} />
+                      <ThemedText style={{ fontWeight: 'bold', color: buttonPrimaryTextColor }}>
+                        Pay
+                      </ThemedText>
                     </>
+                  ) : (
+                    <Ban color={buttonPrimaryTextColor} />
                   )}
                 </ThemedView>
               </TouchableOpacity>

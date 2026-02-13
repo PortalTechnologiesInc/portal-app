@@ -1,7 +1,7 @@
 import Clipboard from '@react-native-clipboard/clipboard';
 import { router } from 'expo-router';
-import { keyToHex, parseKeyHandshakeUrl } from 'portal-app-lib';
 import { Copy } from 'lucide-react-native';
+import { keyToHex, parseKeyHandshakeUrl } from 'portal-app-lib';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
@@ -73,7 +73,7 @@ function ReactStateMonitor({
     if (Array.isArray(value)) return `[${value.length}]`;
     if (value instanceof Map) return `Map(${value.size})`;
     if (value instanceof Set) return `Set(${value.size})`;
-    if (typeof value === 'object') return JSON.stringify(value).substring(0, 30) + '...';
+    if (typeof value === 'object') return `${JSON.stringify(value).substring(0, 30)}...`;
     return String(value);
   };
 
@@ -706,7 +706,7 @@ function DebugActions({
       <TouchableOpacity
         style={[styles.actionButton, { backgroundColor: buttonColor }]}
         onPress={() => {
-          router.push('/onboarding?step=profile-setup-error');
+          router.push('/(onboarding)/profile-setup-error');
         }}
       >
         <ThemedText style={[styles.actionButtonText, { color: buttonTextColor }]}>

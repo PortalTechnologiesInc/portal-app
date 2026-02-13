@@ -79,13 +79,7 @@ export enum ActivityType {
 /**
  * Subscription/payment frequency options
  */
-export type Frequency =
-  | 'Every minute'
-  | 'Every hour'
-  | 'Daily'
-  | 'Weekly'
-  | 'Monthly'
-  | 'Yearly';
+export type Frequency = 'Every minute' | 'Every hour' | 'Daily' | 'Weekly' | 'Monthly' | 'Yearly';
 
 /**
  * Types of pending requests
@@ -117,19 +111,19 @@ export interface Identity {
  */
 export type Activity =
   | {
-    type: ActivityType.Pay;
-    amount: number;
-    currency: Currency;
-    name: string;
-    detail: string;
-    date: Date;
-  }
+      type: ActivityType.Pay;
+      amount: number;
+      currency: Currency;
+      name: string;
+      detail: string;
+      date: Date;
+    }
   | {
-    type: ActivityType.Auth;
-    name: string;
-    detail: string;
-    date: Date;
-  };
+      type: ActivityType.Auth;
+      name: string;
+      detail: string;
+      date: Date;
+    };
 
 /**
  * Upcoming payment information
