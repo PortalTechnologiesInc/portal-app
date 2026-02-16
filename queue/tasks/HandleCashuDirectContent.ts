@@ -1,8 +1,4 @@
-import {
-  type CashuDirectContentWithKey,
-  parseCashuToken,
-  type TokenInfo,
-} from 'portal-app-lib';
+import { type CashuDirectContentWithKey, parseCashuToken, type TokenInfo } from 'portal-app-lib';
 import type NostrStoreService from '@/services/NostrStoreService';
 import { globalEvents } from '@/utils/common';
 import { showToast } from '@/utils/Toast';

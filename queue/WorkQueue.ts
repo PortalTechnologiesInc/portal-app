@@ -39,8 +39,8 @@ export class JsonArguments<TArgs extends unknown[] = unknown[]> extends Argument
         if (!Object.hasOwn(ob, i)) continue;
 
         if (typeof ob[i] === 'object') {
-          var flatObject = flattenObject(ob[i]);
-          for (var x in flatObject) {
+          const flatObject = flattenObject(ob[i]);
+          for (const x in flatObject) {
             if (!Object.hasOwn(flatObject, x)) continue;
 
             toReturn[i + '.' + x] = flatObject[x];
@@ -213,11 +213,11 @@ export abstract class Task<A extends unknown[], P extends GlobalProviderNames[],
   }
 
   static deserialize(serialized: QueuedTaskRecord): Task<any[], any, any> {
-    const constructor = Task.getFromRegistry(serialized.task_name);
-    if (!constructor) {
+    const taskConstructor = Task.getFromRegistry(serialized.task_name);
+    if (!taskConstructor) {
       throw new Error(`Task constructor not found: ${serialized.task_name}`);
     }
-    return new constructor(...deserializeValue(serialized.arguments));
+    return new taskConstructor(...deserializeValue(serialized.arguments));
   }
 }
 

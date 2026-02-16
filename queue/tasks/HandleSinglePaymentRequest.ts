@@ -200,7 +200,7 @@ export class HandleSinglePaymentRequestTask extends Task<
         return;
       }
 
-      if (amount != subscription.amount || currency != subscription.currency) {
+      if (amount !== subscription.amount || currency !== subscription.currency) {
         await new SendSinglePaymentResponseTask(
           request,
           new PaymentStatus.Rejected({
