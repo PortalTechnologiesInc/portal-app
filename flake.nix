@@ -252,6 +252,7 @@
               typescript
               typescript-language-server
               curl
+              which
               nodejs_24
               openjdk17
               apksigner
@@ -275,18 +276,6 @@
               export PATH="$HOME/.bun/bin:$PATH"
               export PATH="./node_modules/.bin:$PATH"
 
-              if ! command -v expo &> /dev/null; then
-                echo "installing expo..."
-                bun install -g @expo/cli
-              fi
-
-              if ! command -v maestro &> /dev/null; then
-                echo "installing maestro..."
-                curl -Ls "https://get.maestro.mobile.dev" | bash
-                export PATH="$HOME/.maestro/bin:$PATH"
-              else
-                export PATH="$HOME/.maestro/bin:$PATH"
-              fi
             '';
           };
         };
