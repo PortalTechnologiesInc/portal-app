@@ -2,7 +2,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 
 // Function to migrate database schema if needed
 export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
-  const DATABASE_VERSION = 22;
+  const DATABASE_VERSION = 24;
 
   try {
     let { user_version: currentDbVersion } = (await db.getFirstAsync<{
@@ -516,6 +516,15 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
       `);
 
       currentDbVersion = 23;
+    }
+
+    if (currentDbVersion <= 23) {
+      await db.execAsync(`
+        -- Add refunded_activity_id column to activities table for refund activities
+        ALTER TABLE activities ADD COLUMN refunded_activity_id TEXT REFERENCES activities(id) ON DELETE SET NULL;
+        CREATE INDEX IF NOT EXISTS idx_activities_refunded_activity_id ON activities(refunded_activity_id);
+      `);
+      currentDbVersion = 24;
     }
 
     await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);

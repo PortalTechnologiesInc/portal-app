@@ -5,13 +5,12 @@ import { ThemedText } from '@/components/ThemedText';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 import {
-  type ActivityStatus,
   getActivityDescription,
   getStatusColor,
   getStatusIcon,
   getStatusText,
 } from '@/utils/activityHelpers';
-import { ActivityType } from '@/utils/common';
+import { ActivityStatus, ActivityType } from '@/utils/common';
 import { type Currency, formatActivityAmount, shouldShowConvertedAmount } from '@/utils/currency';
 
 interface ActivityMainCardProps {
@@ -59,10 +58,10 @@ export const ActivityMainCard: React.FC<ActivityMainCardProps> = ({
   };
 
   const getIconBackgroundColor = () => {
-    if (activityStatus === 'failed') {
+    if (activityStatus === ActivityStatus.Negative) {
       return statusErrorColor;
     }
-    if (activityStatus === 'pending') {
+    if (activityStatus === ActivityStatus.Pending) {
       return statusWarningColor;
     }
     // Success or default case

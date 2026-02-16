@@ -30,12 +30,13 @@ import { useCurrency } from '@/context/CurrencyContext';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import { useECash } from '@/context/ECashContext';
 import { useNostrService } from '@/context/NostrServiceContext';
-import { FetchServiceProfileTask } from '@/queue/tasks/ProcessAuthRequest';
+import { FetchServiceProfileTask } from '@/queue/tasks/HandleAuthRequest';
 import { SaveActivityAndAddPaymentStatusTransactionalTask } from '@/queue/tasks/StartPayment';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 import { fromUnixSeconds } from '@/services/DatabaseService';
-import { getServiceNameFromMintUrl, globalEvents } from '@/utils/common';
+import { PaymentAction } from '@/utils/types';
+import { ActivityStatus, ActivityType, getServiceNameFromMintUrl, globalEvents } from '@/utils/common';
 import { normalizeCurrencyForComparison } from '@/utils/currency';
 import { logError } from '@/utils/errorLogger';
 import { getServiceNameFromProfile } from '@/utils/nostrHelper';
@@ -152,7 +153,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
   // Tries with full data first, then minimal required fields, then absolute minimal data
   const createTicketActivityWithRetry = useCallback(
     async (
-      activityType: 'ticket_approved' | 'ticket_denied',
+      activityType: ActivityType.TicketApproved | ActivityType.TicketDenied,
       baseData: {
         mintUrl: string | null;
         serviceName: string;
@@ -163,7 +164,9 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
     ): Promise<void> => {
       const { mintUrl, serviceName, ticketTitle, amount, requestId } = baseData;
       const status =
-        activityType === 'ticket_approved' ? ('positive' as const) : ('negative' as const);
+        activityType === ActivityType.TicketApproved
+          ? ActivityStatus.Positive
+          : ActivityStatus.Negative;
 
       // Try with full data first
       try {
@@ -302,7 +305,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           getServiceNameWithFallback((request.metadata as SinglePaymentRequest).serviceKey).then(
             serviceName => {
               addActivityWithFallback({
-                type: 'auth',
+                type: ActivityType.Auth,
                 service_key: (request.metadata as SinglePaymentRequest).serviceKey,
                 detail: 'User approved login',
                 date: new Date(),
@@ -313,7 +316,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 converted_currency: null,
                 request_id: id,
                 subscription_id: null,
-                status: 'positive',
+                status: ActivityStatus.Positive,
               });
             }
           );
@@ -392,7 +395,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
             const activityId = await new SaveActivityAndAddPaymentStatusTransactionalTask(
               {
-                type: 'pay',
+                type: ActivityType.Pay,
                 service_key: metadata.serviceKey,
                 service_name: serviceName,
                 detail: 'Payment approved',
@@ -403,11 +406,10 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 converted_currency: convertedCurrency,
                 request_id: id,
                 subscription_id: null,
-                status: 'pending',
+                status: ActivityStatus.Pending,
                 invoice: metadata.content.invoice,
               },
               metadata.content.invoice,
-              'payment_started'
             ).run();
 
             globalEvents.emit('activityAdded', { activityId: activityId });
@@ -422,13 +424,13 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               );
 
               await executeOperation(
-                db => db.addPaymentStatusEntry(metadata.content.invoice, 'payment_completed'),
+                db => db.addPaymentStatusEntry(metadata.content.invoice, PaymentAction.PaymentCompleted),
                 null
               );
 
               // Update the activity status to positive
               await executeOperation(
-                db => db.updateActivityStatus(activityId, 'positive', 'Payment completed'),
+                db => db.updateActivityStatus(activityId, ActivityStatus.Positive, 'Payment completed'),
                 null
               );
               refreshData();
@@ -447,7 +449,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 currency: currency,
               });
               await executeOperation(
-                db => db.addPaymentStatusEntry(metadata.content.invoice, 'payment_failed'),
+                db => db.addPaymentStatusEntry(metadata.content.invoice, PaymentAction.PaymentFailed),
                 null
               );
 
@@ -455,7 +457,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 db =>
                   db.updateActivityStatus(
                     activityId,
-                    'negative',
+                    ActivityStatus.Negative,
                     'Payment approved by user but failed to process'
                   ),
                 null
@@ -657,7 +659,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               // Create activity for approved ticket request
               // Use unique request_id by appending activity type to ensure each action creates its own activity
               // Use mintUrl as service_key to match ticket_received activities
-              await createTicketActivityWithRetry('ticket_approved', {
+              await createTicketActivityWithRetry(ActivityType.TicketApproved, {
                 mintUrl,
                 serviceName,
                 ticketTitle,
@@ -696,7 +698,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               clientPubkey: connectEvent.nostrClientPubkey,
             });
             await addActivityWithFallback({
-              type: 'auth',
+              type: ActivityType.Auth,
               service_key: nostrClientPubkey,
               detail: 'Login with bunker failed',
               date: new Date(),
@@ -707,12 +709,12 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               converted_currency: null,
               request_id: id,
               subscription_id: null,
-              status: 'negative',
+              status: ActivityStatus.Negative,
             });
           }
 
           await addActivityWithFallback({
-            type: 'auth',
+            type: ActivityType.Auth,
             service_key: nostrClientPubkey,
             detail: 'User approved bunker login',
             date: new Date(),
@@ -723,7 +725,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             converted_currency: null,
             request_id: id,
             subscription_id: null,
-            status: 'positive',
+            status: ActivityStatus.Positive,
           });
 
           // Create NostrConnectResponseStatus for approved bunker connection
@@ -769,7 +771,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           getServiceNameWithFallback((request.metadata as SinglePaymentRequest).serviceKey).then(
             serviceName => {
               addActivityWithFallback({
-                type: 'auth',
+                type: ActivityType.Auth,
                 service_key: (request.metadata as SinglePaymentRequest).serviceKey,
                 detail: 'User denied login',
                 date: new Date(),
@@ -780,7 +782,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 converted_currency: null,
                 request_id: id,
                 subscription_id: null,
-                status: 'negative',
+                status: ActivityStatus.Negative,
               });
             }
           );
@@ -846,7 +848,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 (request.metadata as SinglePaymentRequest).serviceKey
               ).then(serviceName => {
                 return addActivityWithFallback({
-                  type: 'pay',
+                  type: ActivityType.Pay,
                   service_key: (request.metadata as SinglePaymentRequest).serviceKey,
                   service_name: serviceName,
                   detail: 'Payment denied by user',
@@ -857,7 +859,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                   converted_currency: convertedCurrency,
                   request_id: id,
                   subscription_id: null,
-                  status: 'negative',
+                  status: ActivityStatus.Negative,
                   invoice: (request.metadata as SinglePaymentRequest).content.invoice,
                 });
               }),
@@ -872,48 +874,6 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             }),
             requestId: (request.metadata as RecurringPaymentRequest).content.requestId,
           });
-
-          // TODO: same as for the approve, we shouldn't add a "pay" activity for a rejected subscription
-          // Add denied subscription activity to database
-          // try {
-          //   // Convert BigInt to number if needed
-          //   const amount =
-          //     typeof (request.metadata as RecurringPaymentRequest).content.amount === 'bigint'
-          //       ? Number((request.metadata as RecurringPaymentRequest).content.amount)
-          //       : (request.metadata as RecurringPaymentRequest).content.amount;
-
-          //   // Extract currency symbol from the Currency object
-          //   let currency: string | null = null;
-          //   const currencyObj = (request.metadata as RecurringPaymentRequest).content.currency;
-          //   if (currencyObj) {
-          //     // If it's a simple string, use it directly
-          //     if (typeof currencyObj === 'string') {
-          //       currency = currencyObj;
-          //     } else {
-          //       currency = 'sats';
-          //     }
-          //   }
-
-          //   getServiceNameWithFallback(
-          //     nostrService,
-          //     (request.metadata as RecurringPaymentRequest).serviceKey
-          //   ).then(serviceName => {
-          //     addActivityWithFallback({
-          //       type: 'pay',
-          //       service_key: (request.metadata as RecurringPaymentRequest).serviceKey,
-          //       service_name: serviceName,
-          //       detail: 'Subscription denied by user',
-          //       date: new Date(),
-          //       amount: Number(amount) / 1000,
-          //       currency,
-          //       request_id: id,
-          //       subscription_id: null,
-          //       status: 'negative',
-          //     });
-          //   });
-          // } catch (err) {
-          //   console.log('Error adding denied subscription activity:', err);
-          // }
           break;
         case 'ticket':
           // Handle Cashu request denial (sending tokens only)
@@ -974,7 +934,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             // Always create activity for denied ticket request
             // Use unique request_id by appending activity type to ensure each action creates its own activity
             // Use mintUrl as service_key to match ticket_received activities
-            await createTicketActivityWithRetry('ticket_denied', {
+            await createTicketActivityWithRetry(ActivityType.TicketDenied, {
               mintUrl: mintUrl || null,
               serviceName,
               ticketTitle,
@@ -1002,7 +962,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                   ? getServiceNameFromMintUrl(mintUrl)
                   : 'Unknown Service';
 
-              await createTicketActivityWithRetry('ticket_denied', {
+              await createTicketActivityWithRetry(ActivityType.TicketDenied, {
                 mintUrl: mintUrl || null,
                 serviceName,
                 ticketTitle: 'Ticket request denied',
@@ -1024,7 +984,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             })
           );
           addActivityWithFallback({
-            type: 'auth',
+            type: ActivityType.Auth,
             service_key: (request.metadata as NostrConnectEvent).nostrClientPubkey,
             detail: 'User declined bunker login',
             date: new Date(),
@@ -1035,7 +995,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             converted_currency: null,
             request_id: id,
             subscription_id: null,
-            status: 'negative',
+            status: ActivityStatus.Negative,
           });
           break;
       }

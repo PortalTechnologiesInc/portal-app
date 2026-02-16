@@ -143,9 +143,7 @@ export const UpcomingPaymentsList: React.FC = () => {
         <ThemedText type="title" style={[styles.title, { color: primaryTextColor }]}>
           Upcoming Payments
         </ThemedText>
-        <ThemedText style={[styles.seeAll, { color: secondaryTextColor }]}>
-          See all &gt;
-        </ThemedText>
+        <ThemedText style={[styles.seeAll, { color: secondaryTextColor }]}>See all &gt;</ThemedText>
       </View>
 
       {upcomingPayments.length === 0 ? (

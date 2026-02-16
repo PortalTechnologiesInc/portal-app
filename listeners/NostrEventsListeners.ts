@@ -5,13 +5,14 @@ import {
   type RecurringPaymentRequest,
   type SinglePaymentRequest,
 } from 'portal-app-lib';
+import { HandleAuthRequestTask } from '@/queue/tasks/HandleAuthRequest';
 import { HandleCancelSubscriptionResponseTask } from '@/queue/tasks/HandleCancelSubscriptionResponse';
 import { HandleCashuBurnRequestTask } from '@/queue/tasks/HandleCashuBurnRequest';
 import { HandleCashuDirectContentTask } from '@/queue/tasks/HandleCashuDirectContent';
+import { HandleInvoiceRequestTask } from '@/queue/tasks/HandleInvoiceRequest';
 import { HandleNostrConnectRequestTask } from '@/queue/tasks/HandleNostrConnectRequest';
 import { HandleRecurringPaymentRequestTask } from '@/queue/tasks/HandleRecurringPaymentRequest';
 import { HandleSinglePaymentRequestTask } from '@/queue/tasks/HandleSinglePaymentRequest';
-import { ProcessAuthRequestTask } from '@/queue/tasks/ProcessAuthRequest';
 import { enqueueTask } from '@/queue/WorkQueue';
 
 //cashu receive token
@@ -47,7 +48,7 @@ export async function listenForAuthChallenge(app: PortalAppInterface) {
     try {
       const event = await app.nextAuthChallenge();
       const id = event.eventId;
-      const task = new ProcessAuthRequestTask(event);
+      const task = new HandleAuthRequestTask(event);
       console.log('[PortalAppContext] Enqueuing ProcessAuthRequestTask for request:', id);
       enqueueTask(task);
     } catch (error) {
@@ -109,6 +110,20 @@ export async function listenForNostrConnectRequest(app: PortalAppInterface, port
       const event = await app.nextNip46Request();
       const task = new HandleNostrConnectRequestTask(event, keyToHex(portalAppNpub));
       console.log('[PortalAppContext] Enqueuing HandleNostrConnectRequestTask');
+      enqueueTask(task);
+    } catch (error) {
+      console.error('[PortalAppContext] Error running task', error);
+    }
+  }
+}
+
+export async function listenForInvoiceRequest(app: PortalAppInterface) {
+  while (true) {
+    try {
+      const event = await app.nextInvoiceRequest();
+
+      const task = new HandleInvoiceRequestTask(event);
+      console.log('[PortalAppContext] Enqueuing HandleInvoiceRequestTask');
       enqueueTask(task);
     } catch (error) {
       console.error('[PortalAppContext] Error running task', error);

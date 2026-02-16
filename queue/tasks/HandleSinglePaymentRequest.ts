@@ -13,7 +13,7 @@ import {
   fromUnixSeconds,
   type SubscriptionWithDates,
 } from '@/services/DatabaseService';
-import { formatAmountToHumanReadable } from '@/utils/common';
+import { ActivityStatus, ActivityType, formatAmountToHumanReadable } from '@/utils/common';
 import { Currency, CurrencyHelpers, normalizeCurrencyForComparison } from '@/utils/currency';
 import type { PendingRequest } from '@/utils/types';
 import type { ActiveWalletProvider } from '../providers/ActiveWallet';
@@ -240,7 +240,7 @@ export class HandleSinglePaymentRequestTask extends Task<
       if (!walletInfo) {
         console.error('Wallet not provided');
         await new SaveActivityTask({
-          type: 'pay',
+          type: ActivityType.Pay,
           service_key: request.serviceKey,
           service_name: subscriptionServiceName,
           detail: 'Recurrent payment failed: wallet not provided.',
@@ -250,7 +250,7 @@ export class HandleSinglePaymentRequestTask extends Task<
           converted_amount: convertedAmount,
           converted_currency: convertedCurrency,
           request_id: request.eventId,
-          status: 'negative',
+          status: ActivityStatus.Negative,
           subscription_id: request.content.subscriptionId || null,
         }).run();
 
@@ -269,7 +269,7 @@ export class HandleSinglePaymentRequestTask extends Task<
 
       if (!isBalanceEnough) {
         await new SaveActivityTask({
-          type: 'pay',
+          type: ActivityType.Pay,
           service_key: request.serviceKey,
           service_name: subscriptionServiceName,
           detail: 'Recurrent payment failed: insufficient wallet balance.',
@@ -279,7 +279,7 @@ export class HandleSinglePaymentRequestTask extends Task<
           converted_amount: convertedAmount,
           converted_currency: convertedCurrency,
           request_id: request.eventId,
-          status: 'negative',
+          status: ActivityStatus.Negative,
           subscription_id: request.content.subscriptionId || null,
         }).run();
 
@@ -295,7 +295,7 @@ export class HandleSinglePaymentRequestTask extends Task<
 
       await new StartPaymentTask(
         {
-          type: 'pay',
+          type: ActivityType.Pay,
           service_key: request.serviceKey,
           service_name: subscriptionServiceName,
           detail: 'Recurrent payment',
@@ -306,7 +306,7 @@ export class HandleSinglePaymentRequestTask extends Task<
           converted_amount: convertedAmount,
           converted_currency: convertedCurrency,
           request_id: request.eventId,
-          status: 'pending',
+          status: ActivityStatus.Pending,
           subscription_id: request.content.subscriptionId || null,
           invoice: request.content.invoice,
         },

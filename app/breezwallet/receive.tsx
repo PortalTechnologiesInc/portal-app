@@ -34,6 +34,7 @@ import { CurrencyConversionService } from '@/services/CurrencyConversionService'
 import { PortalAppManager } from '@/services/PortalAppManager';
 import { Currency as CurrencyConv } from '@/utils/currency';
 import { showToast } from '@/utils/Toast';
+import { PaymentAction } from '@/utils/types';
 
 const portalLogo = require('../../assets/images/iosLight.png');
 
@@ -196,7 +197,7 @@ export default function MyWalletManagementSecret() {
     // Add payment status entry when invoice is created
     try {
       await executeOperation(
-        db => db.addPaymentStatusEntry(createdInvoice, 'payment_started'),
+        db => db.addPaymentStatusEntry(createdInvoice, PaymentAction.PaymentStarted),
         null
       );
     } catch (_error) {}

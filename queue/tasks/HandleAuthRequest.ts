@@ -1,18 +1,17 @@
-import {
-  type AuthChallengeEvent,
-  type AuthResponseStatus,
-  PortalApp,
-  type PortalAppInterface,
-  type Profile,
+import type {
+  AuthChallengeEvent,
+  AuthResponseStatus,
+  PortalAppInterface,
+  Profile,
 } from 'portal-app-lib';
 import { getServiceNameFromProfile } from '@/utils/nostrHelper';
-import type { PendingRequest } from '@/utils/types';
+import { ActivityStatus, ActivityType, type PendingRequest } from '@/utils/types';
 import type { PromptUserProvider } from '../providers/PromptUser';
 import type { RelayStatusesProvider } from '../providers/RelayStatus';
 import { Task } from '../WorkQueue';
 import { SaveActivityTask } from './SaveActivity';
 
-export class ProcessAuthRequestTask extends Task<[AuthChallengeEvent], [], void> {
+export class HandleAuthRequestTask extends Task<[AuthChallengeEvent], [], void> {
   constructor(event: AuthChallengeEvent) {
     super([], event);
     this.expiry = new Date(Number(event.expiresAt * 1000n));
@@ -38,7 +37,7 @@ export class ProcessAuthRequestTask extends Task<[AuthChallengeEvent], [], void>
     console.log('[ProcessIncomingRequestTask] Calling RequireAuthUserApprovalTask');
 
     await new SaveActivityTask({
-      type: 'auth',
+      type: ActivityType.Auth,
       service_key: serviceKey,
       detail: 'User approved login',
       date: new Date(),
@@ -49,13 +48,13 @@ export class ProcessAuthRequestTask extends Task<[AuthChallengeEvent], [], void>
       converted_currency: null,
       request_id: eventId,
       subscription_id: null,
-      status: authResponse ? 'positive' : 'negative',
+      status: authResponse ? ActivityStatus.Positive : ActivityStatus.Negative,
     }).run();
 
     console.log('saved activity');
   }
 }
-Task.register(ProcessAuthRequestTask);
+Task.register(HandleAuthRequestTask);
 
 export class FetchServiceProfileTask extends Task<
   [string],

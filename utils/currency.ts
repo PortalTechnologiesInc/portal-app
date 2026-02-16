@@ -1,3 +1,4 @@
+import { Currency_Tags, type Currency as CurrencyLib } from 'portal-app-lib';
 /**
  * Supported currencies
  */
@@ -249,3 +250,23 @@ export const formatActivityAmount = (amount: number | null, currency: string | n
   // Fiat and others: 2 decimals with symbol prefix
   return `${symbol}${amount.toFixed(2)}`;
 };
+
+export function convertLibCurrencyAmount(
+  amount: bigint,
+  currencyObj: CurrencyLib
+): [number, Currency] {
+  switch (currencyObj.tag) {
+    case Currency_Tags.Fiat: {
+      const fiatCodeRaw = (currencyObj as any).inner;
+      const fiatCodeValue = Array.isArray(fiatCodeRaw) ? fiatCodeRaw[0] : fiatCodeRaw;
+      const fiatCode =
+        typeof fiatCodeValue === 'string' ? String(fiatCodeValue).toUpperCase() : 'UNKNOWN';
+      if (!CurrencyHelpers.isValidCurrency(fiatCode)) {
+        throw new Error(`Invalid currency code: ${fiatCode}`);
+      }
+      return [Number(amount) / 100, fiatCode as Currency];
+    }
+    case Currency_Tags.Millisats:
+      return [Number(amount) / 1000, Currency.SATS];
+  }
+}

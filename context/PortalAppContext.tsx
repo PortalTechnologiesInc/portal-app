@@ -4,6 +4,7 @@ import {
   listenForCashuDirect,
   listenForCashuRequest,
   listenForDeletedSubscription,
+  listenForInvoiceRequest,
   listenForNostrConnectRequest,
   listenForPaymentRequest,
 } from '@/listeners/NostrEventsListeners';
@@ -68,6 +69,7 @@ export const PortalAppProvider: React.FC<PortalAppProviderProps> = ({ children }
     listenForPaymentRequest(app);
     listenForDeletedSubscription(app);
     listenForNostrConnectRequest(app, publicKeyStr);
+    listenForInvoiceRequest(app);
   }, [executeOperation, executeOnNostr, activeWallet, preferredCurrency]);
 
   const dismissPendingRequest = useCallback((id: string) => {
