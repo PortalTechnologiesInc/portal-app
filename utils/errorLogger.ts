@@ -49,9 +49,13 @@ export const logError = (
   const errorMsg = extractErrorMessage(error);
   const contextStr = additionalContext ? ` - Context: ${JSON.stringify(additionalContext)}` : '';
 
-  const _logMessage = `[${feature}]: Error in ${functionName} - Error msg: ${errorMsg}${contextStr}`;
+  const logMessage = `[${feature}]: Error in ${functionName} - Error msg: ${errorMsg}${contextStr}`;
+
+  // Log to console
+  console.error(logMessage);
 
   // In development, also log the full error object for debugging
   if (__DEV__) {
+    console.error('Full error object:', error);
   }
 };
