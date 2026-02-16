@@ -1,7 +1,14 @@
 import Clipboard from '@react-native-clipboard/clipboard';
 import { router } from 'expo-router';
-import { keyToHex, parseKeyHandshakeUrl } from 'portal-app-lib';
 import { Copy } from 'lucide-react-native';
+import {
+  initLogger,
+  keyToHex,
+  parseKeyHandshakeUrl,
+  LogLevel,
+  type LogCallback,
+  type LogEntry,
+} from 'portal-app-lib';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
@@ -685,6 +692,141 @@ function AppLockTester({
   );
 }
 
+// Logger class for Rust logging
+class Logger implements LogCallback {
+  log(entry: LogEntry) {
+    const message = `[${entry.target}] ${entry.message}`;
+    switch (entry.level) {
+      case LogLevel.Trace:
+        console.log(message);
+        break;
+      case LogLevel.Debug:
+        console.debug(message);
+        break;
+      case LogLevel.Info:
+        console.info(message);
+        break;
+      case LogLevel.Warn:
+        console.warn(message);
+        break;
+      case LogLevel.Error:
+        console.error(message);
+        break;
+    }
+  }
+}
+
+// Rust Logger Component
+function RustLogger({
+  cardBackgroundColor,
+  surfaceSecondaryColor,
+  primaryTextColor,
+  secondaryTextColor,
+  buttonColor,
+  buttonTextColor,
+}: {
+  cardBackgroundColor: string;
+  surfaceSecondaryColor: string;
+  primaryTextColor: string;
+  secondaryTextColor: string;
+  buttonColor: string;
+  buttonTextColor: string;
+}) {
+  const [logLevel, setLogLevel] = useState<LogLevel>(LogLevel.Error);
+  const [isLoggerActive, setIsLoggerActive] = useState(false);
+
+  const handleStartLogging = () => {
+    try {
+      initLogger(new Logger(), logLevel);
+      setIsLoggerActive(true);
+      showToast('Rust logger initialized', 'success');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to initialize Rust logger');
+      console.error('Failed to initialize logger:', error);
+    }
+  };
+
+  const logLevelOptions = [
+    { label: 'Error', value: LogLevel.Error },
+    { label: 'Warn', value: LogLevel.Warn },
+    { label: 'Info', value: LogLevel.Info },
+    { label: 'Debug', value: LogLevel.Debug },
+    { label: 'Trace', value: LogLevel.Trace },
+  ];
+
+  return (
+    <ThemedView style={[styles.section, { backgroundColor: cardBackgroundColor }]}>
+      <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
+        📝 Rust Logger
+      </ThemedText>
+      <ThemedText style={[styles.description, { color: secondaryTextColor }]}>
+        Initialize Rust logging from portal-app-lib. Logs will appear in the console.
+      </ThemedText>
+
+      <View style={styles.settingColumn}>
+        <ThemedText style={[styles.settingLabel, { color: primaryTextColor }]}>
+          Log Level
+        </ThemedText>
+        <ThemedText style={[styles.settingSubtext, { color: secondaryTextColor }]}>
+          Select the minimum log level to display
+        </ThemedText>
+        <View style={styles.logLevelContainer}>
+          {logLevelOptions.map((option) => (
+            <TouchableOpacity
+              key={option.value}
+              style={[
+                styles.logLevelButton,
+                {
+                  backgroundColor:
+                    logLevel === option.value ? buttonColor : surfaceSecondaryColor,
+                  borderColor: logLevel === option.value ? buttonColor : surfaceSecondaryColor,
+                },
+              ]}
+              onPress={() => setLogLevel(option.value)}
+            >
+              <ThemedText
+                style={[
+                  styles.logLevelButtonText,
+                  {
+                    color: logLevel === option.value ? buttonTextColor : primaryTextColor,
+                  },
+                ]}
+              >
+                {option.label}
+              </ThemedText>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      <TouchableOpacity
+        style={[
+          styles.actionButton,
+          {
+            backgroundColor: isLoggerActive ? '#4CAF50' : buttonColor,
+          },
+        ]}
+        onPress={handleStartLogging}
+      >
+        <ThemedText style={[styles.actionButtonText, { color: buttonTextColor }]}>
+          {isLoggerActive ? '✅ Logger Active' : '🚀 Start Rust Logging'}
+        </ThemedText>
+      </TouchableOpacity>
+
+      {isLoggerActive && (
+        <ThemedView style={[styles.resultContainer, { backgroundColor: surfaceSecondaryColor }]}>
+          <ThemedText style={[styles.resultLabel, { color: primaryTextColor }]}>
+            Logger Status: Active
+          </ThemedText>
+          <ThemedText style={[styles.settingSubtext, { color: secondaryTextColor }]}>
+            Log level: {logLevelOptions.find((opt) => opt.value === logLevel)?.label || 'Unknown'}
+          </ThemedText>
+        </ThemedView>
+      )}
+    </ThemedView>
+  );
+}
+
 // Debug Actions Component
 function DebugActions({
   cardBackgroundColor,
@@ -804,6 +946,15 @@ export default function DebugScreen() {
             primaryTextColor={primaryTextColor}
             secondaryTextColor={secondaryTextColor}
             buttonColor={buttonColor}
+          />
+
+          <RustLogger
+            cardBackgroundColor={cardBackgroundColor}
+            surfaceSecondaryColor={surfaceSecondaryColor}
+            primaryTextColor={primaryTextColor}
+            secondaryTextColor={secondaryTextColor}
+            buttonColor={buttonColor}
+            buttonTextColor={buttonTextColor}
           />
 
           <DebugActions
@@ -991,5 +1142,23 @@ const styles = StyleSheet.create({
   scrollableKeyValue: {
     fontSize: 12,
     fontStyle: 'italic',
+  },
+  logLevelContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  logLevelButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    minWidth: 70,
+    alignItems: 'center',
+  },
+  logLevelButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
 });

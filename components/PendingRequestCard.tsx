@@ -1,9 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react-native';
 import {
+  CashuDirectContentWithKey,
   Currency_Tags,
+  type NostrConnectEvent,
   NostrConnectMethod,
-  type NostrConnectRequestEvent,
+  type NostrConnectRequest,
   type RecurringPaymentRequest,
   type SinglePaymentRequest,
 } from 'portal-app-lib';
@@ -17,9 +19,10 @@ import { useNostrService } from '@/context/NostrServiceContext';
 import { useWalletManager } from '@/context/WalletManagerContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useWalletStatus } from '@/hooks/useWalletStatus';
+import { FetchServiceProfileTask } from '@/queue/tasks/ProcessAuthRequest';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
-import { PortalAppManager } from '@/services/PortalAppManager';
 import { formatActivityAmount, normalizeCurrencyForComparison } from '@/utils/currency';
+import { getServiceNameFromProfile } from '@/utils/nostrHelper';
 import type { PendingRequest } from '@/utils/types';
 import { usePendingRequests } from '../context/PendingRequestsContext';
 import { SkeletonPulse } from './PendingRequestSkeletonCard';
@@ -75,6 +78,30 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const isMounted = useRef(true);
     const { activeWallet, walletInfo: _walletInfo } = useWalletManager();
 
+    // Extract payment information - needed for balance checking
+    const recipientPubkey = (metadata as SinglePaymentRequest).recipient;
+    const isPaymentRequest = type === 'payment';
+    const isSubscriptionRequest = type === 'subscription';
+    const isTicketRequest = type === 'ticket';
+    const isNostrConnect = type === 'nostrConnect';
+    let nostrConnectMethod: NostrConnectMethod | undefined;
+    let nostrConnectParams: string[] | undefined;
+    if (isNostrConnect) {
+      nostrConnectMethod = (
+        (metadata as NostrConnectEvent).message.inner[0] as NostrConnectRequest
+      ).method;
+      nostrConnectParams = (
+        (metadata as NostrConnectEvent).message.inner[0] as NostrConnectRequest
+      ).params;
+    }
+    const content = (metadata as SinglePaymentRequest)?.content;
+    const amount = content?.amount ?? (isTicketRequest ? (metadata as any)?.inner?.amount : null);
+
+    // For ticket requests, get the requestor's pubkey from mainKey (CashuRequestContentWithKey structure)
+    const _ticketRequestorPubkey = isTicketRequest
+      ? (metadata as any)?.mainKey || (metadata as any)?.serviceKey
+      : null;
+
     // Theme colors
     const cardBackgroundColor = useThemeColor({}, 'cardBackground');
     const primaryTextColor = useThemeColor({}, 'textPrimary');
@@ -99,6 +126,17 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
       // Reset mounted flag at the start of each effect
       isMounted.current = true;
 
+      console.warn(metadata);
+
+      let serviceKey: string;
+      if (type === 'nostrConnect' && 'nostrClientPubkey' in (metadata as any)) {
+        serviceKey = (metadata as NostrConnectEvent).nostrClientPubkey;
+      } else if (type === 'ticket' && 'mainKey' in (metadata as any)) {
+        serviceKey = (metadata as CashuDirectContentWithKey).mainKey;
+      } else if ('serviceKey' in (metadata as any)) {
+        serviceKey = (metadata as any).serviceKey;
+      }
+
       if (type === 'ticket' && request.ticketTitle) {
         setServiceName(request.ticketTitle);
         setIsServiceNameLoading(false);
@@ -115,10 +153,8 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
 
           try {
             setIsRequestorNameLoading(true);
-            const name = await nostrService.getServiceName(
-              PortalAppManager.tryGetInstance(),
-              requestorServiceKey
-            );
+            const profile = await new FetchServiceProfileTask(serviceKey).run();
+            const name = getServiceNameFromProfile(profile);
             if (isMounted.current) {
               setRequestorName(name);
               setIsRequestorNameLoading(false);
@@ -135,15 +171,10 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
       } else {
         const fetchServiceName = async () => {
           if (!isMounted.current) return;
-
-          const serviceKey = (metadata as any).serviceKey;
-
           try {
             setIsServiceNameLoading(true);
-            const name = await nostrService.getServiceName(
-              PortalAppManager.tryGetInstance(),
-              serviceKey
-            );
+            const profile = await new FetchServiceProfileTask(serviceKey).run();
+            const name = getServiceNameFromProfile(profile);
             if (isMounted.current) {
               setServiceName(name);
               setIsServiceNameLoading(false);
@@ -162,23 +193,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
       return () => {
         isMounted.current = false;
       };
-    }, [type, metadata, request.ticketTitle, nostrService.getServiceName]);
-
-    // Extract payment information - needed for balance checking
-    const recipientPubkey = (metadata as SinglePaymentRequest).recipient;
-    const isPaymentRequest = type === 'payment';
-    const isSubscriptionRequest = type === 'subscription';
-    const isTicketRequest = type === 'ticket';
-    const isNostrConnect = type === 'nostrConnect';
-    const nostrConnectMethod = (metadata as NostrConnectRequestEvent).method;
-    const nostrConnectParams = (metadata as NostrConnectRequestEvent).params;
-    const content = (metadata as SinglePaymentRequest)?.content;
-    const amount = content?.amount ?? (isTicketRequest ? (metadata as any)?.inner?.amount : null);
-
-    // For ticket requests, get the requestor's pubkey from mainKey (CashuRequestContentWithKey structure)
-    const _ticketRequestorPubkey = isTicketRequest
-      ? (metadata as any)?.mainKey || (metadata as any)?.serviceKey
-      : null;
+    }, [type, metadata, request.ticketTitle]);
 
     // Check for insufficient balance on payment requests
     useEffect(() => {
@@ -242,7 +257,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
                 canPay = true;
                 break;
               }
-            } catch (_error) {}
+            } catch (_error) { }
           }
 
           setHasInsufficientBalance(!canPay);
@@ -466,26 +481,26 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
               formatServiceName()
             )
           ) : // For payment/subscription requests, show service name (loading state)
-          isServiceNameLoading ? (
-            <SkeletonPulse
-              style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
-            />
-          ) : // For payment/subscription requests, show service name (loading state)
-          isServiceNameLoading ? (
-            <SkeletonPulse
-              style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
-            />
-          ) : (
-            formatServiceName()
-          )}
+            isServiceNameLoading ? (
+              <SkeletonPulse
+                style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
+              />
+            ) : // For payment/subscription requests, show service name (loading state)
+              isServiceNameLoading ? (
+                <SkeletonPulse
+                  style={[styles.serviceNameSkeleton, { backgroundColor: skeletonBaseColor }]}
+                />
+              ) : (
+                formatServiceName()
+              )}
         </Text>
 
         <Text style={[styles.serviceInfo, { color: secondaryTextColor }]}>
           {isTicketRequest
             ? // For ticket requests, show ticket title as secondary info
-              formatSecondaryInfo()
+            formatSecondaryInfo()
             : // For payment/subscription requests, show truncated recipient pubkey
-              formatSecondaryInfo()}
+            formatSecondaryInfo()}
         </Text>
 
         {(isPaymentRequest || isSubscriptionRequest) && amount !== null && (
@@ -497,9 +512,9 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
                     const normalized = getNormalizedAmountAndCurrency();
                     return normalized
                       ? formatActivityAmount(
-                          normalized.normalizedAmount,
-                          normalized.normalizedCurrency
-                        )
+                        normalized.normalizedAmount,
+                        normalized.normalizedCurrency
+                      )
                       : '';
                   })()}
                 </Text>
@@ -513,9 +528,9 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
                   const normalized = getNormalizedAmountAndCurrency();
                   return normalized
                     ? formatActivityAmount(
-                        normalized.normalizedAmount,
-                        normalized.normalizedCurrency
-                      )
+                      normalized.normalizedAmount,
+                      normalized.normalizedCurrency
+                    )
                     : '';
                 })()}
               </Text>
@@ -565,7 +580,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
             {(() => {
               // For Connect method (nip46), show requested permissions
               if (nostrConnectMethod === NostrConnectMethod.Connect) {
-                const requestedPermissions = nostrConnectParams.at(2);
+                const requestedPermissions = nostrConnectParams?.at(2);
 
                 if (!requestedPermissions) return null;
 

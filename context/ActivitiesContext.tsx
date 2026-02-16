@@ -349,7 +349,8 @@ export const ActivitiesProvider: React.FC<{ children: ReactNode }> = ({ children
 
   // Listen for activity events to refresh activities list
   useEffect(() => {
-    const handleActivityAdded = (_activity: ActivityWithDates) => {
+    const handleActivityAdded = (any: any) => {
+      console.log('handleActivityAdded triggered', any);
       refreshData();
     };
 
