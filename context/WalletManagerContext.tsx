@@ -182,12 +182,12 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
           if (statusEntry && invoice) {
             try {
               await executeOperation(db => db.addPaymentStatusEntry(invoice, statusEntry), null);
-            } catch (_statusError) { }
+            } catch (_statusError) {}
           }
-        } catch (_error) { }
+        } catch (_error) {}
       };
 
-      breezWallet.addEventListener({ onEvent: handler }).catch(_error => { });
+      breezWallet.addEventListener({ onEvent: handler }).catch(_error => {});
     },
     [executeOperation, preferredCurrency]
   );
@@ -293,7 +293,6 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
       console.error('Failed to initialize wallet manager:', error);
       setIsWalletManagerInitialized(false);
     }
-
   }, [getWallet, switchActiveWallet]);
 
   /**

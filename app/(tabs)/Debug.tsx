@@ -4,10 +4,10 @@ import { Copy } from 'lucide-react-native';
 import {
   initLogger,
   keyToHex,
-  parseKeyHandshakeUrl,
-  LogLevel,
   type LogCallback,
   type LogEntry,
+  LogLevel,
+  parseKeyHandshakeUrl,
 } from 'portal-app-lib';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -771,14 +771,13 @@ function RustLogger({
           Select the minimum log level to display
         </ThemedText>
         <View style={styles.logLevelContainer}>
-          {logLevelOptions.map((option) => (
+          {logLevelOptions.map(option => (
             <TouchableOpacity
               key={option.value}
               style={[
                 styles.logLevelButton,
                 {
-                  backgroundColor:
-                    logLevel === option.value ? buttonColor : surfaceSecondaryColor,
+                  backgroundColor: logLevel === option.value ? buttonColor : surfaceSecondaryColor,
                   borderColor: logLevel === option.value ? buttonColor : surfaceSecondaryColor,
                 },
               ]}
@@ -819,7 +818,7 @@ function RustLogger({
             Logger Status: Active
           </ThemedText>
           <ThemedText style={[styles.settingSubtext, { color: secondaryTextColor }]}>
-            Log level: {logLevelOptions.find((opt) => opt.value === logLevel)?.label || 'Unknown'}
+            Log level: {logLevelOptions.find(opt => opt.value === logLevel)?.label || 'Unknown'}
           </ThemedText>
         </ThemedView>
       )}
