@@ -1,8 +1,9 @@
 import { router } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, BackHandler, Platform, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { OnboardingHeader } from '@/components/onboarding/OnboardingHeader';
 import { onboardingStyles as styles } from '@/components/onboarding/styles';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -10,20 +11,26 @@ import { useKey } from '@/context/KeyContext';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { SEED_ORIGIN_KEY, useOnboardingFlow } from '@/context/OnboardingFlowContext';
 import { useUserProfile } from '@/context/UserProfileContext';
+import { useWalletManager } from '@/context/WalletManagerContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { WALLET_TYPE } from '@/models/WalletType';
+import { getMnemonic } from '@/services/SecureStorageService';
 import { generateRandomGamertag } from '@/utils/common';
 
 export default function SimpleSetup() {
   const backgroundColor = useThemeColor({}, 'background');
   const buttonPrimary = useThemeColor({}, 'buttonPrimary');
   const { setMnemonic } = useKey();
-  const { generateNewSeedPhrase, clearSeedPhrase, setOnboardingError, seedPhrase } =
-    useOnboardingFlow();
+  const { generateNewSeedPhrase, clearSeedPhrase, setOnboardingError } = useOnboardingFlow();
   const { fetchProfile, setProfile, waitForProfileSetup, hasProfileAssigned } = useUserProfile();
+  const { getWallet } = useWalletManager();
 
   const nostrService = useNostrService();
+  const nostrServiceRef = useRef(nostrService);
+  nostrServiceRef.current = nostrService;
+
   const [step, setStep] = useState<
-    'generate-key' | 'save-securestore' | 'backup-cloud' | 'generate-profile'
+    'generate-key' | 'save-securestore' | 'backup-cloud' | 'generate-profile' | 'wallet-setup'
   >('generate-key');
 
   const stepMessages = {
@@ -31,15 +38,23 @@ export default function SimpleSetup() {
     'save-securestore': 'Saving your key to secure storage...',
     'backup-cloud': 'Backing up your key to the cloud...',
     'generate-profile': 'Generating your profile...',
+    'wallet-setup': 'Setting up your wallet...',
   };
   const stepErrors = {
     'generate-key': 'Failed to generate key',
     'save-securestore': 'Failed to save key to secure storage',
     'backup-cloud': 'Failed to backup key to cloud',
     'generate-profile': 'Failed to generate profile',
+    'wallet-setup': 'Failed to setup wallet',
   };
 
   const generateKey = async () => {
+    // Check if mnemonic already exists (e.g., from a previous failed attempt)
+    const existingMnemonic = await getMnemonic();
+    if (existingMnemonic) {
+      return; // Use existing mnemonic, don't regenerate
+    }
+
     await new Promise(resolve => setTimeout(resolve, 1000));
     const newSeedPhrase = generateNewSeedPhrase();
     await setMnemonic(newSeedPhrase);
@@ -51,50 +66,71 @@ export default function SimpleSetup() {
   };
 
   const generateProfile = async () => {
+    // Use ref to always get the latest nostrService state (avoids stale closure)
     let retries = 0;
-    const maxRetries = 30;
-    while (!nostrService.isInitialized && retries < maxRetries) {
+    const maxRetries = 60; // 30 seconds total
+    while (!nostrServiceRef.current.isInitialized && retries < maxRetries) {
       await new Promise(resolve => setTimeout(resolve, 500));
       retries++;
     }
 
-    if (!nostrService.isInitialized || !nostrService.publicKey) {
-      return false;
+    if (!nostrServiceRef.current.isInitialized || !nostrServiceRef.current.publicKey) {
+      throw new Error('Nostr service not initialized');
     }
 
     if (hasProfileAssigned()) {
-      return true;
+      return; // Profile already exists, skip
     }
 
-    const result = await fetchProfile(nostrService.publicKey);
+    const result = await fetchProfile(nostrServiceRef.current.publicKey!);
 
     if (result.found && result.username) {
-      return await waitForProfileSetup(15000);
+      const success = await waitForProfileSetup(15000);
+      if (!success) {
+        throw new Error('Profile setup timeout');
+      }
+      return;
     }
 
     const randomUsername = generateRandomGamertag();
-    try {
-      await setProfile(randomUsername, '');
-      return await waitForProfileSetup(15000);
-    } catch (_error) {
-      return false;
+    await setProfile(randomUsername, '');
+    const success = await waitForProfileSetup(15000);
+    if (!success) {
+      throw new Error('Profile setup timeout');
     }
+  };
+
+  const setupWallet = async () => {
+    // Small delay to ensure mnemonic is saved and KeyContext is updated
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Get/create Breez wallet - this will initialize it if not already done
+    await getWallet(WALLET_TYPE.BREEZ);
   };
 
   useEffect(() => {
     const setup = async () => {
+      let currentStep: typeof step = 'generate-key';
       try {
+        currentStep = 'generate-key';
+        setStep(currentStep);
         await generateKey();
-        setStep('save-securestore');
-        await SecureStore.setItemAsync(SEED_ORIGIN_KEY, 'generated');
-        setStep('backup-cloud');
+        currentStep = 'save-securestore';
+        setStep(currentStep);
+        await SecureStore.setItemAsync(SEED_ORIGIN_KEY, 'simple');
+        currentStep = 'backup-cloud';
+        setStep(currentStep);
         await backupOnCloud();
-        setStep('generate-profile');
+        currentStep = 'generate-profile';
+        setStep(currentStep);
         await generateProfile();
+        currentStep = 'wallet-setup';
+        setStep(currentStep);
+        await setupWallet();
         router.replace('/(onboarding)/identity-verification');
       } catch (error) {
         setOnboardingError({
-          message: 'Failed to generate key',
+          message: stepErrors[currentStep as keyof typeof stepErrors],
           retryRoute: '/(onboarding)/simple-setup',
         });
         router.replace('/(onboarding)/onboarding-error');
@@ -102,7 +138,8 @@ export default function SimpleSetup() {
     };
 
     setup();
-  }, [setMnemonic, generateNewSeedPhrase, clearSeedPhrase]);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: we want to run the setup function only once
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -120,6 +157,7 @@ export default function SimpleSetup() {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
       <ThemedView style={styles.container}>
+        <OnboardingHeader onBack={() => {}} hideBackButton={true} />
         <View style={[styles.stepWrapper, styles.pinSetupFull]}>
           <View style={styles.pinSetupContent}>
             <ThemedText type="title" style={styles.title}>
