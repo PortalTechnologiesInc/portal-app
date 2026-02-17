@@ -75,7 +75,7 @@ export default function ImportSeedPhrase() {
       await setMnemonic(normalizedPhrase);
       await SecureStore.setItemAsync(SEED_ORIGIN_KEY, 'imported');
       clearSeedPhrase();
-      router.push('/(onboarding)/pin-setup');
+      router.push('/(onboarding)/profile-setup');
     } catch (_error) {
       Alert.alert('Error', 'Failed to save your seed phrase. Please try again.');
     }

@@ -103,13 +103,19 @@ export default function VerifySeed() {
       clearVerificationChallenge();
       clearSeedPhrase();
 
-      // Navigate to PIN setup
-      router.push('/(onboarding)/pin-setup');
-    } catch (_error) {
-      // Proceed even if saving fails (legacy behavior).
-      clearVerificationChallenge();
-      clearSeedPhrase();
-      router.push('/(onboarding)/pin-setup');
+      // Navigate to identity verification
+      router.push('/(onboarding)/profile-setup');
+    } catch (error) {
+      setIsVerifying(false);
+      Alert.alert('Failed to Save', 'Failed to save your seed phrase. Please try again.', [
+        {
+          text: 'Try Again',
+          onPress: () => {
+            setWord1('');
+            setWord2('');
+          },
+        },
+      ]);
     }
   };
 

@@ -26,7 +26,7 @@ export default function ProfileSetup() {
     const handleProfileSetup = async () => {
       try {
         const seedOrigin = await SecureStore.getItemAsync(SEED_ORIGIN_KEY);
-        if (seedOrigin !== 'imported') {
+        if (!seedOrigin) {
           return true;
         }
 
@@ -67,7 +67,7 @@ export default function ProfileSetup() {
       const success = await handleProfileSetup();
       if (!isMounted) return;
       if (success) {
-        router.replace('/(onboarding)/splash');
+        router.replace('/(onboarding)/identity-verification');
       } else {
         setOnboardingError({
           message:

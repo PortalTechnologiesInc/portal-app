@@ -75,7 +75,7 @@ export default function ImportNsec() {
       await setNsec(normalizedNsec);
       await SecureStore.setItemAsync(SEED_ORIGIN_KEY, 'imported');
       clearSeedPhrase();
-      router.push('/(onboarding)/pin-setup');
+      router.push('/(onboarding)/profile-setup');
     } catch (_error) {
       Alert.alert('Error', 'Failed to save your Nsec. Please try again.');
     }

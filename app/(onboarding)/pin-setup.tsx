@@ -45,7 +45,7 @@ export default function PinSetup() {
 
   const handleCompletionWithoutPIN = async () => {
     resetPinState();
-    router.push('/(onboarding)/profile-setup');
+    router.push('/(onboarding)/splash');
   };
 
   const handlePinEntryComplete = async (pin: string) => {
@@ -71,7 +71,7 @@ export default function PinSetup() {
       await setupPIN(pin);
       await setLockEnabled(true);
       resetPinState();
-      router.push('/(onboarding)/profile-setup');
+      router.push('/(onboarding)/splash');
     } catch (_error) {
       setPinError('Unable to save PIN. Please try again.');
     } finally {
