@@ -55,6 +55,11 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
   children,
 }) => {
   const { walletUrl, nsec, mnemonic } = useKey();
+  const nsecRef = useRef(nsec);
+  nsecRef.current = nsec;
+  const mnemonicRef = useRef(mnemonic);
+  mnemonicRef.current = mnemonic;
+
   const { executeOperation } = useDatabaseContext();
   const { preferredCurrency } = useCurrency();
 
@@ -197,7 +202,7 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
    */
   const getWallet = useCallback(
     async <T extends WalletType>(walletType: T): Promise<WalletTypeMap[T]> => {
-      if (!nsec && !mnemonic) {
+      if (!nsecRef.current && !mnemonicRef.current) {
         console.error('Missing nsec or mnemonic for wallet creation');
         throw new Error('Missing nsec or mnemonic for wallet creation');
       }
@@ -207,9 +212,9 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
 
       let instance: WalletTypeMap[T];
 
-      let nsecToUse = nsec;
-      if (!nsec) {
-        nsecToUse = deriveNsecFromMnemonic(mnemonic!);
+      let nsecToUse = nsecRef.current;
+      if (!nsecRef.current) {
+        nsecToUse = deriveNsecFromMnemonic(mnemonicRef.current!);
       }
       switch (walletType) {
         case WALLET_TYPE.BREEZ:
@@ -238,7 +243,7 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
       walletCacheRef.current.set(walletType, instance);
       return instance;
     },
-    [onStatusChange, setupBreezEventListener, walletUrl, nsec, mnemonic]
+    [onStatusChange, setupBreezEventListener, walletUrl]
   );
 
   /**
