@@ -7,6 +7,7 @@ import { onboardingLogo } from '@/components/onboarding/assets';
 import { onboardingStyles as styles } from '@/components/onboarding/styles';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { useOnboardingFlow } from '@/context/OnboardingFlowContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 
 export default function Welcome() {
@@ -14,13 +15,17 @@ export default function Welcome() {
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');
   const buttonPrimary = useThemeColor({}, 'buttonPrimary');
   const buttonPrimaryText = useThemeColor({}, 'buttonPrimaryText');
+  const { setOnboardingPath } = useOnboardingFlow();
 
-  useEffect(() => {
-    if (Platform.OS === 'android') {
-      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => true);
-      return () => backHandler.remove();
-    }
-  }, []);
+  const handleGetStarted = () => {
+    setOnboardingPath('simple');
+    router.push('/(onboarding)/simple-setup');
+  };
+
+  const handleAdvanced = () => {
+    setOnboardingPath('advanced');
+    router.push('/(onboarding)/backup-warning');
+  };
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
@@ -67,10 +72,19 @@ export default function Welcome() {
           <View style={[styles.footer, styles.footerStack]}>
             <TouchableOpacity
               style={[styles.button, { backgroundColor: buttonPrimary }]}
-              onPress={() => router.push('/(onboarding)/backup-warning')}
+              onPress={handleGetStarted}
             >
               <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>
                 Get Started
+              </ThemedText>
+              <ArrowRight size={20} color={buttonPrimaryText} style={styles.buttonIcon} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.button, { backgroundColor: buttonPrimary }]}
+              onPress={handleAdvanced}
+            >
+              <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>
+                Advanced
               </ThemedText>
               <ArrowRight size={20} color={buttonPrimaryText} style={styles.buttonIcon} />
             </TouchableOpacity>
