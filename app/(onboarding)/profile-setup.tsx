@@ -7,7 +7,7 @@ import { onboardingStyles as styles } from '@/components/onboarding/styles';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useNostrService } from '@/context/NostrServiceContext';
-import { SEED_ORIGIN_KEY } from '@/context/OnboardingFlowContext';
+import { SEED_ORIGIN_KEY, useOnboardingFlow } from '@/context/OnboardingFlowContext';
 import { useUserProfile } from '@/context/UserProfileContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { generateRandomGamertag } from '@/utils/common';
@@ -18,6 +18,7 @@ export default function ProfileSetup() {
 
   const nostrService = useNostrService();
   const { fetchProfile, setProfile, waitForProfileSetup, hasProfileAssigned } = useUserProfile();
+  const { setOnboardingError } = useOnboardingFlow();
 
   useEffect(() => {
     let isMounted = true;
@@ -65,7 +66,17 @@ export default function ProfileSetup() {
     const run = async () => {
       const success = await handleProfileSetup();
       if (!isMounted) return;
-      router.replace(success ? '/(onboarding)/splash' : '/(onboarding)/profile-setup-error');
+      if (success) {
+        router.replace('/(onboarding)/splash');
+      } else {
+        setOnboardingError({
+          message:
+            "We couldn't set up your profile right now. This might be due to a network connection issue.",
+          icon: 'error',
+          retryRoute: '/(onboarding)/profile-setup',
+        });
+        router.replace('/(onboarding)/onboarding-error');
+      }
     };
 
     run();

@@ -9,6 +9,14 @@ import { showToast } from '@/utils/Toast';
 // Key to track if seed was generated or imported (used by profile setup step)
 export const SEED_ORIGIN_KEY = 'portal_seed_origin';
 
+type OnboardingPath = 'simple' | 'advanced';
+
+export type OnboardingErrorState = {
+  message: string;
+  icon?: 'error' | 'alert' | 'warning';
+  retryRoute: string;
+};
+
 type OnboardingFlowContextType = {
   seedPhrase: string;
   setSeedPhrase: (value: string) => void;
@@ -27,6 +35,12 @@ type OnboardingFlowContextType = {
   pinError: string;
   setPinError: (value: string) => void;
   resetPinState: () => void;
+
+  onboardingPath: OnboardingPath | null;
+  setOnboardingPath: (value: OnboardingPath | null) => void;
+
+  onboardingError: OnboardingErrorState | null;
+  setOnboardingError: (error: OnboardingErrorState | null) => void;
 };
 
 const OnboardingFlowContext = createContext<OnboardingFlowContextType | null>(null);
@@ -40,6 +54,8 @@ export const OnboardingFlowProvider: React.FC<{ children: React.ReactNode }> = (
   const [pinStep, setPinStep] = useState<'enter' | 'confirm'>('enter');
   const [enteredPin, setEnteredPin] = useState('');
   const [pinError, setPinError] = useState('');
+  const [onboardingPath, setOnboardingPath] = useState<OnboardingPath | null>(null);
+  const [onboardingError, setOnboardingError] = useState<OnboardingErrorState | null>(null);
 
   // Check for app reset completion and show toast (used to live in legacy onboarding screen).
   useEffect(() => {
@@ -120,6 +136,10 @@ export const OnboardingFlowProvider: React.FC<{ children: React.ReactNode }> = (
       pinError,
       setPinError,
       resetPinState,
+      onboardingPath,
+      setOnboardingPath,
+      onboardingError,
+      setOnboardingError,
     }),
     [
       seedPhrase,
@@ -132,6 +152,10 @@ export const OnboardingFlowProvider: React.FC<{ children: React.ReactNode }> = (
       enteredPin,
       pinError,
       resetPinState,
+      onboardingPath,
+      setOnboardingPath,
+      onboardingError,
+      setOnboardingError,
     ]
   );
 

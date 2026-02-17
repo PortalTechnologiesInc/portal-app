@@ -1,21 +1,50 @@
 import { router } from 'expo-router';
-import { AlertTriangle } from 'lucide-react-native';
+import { AlertCircle, AlertTriangle } from 'lucide-react-native';
+import { useEffect } from 'react';
 import { ScrollView, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { onboardingStyles as styles } from '@/components/onboarding/styles';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { useOnboardingFlow } from '@/context/OnboardingFlowContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 
-export default function ProfileSetupError() {
+const iconMap = {
+  error: AlertCircle,
+  alert: AlertTriangle,
+  warning: AlertTriangle,
+};
+
+export default function OnboardingError() {
   const backgroundColor = useThemeColor({}, 'background');
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');
   const buttonPrimary = useThemeColor({}, 'buttonPrimary');
   const buttonPrimaryText = useThemeColor({}, 'buttonPrimaryText');
+  const { onboardingError, setOnboardingError } = useOnboardingFlow();
 
   const { width, height } = useWindowDimensions();
   const shortestSide = Math.min(width, height);
   const isSmallDevice = shortestSide <= 375;
+
+  // Redirect to welcome if no error state
+  useEffect(() => {
+    if (!onboardingError) {
+      router.replace('/(onboarding)/welcome');
+    }
+  }, [onboardingError]);
+
+  if (!onboardingError) {
+    return null;
+  }
+
+  const IconComponent = iconMap[onboardingError.icon || 'error'];
+  const iconColor = onboardingError.icon === 'error' ? '#e74c3c' : '#f39c12';
+
+  const handleTryAgain = () => {
+    const retryRoute = onboardingError.retryRoute;
+    setOnboardingError(null);
+    router.replace(retryRoute as any);
+  };
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
@@ -27,23 +56,16 @@ export default function ProfileSetupError() {
           >
             <View style={styles.pageContainer}>
               <View style={styles.warningIconContainer}>
-                <AlertTriangle size={isSmallDevice ? 48 : 64} color="#e74c3c" />
+                <IconComponent size={isSmallDevice ? 48 : 64} color={iconColor} />
               </View>
 
               <ThemedText type="title" style={styles.warningTitle}>
-                Profile Setup Failed
+                Setup Failed
               </ThemedText>
 
               <View style={[styles.warningCard, { backgroundColor: cardBackgroundColor }]}>
                 <ThemedText style={[styles.warningText, isSmallDevice && styles.warningTextSmall]}>
-                  We couldn't set up your profile right now. This might be due to a network
-                  connection issue.
-                </ThemedText>
-              </View>
-
-              <View style={styles.warningPointsContainer}>
-                <ThemedText style={styles.warningPointText}>
-                  Please check your internet connection and try again later.
+                  {onboardingError.message}
                 </ThemedText>
               </View>
             </View>
@@ -52,7 +74,7 @@ export default function ProfileSetupError() {
           <View style={[styles.footer, styles.footerStack]}>
             <TouchableOpacity
               style={[styles.button, { backgroundColor: buttonPrimary }]}
-              onPress={() => router.replace('/(onboarding)/profile-setup')}
+              onPress={handleTryAgain}
             >
               <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>
                 Try Again
