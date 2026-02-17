@@ -19,6 +19,7 @@ import { RecentActivitiesList } from '@/components/RecentActivitiesList';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { UpcomingPaymentsList } from '@/components/UpcomingPaymentsList';
+import { WelcomeBanner } from '@/components/WelcomeBanner';
 import { Colors } from '@/constants/Colors';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { useOnboarding } from '@/context/OnboardingContext';
@@ -31,12 +32,13 @@ import { formatAvatarUri } from '@/utils/common';
 const FIRST_LAUNCH_KEY = 'portal_first_launch_completed';
 
 export default function Home() {
-  const { isLoading } = useOnboarding();
+  const { isLoading, isOnboardingComplete } = useOnboarding();
   const { username, displayName, avatarUri, avatarRefreshKey } = useUserProfile();
   const nostrService = useNostrService();
   const walletService = useWalletManager();
   const appService = usePortalApp();
   const [isFirstLaunch, setIsFirstLaunch] = useState<boolean | null>(null);
+  const [shouldShowBanner, setShouldShowBanner] = useState<boolean | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0); // For triggering immediate ConnectionStatusIndicator updates
   const isMounted = useRef(true);
@@ -86,15 +88,23 @@ export default function Home() {
     const checkFirstLaunch = async () => {
       try {
         if (!isMounted.current) return;
+        if (isLoading) return; // Wait for onboarding state to load
 
         const firstLaunchCompleted = await SecureStore.getItemAsync(FIRST_LAUNCH_KEY);
         setIsFirstLaunch(firstLaunchCompleted !== 'true');
-        // We no longer set the flag here - we'll set it after user interaction
+
+        // Show banner if onboarding is complete and FIRST_LAUNCH_KEY is not set
+        // This means user just completed onboarding
+        if (isOnboardingComplete && firstLaunchCompleted !== 'true') {
+          setShouldShowBanner(true);
+        } else {
+          setShouldShowBanner(false);
+        }
       } catch (_e) {}
     };
 
     checkFirstLaunch();
-  }, [nostrService]);
+  }, [nostrService, isOnboardingComplete, isLoading]);
 
   // Profile initialization is now handled automatically in UserProfileContext
 
@@ -326,74 +336,16 @@ export default function Home() {
             </View>
           </ThemedView>
 
-          {isFirstLaunch === true ? (
-            <View style={styles.welcomeContainer}>
-              <View style={[styles.welcomeCard, { backgroundColor: cardBackgroundColor }]}>
-                <ThemedText
-                  type="title"
-                  style={styles.welcomeTitle}
-                  darkColor={Colors.almostWhite}
-                  lightColor={Colors.gray900}
-                >
-                  Welcome to Portal App!
-                </ThemedText>
+          {shouldShowBanner === true && <WelcomeBanner />}
 
-                <ThemedText
-                  style={styles.welcomeSubtitle}
-                  darkColor={Colors.dirtyWhite}
-                  lightColor={Colors.gray700}
-                >
-                  Your secure mobile identity wallet for authentication and payments
-                </ThemedText>
+          {/* Pending Requests Section */}
+          <PendingRequestsList />
 
-                <View style={styles.illustrationContainer}>
-                  <QrCode size={80} color={buttonPrimaryColor} style={styles.illustration} />
-                </View>
+          {/* Upcoming Payments Section */}
+          <UpcomingPaymentsList />
 
-                <ThemedText
-                  style={styles.welcomeDescription}
-                  darkColor={Colors.dirtyWhite}
-                  lightColor={Colors.gray700}
-                >
-                  Get started by scanning a QR code to log in to a website or make a payment.
-                </ThemedText>
-
-                <View style={styles.scanQrContainer}>
-                  <TouchableOpacity
-                    style={[styles.scanQrButton, { backgroundColor: buttonPrimaryColor }]}
-                    onPress={handleQrScan}
-                  >
-                    <QrCode size={24} color={buttonSuccessTextColor} style={styles.qrIcon} />
-                    <ThemedText style={[styles.scanQrText, { color: buttonSuccessTextColor }]}>
-                      Scan QR Code
-                    </ThemedText>
-                    <ArrowRight size={18} color={buttonSuccessTextColor} />
-                  </TouchableOpacity>
-                </View>
-
-                <TouchableOpacity style={styles.dismissButton} onPress={markWelcomeAsViewed}>
-                  <ThemedText
-                    style={styles.dismissText}
-                    darkColor={Colors.dirtyWhite}
-                    lightColor={Colors.gray600}
-                  >
-                    Dismiss Welcome
-                  </ThemedText>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ) : (
-            <>
-              {/* Pending Requests Section */}
-              <PendingRequestsList />
-
-              {/* Upcoming Payments Section */}
-              <UpcomingPaymentsList />
-
-              {/* Recent Activities Section */}
-              <RecentActivitiesList />
-            </>
-          )}
+          {/* Recent Activities Section */}
+          <RecentActivitiesList />
         </ScrollView>
       </ThemedView>
     </SafeAreaView>
@@ -512,80 +464,6 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
 
-  welcomeContainer: {
-    paddingHorizontal: 20,
-    marginTop: 20,
-  },
-  welcomeCard: {
-    borderRadius: 20,
-    padding: 24,
-    minHeight: 200,
-  },
-  welcomeTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  welcomeSubtitle: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 16,
-    fontStyle: 'italic',
-  },
-  illustrationContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: 20,
-  },
-  illustration: {
-    opacity: 0.9,
-  },
-  welcomeDescription: {
-    fontSize: 16,
-    lineHeight: 24,
-    textAlign: 'center',
-    marginBottom: 30,
-  },
-  scanQrContainer: {
-    alignItems: 'center',
-  },
-  scanQrButton: {
-    flexDirection: 'row',
-    // backgroundColor handled by theme (buttonSuccess)
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  qrIcon: {
-    marginRight: 10,
-  },
-  scanQrText: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginRight: 10,
-  },
-  button: {
-    fontSize: 16,
-    // backgroundColor handled by theme (surfacePrimary)
-    // color handled by theme (textPrimary)
-    padding: 15,
-    borderRadius: 8,
-    marginVertical: 10,
-    width: '80%',
-    textAlign: 'center',
-  },
-  dismissButton: {
-    marginTop: 20,
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  dismissText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
   loaderContainer: {
     flex: 1,
     justifyContent: 'center',
