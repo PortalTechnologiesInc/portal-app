@@ -24,9 +24,9 @@ export class HandleRecurringPaymentRequestTask extends Task<[RecurringPaymentReq
 
     await new SendRecurringPaymentResponseTask(request, subResponse).run();
 
-    const eventId = request.eventId;
+    const requestId = request.content.requestId;
     console.log('[ProcessIncomingRequestTask] Task started for subscription request:', {
-      id: eventId,
+      id: requestId,
       type: 'subsctiption',
     });
   }
@@ -53,7 +53,7 @@ class RequireRecurringPaymentUserApprovalTask extends Task<
     body: string
   ): Promise<RecurringPaymentResponseContent> {
     console.log('[RequireRecurringPaymentUserApprovalTask] Requesting user approval for:', {
-      id: request.eventId,
+      id: request.content.requestId,
       type: 'subscription',
     });
     console.log(
@@ -65,7 +65,7 @@ class RequireRecurringPaymentUserApprovalTask extends Task<
       // that's ok because a notification is sent and the task must be resumed when the app is opened
       // starting from this task (prompting user with a pending instead of a notification).
       const newPendingRequest: PendingRequest = {
-        id: request.eventId,
+        id: request.content.requestId,
         metadata: request,
         timestamp: new Date(),
         type: 'subscription',

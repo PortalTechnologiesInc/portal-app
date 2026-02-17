@@ -25,7 +25,7 @@ export class ProcessAuthRequestTask extends Task<[AuthChallengeEvent], [], void>
     await new SendAuthChallengeResponseTask(event, authResponse).run();
 
     const eventId = event.eventId;
-    console.log('[ProcessIncomingRequestTask] Task started for request:', {
+    console.log('[ProcessIncomingRequestTask] Task started for request with eventId:', {
       id: eventId,
       type: 'login',
     });
@@ -93,10 +93,13 @@ class RequireAuthUserApprovalTask extends Task<
     { PromptUserProvider }: { PromptUserProvider: PromptUserProvider },
     event: AuthChallengeEvent
   ): Promise<AuthResponseStatus> {
-    console.log('[RequireAuthUserApprovalTask] Requesting user approval for:', {
-      id: event.eventId,
-      type: 'login',
-    });
+    console.log(
+      '[RequireAuthUserApprovalTask] Requesting user approval for request with eventId:',
+      {
+        id: event.eventId,
+        type: 'login',
+      }
+    );
     console.log(
       '[RequireAuthUserApprovalTask] SetPendingRequestsProvider available:',
       !!PromptUserProvider

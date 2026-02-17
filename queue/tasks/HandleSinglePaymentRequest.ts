@@ -249,7 +249,7 @@ export class HandleSinglePaymentRequestTask extends Task<
           currency: currency,
           converted_amount: convertedAmount,
           converted_currency: convertedCurrency,
-          request_id: request.eventId,
+          request_id: request.content.requestId,
           status: 'negative',
           subscription_id: request.content.subscriptionId || null,
         }).run();
@@ -278,7 +278,7 @@ export class HandleSinglePaymentRequestTask extends Task<
           currency: currency,
           converted_amount: convertedAmount,
           converted_currency: convertedCurrency,
-          request_id: request.eventId,
+          request_id: request.content.requestId,
           status: 'negative',
           subscription_id: request.content.subscriptionId || null,
         }).run();
@@ -305,7 +305,7 @@ export class HandleSinglePaymentRequestTask extends Task<
           currency: currency,
           converted_amount: convertedAmount,
           converted_currency: convertedCurrency,
-          request_id: request.eventId,
+          request_id: request.content.requestId,
           status: 'pending',
           subscription_id: request.content.subscriptionId || null,
           invoice: request.content.invoice,
@@ -395,7 +395,7 @@ export class SendSinglePaymentResponseTask extends Task<
   ): Promise<void> {
     await RelayStatusesProvider.waitForRelaysConnected();
     console.log('sending response', {
-      requestId: request.eventId,
+      requestId: request.content.requestId,
       status: response,
     });
     return await PortalAppInterface.replySinglePaymentRequest(request, {
@@ -442,7 +442,7 @@ class RequireSinglePaymentUserApprovalTask extends Task<
     body: string
   ): Promise<PaymentStatus> {
     console.log('[RequireSinglePaymentUserApprovalTask] Requesting user approval for:', {
-      id: request.eventId,
+      id: request.content.requestId,
       type: 'payment',
     });
     console.log(
@@ -454,7 +454,7 @@ class RequireSinglePaymentUserApprovalTask extends Task<
       // that's ok because a notification is sent and the task must be resumed when the app is opened
       // starting from this task (prompting user with a pending instead of a notification).
       const newPendingRequest: PendingRequest = {
-        id: request.eventId,
+        id: request.content.requestId,
         metadata: request,
         timestamp: new Date(),
         type: 'payment',

@@ -48,7 +48,7 @@ export async function listenForAuthChallenge(app: PortalAppInterface) {
       const event = await app.nextAuthChallenge();
       const id = event.eventId;
       const task = new ProcessAuthRequestTask(event);
-      console.log('[PortalAppContext] Enqueuing ProcessAuthRequestTask for request:', id);
+      console.log('[PortalAppContext] Enqueuing ProcessAuthRequestTask for eventId:', id);
       enqueueTask(task);
     } catch (error) {
       console.error('[PortalAppContext] Error running task', error);
@@ -66,7 +66,7 @@ export async function listenForPaymentRequest(app: PortalAppInterface) {
           const task = await new HandleSinglePaymentRequestTask(singlePaymentRequest);
           console.log(
             '[PortalAppContext] Enqueuing HandleSinglePaymentRequestTask for request:',
-            singlePaymentRequest.eventId
+            singlePaymentRequest.content.requestId
           );
           enqueueTask(task);
           break;
@@ -76,13 +76,14 @@ export async function listenForPaymentRequest(app: PortalAppInterface) {
           const task = await new HandleRecurringPaymentRequestTask(recurringPaymentRequest);
           console.log(
             '[PortalAppContext] Enqueuing HandleRecurringPaymentRequestTask for request:',
-            recurringPaymentRequest.eventId
+            recurringPaymentRequest.content.requestId
           );
           enqueueTask(task);
           break;
         }
       }
       const id = event.inner[0].eventId;
+      console.log('[PortalAppContext] Enqueuing HandlePaymentRequestTask for eventId:', id);
     } catch (error) {
       console.error('[PortalAppContext] Error running task', error);
     }
