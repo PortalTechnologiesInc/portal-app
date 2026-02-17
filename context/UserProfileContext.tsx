@@ -2,7 +2,8 @@ import * as FileSystem from 'expo-file-system';
 import * as SecureStore from 'expo-secure-store';
 import { keyToHex } from 'portal-app-lib';
 import type React from 'react';
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { SEED_ORIGIN_KEY } from '@/context/OnboardingFlowContext';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 import { generateRandomGamertag } from '@/utils/common';
 import type { ProfileSyncStatus } from '@/utils/types';
@@ -125,6 +126,12 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [networkDisplayName, setNetworkDisplayName] = useState<string>('');
   const [networkAvatarUri, setNetworkAvatarUri] = useState<string | null>(null);
 
+  // Refs for polling functions to avoid stale closures
+  const networkUsernameRef = useRef(networkUsername);
+  networkUsernameRef.current = networkUsername;
+  const syncStatusRef = useRef(syncStatus);
+  syncStatusRef.current = syncStatus;
+
   // Reset all profile state to initial values
   // This is called during app reset to ensure clean state
   const resetProfile = () => {
@@ -151,6 +158,8 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, []);
 
   const nostrService = useNostrService();
+  const nostrServiceRef = useRef(nostrService);
+  nostrServiceRef.current = nostrService;
 
   // Profile is editable only when sync is not in progress
   const isProfileEditable = syncStatus !== 'syncing';
@@ -224,7 +233,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
       }
 
       // Check if NostrService is ready
-      if (!nostrService.isInitialized) {
+      if (!nostrServiceRef.current.isInitialized) {
         setSyncStatus('failed');
         return { found: false };
       }
@@ -233,7 +242,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
       try {
         const { found, avatarUri, displayName, username } =
-          await nostrService.fetchProfile(publicKey);
+          await nostrServiceRef.current.fetchProfile(publicKey);
 
         if (found) {
           // Save the fetched data to local storage
@@ -291,13 +300,13 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         return { found: false };
       }
     },
-    [syncStatus, nostrService, setUsername, setDisplayName]
+    [syncStatus, setUsername, setDisplayName]
   );
 
   const setProfile = useCallback(
     async (newUsername: string, newDisplayName?: string, newAvatarUri?: string | null) => {
       try {
-        if (!nostrService.publicKey) {
+        if (!nostrServiceRef.current.publicKey) {
           throw new Error('Public key not initialized');
         }
 
@@ -334,7 +343,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
         if (usernameChanged) {
           try {
-            await nostrService.submitNip05(normalizedUsername);
+            await nostrServiceRef.current.submitNip05(normalizedUsername);
             actualUsernameToUse = normalizedUsername; // Use new username if successful
           } catch (error: any) {
             // Store the error but don't throw - continue with other updates
@@ -391,10 +400,10 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
           }
 
           try {
-            await nostrService.submitImage(cleanBase64);
+            await nostrServiceRef.current.submitImage(cleanBase64);
 
             // Generate portal image URL using hex pubkey
-            const hexPubkey = keyToHex(nostrService.publicKey);
+            const hexPubkey = keyToHex(nostrServiceRef.current.publicKey!);
             imageUrl = `https://profile.getportal.cc/${hexPubkey}`;
           } catch (error: any) {
             // Extract error from portal app response
@@ -423,7 +432,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
           picture: imageUrl, // Use the portal image URL or empty string
         };
 
-        await nostrService.setUserProfile(profileUpdate);
+        await nostrServiceRef.current.setUserProfile(profileUpdate);
 
         // Update local state - use the actual username that worked
         await setUsername(actualUsernameToUse);
@@ -460,14 +469,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         throw error;
       }
     },
-    [
-      nostrService,
-      networkUsername,
-      networkDisplayName,
-      networkAvatarUri,
-      setUsername,
-      setDisplayName,
-    ]
+    [networkUsername, networkDisplayName, networkAvatarUri, setUsername, setDisplayName]
   );
 
   // Auto-fetch profile on app load when NostrService is ready
@@ -492,8 +494,8 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         } else {
           // Check if this is a newly generated seed (new user)
           try {
-            const seedOrigin = await SecureStore.getItemAsync('portal_seed_origin');
-            if (seedOrigin === 'generated') {
+            const seedOrigin = await SecureStore.getItemAsync(SEED_ORIGIN_KEY);
+            if (seedOrigin === 'generated' || seedOrigin === 'simple') {
               // Generate a random username for new users
               const randomUsername = generateRandomGamertag();
 
@@ -502,7 +504,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
               setNetworkUsername(''); // Keep network state empty since nothing is saved yet
 
               // Clear the seed origin flag so this only happens once
-              await SecureStore.deleteItemAsync('portal_seed_origin');
+              await SecureStore.deleteItemAsync(SEED_ORIGIN_KEY);
 
               // Auto-save the generated profile to the network with empty display name
               try {
@@ -555,45 +557,43 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   // Check if profile (nip-05) is assigned
   const hasProfileAssigned = useCallback(() => {
-    return networkUsername.length > 0;
-  }, [networkUsername]);
+    return networkUsernameRef.current.length > 0;
+  }, []);
 
   // Wait for profile setup to complete with timeout
-  const waitForProfileSetup = useCallback(
-    async (timeoutMs: number): Promise<boolean> => {
-      const startTime = Date.now();
-      const pollInterval = 500; // Check every 500ms
+  // Uses refs to avoid stale closures in the polling loop
+  const waitForProfileSetup = useCallback(async (timeoutMs: number): Promise<boolean> => {
+    const startTime = Date.now();
+    const pollInterval = 500; // Check every 500ms
 
-      return new Promise(resolve => {
-        const checkProfile = () => {
-          // Check if profile is assigned
-          if (networkUsername.length > 0) {
-            resolve(true);
-            return;
-          }
+    return new Promise(resolve => {
+      const checkProfile = () => {
+        // Check if profile is assigned (use ref for latest value)
+        if (networkUsernameRef.current.length > 0) {
+          resolve(true);
+          return;
+        }
 
-          // Check if timeout exceeded
-          if (Date.now() - startTime >= timeoutMs) {
-            resolve(false);
-            return;
-          }
+        // Check if timeout exceeded
+        if (Date.now() - startTime >= timeoutMs) {
+          resolve(false);
+          return;
+        }
 
-          // Check if sync failed
-          if (syncStatus === 'failed') {
-            resolve(false);
-            return;
-          }
+        // Check if sync failed (use ref for latest value)
+        if (syncStatusRef.current === 'failed') {
+          resolve(false);
+          return;
+        }
 
-          // Continue polling
-          setTimeout(checkProfile, pollInterval);
-        };
+        // Continue polling
+        setTimeout(checkProfile, pollInterval);
+      };
 
-        // Start checking immediately
-        checkProfile();
-      });
-    },
-    [networkUsername, syncStatus]
-  );
+      // Start checking immediately
+      checkProfile();
+    });
+  }, []);
 
   return (
     <UserProfileContext.Provider
