@@ -66,7 +66,7 @@ export default function GenerateSeed() {
       } finally {
         clearVerificationChallenge();
         clearSeedPhrase();
-        router.push('/(onboarding)/pin-setup');
+        router.push('/(onboarding)/profile-setup');
       }
       return;
     }
