@@ -26,12 +26,13 @@ export default function OnboardingError() {
   const shortestSide = Math.min(width, height);
   const isSmallDevice = shortestSide <= 375;
 
-  // Redirect to welcome if no error state
+  // Redirect to welcome if no error state (only on mount to handle direct navigation)
   useEffect(() => {
     if (!onboardingError) {
       router.replace('/(onboarding)/welcome');
     }
-  }, [onboardingError]);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: only check on mount
+  }, []);
 
   if (!onboardingError) {
     return null;
@@ -42,7 +43,8 @@ export default function OnboardingError() {
 
   const handleTryAgain = () => {
     const retryRoute = onboardingError.retryRoute;
-    setOnboardingError(null);
+    // Navigate to retry route - don't clear error state here to avoid redirect loop
+    // The error state will be cleared when the retry route component mounts
     router.replace(retryRoute as any);
   };
 
