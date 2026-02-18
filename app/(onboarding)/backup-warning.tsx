@@ -92,7 +92,7 @@ export default function BackupWarning() {
               onPress={() => router.push('/(onboarding)/choice')}
             >
               <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>
-                I Understand - Continue
+                I Understand
               </ThemedText>
             </TouchableOpacity>
           </View>
