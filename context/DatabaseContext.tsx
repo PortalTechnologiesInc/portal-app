@@ -1,5 +1,5 @@
 import { useSQLiteContext } from 'expo-sqlite';
-import { createContext, type ReactNode, useContext, useEffect } from 'react';
+import { createContext, type ReactNode, useContext, useEffect, useRef } from 'react';
 import { ProviderRepository } from '@/queue/WorkQueue';
 import NostrStoreService from '@/services/NostrStoreService';
 import { getKeypairFromKey, hasKey } from '@/utils/keyHelpers';
@@ -33,11 +33,17 @@ interface DatabaseProviderProps {
 export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
   const sqliteContext = useSQLiteContext();
   const { mnemonic, nsec } = useKey();
+  const nostrStoreInitialized = useRef(false);
 
   // Register NostrStoreService in ProviderRepository when keys become available
   // This ensures it's available for tasks even if onboarding completes without app restart
   useEffect(() => {
     if (!hasKey({ mnemonic, nsec })) {
+      return;
+    }
+
+    // Prevent re-initialization if already initialized
+    if (nostrStoreInitialized.current) {
       return;
     }
 
@@ -63,6 +69,7 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
 
         const nostrStore = await NostrStoreService.create(keypair, relays);
         ProviderRepository.register(nostrStore, 'NostrStoreService');
+        nostrStoreInitialized.current = true;
       } catch (error) {
         console.error('Failed to initialize NostrStoreService:', error);
       }

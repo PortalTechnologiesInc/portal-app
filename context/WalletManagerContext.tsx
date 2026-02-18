@@ -299,11 +299,11 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
    * Single initialization effect - runs only once to set up wallets
    */
   useEffect(() => {
-    if (nsec && mnemonic) {
+    if ((nsec || mnemonic) && !isWalletManagerInitialized) {
       initializeWalletManager();
     }
     return;
-  }, [initializeWalletManager, nsec, mnemonic]);
+  }, [initializeWalletManager, nsec, mnemonic, isWalletManagerInitialized]);
 
   /**
    * If wallet url is removed, update global status and switch to breez as preferred
