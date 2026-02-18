@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system';
 import { router } from 'expo-router';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { resetAllContexts } from './ContextResetService';
@@ -84,7 +85,16 @@ export class AppResetService {
       errors.push({ step: 'Storage', error });
     }
 
-    // Step 6: Set flag to show toast in onboarding (after clearing AsyncStorage)
+    // Step 6: Clear breez working directory
+    try {
+      await FileSystem.deleteAsync(`${FileSystem.documentDirectory}breez-wallet`, {
+        idempotent: true,
+      });
+    } catch (error) {
+      errors.push({ step: 'BreezCache', error });
+    }
+
+    // Step 7: Set flag to show toast in onboarding (after clearing AsyncStorage)
     // Use a small delay to ensure onboarding screen has mounted
     setTimeout(async () => {
       try {
@@ -94,7 +104,7 @@ export class AppResetService {
       }
     }, 100);
 
-    // Step 6: Deleting app instance
+    // Step 8: Deleting app instance
     PortalAppManager.clearInstance();
 
     // Clear global reset flag after a delay to allow reset to complete
