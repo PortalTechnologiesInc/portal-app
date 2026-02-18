@@ -13,7 +13,7 @@ import {
   Shield,
   Ticket,
 } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { type ReactElement, useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ActivityDetailRow } from '@/components/ActivityDetail/ActivityDetailRow';
@@ -288,101 +288,77 @@ export default function ActivityDetailScreen() {
             </ThemedText>
 
             <View style={[styles.detailCard, { backgroundColor: surfaceSecondaryColor }]}>
-              <ActivityDetailRow
-                icon={<Calendar size={18} color={secondaryTextColor} />}
-                label="Date & Time"
-                value={formatDayAndDate(activity.date)}
-              />
+              {(() => {
+                const rows: Array<{
+                  icon: ReactElement;
+                  label: string;
+                  value: string;
+                  copyable?: boolean;
+                  onCopy?: () => void;
+                }> = [
+                  {
+                    icon: <Calendar size={18} color={secondaryTextColor} />,
+                    label: 'Date & Time',
+                    value: formatDayAndDate(activity.date),
+                  },
+                ];
 
-              <ActivityDetailRow
-                icon={<Hash size={18} color={secondaryTextColor} />}
-                label="Activity ID"
-                value={activity.id}
-                copyable
-                onCopy={handleCopyId}
-              />
+                if (!isTicket) {
+                  rows.push({
+                    icon: <Server size={18} color={secondaryTextColor} />,
+                    label: 'Service Key',
+                    value: activity.service_key,
+                    copyable: true,
+                    onCopy: handleCopyServiceKey,
+                  });
+                }
 
-              {!isTicket && (
-                <ActivityDetailRow
-                  icon={<Server size={18} color={secondaryTextColor} />}
-                  label="Service Key"
-                  value={activity.service_key}
-                  copyable
-                  onCopy={handleCopyServiceKey}
-                />
-              )}
+                if (isTicket && activity.detail) {
+                  rows.push({
+                    icon: <Ticket size={18} color={secondaryTextColor} />,
+                    label: 'Token Name',
+                    value: activity.detail,
+                  });
+                }
 
-              {isPayment && (
-                <>
+                if (isTicket && activity.amount && activity.amount > 0) {
+                  rows.push({
+                    icon: <Coins size={18} color={secondaryTextColor} />,
+                    label: 'Quantity',
+                    value: `${activity.amount} ${activity.amount === 1 ? 'ticket' : 'tickets'}`,
+                  });
+                }
+
+                if (isTicket) {
+                  rows.push({
+                    icon: <Server size={18} color={secondaryTextColor} />,
+                    label: 'Mint URL',
+                    value: activity.service_key,
+                    copyable: true,
+                    onCopy: handleCopyServiceKey,
+                  });
+                }
+
+                if (!isTicket) {
+                  rows.push({
+                    icon: <Info size={18} color={secondaryTextColor} />,
+                    label: 'Status Details',
+                    value: activity.detail,
+                  });
+                }
+
+                return rows.map((row, index) => (
                   <ActivityDetailRow
-                    icon={<DollarSign size={16} color={secondaryTextColor} />}
-                    label="Amount"
-                    value={formatActivityAmount(activity.amount, activity.currency)}
+                    key={row.label}
+                    icon={row.icon}
+                    label={row.label}
+                    value={row.value}
+                    copyable={row.copyable}
+                    onCopy={row.onCopy}
+                    isLast={index === rows.length - 1}
                   />
-
-                  {shouldShowConvertedAmount(activity) && (
-                    <ActivityDetailRow
-                      icon={<Coins size={18} color={secondaryTextColor} />}
-                      label="Converted Amount"
-                      value={CurrencyConversionService.formatConvertedAmountWithFallback(
-                        activity.converted_amount,
-                        activity.converted_currency as Currency
-                      )}
-                    />
-                  )}
-
-                  {activity.currency && (
-                    <ActivityDetailRow
-                      icon={<Coins size={18} color={secondaryTextColor} />}
-                      label="Original Currency"
-                      value={activity.currency}
-                    />
-                  )}
-                </>
-              )}
-
-              {isTicket && activity.detail && (
-                <ActivityDetailRow
-                  icon={<Ticket size={18} color={secondaryTextColor} />}
-                  label="Token Name"
-                  value={activity.detail}
-                />
-              )}
-
-              {isTicket && activity.amount && activity.amount > 0 && (
-                <ActivityDetailRow
-                  icon={<Coins size={18} color={secondaryTextColor} />}
-                  label="Quantity"
-                  value={`${activity.amount} ${activity.amount === 1 ? 'ticket' : 'tickets'}`}
-                />
-              )}
-
-              {isTicket && (
-                <ActivityDetailRow
-                  icon={<Server size={18} color={secondaryTextColor} />}
-                  label="Mint URL"
-                  value={activity.service_key}
-                  copyable
-                  onCopy={handleCopyServiceKey}
-                />
-              )}
-
-              {!isTicket && (
-                <ActivityDetailRow
-                  icon={<Info size={18} color={secondaryTextColor} />}
-                  label="Status Details"
-                  value={activity.detail}
-                />
-              )}
-
-              <ActivityDetailRow
-                icon={<Link size={18} color={secondaryTextColor} />}
-                label="Request ID"
-                value={activity.request_id}
-                copyable
-                onCopy={handleCopyRequestId}
-                isLast
-              />
+                ));
+              })()}
             </View>
           </View>
 
