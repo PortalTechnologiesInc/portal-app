@@ -1,7 +1,6 @@
 import { router } from 'expo-router';
-import { ArrowRight, Shield, Zap } from 'lucide-react-native';
-import { useEffect } from 'react';
-import { BackHandler, Image, Platform, ScrollView, TouchableOpacity, View } from 'react-native';
+import { Shield, Zap } from 'lucide-react-native';
+import { Image, ScrollView, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { onboardingLogo } from '@/components/onboarding/assets';
 import { onboardingStyles as styles } from '@/components/onboarding/styles';
@@ -15,6 +14,7 @@ export default function Welcome() {
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');
   const buttonPrimary = useThemeColor({}, 'buttonPrimary');
   const buttonPrimaryText = useThemeColor({}, 'buttonPrimaryText');
+  const textSecondary = useThemeColor({}, 'textSecondary');
   const { setOnboardingPath } = useOnboardingFlow();
 
   const handleGetStarted = () => {
@@ -77,16 +77,21 @@ export default function Welcome() {
               <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>
                 Get Started
               </ThemedText>
-              <ArrowRight size={20} color={buttonPrimaryText} style={styles.buttonIcon} />
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.button, { backgroundColor: buttonPrimary }]}
+              style={[
+                styles.button,
+                {
+                  backgroundColor: 'transparent',
+                  borderWidth: 1,
+                  borderColor: buttonPrimary,
+                },
+              ]}
               onPress={handleAdvanced}
             >
-              <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>
+              <ThemedText style={[styles.buttonText, { color: buttonPrimary }]}>
                 Advanced
               </ThemedText>
-              <ArrowRight size={20} color={buttonPrimaryText} style={styles.buttonIcon} />
             </TouchableOpacity>
           </View>
         </View>
