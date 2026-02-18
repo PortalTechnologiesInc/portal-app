@@ -3,9 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import { keyToHex } from 'portal-app-lib';
 import type React from 'react';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { SEED_ORIGIN_KEY } from '@/context/OnboardingFlowContext';
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
-import { generateRandomGamertag } from '@/utils/common';
 import type { ProfileSyncStatus } from '@/utils/types';
 import { useNostrService } from './NostrServiceContext';
 
@@ -491,31 +489,6 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
         if (result.found) {
           // Profile loaded successfully
-        } else {
-          // Check if this is a newly generated seed (new user)
-          try {
-            const seedOrigin = await SecureStore.getItemAsync(SEED_ORIGIN_KEY);
-            if (seedOrigin === 'generated') {
-              // Generate a random username for new users
-              const randomUsername = generateRandomGamertag();
-
-              // Set the username locally and update state
-              await setUsername(randomUsername);
-              setNetworkUsername(''); // Keep network state empty since nothing is saved yet
-
-              // Clear the seed origin flag so this only happens once
-              await SecureStore.deleteItemAsync(SEED_ORIGIN_KEY);
-
-              // Auto-save the generated profile to the network with empty display name
-              try {
-                await setProfile(randomUsername, ''); // Explicitly set empty display name
-              } catch (error) {
-                // Don't throw - let user manually save later
-              }
-            }
-          } catch (error) {
-            // Could not check seed origin, skipping auto-generation
-          }
         }
       } catch (error) {
         // Auto-fetch failed - this is a background operation
