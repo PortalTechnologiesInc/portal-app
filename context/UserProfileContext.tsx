@@ -495,7 +495,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
           // Check if this is a newly generated seed (new user)
           try {
             const seedOrigin = await SecureStore.getItemAsync(SEED_ORIGIN_KEY);
-            if (seedOrigin === 'generated' || seedOrigin === 'simple') {
+            if (seedOrigin === 'generated') {
               // Generate a random username for new users
               const randomUsername = generateRandomGamertag();
 
