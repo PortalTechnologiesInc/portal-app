@@ -1,5 +1,6 @@
 import { useSQLiteContext } from 'expo-sqlite';
-import { createContext, type ReactNode, useContext } from 'react';
+import { createContext, type ReactNode, useContext, useEffect } from 'react';
+import { ProviderRepository } from '@/queue/WorkQueue';
 import NostrStoreService from '@/services/NostrStoreService';
 import { getKeypairFromKey, hasKey } from '@/utils/keyHelpers';
 import defaultRelayList from '../assets/DefaultRelays.json';
@@ -32,6 +33,43 @@ interface DatabaseProviderProps {
 export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
   const sqliteContext = useSQLiteContext();
   const { mnemonic, nsec } = useKey();
+
+  // Register NostrStoreService in ProviderRepository when keys become available
+  // This ensures it's available for tasks even if onboarding completes without app restart
+  useEffect(() => {
+    if (!hasKey({ mnemonic, nsec })) {
+      return;
+    }
+
+    const initializeNostrStore = async () => {
+      try {
+        const keypair = getKeypairFromKey({ mnemonic, nsec });
+
+        // Get relays from database or use defaults
+        const db = new DatabaseService(sqliteContext);
+        let relays: string[] = [];
+        try {
+          const dbRelays = (await db.getRelays()).map(relay => relay.ws_uri);
+          if (dbRelays.length > 0) {
+            relays = dbRelays;
+          } else {
+            relays = [...defaultRelayList];
+            await db.updateRelays(defaultRelayList);
+          }
+        } catch (_error) {
+          relays = [...defaultRelayList];
+          await db.updateRelays(defaultRelayList);
+        }
+
+        const nostrStore = await NostrStoreService.create(keypair, relays);
+        ProviderRepository.register(nostrStore, 'NostrStoreService');
+      } catch (error) {
+        console.error('Failed to initialize NostrStoreService:', error);
+      }
+    };
+
+    initializeNostrStore();
+  }, [mnemonic, nsec, sqliteContext]);
 
   const executeOperation = async <T,>(
     operation: (db: DatabaseService) => Promise<T>,

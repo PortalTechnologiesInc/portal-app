@@ -17,7 +17,7 @@ import { ProviderRepository } from './queue/WorkQueue';
 import { DatabaseService } from './services/DatabaseService';
 import NostrStoreService from './services/NostrStoreService';
 import { getMnemonic, getNsec } from './services/SecureStorageService';
-import { getKeypairFromKey } from './utils/keyHelpers';
+import { getKeypairFromKey, hasKey } from './utils/keyHelpers';
 
 const BACKGROUND_NOTIFICATION_TASK = 'BACKGROUND-NOTIFICATION-TASK';
 /**
@@ -95,6 +95,13 @@ async function initializeNostrStore() {
     // Only set to null if actual error occurred (not just missing key)
     nsec = null;
   }
+
+  // Skip initialization if no key material is available (e.g., during onboarding)
+  if (!hasKey({ mnemonic, nsec })) {
+    console.log('Skipping NostrStore initialization: no key material available');
+    return;
+  }
+
   const keypair = getKeypairFromKey({ mnemonic, nsec });
   const nostrStore = await NostrStoreService.create(keypair, relays);
   ProviderRepository.register(nostrStore, 'NostrStoreService');
