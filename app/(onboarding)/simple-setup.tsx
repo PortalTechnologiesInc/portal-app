@@ -55,7 +55,6 @@ export default function SimpleSetup() {
       return; // Use existing mnemonic, don't regenerate
     }
 
-    await new Promise(resolve => setTimeout(resolve, 1000));
     const newSeedPhrase = generateNewSeedPhrase();
     await setMnemonic(newSeedPhrase);
   };
