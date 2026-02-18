@@ -178,7 +178,8 @@ export default function MyWalletManagementSecret() {
 
   useEffect(() => {
     if (breezWallet == null) return;
-    setInterval(async () => {
+
+    const id = setInterval(async () => {
       const info = await breezWallet.getWalletInfo();
       setWalletInfo(info);
 
@@ -187,8 +188,10 @@ export default function MyWalletManagementSecret() {
         'sats',
         preferredCurrency
       );
+
       setConvertedAmount(converted);
     }, 1000);
+    return () => clearInterval(id);
   }, [breezWallet, preferredCurrency]);
 
   return (
