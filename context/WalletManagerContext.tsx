@@ -20,10 +20,11 @@ import {
 import { ActiveWalletProvider, WalletWrapper } from '@/queue/providers/ActiveWallet';
 import { ProviderRepository } from '@/queue/WorkQueue';
 import { BreezService } from '@/services/BreezService';
+import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 import { NwcService } from '@/services/NwcService';
 import { ActivityType, globalEvents } from '@/utils/common';
-import { deriveNsecFromMnemonic } from '@/utils/keyHelpers';
+import { deriveNsecFromMnemonic, hasKey } from '@/utils/keyHelpers';
 import type { WalletInfo } from '@/utils/types';
 import { useCurrency } from './CurrencyContext';
 import { useDatabaseContext } from './DatabaseContext';
@@ -68,6 +69,25 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
   const [preferredWallet, setPreferredWallet] = useState<WalletType | null>(null);
   const [isWalletManagerInitialized, setIsWalletManagerInitialized] = useState(false);
   const walletCacheRef = useRef<Map<WalletType, Wallet>>(new Map());
+
+  // Reset all wallet manager state to initial values
+  // This is called during app reset to ensure clean state
+  const resetWalletManager = useCallback(() => {
+    setActiveWallet(undefined);
+    setWalletInfo(undefined);
+    setPreferredWallet(null);
+    setIsWalletManagerInitialized(false);
+    walletCacheRef.current.clear();
+  }, []);
+
+  // Register/unregister context reset function
+  useEffect(() => {
+    registerContextReset(resetWalletManager);
+
+    return () => {
+      unregisterContextReset(resetWalletManager);
+    };
+  }, [resetWalletManager]);
 
   const defaultStatuses: Map<WalletType, WalletConnectionStatus> = new Map([
     [WALLET_TYPE.BREEZ, WALLET_CONNECTION_STATUS.DISCONNECTED],
@@ -202,7 +222,8 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
    */
   const getWallet = useCallback(
     async <T extends WalletType>(walletType: T): Promise<WalletTypeMap[T]> => {
-      if (!nsecRef.current && !mnemonicRef.current) {
+      // Use hasKey helper to properly check for key material
+      if (!hasKey({ mnemonic: mnemonicRef.current, nsec: nsecRef.current })) {
         console.error('Missing nsec or mnemonic for wallet creation');
         throw new Error('Missing nsec or mnemonic for wallet creation');
       }
@@ -251,6 +272,11 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
    */
   const switchActiveWallet = useCallback(
     async (walletType: WalletType) => {
+      // Guard: don't attempt wallet operations if no key material is available
+      if (!hasKey({ mnemonic, nsec })) {
+        return;
+      }
+
       try {
         const wallet = await getWallet(walletType);
 
@@ -266,7 +292,7 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
         console.error('Failed to switch active wallet:', error);
       }
     },
-    [getWallet]
+    [getWallet, mnemonic, nsec]
   );
 
   /**
@@ -304,7 +330,14 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
    * Single initialization effect - runs only once to set up wallets
    */
   useEffect(() => {
-    if ((nsec || mnemonic) && !isWalletManagerInitialized) {
+    // Reset initialization state if keys are removed (e.g., after app reset)
+    if (!hasKey({ mnemonic, nsec }) && isWalletManagerInitialized) {
+      setIsWalletManagerInitialized(false);
+      walletCacheRef.current.clear();
+      return;
+    }
+
+    if (hasKey({ mnemonic, nsec }) && !isWalletManagerInitialized) {
       initializeWalletManager();
     }
     return;
