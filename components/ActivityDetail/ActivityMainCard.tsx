@@ -23,6 +23,7 @@ interface ActivityMainCardProps {
   currency?: string | null;
   converted_amount?: number | null;
   converted_currency?: string | null;
+  fee_sats?: number | null;
 }
 
 export const ActivityMainCard: React.FC<ActivityMainCardProps> = ({
@@ -34,6 +35,7 @@ export const ActivityMainCard: React.FC<ActivityMainCardProps> = ({
   currency,
   converted_amount,
   converted_currency,
+  fee_sats,
 }) => {
   const surfaceSecondaryColor = useThemeColor({}, 'surfaceSecondary');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
@@ -111,6 +113,18 @@ export const ActivityMainCard: React.FC<ActivityMainCardProps> = ({
           <ThemedText style={[styles.amount, { color: primaryTextColor }]}>
             {formatActivityAmount(amount, currency || null)}
           </ThemedText>
+
+          <ThemedText style={[styles.amountSubtext, { color: secondaryTextColor }]}>
+            Fees:{' '}
+            {activityStatus === 'pending'
+              ? '...'
+              : fee_sats != null
+                ? formatActivityAmount(fee_sats, 'sats')
+                : serviceName !== 'Breez Wallet'
+                  ? 'Unsupported by your NWC wallet'
+                  : 'N/A'}
+          </ThemedText>
+
           {shouldShowConvertedAmount({
             amount: converted_amount,
             originalCurrency: currency || null,
@@ -192,6 +206,7 @@ const styles = StyleSheet.create({
   },
   amountSubtext: {
     fontSize: 16,
+    marginVertical: 6,
   },
   description: {
     fontSize: 16,

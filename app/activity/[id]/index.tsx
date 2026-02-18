@@ -260,6 +260,7 @@ export default function ActivityDetailScreen() {
             currency={activity.currency}
             converted_amount={activity.converted_amount}
             converted_currency={activity.converted_currency}
+            fee_sats={activity.fee_sats}
           />
 
           {/* Payment Status Progress - Only for payment activities */}
