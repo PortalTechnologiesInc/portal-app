@@ -575,23 +575,35 @@ export class DatabaseService {
   }
 
   async updateRelays(relays: string[]): Promise<number> {
-    this.db.withTransactionAsync(async () => {
-      const placeholders = relays.map(() => '?').join(', ');
-      await this.db.runAsync(
-        `DELETE FROM nostr_relays
-           WHERE ws_uri NOT IN (?)`,
-        [placeholders]
-      );
-      for (const relay of relays) {
+    try {
+      await this.db.withTransactionAsync(async () => {
+        const placeholders = relays.map(() => '?').join(', ');
         await this.db.runAsync(
-          `INSERT OR IGNORE INTO nostr_relays (
-              ws_uri, created_at
-            ) VALUES (?, ?)`,
-          [relay, toUnixSeconds(Date.now())]
+          `DELETE FROM nostr_relays
+             WHERE ws_uri NOT IN (?)`,
+          [placeholders]
         );
+        for (const relay of relays) {
+          await this.db.runAsync(
+            `INSERT OR IGNORE INTO nostr_relays (
+                ws_uri, created_at
+              ) VALUES (?, ?)`,
+            [relay, toUnixSeconds(Date.now())]
+          );
+        }
+      });
+      return 0;
+    } catch (error: any) {
+      // Handle case where table doesn't exist yet (migrations not complete)
+      if (
+        error?.message?.includes('no such table') ||
+        error?.message?.includes('cannot rollback')
+      ) {
+        console.warn('nostr_relays not ready, skipping relay update');
+        return 0;
       }
-    });
-    return 0;
+      throw error;
+    }
   }
 
   /**
@@ -599,12 +611,21 @@ export class DatabaseService {
    * @returns Promise that resolves with an object containing the ws uri and it's creation date
    */
   async getRelays(): Promise<NostrRelayWithDates[]> {
-    const records = await this.db.getAllAsync<NostrRelay>(`SELECT * FROM nostr_relays`);
+    try {
+      const records = await this.db.getAllAsync<NostrRelay>(`SELECT * FROM nostr_relays`);
 
-    return records.map(record => ({
-      ...record,
-      created_at: fromUnixSeconds(record.created_at),
-    }));
+      return records.map(record => ({
+        ...record,
+        created_at: fromUnixSeconds(record.created_at),
+      }));
+    } catch (error: any) {
+      // Handle case where table doesn't exist yet (migrations not complete)
+      if (error?.message?.includes('no such table')) {
+        console.warn('nostr_relays not ready, returning empty array');
+        return [];
+      }
+      throw error;
+    }
   }
 
   // Name cache methods
