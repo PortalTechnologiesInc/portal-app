@@ -1,3 +1,4 @@
+import { useFocusEffect } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { Wallet } from 'lucide-react-native';
 import { useCallback, useEffect, useState } from 'react';
@@ -6,10 +7,13 @@ import { SvgUri } from 'react-native-svg';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Colors } from '@/constants/Colors';
+import { useOnboarding } from '@/context/OnboardingContext';
+import { usePortalApp } from '@/context/PortalAppContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { showToast } from '@/utils/Toast';
 
 const REVOLUT_BANNER_DISMISSED_KEY = 'portal_revolut_banner_dismissed';
+const FIRST_LAUNCH_KEY = 'portal_first_launch_completed';
 
 export function WelcomeBanner() {
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');
@@ -19,6 +23,38 @@ export function WelcomeBanner() {
 
   const [isDismissed, setIsDismissed] = useState<boolean | null>(null);
   const [selectedAmount, setSelectedAmount] = useState<number>(10);
+  const [visible, setVisible] = useState<boolean>(false);
+
+  const { isOnboardingComplete, isLoading } = useOnboarding();
+  const appService = usePortalApp();
+
+  const checkFirstLaunch = useCallback(async () => {
+    try {
+      if (isLoading) return;
+
+      if (!isOnboardingComplete) {
+        setVisible(false);
+        return;
+      }
+
+      const firstLaunch = await SecureStore.getItemAsync(FIRST_LAUNCH_KEY);
+      setVisible(firstLaunch !== 'true');
+    } catch (_e) {
+      setVisible(false);
+    }
+  }, [isOnboardingComplete, isLoading]);
+
+  useEffect(() => {
+    checkFirstLaunch();
+  }, [checkFirstLaunch]);
+
+  // Re-check FIRST_LAUNCH_KEY when screen comes into focus
+  // This ensures banner hides immediately after scan button click
+  useFocusEffect(
+    useCallback(() => {
+      checkFirstLaunch();
+    }, [checkFirstLaunch])
+  );
 
   useEffect(() => {
     const checkDismissed = async () => {
@@ -32,10 +68,25 @@ export function WelcomeBanner() {
     checkDismissed();
   }, []);
 
+  useEffect(() => {
+    if (Object.values(appService.pendingRequests).length > 0) {
+      // Auto-dismiss when pending requests appear (same as old behavior)
+      const autoDismiss = async () => {
+        try {
+          await SecureStore.setItemAsync(FIRST_LAUNCH_KEY, 'true');
+          setVisible(false);
+        } catch (_e) {}
+      };
+      autoDismiss();
+    }
+  }, [appService.pendingRequests]);
+
   const handleDismiss = useCallback(async () => {
     try {
       await SecureStore.setItemAsync(REVOLUT_BANNER_DISMISSED_KEY, 'true');
       setIsDismissed(true);
+      await SecureStore.setItemAsync(FIRST_LAUNCH_KEY, 'true');
+      setVisible(false);
     } catch (_e) {}
   }, []);
 
@@ -43,7 +94,7 @@ export function WelcomeBanner() {
     showToast('Revolut Pay is not yet implemented', 'error');
   }, []);
 
-  if (isDismissed === null || isDismissed === true) {
+  if (isDismissed === null || isDismissed === true || !visible) {
     return null;
   }
 

@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { ArrowRight, Nfc, QrCode, User } from 'lucide-react-native';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
@@ -23,7 +23,6 @@ import { WelcomeBanner } from '@/components/WelcomeBanner';
 import { Colors } from '@/constants/Colors';
 import { useNostrService } from '@/context/NostrServiceContext';
 import { useOnboarding } from '@/context/OnboardingContext';
-import { usePortalApp } from '@/context/PortalAppContext';
 import { useUserProfile } from '@/context/UserProfileContext';
 import { useWalletManager } from '@/context/WalletManagerContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
@@ -36,12 +35,8 @@ export default function Home() {
   const { username, displayName, avatarUri, avatarRefreshKey } = useUserProfile();
   const nostrService = useNostrService();
   const walletService = useWalletManager();
-  const appService = usePortalApp();
-  const [isFirstLaunch, setIsFirstLaunch] = useState<boolean | null>(null);
-  const [shouldShowBanner, setShouldShowBanner] = useState<boolean | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0); // For triggering immediate ConnectionStatusIndicator updates
-  const isMounted = useRef(true);
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -55,56 +50,9 @@ export default function Home() {
   // This would come from a real user context in the future
   const [userPublicKey, setUserPublicKey] = useState('unknown pubkey');
 
-  // Function to mark the welcome screen as viewed
-  const markWelcomeAsViewed = useCallback(async () => {
-    try {
-      if (isMounted.current) {
-        await SecureStore.setItemAsync(FIRST_LAUNCH_KEY, 'true');
-        setIsFirstLaunch(false);
-      }
-    } catch (_e) {}
-  }, []);
-
-  useEffect(() => {
-    if (!isFirstLaunch) return;
-
-    const sortedRequests = Object.values(appService.pendingRequests);
-    if (sortedRequests.length > 0) {
-      markWelcomeAsViewed();
-    }
-  }, [appService.pendingRequests, isFirstLaunch, markWelcomeAsViewed]);
-
-  useEffect(() => {
-    // Cleanup function to set mounted state to false
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
-
   useEffect(() => {
     setUserPublicKey(nostrService.publicKey || '');
-
-    // Check if this is the user's first launch after onboarding
-    const checkFirstLaunch = async () => {
-      try {
-        if (!isMounted.current) return;
-        if (isLoading) return; // Wait for onboarding state to load
-
-        const firstLaunchCompleted = await SecureStore.getItemAsync(FIRST_LAUNCH_KEY);
-        setIsFirstLaunch(firstLaunchCompleted !== 'true');
-
-        // Show banner if onboarding is complete and FIRST_LAUNCH_KEY is not set
-        // This means user just completed onboarding
-        if (isOnboardingComplete && firstLaunchCompleted !== 'true') {
-          setShouldShowBanner(true);
-        } else {
-          setShouldShowBanner(false);
-        }
-      } catch (_e) {}
-    };
-
-    checkFirstLaunch();
-  }, [nostrService, isOnboardingComplete, isLoading]);
+  }, [nostrService]);
 
   // Profile initialization is now handled automatically in UserProfileContext
 
@@ -187,28 +135,25 @@ export default function Home() {
   }, [displayName, username]);
 
   // Memoize handlers to prevent recreation on every render
-  const handleScan = useCallback(
-    (scanType: 'nfc' | 'qr') => {
-      // Determine the navigation path based on scan type
-      const pathname = scanType === 'nfc' ? '/nfc' : '/qr';
+  const handleScan = useCallback(async (scanType: 'nfc' | 'qr') => {
+    // Determine the navigation path based on scan type
+    const pathname = scanType === 'nfc' ? '/nfc' : '/qr';
 
-      // Using 'modal' navigation to ensure cleaner navigation history
-      router.push({
-        pathname,
-        params: {
-          source: 'homepage',
-          scanType, // Pass the scan type to the destination
-          timestamp: Date.now(), // Prevent caching issues
-        },
-      });
+    // Using 'modal' navigation to ensure cleaner navigation history
+    router.push({
+      pathname,
+      params: {
+        source: 'homepage',
+        scanType, // Pass the scan type to the destination
+        timestamp: Date.now(), // Prevent caching issues
+      },
+    });
 
-      // Mark welcome as viewed when user interacts with scan buttons
-      if (isFirstLaunch) {
-        markWelcomeAsViewed();
-      }
-    },
-    [isFirstLaunch, markWelcomeAsViewed]
-  );
+    // Mark welcome banner as viewed when user interacts with scan buttons (same as old behavior)
+    try {
+      await SecureStore.setItemAsync(FIRST_LAUNCH_KEY, 'true');
+    } catch (_e) {}
+  }, []);
 
   // Legacy handler for backward compatibility
   const handleQrScan = useCallback(() => {
@@ -219,8 +164,8 @@ export default function Home() {
     router.push('/(tabs)/IdentityList');
   }, []);
 
-  // Don't render anything until we've checked the onboarding status and first launch status
-  if (isLoading || isFirstLaunch === null) {
+  // Don't render anything until onboarding state is loaded
+  if (isLoading) {
     return (
       <View style={[styles.loaderContainer, { backgroundColor }]}>
         <ActivityIndicator size="large" color={buttonPrimaryColor} />
@@ -336,7 +281,7 @@ export default function Home() {
             </View>
           </ThemedView>
 
-          {shouldShowBanner === true && <WelcomeBanner />}
+          <WelcomeBanner />
 
           {/* Pending Requests Section */}
           <PendingRequestsList />
