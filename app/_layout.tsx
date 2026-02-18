@@ -6,7 +6,7 @@ import { SQLiteProvider } from 'expo-sqlite';
 import { StatusBar } from 'expo-status-bar';
 import { keyToHex } from 'portal-app-lib';
 import { Suspense, useEffect } from 'react';
-import { SafeAreaView, Text, View } from 'react-native';
+import { Appearance, SafeAreaView, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AppLifecycleHandler } from '@/components/AppLifecycleHandler';
 import { AppLockScreen } from '@/components/AppLockScreen';
@@ -196,9 +196,11 @@ export default function RootLayout() {
 
   // Suspense fallback with splash screen background to prevent white flash
   const SuspenseFallback = () => {
+    const scheme = Appearance.getColorScheme();
+    const bg = scheme === 'dark' ? '#141416' : '#F1F1F1';
     return (
-      <View style={{ flex: 1, backgroundColor: '#141416' }}>
-        <StatusBar style="light" backgroundColor="#141416" />
+      <View style={{ flex: 1, backgroundColor: bg }}>
+        <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} backgroundColor={bg} />
       </View>
     );
   };

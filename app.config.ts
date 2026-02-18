@@ -7,7 +7,7 @@ export default {
     owner: 'portaltechnologiesinc',
     icon: './assets/images/appLogo.png',
     scheme: 'portal',
-    userInterfaceStyle: 'dark',
+    userInterfaceStyle: 'automatic',
     newArchEnabled: true,
     splash: {
       image: './assets/images/appSplash.png',
@@ -19,7 +19,7 @@ export default {
     },
     ios: {
       supportsTablet: true,
-      userInterfaceStyle: 'dark',
+      userInterfaceStyle: 'automatic',
       bundleIdentifier: 'cc.getportal.portal',
       associatedDomains: ['applinks:portal.app'],
       infoPlist: {
@@ -43,7 +43,7 @@ export default {
         backgroundColor: '#141416',
       },
       package: 'cc.getportal.portal',
-      userInterfaceStyle: 'dark',
+      userInterfaceStyle: 'automatic',
       // permissions: [
       //   "RECEIVE_BOOT_COMPLETED",
       //   "VIBRATE",
