@@ -2,7 +2,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 
 // Function to migrate database schema if needed
 export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
-  const DATABASE_VERSION = 22;
+  const DATABASE_VERSION = 23;
 
   try {
     let { user_version: currentDbVersion } = (await db.getFirstAsync<{

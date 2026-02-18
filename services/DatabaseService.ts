@@ -1342,14 +1342,23 @@ export class DatabaseService {
    * @returns The cached value or null if not found/expired
    */
   async getCache(key: string): Promise<string | null> {
-    const now = toUnixSeconds(Date.now());
+    try {
+      const now = toUnixSeconds(Date.now());
 
-    const record = await this.db.getFirstAsync<KeyValueCacheRecord>(
-      'SELECT * FROM key_value_cache WHERE key = ? AND (expires_at IS NULL OR expires_at > ?)',
-      [key, now]
-    );
+      const record = await this.db.getFirstAsync<KeyValueCacheRecord>(
+        'SELECT * FROM key_value_cache WHERE key = ? AND (expires_at IS NULL OR expires_at > ?)',
+        [key, now]
+      );
 
-    return record?.value || null;
+      return record?.value || null;
+    } catch (error: any) {
+      // Handle case where table doesn't exist yet (migrations not complete)
+      if (error?.message?.includes('no such table')) {
+        console.warn('key_value_cache not ready, skipping cache read');
+        return null;
+      }
+      throw error;
+    }
   }
 
   /**
@@ -1363,20 +1372,29 @@ export class DatabaseService {
     value: string,
     expiresAt: Date | number | null | 'forever'
   ): Promise<void> {
-    const expiresAtSeconds =
-      expiresAt === null || expiresAt === 'forever' ? null : toUnixSeconds(expiresAt);
+    try {
+      const expiresAtSeconds =
+        expiresAt === null || expiresAt === 'forever' ? null : toUnixSeconds(expiresAt);
 
-    if (value === null || value === undefined) {
-      value = '{}'; // FIXME: make the column nullable
+      if (value === null || value === undefined) {
+        value = '{}'; // FIXME: make the column nullable
+      }
+
+      console.log('Setting cache', key, value, expiresAtSeconds);
+      await this.db.runAsync(
+        `INSERT OR REPLACE INTO key_value_cache (
+          key, value, expires_at
+        ) VALUES (?, ?, ?)`,
+        [key, value, expiresAtSeconds]
+      );
+    } catch (error: any) {
+      // Handle case where table doesn't exist yet (migrations not complete)
+      if (error?.message?.includes('no such table')) {
+        console.warn('key_value_cache not ready, skipping cache write');
+        return;
+      }
+      throw error;
     }
-
-    console.log('Setting cache', key, value, expiresAtSeconds);
-    await this.db.runAsync(
-      `INSERT OR REPLACE INTO key_value_cache (
-        key, value, expires_at
-      ) VALUES (?, ?, ?)`,
-      [key, value, expiresAtSeconds]
-    );
   }
 
   /**
@@ -1384,7 +1402,16 @@ export class DatabaseService {
    * @param key The cache key to delete
    */
   async deleteCache(key: string): Promise<void> {
-    await this.db.runAsync('DELETE FROM key_value_cache WHERE key = ?', [key]);
+    try {
+      await this.db.runAsync('DELETE FROM key_value_cache WHERE key = ?', [key]);
+    } catch (error: any) {
+      // Handle case where table doesn't exist yet (migrations not complete)
+      if (error?.message?.includes('no such table')) {
+        console.warn('key_value_cache not ready, skipping cache delete');
+        return;
+      }
+      throw error;
+    }
   }
 
   /**
@@ -1393,14 +1420,23 @@ export class DatabaseService {
    * @returns The number of entries deleted
    */
   async cleanExpiredCache(): Promise<number> {
-    const now = toUnixSeconds(Date.now());
+    try {
+      const now = toUnixSeconds(Date.now());
 
-    const result = await this.db.runAsync(
-      'DELETE FROM key_value_cache WHERE expires_at IS NOT NULL AND expires_at <= ?',
-      [now]
-    );
+      const result = await this.db.runAsync(
+        'DELETE FROM key_value_cache WHERE expires_at IS NOT NULL AND expires_at <= ?',
+        [now]
+      );
 
-    return result.changes ?? 0;
+      return result.changes ?? 0;
+    } catch (error: any) {
+      // Handle case where table doesn't exist yet (migrations not complete)
+      if (error?.message?.includes('no such table')) {
+        console.warn('key_value_cache not ready, skipping cache cleanup');
+        return 0;
+      }
+      throw error;
+    }
   }
 
   // Queued tasks methods
