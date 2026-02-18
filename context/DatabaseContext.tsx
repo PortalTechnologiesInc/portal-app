@@ -42,10 +42,13 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
       return;
     }
 
-    // Prevent re-initialization if already initialized
+    // Prevent re-initialization if already initialized (optimistic lock)
     if (nostrStoreInitialized.current) {
       return;
     }
+
+    // Set flag before async call to prevent race condition if effect fires twice rapidly
+    nostrStoreInitialized.current = true;
 
     const initializeNostrStore = async () => {
       try {
@@ -69,9 +72,10 @@ export const DatabaseProvider = ({ children }: DatabaseProviderProps) => {
 
         const nostrStore = await NostrStoreService.create(keypair, relays);
         ProviderRepository.register(nostrStore, 'NostrStoreService');
-        nostrStoreInitialized.current = true;
       } catch (error) {
         console.error('Failed to initialize NostrStoreService:', error);
+        // Reset flag on error so retry is possible
+        nostrStoreInitialized.current = false;
       }
     };
 
