@@ -7,14 +7,23 @@ export class RelayStatusesProvider {
   areRelaysConnected(): boolean {
     return this.relayStatuses.current.some(r => r.connected);
   }
-  waitForRelaysConnected(): Promise<void> {
-    return new Promise(resolve => {
-      const interval = setInterval(() => {
+  waitForRelaysConnected(timeoutMs = 30_000): Promise<void> {
+    return new Promise((resolve, reject) => {
+      let interval: ReturnType<typeof setInterval>;
+      let timeout: ReturnType<typeof setTimeout>;
+
+      interval = setInterval(() => {
         if (this.areRelaysConnected()) {
           clearInterval(interval);
+          clearTimeout(timeout);
           resolve();
         }
       }, 500);
+
+      timeout = setTimeout(() => {
+        clearInterval(interval);
+        reject(new Error('Timed out waiting for relay connection'));
+      }, timeoutMs);
     });
   }
 }

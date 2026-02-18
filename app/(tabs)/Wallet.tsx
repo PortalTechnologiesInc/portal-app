@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Send, User } from 'lucide-react-native';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -176,23 +176,25 @@ export default function MyWalletManagementSecret() {
     };
   }, [getWallet, isWalletManagerInitialized]);
 
-  useEffect(() => {
-    if (breezWallet == null) return;
+  useFocusEffect(
+    useCallback(() => {
+      if (breezWallet == null) return;
 
-    const id = setInterval(async () => {
-      const info = await breezWallet.getWalletInfo();
-      setWalletInfo(info);
+      const id = setInterval(async () => {
+        const info = await breezWallet.getWalletInfo();
+        setWalletInfo(info);
 
-      const converted = await CurrencyConversionService.convertAmount(
-        Number(info.balanceInSats),
-        'sats',
-        preferredCurrency
-      );
+        const converted = await CurrencyConversionService.convertAmount(
+          Number(info.balanceInSats),
+          'sats',
+          preferredCurrency
+        );
 
-      setConvertedAmount(converted);
-    }, 1000);
-    return () => clearInterval(id);
-  }, [breezWallet, preferredCurrency]);
+        setConvertedAmount(converted);
+      }, 1000);
+      return () => clearInterval(id);
+    }, [breezWallet, preferredCurrency])
+  );
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
