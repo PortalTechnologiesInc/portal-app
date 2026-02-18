@@ -1401,7 +1401,6 @@ export class DatabaseService {
         value = '{}'; // FIXME: make the column nullable
       }
 
-      console.log('Setting cache', key, value, expiresAtSeconds);
       await this.db.runAsync(
         `INSERT OR REPLACE INTO key_value_cache (
           key, value, expires_at
