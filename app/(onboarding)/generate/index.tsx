@@ -62,10 +62,8 @@ export default function GenerateSeed() {
         await setMnemonic(seedPhrase);
         await SecureStore.setItemAsync(SEED_ORIGIN_KEY, 'generated');
       } catch (_error) {
-        // Still proceed to PIN setup even if saving fails (legacy behavior).
+        // Still proceed even if saving fails (legacy behavior).
       } finally {
-        clearVerificationChallenge();
-        clearSeedPhrase();
         router.push('/(onboarding)/profile-setup');
       }
       return;
