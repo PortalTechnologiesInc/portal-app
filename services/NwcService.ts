@@ -93,7 +93,10 @@ export class NwcService implements Wallet {
     };
   }
 
-  async sendPayment(paymentRequest: string, _amountSats: bigint): Promise<string> {
+  async sendPayment(
+    paymentRequest: string,
+    _amountSats: bigint
+  ): Promise<{ preimage: string; feeSats?: number }> {
     if (!this.client) {
       throw new Error('NWC client not initialized');
     }
@@ -101,7 +104,7 @@ export class NwcService implements Wallet {
     try {
       const preimage = await this.client.payInvoice(paymentRequest);
 
-      return preimage;
+      return { preimage };
     } catch (_error) {
       throw new Error('Failed to send payment');
     }

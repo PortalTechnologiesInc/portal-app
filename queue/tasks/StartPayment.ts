@@ -57,7 +57,7 @@ export class StartPaymentTask extends Task<
       }
       await new SendSinglePaymentResponseTask(
         request,
-        new PaymentStatus.Success({ preimage })
+        new PaymentStatus.Success({ preimage: preimage.preimage })
       ).run();
 
       await new UpdatePaymentResultTransactionalTask(
@@ -66,7 +66,8 @@ export class StartPaymentTask extends Task<
         'Payment Completed',
         request.content.invoice,
         'payment_completed',
-        subscriptionId
+        subscriptionId,
+        preimage.feeSats ?? null
       ).run();
     } catch (error) {
       console.error(
@@ -80,6 +81,7 @@ export class StartPaymentTask extends Task<
         'Payment approved but failed to process',
         request.content.invoice,
         'payment_failed',
+        null,
         null
       ).run();
 
@@ -123,7 +125,7 @@ export class SaveActivityAndAddPaymentStatusTransactionalTask extends Transactio
 Task.register(SaveActivityAndAddPaymentStatusTransactionalTask);
 
 export class UpdatePaymentResultTransactionalTask extends TransactionalTask<
-  [string, ActivityPaymentStatus, string, string, PaymentAction, string | null],
+  [string, ActivityPaymentStatus, string, string, PaymentAction, string | null, number | null],
   [],
   void
 > {
@@ -133,10 +135,20 @@ export class UpdatePaymentResultTransactionalTask extends TransactionalTask<
     private readonly statusDesctiption: string,
     private readonly invoice: string,
     private readonly action: PaymentAction,
-    private readonly subscriptionId: string | null
+    private readonly subscriptionId: string | null,
+    private readonly feeSats: number | null
   ) {
     console.log('[SaveActivityAndAddPaymentStatusTransactionalTask] starting task');
-    super([], activityId, activityStatus, statusDesctiption, invoice, action, subscriptionId);
+    super(
+      [],
+      activityId,
+      activityStatus,
+      statusDesctiption,
+      invoice,
+      action,
+      subscriptionId,
+      feeSats
+    );
   }
 
   async taskLogic(
@@ -146,10 +158,16 @@ export class UpdatePaymentResultTransactionalTask extends TransactionalTask<
     statusDesctiption: string,
     invoice: string,
     action: PaymentAction,
-    subscriptionId: string | null
+    subscriptionId: string | null,
+    feeSats: number | null
   ): Promise<void> {
     await new AddPaymentStatusTask(invoice, action).run();
-    await new UpdateActivityStatusTask(activityId, activityStatus, statusDesctiption).run();
+    await new UpdateActivityStatusTask(
+      activityId,
+      activityStatus,
+      statusDesctiption,
+      feeSats
+    ).run();
 
     if (subscriptionId) {
       await new UpdateSubscriptionLastPaymentTask(subscriptionId).run();
@@ -178,7 +196,11 @@ class AddPaymentStatusTask extends Task<[string, PaymentAction], ['DatabaseServi
 Task.register(AddPaymentStatusTask);
 
 // returns the invoice preimage
-class PayInvoiceTask extends Task<[string, bigint], ['ActiveWalletProvider'], string | undefined> {
+class PayInvoiceTask extends Task<
+  [string, bigint],
+  ['ActiveWalletProvider'],
+  { preimage: string; feeSats?: number } | undefined
+> {
   constructor(
     private readonly invoice: string,
     private readonly amount: bigint
@@ -191,7 +213,7 @@ class PayInvoiceTask extends Task<[string, bigint], ['ActiveWalletProvider'], st
     { ActiveWalletProvider }: { ActiveWalletProvider: ActiveWalletProvider },
     invoice: string,
     amount: bigint
-  ): Promise<string | undefined> {
+  ): Promise<{ preimage: string; feeSats?: number } | undefined> {
     const preimage = await ActiveWalletProvider.getWallet()?.sendPayment(invoice, amount);
     console.log('🧾 Invoice paid!');
     return preimage;
@@ -216,26 +238,28 @@ Task.register(UpdateSubscriptionLastPaymentTask);
 
 type ActivityPaymentStatus = 'neutral' | 'positive' | 'negative' | 'pending';
 class UpdateActivityStatusTask extends Task<
-  [string, ActivityPaymentStatus, string],
+  [string, ActivityPaymentStatus, string, number | null],
   ['DatabaseService'],
   void
 > {
   constructor(
     private readonly id: string,
     private readonly status: ActivityPaymentStatus,
-    private readonly statusDetail: string
+    private readonly statusDetail: string,
+    private readonly feeSats: number | null = null
   ) {
     console.log('[UpdateActivityStatusTask] getting DatabaseService');
-    super(['DatabaseService'], id, status, statusDetail);
+    super(['DatabaseService'], id, status, statusDetail, feeSats);
   }
 
   async taskLogic(
     { DatabaseService }: { DatabaseService: DatabaseService },
     id: string,
     status: ActivityPaymentStatus,
-    statusDetail: string
+    statusDetail: string,
+    feeSats: number | null
   ): Promise<void> {
-    await DatabaseService.updateActivityStatus(id, status, statusDetail);
+    await DatabaseService.updateActivityStatus(id, status, statusDetail, feeSats);
   }
 }
 Task.register(UpdateActivityStatusTask);
