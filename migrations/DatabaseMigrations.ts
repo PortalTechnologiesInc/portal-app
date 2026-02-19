@@ -518,7 +518,7 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
       currentDbVersion = 23;
     }
 
-    if (currentDbVersion <= 24) {
+    if (currentDbVersion < 24) {
       await db.execAsync(`
         ALTER TABLE activities ADD COLUMN fee_sats INTEGER;
       `);

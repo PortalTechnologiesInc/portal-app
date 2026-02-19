@@ -1,6 +1,6 @@
 import { BanknoteIcon, Key, Ticket } from 'lucide-react-native';
 import type React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
@@ -114,16 +114,20 @@ export const ActivityMainCard: React.FC<ActivityMainCardProps> = ({
             {formatActivityAmount(amount, currency || null)}
           </ThemedText>
 
-          <ThemedText style={[styles.amountSubtext, { color: secondaryTextColor }]}>
-            Fees:{' '}
-            {activityStatus === 'pending'
-              ? '...'
-              : fee_sats != null
-                ? formatActivityAmount(fee_sats, 'sats')
-                : serviceName !== 'Breez Wallet'
-                  ? 'Unsupported by your NWC wallet'
-                  : 'N/A'}
-          </ThemedText>
+          {activityType === ActivityType.Pay && (
+            <View style={styles.feesContainer}>
+              <ThemedText style={[styles.amountSubtext, { color: secondaryTextColor }]}>
+                Fees:{' '}
+              </ThemedText>
+              {activityStatus === 'pending' ? (
+                <ActivityIndicator size={16} color={secondaryTextColor} />
+              ) : (
+                <ThemedText style={[styles.amountSubtext, { color: secondaryTextColor }]}>
+                  {fee_sats != null ? formatActivityAmount(fee_sats, 'sats') : 'N/A'}
+                </ThemedText>
+              )}
+            </View>
+          )}
 
           {shouldShowConvertedAmount({
             amount: converted_amount,
@@ -207,6 +211,11 @@ const styles = StyleSheet.create({
   amountSubtext: {
     fontSize: 16,
     marginVertical: 6,
+  },
+  feesContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   description: {
     fontSize: 16,

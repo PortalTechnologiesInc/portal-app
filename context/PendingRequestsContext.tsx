@@ -416,7 +416,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             await notifier(new PaymentStatus.Approved());
 
             try {
-              const _response = await walletService.sendPayment(
+              const result = await walletService.sendPayment(
                 metadata.content.invoice,
                 BigInt(amount)
               );
@@ -428,7 +428,13 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
 
               // Update the activity status to positive
               await executeOperation(
-                db => db.updateActivityStatus(activityId, 'positive', 'Payment completed'),
+                db =>
+                  db.updateActivityStatus(
+                    activityId,
+                    'positive',
+                    'Payment completed',
+                    result.feeSats ?? null
+                  ),
                 null
               );
               refreshData();
@@ -436,7 +442,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               await notifier(
                 new PaymentStatus.Success({
                   // preimage,
-                  preimage: '',
+                  preimage: result.preimage,
                 })
               );
             } catch (err) {
