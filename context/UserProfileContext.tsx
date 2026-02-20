@@ -305,8 +305,10 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const setProfile = useCallback(
     async (newUsername: string, newDisplayName?: string, newAvatarUri?: string | null) => {
       try {
-        // Never overwrite real data with empty values
-        if (!newDisplayName && networkDisplayName) {
+        // Preserve existing display name only if newDisplayName is undefined (not passed)
+        // Allow explicit clearing if newDisplayName === '' (empty string)
+        // This prevents accidental overwrite during import while allowing intentional clearing
+        if (newDisplayName === undefined && networkDisplayName) {
           newDisplayName = networkDisplayName;
         }
 

@@ -10,6 +10,7 @@ import { useNostrService } from '@/context/NostrServiceContext';
 import { SEED_ORIGIN_KEY, useOnboardingFlow } from '@/context/OnboardingFlowContext';
 import { useUserProfile } from '@/context/UserProfileContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { getMnemonic, getNsec } from '@/services/SecureStorageService';
 import { generateRandomGamertag } from '@/utils/common';
 
 export default function ProfileSetup() {
@@ -31,6 +32,15 @@ export default function ProfileSetup() {
         const seedOrigin = await SecureStore.getItemAsync(SEED_ORIGIN_KEY);
         const isImport = seedOrigin === 'imported';
 
+        // Handle interrupted onboarding: if SEED_ORIGIN_KEY was never written but a key exists,
+        // treat it as interrupted onboarding and wait for auto-fetch to load existing profile
+        // Check SecureStore directly (synchronous check) instead of relying on KeyContext
+        // which loads asynchronously and might not be ready yet
+        const existingMnemonic = await getMnemonic();
+        const existingNsec = await getNsec();
+        const hasExistingKey = Boolean(existingMnemonic || existingNsec);
+        const isInterruptedOnboarding = !seedOrigin && hasExistingKey;
+
         // Both paths need the service ready
         let retries = 0;
         const maxRetries = 30;
@@ -45,6 +55,16 @@ export default function ProfileSetup() {
 
         if (isImport) {
           await waitForSync(5000); // wait for auto-fetch to finish, max 5s
+          return true;
+        }
+
+        // Handle interrupted onboarding: wait for auto-fetch to load existing profile
+        // Treat it like an import: wait for auto-fetch, then proceed regardless of result
+        // This prevents generating random data when a profile might exist but fetch failed
+        if (isInterruptedOnboarding) {
+          await waitForSync(5000); // wait for auto-fetch to finish, max 5s
+          // Proceed regardless of whether profile was found
+          // If profile exists, it was loaded by auto-fetch; if not, proceed without generating random data
           return true;
         }
 
