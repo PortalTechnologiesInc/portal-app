@@ -17,7 +17,8 @@ export default function ProfileSetup() {
   const buttonPrimary = useThemeColor({}, 'buttonPrimary');
 
   const nostrService = useNostrService();
-  const { fetchProfile, setProfile, waitForProfileSetup, hasProfileAssigned } = useUserProfile();
+  const { fetchProfile, setProfile, waitForProfileSetup, waitForSync, hasProfileAssigned } =
+    useUserProfile();
   const { setOnboardingError } = useOnboardingFlow();
 
   useEffect(() => {
@@ -25,11 +26,12 @@ export default function ProfileSetup() {
 
     const handleProfileSetup = async () => {
       try {
+        // Check if this is an import FIRST, before waiting for service initialization
+        // This prevents any race conditions with profile generation
         const seedOrigin = await SecureStore.getItemAsync(SEED_ORIGIN_KEY);
-        if (!seedOrigin) {
-          return true;
-        }
+        const isImport = seedOrigin === 'imported';
 
+        // Both paths need the service ready
         let retries = 0;
         const maxRetries = 30;
         while (!nostrService.isInitialized && retries < maxRetries) {
@@ -41,12 +43,17 @@ export default function ProfileSetup() {
           return false;
         }
 
+        if (isImport) {
+          await waitForSync(5000); // wait for auto-fetch to finish, max 5s
+          return true;
+        }
+
+        // New account flow
         if (hasProfileAssigned()) {
           return true;
         }
 
         const result = await fetchProfile(nostrService.publicKey);
-
         if (result.found && result.username) {
           return await waitForProfileSetup(15000);
         }
@@ -84,7 +91,14 @@ export default function ProfileSetup() {
     return () => {
       isMounted = false;
     };
-  }, [nostrService, fetchProfile, setProfile, waitForProfileSetup, hasProfileAssigned]);
+  }, [
+    nostrService,
+    fetchProfile,
+    setProfile,
+    waitForProfileSetup,
+    waitForSync,
+    hasProfileAssigned,
+  ]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>

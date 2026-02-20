@@ -108,6 +108,7 @@ type UserProfileContextType = {
   resetProfile: () => void; // Add reset method to clear all profile state
   hasProfileAssigned: () => boolean; // Check if nip-05 is assigned (networkUsername is set)
   waitForProfileSetup: (timeoutMs: number) => Promise<boolean>; // Wait for profile setup with timeout
+  waitForSync: (timeoutMs: number) => Promise<void>; // Wait for sync to complete (completed or failed)
 };
 
 const UserProfileContext = createContext<UserProfileContextType | null>(null);
@@ -304,6 +305,11 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const setProfile = useCallback(
     async (newUsername: string, newDisplayName?: string, newAvatarUri?: string | null) => {
       try {
+        // Never overwrite real data with empty values
+        if (!newDisplayName && networkDisplayName) {
+          newDisplayName = networkDisplayName;
+        }
+
         if (!nostrServiceRef.current.publicKey) {
           throw new Error('Public key not initialized');
         }
@@ -568,6 +574,27 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
     });
   }, []);
 
+  // Wait for sync to complete (completed or failed)
+  // Uses syncStatusRef to avoid stale closures
+  const waitForSync = useCallback(async (timeoutMs: number): Promise<void> => {
+    const startTime = Date.now();
+    return new Promise(resolve => {
+      const check = () => {
+        const status = syncStatusRef.current;
+        if (status === 'completed' || status === 'failed') {
+          resolve();
+          return;
+        }
+        if (Date.now() - startTime >= timeoutMs) {
+          resolve(); // timeout: proceed anyway
+          return;
+        }
+        setTimeout(check, 200);
+      };
+      check();
+    });
+  }, []);
+
   return (
     <UserProfileContext.Provider
       value={{
@@ -589,6 +616,7 @@ export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
         resetProfile,
         hasProfileAssigned,
         waitForProfileSetup,
+        waitForSync,
       }}
     >
       {children}
