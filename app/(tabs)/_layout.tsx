@@ -5,7 +5,6 @@ import {
   List,
   Receipt,
   Settings,
-  Ticket,
   UserSquare2,
   Wallet,
 } from 'lucide-react-native';
@@ -22,8 +21,6 @@ const HomeIcon = React.memo(({ color }: { color: string }) => <Home size={24} co
 const SubscriptionIcon = React.memo(({ color }: { color: string }) => (
   <Receipt size={24} color={color} />
 ));
-
-const TicketIcon = React.memo(({ color }: { color: string }) => <Ticket size={24} color={color} />);
 
 const IdentityIcon = React.memo(({ color }: { color: string }) => (
   <UserSquare2 size={24} color={color} />
@@ -124,7 +121,8 @@ export default function TabLayout() {
         name="Tickets"
         options={{
           title: 'Tickets',
-          tabBarIcon: ({ color }) => <TicketIcon color={color} />,
+          tabBarIcon: ({ color }) => <Wallet size={24} color={color} />,
+          href: null, // Tickets are now shown inside the Wallet tab
         }}
       />
       <Tabs.Screen
