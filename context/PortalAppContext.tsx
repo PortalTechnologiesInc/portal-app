@@ -11,7 +11,7 @@ import { PromptUserWithPendingCard } from '@/queue/providers/PromptUser';
 import { ProviderRepository, Task } from '@/queue/WorkQueue';
 import { PortalAppManager } from '@/services/PortalAppManager';
 import { getKeypairFromKey } from '@/utils/keyHelpers';
-import type { PendingRequest, RelayInfo } from '@/utils/types';
+import type { PendingRequest } from '@/utils/types';
 import { useCurrency } from './CurrencyContext';
 import { useDatabaseContext } from './DatabaseContext';
 import { useKey } from './KeyContext';
