@@ -1,9 +1,12 @@
 import Clipboard from '@react-native-clipboard/clipboard';
+import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
 import {
+  Bell,
   Check,
   ChevronRight,
   Clock,
+  Cloud,
   Fingerprint,
   HandCoins,
   KeyRound,
@@ -32,6 +35,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { setOnboardingPermissionsSkipped } from '@/app/(onboarding)/permissions';
 import { PINKeypad } from '@/components/PINKeypad';
 import { PINSetupScreen } from '@/components/PINSetupScreen';
 import { ThemedText } from '@/components/ThemedText';
@@ -45,6 +49,15 @@ import { type ThemeMode, useTheme } from '@/context/ThemeContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { type LockTimerDuration, PIN_MAX_LENGTH, PIN_MIN_LENGTH } from '@/services/AppLockService';
 import { authenticateAsync } from '@/services/BiometricAuthService';
+import {
+  getCloudBackupEnabled,
+  isCloudBackupAvailable,
+  setCloudBackupEnabled,
+} from '@/services/CloudBackupService';
+import {
+  getNotificationsEnabled,
+  setNotificationsEnabled as setNotificationsEnabledStorage,
+} from '@/services/NotificationService';
 import { getMnemonic } from '@/services/SecureStorageService';
 import { Currency, CurrencyHelpers } from '@/utils/currency';
 import { getNsecStringFromKey } from '@/utils/keyHelpers';
@@ -99,7 +112,20 @@ export default function SettingsScreen() {
   const [pendingLockEnable, setPendingLockEnable] = useState(false);
   const [_pendingPinEnable, setPendingPinEnable] = useState(false);
   const [pendingBiometricEnable, setPendingBiometricEnable] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabledState] = useState(false);
+  const [notificationsGranted, setNotificationsGranted] = useState(false);
+  const [cloudBackupEnabled, setCloudBackupEnabledState] = useState(false);
+  const [cloudBackupReady, setCloudBackupReady] = useState(false);
   const { width, height } = useWindowDimensions();
+
+  useEffect(() => {
+    getNotificationsEnabled().then(setNotificationsEnabledState);
+    Notifications.getPermissionsAsync().then(({ status }) =>
+      setNotificationsGranted(status === 'granted')
+    );
+    getCloudBackupEnabled().then(setCloudBackupEnabledState);
+    isCloudBackupAvailable({ requestPermission: false }).then(setCloudBackupReady);
+  }, []);
 
   // Animated values for drawer slide animations
   const currencyDrawerSlide = useRef(new Animated.Value(height)).current;
@@ -895,6 +921,93 @@ export default function SettingsScreen() {
               </View>
             </View>
           </View>
+
+          {/* Permissions Section */}
+          <>
+            <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
+              Permissions
+            </ThemedText>
+            <View style={[styles.appLockOption, { backgroundColor: cardBackgroundColor }]}>
+              <View style={styles.appLockLeft}>
+                <View style={styles.appLockIconContainer}>
+                  <Bell size={22} color={buttonPrimaryColor} />
+                </View>
+                <View style={styles.appLockTextContainer}>
+                  <ThemedText style={[styles.appLockTitle, { color: primaryTextColor }]}>
+                    Notifications
+                  </ThemedText>
+                  <ThemedText style={[styles.appLockDescription, { color: secondaryTextColor }]}>
+                    Payment requests and alerts
+                  </ThemedText>
+                </View>
+              </View>
+              <Switch
+                value={notificationsEnabled}
+                onValueChange={async enabled => {
+                  if (enabled) {
+                    await setNotificationsEnabledStorage(true);
+                    setNotificationsEnabledState(true);
+                    const { status } = await Notifications.requestPermissionsAsync();
+                    setNotificationsGranted(status === 'granted');
+                    if (status === 'granted') showToast('Notifications enabled', 'success');
+                    if (status === 'granted' && cloudBackupReady)
+                      await setOnboardingPermissionsSkipped(false);
+                  } else {
+                    await setNotificationsEnabledStorage(false);
+                    setNotificationsEnabledState(false);
+                    setNotificationsGranted(false);
+                    showToast('Notifications disabled', 'success');
+                  }
+                }}
+                trackColor={{
+                  false: inputBorderColor,
+                  true: buttonPrimaryColor,
+                }}
+                thumbColor={notificationsEnabled ? buttonPrimaryTextColor : '#ffffff'}
+                ios_backgroundColor={inputBorderColor}
+              />
+            </View>
+            <View style={[styles.appLockOption, { backgroundColor: cardBackgroundColor }]}>
+              <View style={styles.appLockLeft}>
+                <View style={styles.appLockIconContainer}>
+                  <Cloud size={22} color={buttonPrimaryColor} />
+                </View>
+                <View style={styles.appLockTextContainer}>
+                  <ThemedText style={[styles.appLockTitle, { color: primaryTextColor }]}>
+                    Cloud backup
+                  </ThemedText>
+                  <ThemedText style={[styles.appLockDescription, { color: secondaryTextColor }]}>
+                    {Platform.OS === 'android' ? 'Google account' : 'iCloud'} for key backup
+                  </ThemedText>
+                </View>
+              </View>
+              <Switch
+                value={cloudBackupEnabled}
+                onValueChange={async enabled => {
+                  if (enabled) {
+                    await setCloudBackupEnabled(true);
+                    setCloudBackupEnabledState(true);
+                    const available = await isCloudBackupAvailable();
+                    setCloudBackupReady(available);
+                    if (available) showToast('Cloud backup enabled', 'success');
+                    if (available && notificationsGranted)
+                      await setOnboardingPermissionsSkipped(false);
+                  } else {
+                    await setCloudBackupEnabled(false);
+                    setCloudBackupEnabledState(false);
+                    setCloudBackupReady(false);
+                    showToast('Cloud backup disabled', 'success');
+                  }
+                }}
+                trackColor={{
+                  false: inputBorderColor,
+                  true: buttonPrimaryColor,
+                }}
+                thumbColor={cloudBackupEnabled ? buttonPrimaryTextColor : '#ffffff'}
+                ios_backgroundColor={inputBorderColor}
+              />
+            </View>
+          </>
 
           {/* Security Section */}
           <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>

@@ -7,7 +7,11 @@ import { onboardingStyles as styles } from '@/components/onboarding/styles';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useNostrService } from '@/context/NostrServiceContext';
-import { SEED_ORIGIN_KEY, useOnboardingFlow } from '@/context/OnboardingFlowContext';
+import {
+  SEED_ORIGIN_IMPORTED_MNEMONIC,
+  SEED_ORIGIN_KEY,
+  useOnboardingFlow,
+} from '@/context/OnboardingFlowContext';
 import { useUserProfile } from '@/context/UserProfileContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { getMnemonic, getNsec } from '@/services/SecureStorageService';
@@ -30,7 +34,7 @@ export default function ProfileSetup() {
         // Check if this is an import FIRST, before waiting for service initialization
         // This prevents any race conditions with profile generation
         const seedOrigin = await SecureStore.getItemAsync(SEED_ORIGIN_KEY);
-        const isImport = seedOrigin === 'imported';
+        const isImport = seedOrigin === 'imported' || seedOrigin === SEED_ORIGIN_IMPORTED_MNEMONIC;
 
         // Handle interrupted onboarding: if SEED_ORIGIN_KEY was never written but a key exists,
         // treat it as interrupted onboarding and wait for auto-fetch to load existing profile

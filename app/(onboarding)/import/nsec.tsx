@@ -20,6 +20,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { useKey } from '@/context/KeyContext';
 import { SEED_ORIGIN_KEY, useOnboardingFlow } from '@/context/OnboardingFlowContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { setCloudBackupEnabled } from '@/services/CloudBackupService';
 import { validateImportedNsec } from '@/utils/onboarding';
 
 export default function ImportNsec() {
@@ -74,6 +75,7 @@ export default function ImportNsec() {
       const normalizedNsec = seedPhrase.trim().toLowerCase();
       await setNsec(normalizedNsec);
       await SecureStore.setItemAsync(SEED_ORIGIN_KEY, 'imported');
+      await setCloudBackupEnabled(false); // Default off for advanced (import nsec)
       clearSeedPhrase();
       router.push('/(onboarding)/profile-setup');
     } catch (_error) {

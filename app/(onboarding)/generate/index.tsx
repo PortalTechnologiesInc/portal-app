@@ -11,6 +11,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { useKey } from '@/context/KeyContext';
 import { SEED_ORIGIN_KEY, useOnboardingFlow } from '@/context/OnboardingFlowContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { setCloudBackupEnabled } from '@/services/CloudBackupService';
 
 export default function GenerateSeed() {
   const { setMnemonic } = useKey();
@@ -61,6 +62,7 @@ export default function GenerateSeed() {
       try {
         await setMnemonic(seedPhrase);
         await SecureStore.setItemAsync(SEED_ORIGIN_KEY, 'generated');
+        await setCloudBackupEnabled(false);
       } catch (_error) {
         // Still proceed even if saving fails (legacy behavior).
       } finally {

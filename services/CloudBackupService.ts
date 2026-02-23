@@ -1,4 +1,23 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { PermissionsAndroid, Platform } from 'react-native';
+import { SEED_ORIGIN_KEY } from '@/context/OnboardingFlowContext';
+
+export const CLOUD_BACKUP_ENABLED_KEY = 'portal_cloud_backup_enabled';
+
+/**
+ * True if cloud backup is enabled (user preference). Default: true only for simple-setup path, false for advanced.
+ */
+export async function getCloudBackupEnabled(): Promise<boolean> {
+  const raw = await AsyncStorage.getItem(CLOUD_BACKUP_ENABLED_KEY);
+  if (raw !== null) return raw === 'true';
+  const origin = await SecureStore.getItemAsync(SEED_ORIGIN_KEY);
+  return origin === 'simple';
+}
+
+export async function setCloudBackupEnabled(enabled: boolean): Promise<void> {
+  await AsyncStorage.setItem(CLOUD_BACKUP_ENABLED_KEY, enabled ? 'true' : 'false');
+}
 
 // Load native module only on the current platform to avoid "Cannot find native module" on the other
 function getBackupModule(): {
@@ -77,12 +96,20 @@ export async function restoreSeedFromCloud(): Promise<string> {
   }
 }
 
+export type IsCloudBackupAvailableOptions = {
+  /** If false, do not request GET_ACCOUNTS on Android (only check). Use after onboarding permissions page to avoid showing the permission dialog again. Default true. */
+  requestPermission?: boolean;
+};
+
 /**
  * Utility: controlla se il device ha un account cloud configurato.
- * - Android: richiede GET_ACCOUNTS (runtime su Android 6+) e un account Google.
+ * - Android: richiede GET_ACCOUNTS (runtime su Android 6+) e un account Google, unless requestPermission is false.
  * - iOS: richiede iCloud attivo.
  */
-export async function isCloudBackupAvailable(): Promise<boolean> {
+export async function isCloudBackupAvailable(
+  options?: IsCloudBackupAvailableOptions
+): Promise<boolean> {
+  const requestPermission = options?.requestPermission !== false;
   try {
     const module = getBackupModule();
     if (!module) return false;
@@ -93,6 +120,10 @@ export async function isCloudBackupAvailable(): Promise<boolean> {
         PermissionsAndroid.PERMISSIONS.GET_ACCOUNTS
       );
       if (!hasPermission) {
+        if (!requestPermission) {
+          if (__DEV__) console.log('[CloudBackup] GET_ACCOUNTS not granted (skip request)');
+          return false;
+        }
         const granted = await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.GET_ACCOUNTS,
           {

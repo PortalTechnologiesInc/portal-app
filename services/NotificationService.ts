@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
@@ -33,6 +34,18 @@ import { PortalAppManager } from './PortalAppManager';
 import { getMnemonic, getWalletUrl } from './SecureStorageService';
 
 const EXPO_PUSH_TOKEN_KEY = 'expo_push_token_key';
+export const NOTIFICATIONS_ENABLED_KEY = 'portal_notifications_enabled';
+
+export async function getNotificationsEnabled(): Promise<boolean> {
+  const raw = await AsyncStorage.getItem(NOTIFICATIONS_ENABLED_KEY);
+  if (raw !== null) return raw === 'true';
+  const { status } = await Notifications.getPermissionsAsync();
+  return status === 'granted';
+}
+
+export async function setNotificationsEnabled(enabled: boolean): Promise<void> {
+  await AsyncStorage.setItem(NOTIFICATIONS_ENABLED_KEY, enabled ? 'true' : 'false');
+}
 
 /**
  * Sends a local notification immediately.
@@ -226,17 +239,12 @@ export default async function registerPubkeysForPushNotificationsAsync(pubkeys: 
     });
   }
 
+  const enabled = await getNotificationsEnabled();
+  if (!enabled) return;
+
   if (Device.isDevice) {
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-    if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-    }
-    if (finalStatus !== 'granted') {
-      handleRegistrationError('Permission not granted to get push token for push notification!');
-      return;
-    }
+    if (existingStatus !== 'granted') return;
     const projectId =
       Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
     if (!projectId) {
