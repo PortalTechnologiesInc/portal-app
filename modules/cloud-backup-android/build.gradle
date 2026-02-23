@@ -1,0 +1,51 @@
+plugins {
+    id 'com.android.library'
+    id 'kotlin-android'
+    id 'expo-module-gradle-plugin'
+}
+
+android {
+    namespace 'com.portal.cloudbackup'
+    compileSdk 34
+
+    defaultConfig {
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName '1.0.0'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    packaging {
+        resources {
+            excludes += ['META-INF/DEPENDENCIES', 'META-INF/LICENSE', 'META-INF/NOTICE']
+        }
+    }
+}
+
+dependencies {
+    // Google Drive API + Auth (GoogleAccountCredential)
+    implementation 'com.google.android.gms:play-services-auth:21.2.0'
+    implementation 'com.google.api-client:google-api-client-android:1.35.2'
+    implementation 'com.google.oauth-client:google-oauth-client-jetty:1.36.0'
+    implementation 'com.google.apis:google-api-services-drive:v3-rev20230815-2.0.0'
+
+    // Kotlin stdlib + coroutines (for withContext in AsyncFunction)
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+
+    // JSON parsing
+    implementation 'com.google.code.gson:gson:2.10.1'
+
+    // Testing (opzionale)
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+}

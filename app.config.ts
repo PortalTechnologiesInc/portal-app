@@ -112,6 +112,9 @@ export default {
         },
       ],
       './plugins/withRemoveUniffiDependency',
+      './plugins/withExpoAutolinkingSettingsGradle.cjs',
+      './modules/cloud-backup-android/app.plugin.js',
+      './modules/cloud-backup-ios/app.plugin.js',
     ],
     experiments: {
       typedRoutes: true,

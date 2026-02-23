@@ -37,7 +37,8 @@
     "*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts",
-    "app.config.ts"
+    "app.config.ts",
+    "portal-cloud-backup.d.ts"
   ],
   "exclude": [
     "node_modules",
