@@ -6,8 +6,9 @@ import { WALLET_TYPE } from '@/models/WalletType';
 import { createVerificationChallenge, type VerificationChallenge } from '@/utils/onboarding';
 import { showToast } from '@/utils/Toast';
 
-// Key to track if seed was generated or imported (used by profile setup step)
+// Key to track how the user obtained their key (used by profile setup and cloud backup default)
 export const SEED_ORIGIN_KEY = 'portal_seed_origin';
+export const SEED_ORIGIN_IMPORTED_MNEMONIC = 'imported_mnemonic';
 
 type OnboardingPath = 'simple' | 'advanced';
 

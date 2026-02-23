@@ -14,7 +14,12 @@ import { useUserProfile } from '@/context/UserProfileContext';
 import { useWalletManager } from '@/context/WalletManagerContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { WALLET_TYPE } from '@/models/WalletType';
-import { backupSeedToCloud, isCloudBackupAvailable } from '@/services/CloudBackupService';
+import {
+  backupSeedToCloud,
+  getCloudBackupEnabled,
+  isCloudBackupAvailable,
+  setCloudBackupEnabled,
+} from '@/services/CloudBackupService';
 import { getMnemonic } from '@/services/SecureStorageService';
 import { generateRandomGamertag } from '@/utils/common';
 
@@ -61,7 +66,8 @@ export default function SimpleSetup() {
   };
 
   const backupOnCloud = async () => {
-    const available = await isCloudBackupAvailable();
+    // Permission already requested on onboarding permissions page; avoid showing banner here
+    const available = await isCloudBackupAvailable({ requestPermission: false });
     if (!available) {
       if (__DEV__) {
         console.warn(
@@ -124,6 +130,7 @@ export default function SimpleSetup() {
     const setup = async () => {
       let currentStep: typeof step = 'generate-key';
       try {
+        await setCloudBackupEnabled(true); // Default on for simple setup only
         currentStep = 'generate-key';
         setStep(currentStep);
         await generateKey();
@@ -132,7 +139,7 @@ export default function SimpleSetup() {
         await SecureStore.setItemAsync(SEED_ORIGIN_KEY, 'simple');
         currentStep = 'backup-cloud';
         setStep(currentStep);
-        await backupOnCloud();
+        if (await getCloudBackupEnabled()) await backupOnCloud();
         currentStep = 'generate-profile';
         setStep(currentStep);
         await generateProfile();

@@ -18,8 +18,13 @@ import { onboardingStyles as styles } from '@/components/onboarding/styles';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useKey } from '@/context/KeyContext';
-import { SEED_ORIGIN_KEY, useOnboardingFlow } from '@/context/OnboardingFlowContext';
+import {
+  SEED_ORIGIN_IMPORTED_MNEMONIC,
+  SEED_ORIGIN_KEY,
+  useOnboardingFlow,
+} from '@/context/OnboardingFlowContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { setCloudBackupEnabled } from '@/services/CloudBackupService';
 import { validateImportedMnemonic } from '@/utils/onboarding';
 
 export default function ImportSeedPhrase() {
@@ -73,7 +78,8 @@ export default function ImportSeedPhrase() {
     try {
       const normalizedPhrase = seedPhrase.trim().toLowerCase();
       await setMnemonic(normalizedPhrase);
-      await SecureStore.setItemAsync(SEED_ORIGIN_KEY, 'imported');
+      await SecureStore.setItemAsync(SEED_ORIGIN_KEY, SEED_ORIGIN_IMPORTED_MNEMONIC);
+      await setCloudBackupEnabled(false); // Default off for advanced (import mnemonic)
       clearSeedPhrase();
       router.push('/(onboarding)/profile-setup');
     } catch (_error) {
