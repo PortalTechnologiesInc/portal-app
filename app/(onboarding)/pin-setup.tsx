@@ -31,7 +31,7 @@ export default function PinSetup() {
 
   const handleBack = useCallback(() => {
     resetPinState();
-    router.back();
+    router.dismissTo('/(onboarding)/identity-verification');
   }, [resetPinState]);
 
   useEffect(() => {
