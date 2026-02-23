@@ -14,6 +14,7 @@ import { useUserProfile } from '@/context/UserProfileContext';
 import { useWalletManager } from '@/context/WalletManagerContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { WALLET_TYPE } from '@/models/WalletType';
+import { backupSeedToCloud, isCloudBackupAvailable } from '@/services/CloudBackupService';
 import { getMnemonic } from '@/services/SecureStorageService';
 import { generateRandomGamertag } from '@/utils/common';
 
@@ -60,8 +61,15 @@ export default function SimpleSetup() {
   };
 
   const backupOnCloud = async () => {
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    // TODO: Implement backup to cloud
+    const available = await isCloudBackupAvailable();
+    if (!available) {
+      return; // Skip silently (no Google/iCloud account)
+    }
+    const mnemonic = await getMnemonic();
+    if (!mnemonic) {
+      throw new Error('No mnemonic to backup');
+    }
+    await backupSeedToCloud(mnemonic);
   };
 
   const generateProfile = async () => {
