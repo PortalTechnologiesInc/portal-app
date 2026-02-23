@@ -18,7 +18,10 @@ export type Wallet = {
   getWalletInfo: () => Promise<WalletInfo>;
   receivePayment: (amountSats: bigint, description?: string) => Promise<string>;
   prepareSendPayment: (paymentRequest: string, amountSats: bigint) => Promise<unknown>;
-  sendPayment: (paymentRequest: string, amountSats: bigint) => Promise<string>;
+  sendPayment: (
+    paymentRequest: string,
+    amountSats: bigint
+  ) => Promise<{ preimage: string; feeSats?: number }>;
 };
 
 export const WALLET_CONNECTION_STATUS = {

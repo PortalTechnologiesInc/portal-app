@@ -89,7 +89,10 @@ export class BreezService implements Wallet {
     return payment;
   }
 
-  async sendPayment(paymentRequest: string, amountSats: bigint): Promise<string> {
+  async sendPayment(
+    paymentRequest: string,
+    amountSats: bigint
+  ): Promise<{ preimage: string; feeSats?: number }> {
     if (!this.client) {
       throw new Error('Breez SDK is not initialized');
     }
@@ -117,7 +120,10 @@ export class BreezService implements Wallet {
       idempotencyKey: undefined,
     });
 
-    return response.payment.id;
+    return {
+      preimage: response.payment.id,
+      feeSats: Number(response.payment.fees),
+    };
   }
 
   async prepareSendPayment(
@@ -147,7 +153,7 @@ export class BreezService implements Wallet {
 
   async sendPaymentWithPrepareResponse(
     prepareResponse: PrepareSendPaymentResponse
-  ): Promise<string> {
+  ): Promise<{ preimage: string; feeSats?: number }> {
     let sendOptions: SendPaymentOptions | undefined;
 
     if (prepareResponse.paymentMethod instanceof SendPaymentMethod.Bolt11Invoice) {
@@ -167,6 +173,9 @@ export class BreezService implements Wallet {
       idempotencyKey: undefined,
     });
 
-    return response.payment.id;
+    return {
+      preimage: response.payment.id,
+      feeSats: Number(response.payment.fees),
+    };
   }
 }

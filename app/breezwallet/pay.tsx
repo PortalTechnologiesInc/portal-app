@@ -139,10 +139,10 @@ export default function MyWalletManagementSecret() {
         }
       }
 
-      await breezWallet.sendPaymentWithPrepareResponse(prepareSendPaymentResponse);
+      const result = await breezWallet.sendPaymentWithPrepareResponse(prepareSendPaymentResponse);
 
       await executeOperation(db =>
-        db.updateActivityStatus(activityId, 'positive', 'Payment completed')
+        db.updateActivityStatus(activityId, 'positive', 'Payment completed', result.feeSats ?? null)
       );
       await executeOperation(db => db.addPaymentStatusEntry(invoice, 'payment_completed'), null);
       globalEvents.emit('activityUpdated', { activityId });
