@@ -63,6 +63,11 @@ export default function SimpleSetup() {
   const backupOnCloud = async () => {
     const available = await isCloudBackupAvailable();
     if (!available) {
+      if (__DEV__) {
+        console.warn(
+          'Cloud backup not available (add a Google account on Android, or sign in to iCloud on iOS), skipping...'
+        );
+      }
       return; // Skip silently (no Google/iCloud account)
     }
     const mnemonic = await getMnemonic();

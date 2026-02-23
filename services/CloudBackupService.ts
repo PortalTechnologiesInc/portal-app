@@ -1,6 +1,19 @@
-import CloudBackupAndroid from '@portal/cloud-backup-android';
-import CloudBackupIOS from '@portal/cloud-backup-ios';
-import { Platform } from 'react-native';
+import { PermissionsAndroid, Platform } from 'react-native';
+
+// Load native module only on the current platform to avoid "Cannot find native module" on the other
+function getBackupModule(): {
+  backupSeed: (s: string, f: string) => Promise<string>;
+  restoreSeed: (f: string) => Promise<string>;
+  isAvailable?: () => Promise<boolean>;
+} | null {
+  if (Platform.OS === 'android') {
+    return require('@portal/cloud-backup-android').default;
+  }
+  if (Platform.OS === 'ios') {
+    return require('@portal/cloud-backup-ios').default;
+  }
+  return null;
+}
 
 // ============================================================
 // Cloud Backup / Restore (cleartext)
@@ -14,10 +27,7 @@ import { Platform } from 'react-native';
  * - Restituisce l'ID del file nel cloud
  */
 export async function backupSeedToCloud(seed: string): Promise<string> {
-  const BackupModule = Platform.select({
-    android: CloudBackupAndroid,
-    ios: CloudBackupIOS,
-  });
+  const BackupModule = getBackupModule();
 
   if (!BackupModule) {
     throw new Error('Cloud backup not supported on this platform');
@@ -26,7 +36,20 @@ export async function backupSeedToCloud(seed: string): Promise<string> {
   try {
     return await BackupModule.backupSeed(seed, 'portal-seed.json');
   } catch (error) {
-    throw new Error(`Backup failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.includes('NO_GOOGLE_ACCOUNT')) {
+      if (__DEV__) console.warn('[CloudBackup] No Google account visible, backup skipped');
+      return '';
+    }
+    if (msg.includes('UnregisteredOnApiConsole') || msg.includes('add Android OAuth client')) {
+      if (__DEV__)
+        console.warn(
+          '[CloudBackup] App not registered in Google Cloud (UnregisteredOnApiConsole), backup skipped'
+        );
+      return '';
+    }
+    if (__DEV__) console.error('[CloudBackup] Backup error:', error);
+    throw new Error(`Backup failed: ${msg}`);
   }
 }
 
@@ -37,10 +60,7 @@ export async function backupSeedToCloud(seed: string): Promise<string> {
  * - Restituisce il seed
  */
 export async function restoreSeedFromCloud(): Promise<string> {
-  const BackupModule = Platform.select({
-    android: CloudBackupAndroid,
-    ios: CloudBackupIOS,
-  });
+  const BackupModule = getBackupModule();
 
   if (!BackupModule) {
     throw new Error('Cloud backup not supported on this platform');
@@ -49,23 +69,56 @@ export async function restoreSeedFromCloud(): Promise<string> {
   try {
     return await BackupModule.restoreSeed('portal-seed.json');
   } catch (error) {
-    throw new Error(`Restore failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.includes('NO_GOOGLE_ACCOUNT')) {
+      throw new Error('No Google account found. Add one in Settings → Accounts.');
+    }
+    throw new Error(`Restore failed: ${msg}`);
   }
 }
 
 /**
  * Utility: controlla se il device ha un account cloud configurato.
+ * - Android: richiede GET_ACCOUNTS (runtime su Android 6+) e un account Google.
+ * - iOS: richiede iCloud attivo.
  */
 export async function isCloudBackupAvailable(): Promise<boolean> {
   try {
+    const module = getBackupModule();
+    if (!module) return false;
+    if (typeof module.isAvailable !== 'function') return false;
+
     if (Platform.OS === 'android') {
-      return !!(CloudBackupAndroid && (await CloudBackupAndroid.isAvailable?.()));
+      const hasPermission = await PermissionsAndroid.check(
+        PermissionsAndroid.PERMISSIONS.GET_ACCOUNTS
+      );
+      if (!hasPermission) {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.GET_ACCOUNTS,
+          {
+            title: 'Cloud backup',
+            message: 'Portal needs access to your accounts to check for Google Drive backup.',
+            buttonNeutral: 'Later',
+            buttonNegative: 'Deny',
+            buttonPositive: 'OK',
+          }
+        );
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          if (__DEV__) console.log('[CloudBackup] GET_ACCOUNTS not granted');
+          return false;
+        }
+      }
     }
-    if (Platform.OS === 'ios') {
-      return !!(CloudBackupIOS && (await CloudBackupIOS.isAvailable?.()));
+
+    const available = await module.isAvailable();
+    if (__DEV__) {
+      console.log('[CloudBackup] isAvailable:', available, `(platform: ${Platform.OS})`);
     }
-    return false;
-  } catch {
+    return !!available;
+  } catch (e) {
+    if (__DEV__) {
+      console.warn('[CloudBackup] isAvailable check failed:', e instanceof Error ? e.message : e);
+    }
     return false;
   }
 }
