@@ -11,6 +11,7 @@ import { useDatabaseContext } from '@/context/DatabaseContext';
 import { useKey } from '@/context/KeyContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { getKeypairFromKey, hasKey } from '@/utils/keyHelpers';
+import { ageVerificationInjectedScript } from './ageVerificationInjectedScript';
 
 const VERIFY_SESSIONS_URL = 'https://8081.wheatley.getportal.cc:32000/verify/sessions/app';
 
@@ -40,18 +41,17 @@ export default function AgeVerification() {
       try {
         console.log('[AgeVerification] Checking key material availability');
         // Check if key material is available
-        // if (!hasKey({ mnemonic, nsec })) {
-        //   console.warn('[AgeVerification] No key material available (mnemonic or nsec)');
-        //   setHasError(true);
-        //   setIsLoading(false);
-        //   return;
-        // }
+        if (!hasKey({ mnemonic, nsec })) {
+          console.warn('[AgeVerification] No key material available (mnemonic or nsec)');
+          setHasError(true);
+          setIsLoading(false);
+          return;
+        }
 
         console.log('[AgeVerification] Key material found, getting npub');
         // Get npub from app's key material
-        // const keypair = getKeypairFromKey({ mnemonic, nsec });
-        // const npub = keypair.publicKey().toString();
-        const npub = 'npub1n7np7r2u7qwgq7w5qxgzpyuj4a64fhuknf6vst0jhk4l5ucntlgsmcx4xx';
+        const keypair = getKeypairFromKey({ mnemonic, nsec });
+        const npub = keypair.publicKey().toString();
         console.log('[AgeVerification] npub retrieved successfully');
 
         console.log('[AgeVerification] Fetching relays from database');
@@ -177,41 +177,15 @@ export default function AgeVerification() {
       // Handle messages from the webview (e.g., verification complete)
       if (data.type === 'verification-complete') {
         console.log('[AgeVerification] Verification complete, navigating to identity-verification');
-        router.push('/(onboarding)/identity-verification');
+        setTimeout(() => {
+          router.push('/(onboarding)/pin-setup');
+        }, 2000);
+        return;
       }
     } catch (error) {
       console.warn('[AgeVerification] Failed to parse message as JSON:', error);
     }
   }, []);
-
-  // Inject CSS and JS to make the webview seamless and block text selection / context menu
-  const injectedJavaScript = `
-    (function() {
-      const style = document.createElement('style');
-      style.textContent = \`
-        html, body {
-          margin: 0;
-          padding: 0;
-          background-color: ${backgroundColor} !important;
-        }
-        #app, #app.svelte-12qhfyh, .svelte-12qhfyh {
-          background-color: ${backgroundColor} !important;
-          min-height: 100%;
-        }
-        *, *::before, *::after {
-          -webkit-tap-highlight-color: transparent;
-          -webkit-user-select: none;
-          user-select: none;
-          -webkit-touch-callout: none;
-        }
-      \`;
-      document.head.appendChild(style);
-      document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
-      document.querySelector('footer')?.remove();
-      document.querySelector('[role="contentinfo"]')?.remove();
-    })();
-    true; // Required for injected JavaScript
-  `;
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
@@ -243,7 +217,7 @@ export default function AgeVerification() {
                   onLoadEnd={handleWebViewLoadEnd}
                   onError={handleError}
                   onMessage={handleMessage}
-                  injectedJavaScript={injectedJavaScript}
+                  injectedJavaScript={ageVerificationInjectedScript(backgroundColor)}
                   javaScriptEnabled={true}
                   domStorageEnabled={true}
                   startInLoadingState={true}
@@ -285,7 +259,6 @@ export default function AgeVerification() {
     </SafeAreaView>
   );
 }
-
 const localStyles = StyleSheet.create({
   headerWrapper: {
     paddingHorizontal: 20,

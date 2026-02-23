@@ -19,7 +19,7 @@ export default function Welcome() {
 
   const handleGetStarted = () => {
     setOnboardingPath('simple');
-    router.push('/(onboarding)/age-verification');
+    router.push('/(onboarding)/simple-setup');
   };
 
   const handleAdvanced = () => {
