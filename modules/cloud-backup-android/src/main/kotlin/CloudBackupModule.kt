@@ -129,12 +129,15 @@ class CloudBackupModule : Module() {
         if (msg.contains("UnregisteredOnApiConsole", ignoreCase = true)) {
           return "UnregisteredOnApiConsole: add Android OAuth client (package + SHA-1) in Google Cloud Console"
         }
+        if (msg == "ERROR" && t.javaClass.simpleName.contains("GoogleAuth", ignoreCase = true)) {
+          return "GoogleAuth ERROR: add your account as Test user in OAuth consent screen (Cloud Console), enable Drive API"
+        }
         return msg
       }
       t = t.cause
     }
     if (e.cause?.javaClass?.simpleName?.contains("GoogleAuth") == true) {
-      return "Google auth failed: check Cloud Console (Android client, Drive API)"
+      return "Google auth failed: check OAuth consent (Test users), Drive API enabled, Android client (package + SHA-1)"
     }
     return e.javaClass.simpleName
   }
