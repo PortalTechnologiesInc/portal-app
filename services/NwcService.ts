@@ -102,9 +102,26 @@ export class NwcService implements Wallet {
     }
 
     try {
-      const preimage = await this.client.payInvoice(paymentRequest);
-
-      return { preimage };
+      const result = await this.client.payInvoice(paymentRequest);
+      // PayInvoiceResult (0.4.16+): { preimage, feesPaidMsat } – bindings may use camel or snake_case
+      const raw = result as Record<string, unknown>;
+      const preimage =
+        typeof raw.preimage === 'string'
+          ? raw.preimage
+          : typeof result.preimage === 'string'
+            ? result.preimage
+            : String(raw.preimage ?? result.preimage);
+      const feesPaidMsat = raw.feesPaidMsat ?? raw.fees_paid_msat ?? result.feesPaidMsat;
+      const feeSats =
+        typeof feesPaidMsat === 'bigint'
+          ? Number(feesPaidMsat / 1000n)
+          : typeof feesPaidMsat === 'number'
+            ? Math.floor(feesPaidMsat / 1000)
+            : undefined;
+      return {
+        preimage,
+        feeSats: feeSats !== undefined ? feeSats : undefined,
+      };
     } catch (_error) {
       throw new Error('Failed to send payment');
     }

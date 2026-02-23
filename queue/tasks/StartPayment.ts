@@ -60,6 +60,7 @@ export class StartPaymentTask extends Task<
         new PaymentStatus.Success({ preimage: preimage.preimage })
       ).run();
 
+      const feeSatsForDb = preimage.feeSats ?? null;
       await new UpdatePaymentResultTransactionalTask(
         id,
         'positive',
@@ -67,7 +68,7 @@ export class StartPaymentTask extends Task<
         request.content.invoice,
         'payment_completed',
         subscriptionId,
-        preimage.feeSats ?? null
+        feeSatsForDb
       ).run();
     } catch (error) {
       console.error(
