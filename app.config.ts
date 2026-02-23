@@ -113,6 +113,7 @@ export default {
       ],
       './plugins/withRemoveUniffiDependency',
       './plugins/withExpoAutolinkingSettingsGradle.cjs',
+      './plugins/withDebugKeystore.cjs',
       './modules/cloud-backup-android/app.plugin.js',
       './modules/cloud-backup-ios/app.plugin.js',
     ],
