@@ -1,11 +1,12 @@
 import { router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, BackHandler, Platform, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, BackHandler, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import defaultRelayList from '@/assets/DefaultRelays.json';
 import { OnboardingHeader } from '@/components/onboarding/OnboardingHeader';
 import { onboardingStyles as styles } from '@/components/onboarding/styles';
+import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import { useKey } from '@/context/KeyContext';
@@ -32,6 +33,7 @@ export default function AgeVerification() {
   const [hasError, setHasError] = useState(false);
   const [sessionData, setSessionData] = useState<SessionResponse | null>(null);
   const [webViewReady, setWebViewReady] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   // Fetch relays from database and create verification session
   useEffect(() => {
@@ -115,7 +117,7 @@ export default function AgeVerification() {
     };
 
     fetchRelaysAndCreateSession();
-  }, [mnemonic, nsec, executeOperation]);
+  }, [mnemonic, nsec, executeOperation, retryCount]);
 
   // Debug log when sessionData changes
   useEffect(() => {
@@ -169,6 +171,14 @@ export default function AgeVerification() {
     setHasError(true);
   }, []);
 
+  const handleRetry = useCallback(() => {
+    setHasError(false);
+    setIsLoading(true);
+    setSessionData(null);
+    setWebViewReady(false);
+    setRetryCount(c => c + 1);
+  }, []);
+
   const handleMessage = useCallback((event: { nativeEvent: { data: string } }) => {
     console.log('[AgeVerification] WebView message received:', event.nativeEvent.data);
     try {
@@ -195,7 +205,19 @@ export default function AgeVerification() {
       <View style={[localStyles.webviewContainer, { backgroundColor }]}>
         {hasError ? (
           <View style={localStyles.errorContainer}>
-            {/* Error state - could be enhanced with retry button */}
+            <ThemedText style={localStyles.errorText}>
+              Could not start verification. Please check your connection and try again.
+            </ThemedText>
+            <TouchableOpacity style={localStyles.retryButton} onPress={handleRetry}>
+              <ThemedText style={[localStyles.retryButtonText, { color: buttonPrimary }]}>
+                Try again
+              </ThemedText>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.back()}>
+              <ThemedText style={[localStyles.backText, { color: buttonPrimary }]}>
+                Go back
+              </ThemedText>
+            </TouchableOpacity>
           </View>
         ) : (
           <>
@@ -286,5 +308,27 @@ const localStyles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 32,
+    gap: 16,
+  },
+  errorText: {
+    textAlign: 'center',
+    opacity: 0.8,
+    fontSize: 15,
+  },
+  retryButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  retryButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  backText: {
+    fontSize: 15,
+    opacity: 0.7,
   },
 });
