@@ -43,6 +43,7 @@ export function ageVerificationInjectedScript(backgroundColor) {
         if (findAndHandleCloseMessage()) observer.disconnect();
       });
       observer.observe(document.body, { childList: true, subtree: true });
+      window.addEventListener('unload', function () { observer.disconnect(); });
     }
     true;
   `;
