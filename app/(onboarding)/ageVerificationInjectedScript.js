@@ -7,7 +7,7 @@ export function ageVerificationInjectedScript(backgroundColor) {
         padding: 0;
         background-color: ${backgroundColor} !important;
       }
-      #app, #app.svelte-12qhfyh, .svelte-12qhfyh {
+      #app {
         background-color: ${backgroundColor} !important;
         min-height: 100%;
       }
@@ -26,13 +26,10 @@ export function ageVerificationInjectedScript(backgroundColor) {
     document.querySelector('[role="contentinfo"]')?.remove();
 
     function findAndHandleCloseMessage() {
-      const p = document.querySelector('p.muted.svelte-1uha8ag');
-      if (
-        p &&
-        p.textContent &&
-        p.textContent.includes('You may now close this window.') &&
-        window.ReactNativeWebView
-      ) {
+      const p = [...document.querySelectorAll('p')].find(
+        el => el.textContent && el.textContent.includes('You may now close this window.')
+      );
+      if (p && window.ReactNativeWebView) {
         p.remove();
         window.ReactNativeWebView.postMessage(
           JSON.stringify({ type: 'verification-complete' })
