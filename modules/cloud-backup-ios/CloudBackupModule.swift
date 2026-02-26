@@ -17,7 +17,7 @@ public class CloudBackupModule: Module {
       let sortDescriptor = NSSortDescriptor(key: "timestamp", ascending: false)
       query.sortDescriptors = [sortDescriptor]
 
-      database.fetch(withQuery: query, inZoneWith: nil, desiredKeys: nil, resultsLimit: 1) { result in
+      database.fetch(withQuery: query, inZoneWith: nil, desiredKeys: [], resultsLimit: 1) { result in
         switch result {
         case .failure(let error):
           if let ckError = error as? CKError, ckError.code == .notAuthenticated {
@@ -77,15 +77,27 @@ public class CloudBackupModule: Module {
                 ))
               }
 
-            case .success(let (savedRecords, _)):
-              if let savedRecord = savedRecords.first {
-                self.logger.info("Backup saved: \(savedRecord.recordID.recordName)")
-                promise.resolve(savedRecord.recordID.recordName)
-              } else {
+            case .success(let (saveResults, _)):
+              guard let (recordID, recordResult) = saveResults.first else {
                 promise.reject(NSError(
                   domain: "CloudBackupFailed",
                   code: -1,
-                  userInfo: ["message": "Backup failed: no record saved" as NSString]
+                  userInfo: ["message": "Backup failed: no record in response" as NSString]
+                ))
+                return
+              }
+
+              switch recordResult {
+              case .success(let savedRecord):
+                self.logger.info("Backup saved: \(savedRecord.recordID.recordName)")
+                promise.resolve(recordID.recordName)
+
+              case .failure(let error):
+                self.logger.error("Backup failed (record error)", error: error)
+                promise.reject(NSError(
+                  domain: "CloudBackupFailed",
+                  code: -1,
+                  userInfo: ["message": "Backup failed: \(error.localizedDescription)" as NSString]
                 ))
               }
             }
