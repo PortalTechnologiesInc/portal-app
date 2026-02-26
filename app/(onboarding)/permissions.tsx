@@ -94,7 +94,7 @@ export default function PermissionsScreen() {
 
   const goNext = () => {
     if (onboardingPath === 'advanced') {
-      router.replace('/(onboarding)/backup-warning');
+      router.push('/(onboarding)/backup-warning');
     } else {
       router.replace('/(onboarding)/simple-setup');
     }
@@ -190,26 +190,42 @@ export default function PermissionsScreen() {
 
           <View style={[styles.footer, styles.footerStack]}>
             <TouchableOpacity
-              style={[styles.button, { backgroundColor: buttonPrimary }]}
+              style={[
+                styles.button,
+                {
+                  backgroundColor: buttonPrimary,
+                  opacity:
+                    onboardingPath === 'advanced' || (notificationsGranted && cloudBackupReady)
+                      ? 1
+                      : 0.5,
+                },
+              ]}
               onPress={goNext}
+              disabled={
+                onboardingPath !== 'advanced' && (!notificationsGranted || !cloudBackupReady)
+              }
             >
               <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>
                 Continue
               </ThemedText>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.button,
-                {
-                  backgroundColor: 'transparent',
-                  borderWidth: 1,
-                  borderColor: buttonPrimary,
-                },
-              ]}
-              onPress={handleNotNow}
-            >
-              <ThemedText style={[styles.buttonText, { color: buttonPrimary }]}>Not now</ThemedText>
-            </TouchableOpacity>
+            {onboardingPath === 'advanced' && (
+              <TouchableOpacity
+                style={[
+                  styles.button,
+                  {
+                    backgroundColor: 'transparent',
+                    borderWidth: 1,
+                    borderColor: buttonPrimary,
+                  },
+                ]}
+                onPress={handleNotNow}
+              >
+                <ThemedText style={[styles.buttonText, { color: buttonPrimary }]}>
+                  Not now
+                </ThemedText>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </ThemedView>

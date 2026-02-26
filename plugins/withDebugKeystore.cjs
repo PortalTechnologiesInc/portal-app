@@ -2,6 +2,8 @@ const { withDangerousMod } = require('@expo/config-plugins');
 const fs = require('fs').promises;
 const path = require('path');
 
+const isCI = process.env.CI === 'true';
+
 /**
  * Patches android/app/build.gradle so debug builds use the project-root debug.keystore.
  * Persists after expo prebuild --clean.
@@ -10,6 +12,12 @@ function withDebugKeystore(config) {
   return withDangerousMod(config, [
     'android',
     async cfg => {
+      // On CI/EAS builds we don't need a custom debug keystore.
+      // Skipping here avoids any chance of interfering with release signing on CI.
+      if (isCI) {
+        return cfg;
+      }
+
       const root = cfg.modRequest.platformProjectRoot;
       const appBuildPath = path.join(root, 'app', 'build.gradle');
 
