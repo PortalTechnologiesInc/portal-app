@@ -4,6 +4,7 @@ import { PermissionsAndroid, Platform } from 'react-native';
 import { SEED_ORIGIN_KEY } from '@/context/OnboardingFlowContext';
 
 export const CLOUD_BACKUP_ENABLED_KEY = 'portal_cloud_backup_enabled';
+const CLOUD_BACKUP_LAST_VERIFIED_KEY = 'portal_cloud_backup_last_verified_at';
 
 /**
  * True if cloud backup is enabled (user preference). Default: true only for simple-setup path, false for advanced.
@@ -19,12 +20,16 @@ export async function setCloudBackupEnabled(enabled: boolean): Promise<void> {
   await AsyncStorage.setItem(CLOUD_BACKUP_ENABLED_KEY, enabled ? 'true' : 'false');
 }
 
-// Load native module only on the current platform to avoid "Cannot find native module" on the other
-function getBackupModule(): {
+type BackupModuleShape = {
   backupSeed: (s: string, f: string) => Promise<string>;
   restoreSeed: (f: string) => Promise<string>;
+  deleteBackup?: (f: string) => Promise<void>;
+  hasBackup?: (f: string) => Promise<boolean>;
   isAvailable?: () => Promise<boolean>;
-} | null {
+};
+
+// Load native module only on the current platform to avoid "Cannot find native module" on the other
+function getBackupModule(): BackupModuleShape | null {
   if (Platform.OS === 'android') {
     return require('@portal/cloud-backup-android').default;
   }
@@ -73,6 +78,30 @@ export async function backupSeedToCloud(seed: string): Promise<string> {
 }
 
 /**
+ * Deletes the cloud backup file if present.
+ * - Best-effort: if there's no Google account or file, this resolves without error.
+ */
+export async function deleteCloudBackup(): Promise<void> {
+  const BackupModule = getBackupModule();
+
+  if (!BackupModule || typeof BackupModule.deleteBackup !== 'function') {
+    return;
+  }
+
+  try {
+    await BackupModule.deleteBackup('portal-seed.json');
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.includes('NO_GOOGLE_ACCOUNT')) {
+      // Nothing to delete; treat as success.
+      return;
+    }
+    if (__DEV__) console.error('[CloudBackup] Delete backup error:', error);
+    throw new Error(`Delete backup failed: ${msg}`);
+  }
+}
+
+/**
  * Restore seed from cloud.
  * - Chiama il modulo nativo per scaricare il file
  * - Seed viene ricevuto in chiaro
@@ -93,6 +122,29 @@ export async function restoreSeedFromCloud(): Promise<string> {
       throw new Error('No Google account found. Add one in Settings → Accounts.');
     }
     throw new Error(`Restore failed: ${msg}`);
+  }
+}
+
+/**
+ * Returns true if a cloud backup file exists for the current account.
+ * - Best-effort: on errors, logs in dev and returns false.
+ */
+export async function hasCloudBackup(): Promise<boolean> {
+  const module = getBackupModule();
+  if (!module || typeof module.hasBackup !== 'function') {
+    return false;
+  }
+
+  try {
+    return await module.hasBackup('portal-seed.json');
+  } catch (error) {
+    if (__DEV__) {
+      console.warn(
+        '[CloudBackup] hasCloudBackup failed:',
+        error instanceof Error ? error.message : error
+      );
+    }
+    return false;
   }
 }
 
@@ -151,5 +203,72 @@ export async function isCloudBackupAvailable(
       console.warn('[CloudBackup] isAvailable check failed:', e instanceof Error ? e.message : e);
     }
     return false;
+  }
+}
+
+type CloudBackupHealth = {
+  exists: boolean;
+  checked: boolean;
+  message?: string;
+};
+
+/**
+ * Verifies (at most once per day) that the cloud backup file still exists.
+ * - Only runs on Android when cloud backup is enabled.
+ * - If the backup is missing, disables the preference and reports `exists: false`.
+ */
+export async function verifyCloudBackupIfStale(): Promise<CloudBackupHealth> {
+  if (Platform.OS !== 'android') {
+    return { exists: true, checked: false };
+  }
+
+  const enabled = await getCloudBackupEnabled();
+  if (!enabled) {
+    return { exists: true, checked: false };
+  }
+
+  const last = await AsyncStorage.getItem(CLOUD_BACKUP_LAST_VERIFIED_KEY);
+  if (last) {
+    const lastDate = new Date(last);
+    const now = new Date();
+    const diffMs = now.getTime() - lastDate.getTime();
+    const oneDayMs = 24 * 60 * 60 * 1000;
+    if (!Number.isNaN(diffMs) && diffMs < oneDayMs) {
+      return { exists: true, checked: false };
+    }
+  }
+
+  const module = getBackupModule();
+  if (!module || typeof module.hasBackup !== 'function') {
+    // Older native module: assume OK, but mark as checked to avoid loops.
+    await AsyncStorage.setItem(CLOUD_BACKUP_LAST_VERIFIED_KEY, new Date().toISOString());
+    return { exists: true, checked: true };
+  }
+
+  try {
+    const has = await module.hasBackup('portal-seed.json');
+    if (has) {
+      await AsyncStorage.setItem(CLOUD_BACKUP_LAST_VERIFIED_KEY, new Date().toISOString());
+      return { exists: true, checked: true };
+    }
+
+    // Backup missing: disable preference and clear "last verified".
+    await setCloudBackupEnabled(false);
+    await AsyncStorage.removeItem(CLOUD_BACKUP_LAST_VERIFIED_KEY);
+
+    return {
+      exists: false,
+      checked: true,
+      message: 'Cloud backup not found in Google Drive. It may have been deleted.',
+    };
+  } catch (error) {
+    if (__DEV__) {
+      // Do not disable on transient errors; just log in dev.
+      console.warn(
+        '[CloudBackup] verifyCloudBackupIfStale failed:',
+        error instanceof Error ? error.message : error
+      );
+    }
+    return { exists: true, checked: true };
   }
 }

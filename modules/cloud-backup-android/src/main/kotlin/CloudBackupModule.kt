@@ -80,11 +80,12 @@ class CloudBackupModule : Module() {
           val drive = getDriveService(account)
 
           val content = performWithAuthRetry {
-            val query = "name='$fileName' and mimeType='text/plain' and trashed=false"
+            val folderId = getOrCreateFolder(drive, "Portal")
+            val query =
+              "'$folderId' in parents and name='$fileName' and mimeType='text/plain' and trashed=false"
             val fileList = drive.files()
               .list()
               .setQ(query)
-              .setSpaces("drive")
               .setFields("files(id, name)")
               .setPageSize(1)
               .execute()
@@ -112,6 +113,90 @@ class CloudBackupModule : Module() {
       }
     }
 
+    AsyncFunction("deleteBackup") { fileName: String ->
+      runBlocking {
+        withContext(Dispatchers.IO) {
+        try {
+          val account = getGoogleAccountOrPick()
+            ?: throw NoGoogleAccountException()
+
+          val drive = getDriveService(account)
+
+          performWithAuthRetry {
+            val folderId = getOrCreateFolder(drive, "Portal")
+            val query =
+              "'$folderId' in parents and name='$fileName' and mimeType='text/plain' and trashed=false"
+            val fileList = drive.files()
+              .list()
+              .setQ(query)
+              .setFields("files(id, name)")
+              .setPageSize(1)
+              .execute()
+
+            val file = fileList.files.firstOrNull()
+              ?: return@performWithAuthRetry Unit
+
+            drive.files().delete(file.id).execute()
+            Log.i(TAG, "Backup deleted: ${file.id}")
+
+            // If the Portal folder is now empty (no other files), remove it as well.
+            val remaining = drive.files()
+              .list()
+              .setQ("'$folderId' in parents and trashed=false")
+              .setFields("files(id)")
+              .setPageSize(1)
+              .execute()
+
+            if (remaining.files.isEmpty()) {
+              drive.files().delete(folderId).execute()
+              Log.i(TAG, "Portal folder deleted: $folderId")
+            }
+          }
+        } catch (e: NoGoogleAccountException) {
+          // If there's no Google account, there's nothing to delete – treat as success.
+        } catch (e: Exception) {
+          val msg = exceptionMessage(e)
+          Log.e(TAG, "Delete backup failed: $msg", e)
+          throw Exception("Delete backup failed: $msg", e)
+        }
+        }
+      }
+    }
+
+    AsyncFunction("hasBackup") { fileName: String ->
+      runBlocking {
+        withContext(Dispatchers.IO) {
+        try {
+          val account = getGoogleAccountOrPick()
+            ?: throw NoGoogleAccountException()
+
+          val drive = getDriveService(account)
+
+          val exists = performWithAuthRetry {
+            val folderId = getOrCreateFolder(drive, "Portal")
+            val query =
+              "'$folderId' in parents and name='$fileName' and mimeType='text/plain' and trashed=false"
+            val fileList = drive.files()
+              .list()
+              .setQ(query)
+              .setFields("files(id, name)")
+              .setPageSize(1)
+              .execute()
+
+            fileList.files.firstOrNull() != null
+          }
+          exists
+        } catch (e: NoGoogleAccountException) {
+          false
+        } catch (e: Exception) {
+          val msg = exceptionMessage(e)
+          Log.e(TAG, "Has backup check failed: $msg", e)
+          throw Exception("Has backup check failed: $msg", e)
+        }
+        }
+      }
+    }
+
     // true when we have an account from list OR we have context to launch Account Picker
     AsyncFunction("isAvailable") {
       getGoogleAccount() != null || appContext.reactContext != null
@@ -131,6 +216,12 @@ class CloudBackupModule : Module() {
         }
         if (msg == "ERROR" && t.javaClass.simpleName.contains("GoogleAuth", ignoreCase = true)) {
           return "GoogleAuth ERROR: add your account as Test user in OAuth consent screen (Cloud Console), enable Drive API"
+        }
+        if (
+          msg.contains("storageQuotaExceeded", ignoreCase = true) ||
+          msg.contains("quota", ignoreCase = true)
+        ) {
+          return "Drive storage quota exceeded: free up space in Google Drive and try again"
         }
         return msg
       }
@@ -235,7 +326,10 @@ class CloudBackupModule : Module() {
   }
 
   private fun getOrCreateFolder(drive: Drive, folderName: String): String {
-    val query = "name='$folderName' and mimeType='application/vnd.google-apps.folder' and trashed=false"
+    // Always operate in Drive root, to avoid accidentally matching nested folders
+    // with the same name (e.g. user-created "Portal" folders elsewhere).
+    val query =
+      "'root' in parents and name='$folderName' and mimeType='application/vnd.google-apps.folder' and trashed=false"
     val fileList = drive.files()
       .list()
       .setQ(query)
@@ -252,6 +346,7 @@ class CloudBackupModule : Module() {
     val folderMetadata = File().apply {
       name = folderName
       mimeType = "application/vnd.google-apps.folder"
+      parents = listOf("root")
     }
 
     val createdFolder = drive.files()

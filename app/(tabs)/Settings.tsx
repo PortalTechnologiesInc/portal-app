@@ -50,9 +50,11 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 import { type LockTimerDuration, PIN_MAX_LENGTH, PIN_MIN_LENGTH } from '@/services/AppLockService';
 import { authenticateAsync } from '@/services/BiometricAuthService';
 import {
+  deleteCloudBackup,
   getCloudBackupEnabled,
   isCloudBackupAvailable,
   setCloudBackupEnabled,
+  verifyCloudBackupIfStale,
 } from '@/services/CloudBackupService';
 import {
   getNotificationsEnabled,
@@ -119,12 +121,32 @@ export default function SettingsScreen() {
   const { width, height } = useWindowDimensions();
 
   useEffect(() => {
-    getNotificationsEnabled().then(setNotificationsEnabledState);
-    Notifications.getPermissionsAsync().then(({ status }) =>
-      setNotificationsGranted(status === 'granted')
-    );
-    getCloudBackupEnabled().then(setCloudBackupEnabledState);
-    isCloudBackupAvailable({ requestPermission: false }).then(setCloudBackupReady);
+    const load = async () => {
+      const notificationsPref = await getNotificationsEnabled();
+      setNotificationsEnabledState(notificationsPref);
+
+      const { status } = await Notifications.getPermissionsAsync();
+      setNotificationsGranted(status === 'granted');
+
+      const enabled = await getCloudBackupEnabled();
+      setCloudBackupEnabledState(enabled);
+      const ready = await isCloudBackupAvailable({ requestPermission: false });
+      setCloudBackupReady(ready);
+
+      // If cloud backup is enabled, verify (at most once per day) that the backup file still exists.
+      if (enabled) {
+        const health = await verifyCloudBackupIfStale();
+        if (!health.exists) {
+          setCloudBackupEnabledState(false);
+          setCloudBackupReady(false);
+          if (health.message) {
+            showToast(health.message, 'error');
+          }
+        }
+      }
+    };
+
+    load();
   }, []);
 
   // Animated values for drawer slide animations
@@ -945,13 +967,18 @@ export default function SettingsScreen() {
                 value={notificationsEnabled}
                 onValueChange={async enabled => {
                   if (enabled) {
+                    const { status } = await Notifications.requestPermissionsAsync();
+                    const granted = status === 'granted';
+                    setNotificationsGranted(granted);
+                    if (!granted) {
+                      await setNotificationsEnabledStorage(false);
+                      setNotificationsEnabledState(false);
+                      return;
+                    }
                     await setNotificationsEnabledStorage(true);
                     setNotificationsEnabledState(true);
-                    const { status } = await Notifications.requestPermissionsAsync();
-                    setNotificationsGranted(status === 'granted');
-                    if (status === 'granted') showToast('Notifications enabled', 'success');
-                    if (status === 'granted' && cloudBackupReady)
-                      await setOnboardingPermissionsSkipped(false);
+                    showToast('Notifications enabled', 'success');
+                    if (cloudBackupReady) await setOnboardingPermissionsSkipped(false);
                   } else {
                     await setNotificationsEnabledStorage(false);
                     setNotificationsEnabledState(false);
@@ -993,10 +1020,54 @@ export default function SettingsScreen() {
                     if (available && notificationsGranted)
                       await setOnboardingPermissionsSkipped(false);
                   } else {
+                    const action: 'keep' | 'delete' | 'cancel' = await new Promise(resolve => {
+                      Alert.alert(
+                        'Disable cloud backup',
+                        Platform.OS === 'android'
+                          ? 'If you disable cloud backup, Portal will stop saving your key to Google Drive. Do you also want to remove the existing backup file from Google Drive?'
+                          : 'If you disable cloud backup, Portal will stop saving your key to iCloud. Do you also want to remove the existing backup file from iCloud?',
+                        [
+                          {
+                            text: 'Keep file',
+                            style: 'default',
+                            onPress: () => resolve('keep'),
+                          },
+                          {
+                            text: 'Remove from cloud',
+                            style: 'destructive',
+                            onPress: () => resolve('delete'),
+                          },
+                          {
+                            text: 'Cancel',
+                            style: 'cancel',
+                            onPress: () => resolve('cancel'),
+                          },
+                        ],
+                        { cancelable: true }
+                      );
+                    });
+
+                    if (action === 'cancel') {
+                      // Do not change toggle state or preference.
+                      return;
+                    }
+
                     await setCloudBackupEnabled(false);
                     setCloudBackupEnabledState(false);
                     setCloudBackupReady(false);
-                    showToast('Cloud backup disabled', 'success');
+
+                    if (action === 'delete') {
+                      try {
+                        await deleteCloudBackup();
+                        showToast('Cloud backup disabled and removed from cloud', 'success');
+                      } catch (error) {
+                        const message =
+                          error instanceof Error ? error.message : 'Unknown cloud backup error';
+                        showToast(message, 'error');
+                      }
+                    } else {
+                      showToast('Cloud backup disabled (cloud file kept)', 'success');
+                    }
                   }
                 }}
                 trackColor={{
