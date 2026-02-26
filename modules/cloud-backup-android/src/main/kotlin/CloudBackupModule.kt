@@ -42,9 +42,14 @@ class CloudBackupModule : Module() {
 
           val fileId = performWithAuthRetry {
             val folderId = getOrCreateFolder(drive, "Portal")
-            val fileMetadata = File().apply {
+
+            val createMetadata = File().apply {
               name = fileName
               parents = listOf(folderId)
+            }
+            val updateMetadata = File().apply {
+              name = fileName
+              // Parents are managed separately on update; keep existing parent linkage.
             }
             val fileContent = ByteArrayContent(
               "text/plain",
@@ -66,12 +71,12 @@ class CloudBackupModule : Module() {
             val uploadedFile =
               if (existing != null) {
                 drive.files()
-                  .update(existing.id, fileMetadata, fileContent)
+                  .update(existing.id, updateMetadata, fileContent)
                   .setFields("id, webViewLink")
                   .execute()
               } else {
                 drive.files()
-                  .create(fileMetadata, fileContent)
+                  .create(createMetadata, fileContent)
                   .setFields("id, webViewLink")
                   .execute()
               }
