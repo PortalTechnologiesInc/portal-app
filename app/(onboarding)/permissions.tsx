@@ -3,7 +3,7 @@ import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import { Bell, Check, Cloud } from 'lucide-react-native';
 import { useCallback, useEffect, useState } from 'react';
-import { Platform, TouchableOpacity, View } from 'react-native';
+import { Alert, Platform, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { OnboardingHeader } from '@/components/onboarding/OnboardingHeader';
 import { onboardingStyles as styles } from '@/components/onboarding/styles';
@@ -87,6 +87,14 @@ export default function PermissionsScreen() {
     try {
       const available = await isCloudBackupAvailable();
       setCloudBackupReady(available);
+      if (!available) {
+        Alert.alert(
+          'Cloud backup unavailable',
+          Platform.OS === 'android'
+            ? 'Add a Google account in Android Settings to enable cloud backup. You can continue after enabling it.'
+            : 'Sign in to iCloud in iOS Settings to enable cloud backup. You can continue after enabling it.'
+        );
+      }
     } finally {
       setLoadingCloudBackup(false);
     }

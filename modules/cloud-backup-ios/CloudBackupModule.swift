@@ -173,7 +173,7 @@ public class CloudBackupModule: Module {
       let predicate = NSPredicate(format: "fileName == %@", fileName)
       let query = CKQuery(recordType: "PortalBackup", predicate: predicate)
 
-      database.fetch(withQuery: query, inZoneWith: nil, desiredKeys: nil, resultsLimit: 1) { result in
+      database.fetch(withQuery: query, inZoneWith: nil, desiredKeys: [], resultsLimit: 1) { result in
         switch result {
         case .failure(let error):
           if let ckError = error as? CKError, ckError.code == .notAuthenticated {
@@ -200,7 +200,7 @@ public class CloudBackupModule: Module {
       let predicate = NSPredicate(format: "fileName == %@", fileName)
       let query = CKQuery(recordType: "PortalBackup", predicate: predicate)
 
-      database.fetch(withQuery: query, inZoneWith: nil, desiredKeys: nil, resultsLimit: 1) { result in
+      database.fetch(withQuery: query, inZoneWith: nil, desiredKeys: [], resultsLimit: 1) { result in
         switch result {
         case .failure(let error):
           if let ckError = error as? CKError, ckError.code == .notAuthenticated {
