@@ -105,8 +105,7 @@ export default function PermissionsScreen() {
     goNext();
   };
 
-  const cloudBackupLabel =
-    Platform.OS === 'android' ? 'Google account (for cloud backup)' : 'iCloud (for cloud backup)';
+  const cloudBackupLabel = Platform.OS === 'android' ? 'Google Drive backup' : 'iCloud backup';
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
@@ -180,7 +179,9 @@ export default function PermissionsScreen() {
                       {cloudBackupLabel}
                     </ThemedText>
                     <ThemedText style={[styles.choiceButtonDescription, { color: textSecondary }]}>
-                      To save a backup of your key
+                      {Platform.OS === 'android'
+                        ? 'Backs up your key to your Google Drive account'
+                        : 'Backs up your key to your iCloud account'}
                     </ThemedText>
                   </View>
                 </View>
