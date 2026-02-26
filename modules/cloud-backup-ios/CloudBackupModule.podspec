@@ -9,7 +9,7 @@ Pod::Spec.new do |s|
   s.description    = 'CloudKit-based backup/restore for seed data'
   s.license        = package['license'] || 'MIT'
   s.author         = package['author'] || 'Portal'
-  s.homepage       = package['homepage'] || ''
+  s.homepage       = package['homepage'] || 'https://github.com/PortalTechnologiesInc/portal-app'
   s.platforms      = { :ios => '15.1' }
   s.swift_version  = '5.4'
   s.source         = { :path => __dir__ }
