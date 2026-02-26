@@ -233,10 +233,10 @@ public class CloudBackupModule: Module {
             ))
 
           case .success(let record):
-            database.delete(withRecordID: record.recordID) { _, error in
-              if let error = error {
+            database.modifyRecords(saving: [], deleting: [record.recordID]) { result in
+              switch result {
+              case .failure(let error):
                 if let ckError = error as? CKError, ckError.code == .unknownItem {
-                  // Already deleted; treat as success.
                   promise.resolve(nil)
                 } else {
                   self.logger.error("deleteBackup failed", error: error)
@@ -246,9 +246,28 @@ public class CloudBackupModule: Module {
                     userInfo: ["message": "Delete backup failed: \(error.localizedDescription)" as NSString]
                   ))
                 }
-              } else {
-                self.logger.info("Backup deleted: \(record.recordID.recordName)")
-                promise.resolve(nil)
+
+              case .success(let (_, deleteResults)):
+                if let deleteResult = deleteResults[record.recordID] {
+                  switch deleteResult {
+                  case .success:
+                    self.logger.info("Backup deleted: \(record.recordID.recordName)")
+                    promise.resolve(nil)
+                  case .failure(let err):
+                    if let ckErr = err as? CKError, ckErr.code == .unknownItem {
+                      promise.resolve(nil)
+                    } else {
+                      self.logger.error("deleteBackup failed", error: err)
+                      promise.reject(NSError(
+                        domain: "CloudBackupFailed",
+                        code: -1,
+                        userInfo: ["message": "Delete backup failed: \(err.localizedDescription)" as NSString]
+                      ))
+                    }
+                  }
+                } else {
+                  promise.resolve(nil)
+                }
               }
             }
           }
