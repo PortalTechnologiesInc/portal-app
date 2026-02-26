@@ -61,8 +61,8 @@ export async function backupSeedToCloud(seed: string): Promise<string> {
     return await BackupModule.backupSeed(seed, 'portal-seed.json');
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    if (msg.includes('NO_GOOGLE_ACCOUNT')) {
-      if (__DEV__) console.warn('[CloudBackup] No Google account visible, backup skipped');
+    if (msg.includes('NO_GOOGLE_ACCOUNT') || msg.includes('NO_ICLOUD_ACCOUNT')) {
+      if (__DEV__) console.warn('[CloudBackup] No cloud account visible, backup skipped');
       return '';
     }
     if (msg.includes('UnregisteredOnApiConsole') || msg.includes('add Android OAuth client')) {
@@ -92,7 +92,7 @@ export async function deleteCloudBackup(): Promise<void> {
     await BackupModule.deleteBackup('portal-seed.json');
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    if (msg.includes('NO_GOOGLE_ACCOUNT')) {
+    if (msg.includes('NO_GOOGLE_ACCOUNT') || msg.includes('NO_ICLOUD_ACCOUNT')) {
       // Nothing to delete; treat as success.
       return;
     }
@@ -118,8 +118,8 @@ export async function restoreSeedFromCloud(): Promise<string> {
     return await BackupModule.restoreSeed('portal-seed.json');
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    if (msg.includes('NO_GOOGLE_ACCOUNT')) {
-      throw new Error('No Google account found. Add one in Settings → Accounts.');
+    if (msg.includes('NO_GOOGLE_ACCOUNT') || msg.includes('NO_ICLOUD_ACCOUNT')) {
+      throw new Error('No cloud account found. Add one in device Settings.');
     }
     throw new Error(`Restore failed: ${msg}`);
   }
