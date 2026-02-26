@@ -332,7 +332,7 @@ class CloudBackupModule : Module() {
   private fun getDriveService(account: Account): Drive {
     val credential = GoogleAccountCredential.usingOAuth2(
       appContext.reactContext,
-      listOf("https://www.googleapis.com/auth/drive")
+      listOf("https://www.googleapis.com/auth/drive.appdata")
     ).apply {
       selectedAccount = account
     }
@@ -345,14 +345,14 @@ class CloudBackupModule : Module() {
   }
 
   private fun getOrCreateFolder(drive: Drive, folderName: String): String {
-    // Always operate in Drive root, to avoid accidentally matching nested folders
-    // with the same name (e.g. user-created "Portal" folders elsewhere).
+    // Always operate in the hidden appDataFolder, to avoid accidentally matching or cluttering
+    // the user's visible Drive with similarly named folders.
     val query =
-      "'root' in parents and name='$folderName' and mimeType='application/vnd.google-apps.folder' and trashed=false"
+      "name='$folderName' and mimeType='application/vnd.google-apps.folder' and trashed=false"
     val fileList = drive.files()
       .list()
       .setQ(query)
-      .setSpaces("drive")
+      .setSpaces("appDataFolder")
       .setFields("files(id, name)")
       .setPageSize(1)
       .execute()
@@ -365,7 +365,7 @@ class CloudBackupModule : Module() {
     val folderMetadata = File().apply {
       name = folderName
       mimeType = "application/vnd.google-apps.folder"
-      parents = listOf("root")
+      parents = listOf("appDataFolder")
     }
 
     val createdFolder = drive.files()
