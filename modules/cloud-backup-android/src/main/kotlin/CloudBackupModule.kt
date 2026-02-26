@@ -20,8 +20,8 @@ import com.google.api.services.drive.model.File
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 
@@ -33,8 +33,7 @@ class CloudBackupModule : Module() {
     Name("CloudBackupAndroid")
 
     AsyncFunction("backupSeed") { seedData: String, fileName: String ->
-      runBlocking {
-        withContext(Dispatchers.IO) {
+      runBlocking(Dispatchers.IO) {
         try {
           val account = getGoogleAccountOrPick()
             ?: throw NoGoogleAccountException()
@@ -51,10 +50,32 @@ class CloudBackupModule : Module() {
               "text/plain",
               seedData.toByteArray(Charsets.UTF_8)
             )
-            val uploadedFile = drive.files()
-              .create(fileMetadata, fileContent)
-              .setFields("id, webViewLink")
+
+            // If a backup file already exists, update it instead of creating a duplicate.
+            val existing = drive.files()
+              .list()
+              .setQ(
+                "'$folderId' in parents and name='$fileName' and mimeType='text/plain' and trashed=false"
+              )
+              .setFields("files(id, name)")
+              .setPageSize(1)
               .execute()
+              .files
+              .firstOrNull()
+
+            val uploadedFile =
+              if (existing != null) {
+                drive.files()
+                  .update(existing.id, fileMetadata, fileContent)
+                  .setFields("id, webViewLink")
+                  .execute()
+              } else {
+                drive.files()
+                  .create(fileMetadata, fileContent)
+                  .setFields("id, webViewLink")
+                  .execute()
+              }
+
             Log.i(TAG, "Backup uploaded: ${uploadedFile.id}")
             uploadedFile.id
           }
@@ -66,13 +87,11 @@ class CloudBackupModule : Module() {
           Log.e(TAG, "Backup failed: $msg", e)
           throw Exception("Backup failed: $msg", e)
         }
-        }
       }
     }
 
     AsyncFunction("restoreSeed") { fileName: String ->
-      runBlocking {
-        withContext(Dispatchers.IO) {
+      runBlocking(Dispatchers.IO) {
         try {
           val account = getGoogleAccountOrPick()
             ?: throw NoGoogleAccountException()
@@ -109,13 +128,11 @@ class CloudBackupModule : Module() {
           Log.e(TAG, "Restore failed: $msg", e)
           throw Exception("Restore failed: $msg", e)
         }
-        }
       }
     }
 
     AsyncFunction("deleteBackup") { fileName: String ->
-      runBlocking {
-        withContext(Dispatchers.IO) {
+      runBlocking(Dispatchers.IO) {
         try {
           val account = getGoogleAccountOrPick()
             ?: throw NoGoogleAccountException()
@@ -159,16 +176,15 @@ class CloudBackupModule : Module() {
           Log.e(TAG, "Delete backup failed: $msg", e)
           throw Exception("Delete backup failed: $msg", e)
         }
-        }
       }
     }
 
     AsyncFunction("hasBackup") { fileName: String ->
-      runBlocking {
-        withContext(Dispatchers.IO) {
+      runBlocking(Dispatchers.IO) {
         try {
-          val account = getGoogleAccountOrPick()
-            ?: throw NoGoogleAccountException()
+          // Non-disruptive check: do NOT show the account picker here.
+          // If there is no visible Google account, simply return false.
+          val account = getGoogleAccount() ?: return@runBlocking false
 
           val drive = getDriveService(account)
 
@@ -186,20 +202,18 @@ class CloudBackupModule : Module() {
             fileList.files.firstOrNull() != null
           }
           exists
-        } catch (e: NoGoogleAccountException) {
-          false
         } catch (e: Exception) {
           val msg = exceptionMessage(e)
           Log.e(TAG, "Has backup check failed: $msg", e)
           throw Exception("Has backup check failed: $msg", e)
         }
-        }
       }
     }
 
-    // true when we have an account from list OR we have context to launch Account Picker
     AsyncFunction("isAvailable") {
-      getGoogleAccount() != null || appContext.reactContext != null
+      // True only when at least one Google account is already visible on the device.
+      // Account picker / consent flows are triggered by backup/restore operations themselves.
+      getGoogleAccount() != null
     }
   }
 
