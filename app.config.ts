@@ -29,6 +29,10 @@ export default {
       config: {
         usesNonExemptEncryption: false,
       },
+      entitlements: {
+        'com.apple.developer.icloud-container-identifiers': ['iCloud.cc.getportal.portal'],
+        'com.apple.developer.icloud-services': ['CloudKit'],
+      },
       icon: {
         dark: './assets/images/iosDark.png',
         light: './assets/images/iosLight.png',
