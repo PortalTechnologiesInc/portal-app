@@ -4,7 +4,7 @@
     "@breeztech/breez-sdk-spark-react-native"
   ],
   "main": "index.ts",
-  "version": "1.0.9",
+  "version": "1.0.11",
   "type": "module",
   "scripts": {
     "start": "bun run typecheck && bun run check && expo start",

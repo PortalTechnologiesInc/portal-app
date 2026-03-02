@@ -2,7 +2,7 @@ export default {
   expo: {
     name: 'Portal',
     slug: 'portal',
-    version: '1.0.10',
+    version: '1.0.11',
     orientation: 'portrait',
     owner: 'portaltechnologiesinc',
     icon: './assets/images/appLogo.png',
@@ -36,7 +36,7 @@ export default {
       },
     },
     android: {
-      versionCode: 12,
+      versionCode: 13,
       googleServicesFile: process.env.GOOGLE_SERVICES_JSON,
       adaptiveIcon: {
         foregroundImage: './assets/images/appLogo.png',
