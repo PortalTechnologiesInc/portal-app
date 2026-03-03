@@ -1,6 +1,7 @@
 {
-  "platforms": ["ios"],
+  "platforms": ["apple"],
   "apple": {
-    "modules": ["CloudBackupModule"]
+    "modules": ["CloudBackupModule"],
+    "podspecPath": "CloudBackupModule.podspec"
   }
 }
