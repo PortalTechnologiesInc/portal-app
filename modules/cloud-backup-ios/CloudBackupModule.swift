@@ -275,8 +275,23 @@ public class CloudBackupModule: Module {
       }
     }
 
-    AsyncFunction("isAvailable") { () -> Bool in
-      FileManager.default.ubiquityIdentityToken != nil
+    AsyncFunction("isAvailable") { (promise: Promise) in
+      self.container.accountStatus { status, error in
+        if let error = error {
+          self.logger.error("isAvailable: accountStatus failed", error: error)
+          promise.resolve(false)
+          return
+        }
+
+        switch status {
+        case .available:
+          promise.resolve(true)
+        case .noAccount, .restricted, .couldNotDetermine, .temporarilyUnavailable:
+          promise.resolve(false)
+        @unknown default:
+          promise.resolve(false)
+        }
+      }
     }
   }
 }
