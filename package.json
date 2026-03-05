@@ -11,24 +11,18 @@
     "android": "bun run typecheck && bun run check && expo run:android",
     "android-release": "bun run typecheck && bun run check && expo run:android --variant release",
     "ios": "bun run typecheck && bun run check && expo run:ios",
-
     "test": "jest --watchAll",
-
     "typecheck": "tsc --noEmit 2>&1 | grep -v 'node_modules' | grep 'error TS' && exit 1 || exit 0",
-
     "lint": "biome lint --diagnostic-level=error .",
     "lint:warnings": "biome lint --diagnostic-level=warn .",
     "lint:strict": "biome lint --error-on-warnings .",
     "lint:fix": "biome lint --write --diagnostic-level=error .",
-
     "format": "biome format --write .",
     "format:check": "biome format .",
-
     "check": "biome check --diagnostic-level=error .",
     "check:warnings": "biome check --diagnostic-level=warn .",
     "check:strict": "biome check --error-on-warnings .",
     "check:fix": "biome check --write --diagnostic-level=error .",
-
     "prepare": "husky"
   },
   "jest": {
@@ -46,6 +40,7 @@
     "@react-native-async-storage/async-storage": "2.1.2",
     "@react-native-clipboard/clipboard": "^1.16.2",
     "@react-native-community/netinfo": "^11.4.1",
+    "@react-native-ml-kit/text-recognition": "^2.0.0",
     "@react-navigation/bottom-tabs": "^7.2.0",
     "date-fns": "^4.1.0",
     "expo": "53.0.19",
@@ -84,6 +79,7 @@
     "react-native-input-select": "^2.1.3",
     "react-native-nfc-manager": "^3.16.1",
     "react-native-qrcode-svg": "^6.3.20",
+    "react-native-quick-crypto": "^1.0.16",
     "react-native-reanimated": "~3.17.4",
     "react-native-safe-area-context": "5.4.0",
     "react-native-screens": "~4.11.1",

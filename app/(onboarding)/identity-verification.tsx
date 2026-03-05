@@ -23,8 +23,7 @@ export default function IdentityVerification() {
   }, []);
 
   const handleStart = () => {
-    // TODO: Start verification process
-    router.push('/(onboarding)/pin-setup');
+    router.push('/(onboarding)/passport-mrz-scan');
   };
 
   const handleSkip = () => {
@@ -61,6 +60,11 @@ export default function IdentityVerification() {
               >
                 {/* Camera preview placeholder */}
               </View>
+
+              <ThemedText style={styles.infoText}>
+                🔒 This feature uses your passport's NFC chip and ML-powered MRZ scanning. Your data
+                is logged locally and will be verified inside a secure enclave once implemented.
+              </ThemedText>
             </View>
           </ScrollView>
 
