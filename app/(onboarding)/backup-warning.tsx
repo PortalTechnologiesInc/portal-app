@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { AlertTriangle, CheckCircle } from 'lucide-react-native';
-import { ScrollView, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { useEffect } from 'react';
+import { BackHandler, ScrollView, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { OnboardingHeader } from '@/components/onboarding/OnboardingHeader';
 import { onboardingStyles as styles } from '@/components/onboarding/styles';
@@ -17,6 +18,15 @@ export default function BackupWarning() {
   const { width, height } = useWindowDimensions();
   const shortestSide = Math.min(width, height);
   const isSmallDevice = shortestSide <= 375;
+
+  // Ensure Android hardware back from this screen goes to the Permissions page
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      router.back();
+      return true;
+    });
+    return () => sub.remove();
+  }, []);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>

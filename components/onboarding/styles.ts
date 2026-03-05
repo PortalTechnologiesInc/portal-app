@@ -147,11 +147,11 @@ export const onboardingStyles = StyleSheet.create({
   },
   choiceButtonTitle: {
     fontSize: 18,
-    textAlign: 'center',
+    textAlign: 'left',
   },
   choiceButtonDescription: {
     fontSize: 14,
-    textAlign: 'center',
+    textAlign: 'left',
     opacity: 0.7,
     lineHeight: 18,
   },

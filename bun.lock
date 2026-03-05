@@ -8,6 +8,8 @@
         "@aws-crypto/sha256-js": "^5.2.0",
         "@breeztech/breez-sdk-spark-react-native": "^0.5.2",
         "@expo/vector-icons": "~14.1.0",
+        "@portal/cloud-backup-android": "file:./modules/cloud-backup-android",
+        "@portal/cloud-backup-ios": "file:./modules/cloud-backup-ios",
         "@react-native-async-storage/async-storage": "2.1.2",
         "@react-native-clipboard/clipboard": "^1.16.2",
         "@react-native-community/netinfo": "^11.4.1",
@@ -416,6 +418,10 @@
     "@nodelib/fs.walk": ["@nodelib/fs.walk@1.2.8", "", { "dependencies": { "@nodelib/fs.scandir": "2.1.5", "fastq": "^1.6.0" } }, "sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg=="],
 
     "@pkgjs/parseargs": ["@pkgjs/parseargs@0.11.0", "", {}, "sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg=="],
+
+    "@portal/cloud-backup-android": ["@portal/cloud-backup-android@file:modules/cloud-backup-android", {}],
+
+    "@portal/cloud-backup-ios": ["@portal/cloud-backup-ios@file:modules/cloud-backup-ios", {}],
 
     "@radix-ui/react-compose-refs": ["@radix-ui/react-compose-refs@1.1.2", "", { "peerDependencies": { "@types/react": "*", "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc" }, "optionalPeers": ["@types/react"] }, "sha512-z4eqJvfiNnFMHIIvXP3CY57y2WJs5g2v3X0zm9mEJkrkNv4rDxu+sg9Jh8EkXyeqBkB7SOcboo9dMVqhyrACIg=="],
 
