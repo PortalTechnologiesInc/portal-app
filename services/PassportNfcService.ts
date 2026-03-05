@@ -5,8 +5,8 @@
  */
 
 import NfcManager, { NfcTech } from 'react-native-nfc-manager';
-import * as Crypto from 'react-native-quick-crypto';
-import { deriveBacKeys, type MrzData } from '@/utils/mrz';
+import { deriveBacKeys, MrzData } from '@/utils/mrz';
+import * as CryptoUtils from '@/utils/crypto';
 
 export interface PassportData {
   mrz: MrzData;
@@ -30,8 +30,8 @@ export interface ReadError {
 export class PassportNfcService {
   private nfcEnabled: boolean = false;
   private isoDep: any = null;
-  private k_enc: string = '';
-  private k_mac: string = '';
+  private sessionK_enc: Uint8Array | null = null;
+  private sessionK_mac: Uint8Array | null = null;
   private sessionCounter: number = 0;
 
   /**
@@ -62,8 +62,6 @@ export class PassportNfcService {
       await this.initialize();
     }
 
-    const { k_enc, k_mac, mrzKey } = deriveBacKeys(mrzData);
-
     try {
       // Request IsoDep technology for smart card communication
       await NfcManager.requestTechnology(NfcTech.IsoDep);
@@ -76,7 +74,7 @@ export class PassportNfcService {
       this.isoDep = tag;
 
       // Perform BAC authentication
-      await this.bacAuth(mrzData, k_enc, k_mac);
+      const bacKeys = await this.bacAuth(mrzData);
 
       // Read data groups
       const dg1Raw = await this.readDataGroup(0x01); // DG1 = MRZ data
@@ -110,7 +108,7 @@ export class PassportNfcService {
    * 3. Send EXTERNAL AUTHENTICATE with encrypted response
    * 4. Derive session keys
    */
-  private async bacAuth(mrzData: MrzData, k_enc: string, k_mac: string): Promise<void> {
+  private async bacAuth(mrzData: MrzData): Promise<{ k_enc: Uint8Array; k_mac: Uint8Array }> {
     const tag = this.isoDep;
 
     // 1. SELECT MRTD application (A0 00 00 02 47 10 01)
@@ -136,33 +134,43 @@ export class PassportNfcService {
     }
 
     // Extract RND.IC (8 bytes) from response
-    const rndIc = challengeResp.substring(0, 16); // 16 hex chars = 8 bytes
+    const rndIc = CryptoUtils.hexToBytes(challengeResp.substring(0, 16));
 
     // 3. Generate RND.IFD (8 bytes random) and K.IFD (16 bytes random)
-    const rndIfd = this.randomBytes(8)
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
-    const kifd = this.randomBytes(16)
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
+    const rndIfd = CryptoUtils.randomBytes(8);
+    const kifd = CryptoUtils.randomBytes(16);
+
+    // Derive BAC keys from MRZ
+    const { k_enc, k_mac } = CryptoUtils.deriveBacKeys(mrzData);
+
+    // Convert keys to 24-byte 3DES keys (two-key 3DES: K1 K2 K1)
+    const k_enc_3des = CryptoUtils.expand16To24Bytes(k_enc);
+    const k_mac_3des = CryptoUtils.expand16To24Bytes(k_mac);
 
     // 4. Build S = RND.IFD || RND.IC || K.IFD
-    const s = rndIfd + rndIc + kifd;
+    const s = new Uint8Array(rndIfd.length + rndIc.length + kifd.length);
+    s.set(rndIfd, 0);
+    s.set(rndIc, rndIfd.length);
+    s.set(kifd, rndIfd.length + rndIc.length);
 
     // 5. E_IFD = 3DES-CBC-encrypt(K_enc, S)
-    const eIfd = this.desEncrypt(k_enc, s);
+    const eIfd = CryptoUtils.des3Encrypt(s, k_enc_3des, new Uint8Array(8)); // Zero IV for BAC
 
     // 6. M_IFD = MAC(K_mac, E_IFD)
-    const mIfd = this.computeMac(k_mac, eIfd);
+    const mIfd = CryptoUtils.computeMac(k_mac_3des, eIfd);
 
     // 7. EXTERNAL AUTHENTICATE (00 82 00 00 28 || E_IFD || M_IFD)
+    const externalAuthData = new Uint8Array(eIfd.length + mIfd.length);
+    externalAuthData.set(eIfd, 0);
+    externalAuthData.set(mIfd, eIfd.length);
+
     const externalAuth = this.buildApdu(
       0x00,
       0x82,
       0x00,
       0x00,
-      40 + 8, // 40 chars (20 bytes) E_IFD + 8 chars (4 bytes) MAC
-      this.hexToBytes(eIfd + mIfd)
+      externalAuthData.length,
+      Array.from(externalAuthData)
     );
     const authResp = await this.transceive(externalAuth);
 
@@ -173,6 +181,12 @@ export class PassportNfcService {
     // Extract session keys from response (if available)
     // For now, we'll use the keys derived from BAC
     console.log('[PassportNFC] BAC authentication successful');
+
+    // Store session keys for Secure Messaging
+    this.sessionK_enc = k_enc_3des;
+    this.sessionK_mac = k_mac_3des;
+
+    return { k_enc, k_mac };
   }
 
   /**
@@ -187,14 +201,11 @@ export class PassportNfcService {
     const selectEMrtd = this.buildApdu(0x00, 0xa4, 0x01, 0x0c, 2, [0x01, 0x1f]);
     await this.transceive(selectEMrtd);
 
-    // Read EF.DG
+    // Read EF.DG (without secure messaging for now)
     const fid = dgNumber;
     const readApdu = this.buildApdu(0x00, 0xb0, 0x9c, fid, 0, []);
 
-    // Add secure messaging (if session established)
-    const securedApdu = this.applySecureMessaging(readApdu);
-
-    const response = await this.transceive(securedApdu);
+    const response = await this.transceive(readApdu);
 
     if (!this.isSuccess(response)) {
       throw new ReadError(`DG${dgNumber}_READ_FAILED`, `Failed to read data group ${dgNumber}`);
@@ -236,10 +247,15 @@ export class PassportNfcService {
 
   /**
    * Apply Secure Messaging (encryption + MAC)
+   * For BAC authenticated sessions, wrap APDU with:
+   * - DO '87': Encrypted data (if any)
+   * - DO '97': LE length
+   * - DO '8E': MAC (8 bytes)
    */
   private applySecureMessaging(apdu: string): string {
     // TODO: Implement full Secure Messaging
     // For now, return APDU as-is (no encryption)
+    // This should only work for DG reads without encryption
     return apdu;
   }
 
@@ -293,30 +309,8 @@ export class PassportNfcService {
   /**
    * Generate random bytes
    */
-  private randomBytes(length: number): number[] {
-    const bytes = new Uint8Array(length);
-    crypto.getRandomValues(bytes);
-    return Array.from(bytes);
-  }
-
-  /**
-   * 3DES encryption (for BAC)
-   */
-  private desEncrypt(key: string, data: string): string {
-    // TODO: Implement 3DES-CBC encryption
-    // For now, return data as-is (placeholder)
-    console.warn('[PassportNFC] DES encryption not fully implemented - returning plaintext');
-    return data;
-  }
-
-  /**
-   * Compute MAC for BAC
-   */
-  private computeMac(key: string, data: string): string {
-    // TODO: Implement MAC computation
-    // For now, return placeholder
-    console.warn('[PassportNFC] MAC not fully implemented - returning placeholder');
-    return '00000000'; // 4 bytes
+  private randomBytes(length: number): Uint8Array {
+    return CryptoUtils.randomBytes(length);
   }
 
   /**
@@ -328,6 +322,8 @@ export class PassportNfcService {
         await NfcManager.cancelTechnologyRequest();
         this.isoDep = null;
       }
+      this.sessionK_enc = null;
+      this.sessionK_mac = null;
     } catch (error) {
       console.error('[PassportNFC] Cleanup failed:', error);
     }
