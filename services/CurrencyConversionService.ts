@@ -13,13 +13,17 @@ export class CurrencyConversionService {
   private static async getBtcPriceForCurrency(currencyCode: string): Promise<number> {
     const code = String(currencyCode || '').toUpperCase();
     const now = Date.now();
+    console.warn('[CurrencyConversion] getBtcPriceForCurrency entry', { code });
 
     const cached = CurrencyConversionService.priceCache.get(code);
     if (cached && now - cached.ts < CurrencyConversionService.CACHE_TTL_MS) {
+      console.warn('[CurrencyConversion] getBtcPriceForCurrency cache hit', { code });
       return cached.price;
     }
 
+    console.warn('[CurrencyConversion] getBtcPriceForCurrency fetching', { code });
     const marketData = await CurrencyConversionService.market.fetchMarketData(code);
+    console.warn('[CurrencyConversion] getBtcPriceForCurrency fetched', { code });
     const btcPrice =
       typeof (marketData as any).rate === 'number' && Number.isFinite((marketData as any).rate)
         ? (marketData as any).rate
@@ -41,8 +45,10 @@ export class CurrencyConversionService {
    * @returns Promise<number> - Converted amount
    */
   static async convertAmount(amount: number, fromC: string, toC: string): Promise<number> {
+    console.warn('[CurrencyConversion] convertAmount entry', { amount, fromC, toC });
     const fromCurrency = fromC.toUpperCase();
     const toCurrency = toC.toUpperCase();
+    console.warn('[CurrencyConversion] convertAmount entry', { amount, fromCurrency, toCurrency });
     try {
       switch (true) {
         case !Number.isFinite(amount) || amount <= 0:
@@ -68,18 +74,21 @@ export class CurrencyConversionService {
         case fromCurrency === Currency.BTC &&
           toCurrency !== Currency.SATS &&
           toCurrency !== Currency.MSATS: {
+          console.warn('[CurrencyConversion] convertAmount branch BTC->fiat', { toCurrency });
           const btcPriceTo = await CurrencyConversionService.getBtcPriceForCurrency(toCurrency);
           return amount * btcPriceTo;
         }
         case fromCurrency === Currency.SATS &&
           toCurrency !== Currency.BTC &&
           toCurrency !== Currency.MSATS: {
+          console.warn('[CurrencyConversion] convertAmount branch SATS->fiat', { toCurrency });
           const btcPriceTo = await CurrencyConversionService.getBtcPriceForCurrency(toCurrency);
           return (amount * btcPriceTo) / 100_000_000;
         }
         case fromCurrency === Currency.MSATS &&
           toCurrency !== Currency.BTC &&
           toCurrency !== Currency.SATS: {
+          console.warn('[CurrencyConversion] convertAmount branch MSATS->fiat', { toCurrency });
           const btcPriceTo = await CurrencyConversionService.getBtcPriceForCurrency(toCurrency);
           return (amount * btcPriceTo) / 100_000_000_000;
         }
@@ -88,30 +97,42 @@ export class CurrencyConversionService {
         case fromCurrency !== Currency.SATS &&
           fromCurrency !== Currency.MSATS &&
           toCurrency === Currency.BTC: {
+          console.warn('[CurrencyConversion] convertAmount branch fiat->BTC', { fromCurrency });
           const btcPriceFrom = await CurrencyConversionService.getBtcPriceForCurrency(fromCurrency);
           return amount / btcPriceFrom;
         }
         case fromCurrency !== Currency.BTC &&
           fromCurrency !== Currency.MSATS &&
           toCurrency === Currency.SATS: {
+          console.warn('[CurrencyConversion] convertAmount branch fiat->SATS', { fromCurrency });
           const btcPriceFrom = await CurrencyConversionService.getBtcPriceForCurrency(fromCurrency);
           return (amount / btcPriceFrom) * 100_000_000;
         }
         case fromCurrency !== Currency.BTC &&
           fromCurrency !== Currency.SATS &&
           toCurrency === Currency.MSATS: {
+          console.warn('[CurrencyConversion] convertAmount branch fiat->MSATS', { fromCurrency });
           const btcPriceFrom = await CurrencyConversionService.getBtcPriceForCurrency(fromCurrency);
           return (amount / btcPriceFrom) * 100_000_000_000;
         }
 
         // from fiat to fiat case
         default: {
+          console.warn('[CurrencyConversion] convertAmount branch fiat->fiat', {
+            fromCurrency,
+            toCurrency,
+          });
           const btcPriceFrom = await CurrencyConversionService.getBtcPriceForCurrency(fromCurrency);
           const btcPriceTo = await CurrencyConversionService.getBtcPriceForCurrency(toCurrency);
           return (amount * btcPriceTo) / btcPriceFrom;
         }
       }
     } catch (_error) {
+      console.error('[CurrencyConversion] convertAmount error', {
+        fromCurrency,
+        toCurrency,
+        error: _error instanceof Error ? _error.message : String(_error),
+      });
       throw new Error('Failed to convert currency');
     }
   }

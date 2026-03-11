@@ -87,15 +87,25 @@ export default function MyWalletManagementSecret() {
 
     timeoutRef.current = setTimeout(async () => {
       const numAmount = Number(amount);
+      const fromCurrency = reverseCurrency ? preferredCurrency : 'sats';
+      const toCurrency = reverseCurrency ? 'sats' : preferredCurrency;
+      console.warn('[receive] conversion started', { amount, fromCurrency, toCurrency });
 
-      const converted = await CurrencyConversionService.convertAmount(
-        numAmount,
-        reverseCurrency ? preferredCurrency : 'sats',
-        reverseCurrency ? 'sats' : preferredCurrency
-      );
+      try {
+        const converted = await CurrencyConversionService.convertAmount(
+          numAmount,
+          fromCurrency,
+          toCurrency
+        );
 
-      setConvertedAmount(converted);
-      setIsConverting(false);
+        console.warn('[receive] conversion done', { fromCurrency, toCurrency, converted });
+        setConvertedAmount(converted);
+        setIsConverting(false);
+      } catch (error) {
+        console.error('[receive] conversion error', { error });
+      } finally {
+        setIsConverting(false);
+      }
     }, 800);
   }, [amount, preferredCurrency, reverseCurrency]);
 
