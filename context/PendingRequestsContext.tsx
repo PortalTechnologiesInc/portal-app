@@ -337,6 +337,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             const currencyObj = metadata.content.currency;
             let conversionSourceAmount = rawAmount;
             let conversionSourceCurrency = 'MSATS';
+            let amountForWallet: bigint = 0n;
             switch (currencyObj.tag) {
               case Currency_Tags.Fiat:
                 {
@@ -357,6 +358,8 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 currency = 'SATS';
                 conversionSourceAmount = rawAmount;
                 conversionSourceCurrency = 'MSATS';
+                // For sats, amount is now an integer; safe to convert to BigInt for wallet calls.
+                amountForWallet = BigInt(amount);
                 break;
             }
 
@@ -418,7 +421,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             try {
               const _response = await walletService.sendPayment(
                 metadata.content.invoice,
-                BigInt(amount)
+                amountForWallet
               );
 
               await executeOperation(
