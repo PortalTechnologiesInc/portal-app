@@ -1,7 +1,10 @@
 package com.portal.cloudbackup
 
 import android.accounts.AccountManager
+import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.os.Parcelable
 import android.os.ResultReceiver
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
@@ -17,7 +20,7 @@ class AccountPickerHostActivity : ComponentActivity() {
   private val pickerLauncher = registerForActivityResult(
     ActivityResultContracts.StartActivityForResult(),
   ) { result ->
-    val receiver = intent.getParcelableExtra<ResultReceiver>(EXTRA_RECEIVER)
+    val receiver = intent.parcelableExtraCompat<ResultReceiver>(EXTRA_RECEIVER)
     if (result.resultCode == android.app.Activity.RESULT_OK) {
       val name = result.data?.getStringExtra(AccountManager.KEY_ACCOUNT_NAME)
       receiver?.send(CODE_OK, Bundle().apply { putString(KEY_ACCOUNT_NAME, name) })
@@ -46,5 +49,14 @@ class AccountPickerHostActivity : ComponentActivity() {
     const val KEY_ACCOUNT_NAME = "accountName"
     const val CODE_OK = 1
     const val CODE_CANCELLED = 0
+  }
+
+  @Suppress("DEPRECATION")
+  private inline fun <reified T : Parcelable> Intent.parcelableExtraCompat(key: String): T? {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+      getParcelableExtra(key, T::class.java)
+    } else {
+      getParcelableExtra(key)
+    }
   }
 }

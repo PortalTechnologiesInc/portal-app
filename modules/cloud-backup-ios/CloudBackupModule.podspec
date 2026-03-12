@@ -22,5 +22,5 @@ Pod::Spec.new do |s|
     'SWIFT_COMPILATION_MODE' => 'wholemodule'
   }
 
-  s.source_files = '**/*.swift'
+  s.source_files = 'CloudBackupModule.swift'
 end
