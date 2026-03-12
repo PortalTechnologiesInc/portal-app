@@ -29,6 +29,7 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 import { formatAvatarUri } from '@/utils/common';
 
 const FIRST_LAUNCH_KEY = 'portal_first_launch_completed';
+const REVOLUT_BANNER_DISMISSED_KEY = 'portal_revolut_banner_dismissed';
 
 export default function Home() {
   const { isLoading, isOnboardingComplete } = useOnboarding();
@@ -176,7 +177,8 @@ export default function Home() {
           return;
         }
         const firstLaunch = await SecureStore.getItemAsync(FIRST_LAUNCH_KEY);
-        setWelcomeCompleted(firstLaunch === 'true');
+        const bannerDismissed = await SecureStore.getItemAsync(REVOLUT_BANNER_DISMISSED_KEY);
+        setWelcomeCompleted(firstLaunch === 'true' || bannerDismissed === 'true');
       } catch (_e) {
         setWelcomeCompleted(false);
       }
@@ -306,7 +308,7 @@ export default function Home() {
             <WelcomeBanner onCompleted={() => setWelcomeCompleted(true)} />
           )}
 
-          {welcomeCompleted === true && (
+          {welcomeCompleted !== false && (
             <>
               {/* Pending Requests Section */}
               <PendingRequestsList />

@@ -6,6 +6,7 @@ import { registerContextReset, unregisterContextReset } from '@/services/Context
 
 const ONBOARDING_KEY = 'portal_onboarding_complete';
 const FIRST_LAUNCH_KEY = 'portal_first_launch_completed';
+const REVOLUT_BANNER_DISMISSED_KEY = 'portal_revolut_banner_dismissed';
 
 type OnboardingContextType = {
   isOnboardingComplete: boolean;
@@ -60,8 +61,9 @@ export const OnboardingProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       // Then update SecureStore
       await SecureStore.setItemAsync(ONBOARDING_KEY, 'true');
 
-      // Reset first launch flag to ensure welcome card appears
+      // Reset first launch state to ensure welcome card appears after onboarding.
       await SecureStore.deleteItemAsync(FIRST_LAUNCH_KEY);
+      await SecureStore.deleteItemAsync(REVOLUT_BANNER_DISMISSED_KEY);
 
       // Small delay to ensure state propagation
       await new Promise(resolve => setTimeout(resolve, 50));
