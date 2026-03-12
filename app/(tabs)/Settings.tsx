@@ -1026,22 +1026,30 @@ export default function SettingsScreen() {
                     setCloudBackupEnabledState(true);
                     const available = await isCloudBackupAvailable();
                     setCloudBackupReady(available);
-                    if (available) {
-                      try {
-                        const mnemonicValue = await getMnemonic();
-                        if (mnemonicValue) {
-                          await _backupSeedToCloud(mnemonicValue);
-                          showToast('Cloud backup enabled and created', 'success');
-                        } else {
-                          showToast('Cloud backup enabled, but no key found to back up', 'error');
-                        }
-                      } catch (error) {
-                        const message =
-                          error instanceof Error ? error.message : 'Unknown cloud backup error';
-                        showToast(message, 'error');
-                      }
+                    if (!available) {
+                      await setCloudBackupEnabled(false);
+                      setCloudBackupEnabledState(false);
+                      showToast('No cloud account available for backup', 'error');
+                      return;
                     }
-                    if (available && notificationsGranted) {
+                    try {
+                      const mnemonicValue = await getMnemonic();
+                      if (mnemonicValue) {
+                        await _backupSeedToCloud(mnemonicValue);
+                        showToast('Cloud backup enabled and created', 'success');
+                      } else {
+                        showToast('Cloud backup enabled, but no key found to back up', 'error');
+                      }
+                    } catch (error) {
+                      const message =
+                        error instanceof Error ? error.message : 'Unknown cloud backup error';
+                      showToast(message, 'error');
+                      await setCloudBackupEnabled(false);
+                      setCloudBackupEnabledState(false);
+                      setCloudBackupReady(false);
+                      return;
+                    }
+                    if (notificationsGranted) {
                       await setOnboardingPermissionsSkipped(false);
                     }
                   } else {

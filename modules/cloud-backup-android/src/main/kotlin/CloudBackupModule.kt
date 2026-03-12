@@ -62,6 +62,7 @@ class CloudBackupModule : Module() {
               .setQ(
                 "'$folderId' in parents and name='$fileName' and mimeType='text/plain' and trashed=false"
               )
+              .setSpaces("appDataFolder")
               .setFields("files(id, name)")
               .setPageSize(1)
               .execute()
@@ -110,6 +111,7 @@ class CloudBackupModule : Module() {
             val fileList = drive.files()
               .list()
               .setQ(query)
+              .setSpaces("appDataFolder")
               .setFields("files(id, name)")
               .setPageSize(1)
               .execute()
@@ -151,6 +153,7 @@ class CloudBackupModule : Module() {
             val fileList = drive.files()
               .list()
               .setQ(query)
+              .setSpaces("appDataFolder")
               .setFields("files(id, name)")
               .setPageSize(1)
               .execute()
@@ -165,6 +168,7 @@ class CloudBackupModule : Module() {
             val remaining = drive.files()
               .list()
               .setQ("'$folderId' in parents and trashed=false")
+              .setSpaces("appDataFolder")
               .setFields("files(id)")
               .setPageSize(1)
               .execute()
@@ -200,6 +204,7 @@ class CloudBackupModule : Module() {
             val fileList = drive.files()
               .list()
               .setQ(query)
+              .setSpaces("appDataFolder")
               .setFields("files(id, name)")
               .setPageSize(1)
               .execute()
@@ -307,7 +312,12 @@ class CloudBackupModule : Module() {
           }
           val receiver = object : ResultReceiver(Handler(Looper.getMainLooper())) {
             override fun onReceiveResult(resultCode: Int, resultData: Bundle?) {
-              cont.resume(Unit)
+              if (resultCode == Activity.RESULT_OK) {
+                cont.resume(Unit)
+              } else {
+                // User denied or cancelled consent; propagate as a specific error.
+                cont.resumeWithException(Exception("GOOGLE_DRIVE_CONSENT_DENIED"))
+              }
             }
           }
           val intent = Intent(ctx, AuthConsentHostActivity::class.java)
