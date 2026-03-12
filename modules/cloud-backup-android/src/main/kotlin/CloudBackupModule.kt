@@ -304,6 +304,7 @@ class CloudBackupModule : Module() {
       block()
     } catch (e: UserRecoverableAuthIOException) {
       Log.i(TAG, "Drive consent required, launching consent activity")
+      var consentDenied = false
       withContext(Dispatchers.Main) {
         suspendCancellableCoroutine { cont ->
           val ctx = appContext.reactContext ?: run {
@@ -315,8 +316,9 @@ class CloudBackupModule : Module() {
               if (resultCode == Activity.RESULT_OK) {
                 cont.resume(Unit)
               } else {
-                // User denied or cancelled consent; propagate as a specific error.
-                cont.resumeWithException(Exception("GOOGLE_DRIVE_CONSENT_DENIED"))
+                // User denied or cancelled consent; mark as denied and resume.
+                consentDenied = true
+                cont.resume(Unit)
               }
             }
           }
@@ -334,6 +336,9 @@ class CloudBackupModule : Module() {
             cont.resume(Unit)
           }
         }
+      }
+      if (consentDenied) {
+        throw Exception("GOOGLE_DRIVE_CONSENT_DENIED")
       }
       block()
     }
