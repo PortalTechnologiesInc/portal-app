@@ -3,26 +3,27 @@ import * as SecureStore from 'expo-secure-store';
 import { Wallet } from 'lucide-react-native';
 import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
-import { SvgUri } from 'react-native-svg';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Colors } from '@/constants/Colors';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { usePortalApp } from '@/context/PortalAppContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { showToast } from '@/utils/Toast';
 
 const REVOLUT_BANNER_DISMISSED_KEY = 'portal_revolut_banner_dismissed';
 const FIRST_LAUNCH_KEY = 'portal_first_launch_completed';
 
-export function WelcomeBanner() {
+type WelcomeBannerProps = {
+  onCompleted?: () => void;
+};
+
+export function WelcomeBanner({ onCompleted }: WelcomeBannerProps) {
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
   const buttonPrimaryColor = useThemeColor({}, 'buttonPrimary');
   const buttonPrimaryTextColor = useThemeColor({}, 'buttonPrimaryText');
 
   const [isDismissed, setIsDismissed] = useState<boolean | null>(null);
-  const [selectedAmount, setSelectedAmount] = useState<number>(10);
   const [visible, setVisible] = useState<boolean>(false);
 
   const { isOnboardingComplete, isLoading } = useOnboarding();
@@ -75,11 +76,12 @@ export function WelcomeBanner() {
         try {
           await SecureStore.setItemAsync(FIRST_LAUNCH_KEY, 'true');
           setVisible(false);
+          onCompleted?.();
         } catch (_e) {}
       };
       autoDismiss();
     }
-  }, [appService.pendingRequests]);
+  }, [appService.pendingRequests, onCompleted]);
 
   const handleDismiss = useCallback(async () => {
     try {
@@ -87,12 +89,9 @@ export function WelcomeBanner() {
       setIsDismissed(true);
       await SecureStore.setItemAsync(FIRST_LAUNCH_KEY, 'true');
       setVisible(false);
+      onCompleted?.();
     } catch (_e) {}
-  }, []);
-
-  const handleRevolutPay = useCallback(() => {
-    showToast('Revolut Pay is not yet implemented', 'error');
-  }, []);
+  }, [onCompleted]);
 
   if (isDismissed === null || isDismissed === true || !visible) {
     return null;
@@ -127,51 +126,8 @@ export function WelcomeBanner() {
           darkColor={Colors.dirtyWhite}
           lightColor={Colors.gray700}
         >
-          Get started by adding funds to your wallet via Revolut.
+          You’re all set to start using Portal for secure authentication and payments.
         </ThemedText>
-
-        {/* Revolut refill amount selection */}
-        <View style={styles.revolutAmountButtons}>
-          {[10, 25, 50].map(amount => (
-            <TouchableOpacity
-              key={amount}
-              style={[
-                styles.revolutAmountButton,
-                {
-                  backgroundColor: selectedAmount === amount ? buttonPrimaryColor : 'transparent',
-                  borderWidth: 2,
-                  borderColor: buttonPrimaryColor,
-                },
-              ]}
-              onPress={() => setSelectedAmount(amount)}
-            >
-              <ThemedText
-                style={[
-                  styles.revolutAmountText,
-                  selectedAmount === amount
-                    ? { color: buttonPrimaryTextColor }
-                    : { color: buttonPrimaryColor },
-                ]}
-              >
-                €{amount}
-              </ThemedText>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Revolut Pay button */}
-        <View style={styles.revolutPayContainer}>
-          <TouchableOpacity
-            style={[styles.revolutPayButton, { backgroundColor: buttonPrimaryColor }]}
-            onPress={handleRevolutPay}
-          >
-            <SvgUri
-              uri="https://cdn.brandfetch.io/idkTaHd18D/theme/light/symbol.svg?c=1dxbfHSJFAPEGdCLU4o5B"
-              width={90}
-              height={30}
-            />
-          </TouchableOpacity>
-        </View>
 
         <TouchableOpacity style={styles.dismissButton} onPress={handleDismiss}>
           <ThemedText
@@ -222,39 +178,6 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     textAlign: 'center',
     marginBottom: 30,
-  },
-  revolutAmountButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    marginBottom: 20,
-  },
-  revolutAmountButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    borderRadius: 24,
-    minWidth: 70,
-    alignItems: 'center',
-  },
-  revolutAmountText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  revolutPayContainer: {
-    alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 20,
-  },
-  revolutPayButton: {
-    paddingBottom: 8,
-    paddingTop: 12,
-    paddingHorizontal: 48,
-    borderRadius: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 200,
   },
   dismissButton: {
     marginTop: 10,

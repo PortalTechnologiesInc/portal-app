@@ -212,6 +212,8 @@ export default function SettingsScreen() {
     [modalMaxHeight, modalPadding, sheetMinHeight]
   );
 
+  const isCloudBackupToggleEnabled = notificationsGranted && cloudBackupReady;
+
   const handleWalletCardPress = () => {
     router.push({
       pathname: '/walletSettings',
@@ -995,7 +997,13 @@ export default function SettingsScreen() {
                 ios_backgroundColor={inputBorderColor}
               />
             </View>
-            <View style={[styles.appLockOption, { backgroundColor: cardBackgroundColor }]}>
+            <View
+              style={[
+                styles.appLockOption,
+                { backgroundColor: cardBackgroundColor },
+                !isCloudBackupToggleEnabled && styles.cardDisabled,
+              ]}
+            >
               <View style={styles.appLockLeft}>
                 <View style={styles.appLockIconContainer}>
                   <Cloud size={22} color={buttonPrimaryColor} />
@@ -1011,6 +1019,7 @@ export default function SettingsScreen() {
               </View>
               <Switch
                 value={cloudBackupEnabled}
+                disabled={!isCloudBackupToggleEnabled}
                 onValueChange={async enabled => {
                   if (enabled) {
                     await setCloudBackupEnabled(true);
