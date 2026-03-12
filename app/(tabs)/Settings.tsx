@@ -1087,7 +1087,6 @@ export default function SettingsScreen() {
 
                     await setCloudBackupEnabled(false);
                     setCloudBackupEnabledState(false);
-                    setCloudBackupReady(false);
 
                     if (action === 'delete') {
                       try {

@@ -17,10 +17,10 @@ import com.google.api.client.http.javanet.NetHttpTransport
 import com.google.api.client.json.gson.GsonFactory
 import com.google.api.services.drive.Drive
 import com.google.api.services.drive.model.File
+import expo.modules.kotlin.functions.Coroutine
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
@@ -32,8 +32,8 @@ class CloudBackupModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("CloudBackupAndroid")
 
-    AsyncFunction("backupSeed") { seedData: String, fileName: String ->
-      runBlocking(Dispatchers.IO) {
+    AsyncFunction("backupSeed") Coroutine { seedData: String, fileName: String ->
+      withContext(Dispatchers.IO) {
         try {
           val account = getGoogleAccountOrPick()
             ?: throw NoGoogleAccountException()
@@ -96,8 +96,8 @@ class CloudBackupModule : Module() {
       }
     }
 
-    AsyncFunction("restoreSeed") { fileName: String ->
-      runBlocking(Dispatchers.IO) {
+    AsyncFunction("restoreSeed") Coroutine { fileName: String ->
+      withContext(Dispatchers.IO) {
         try {
           val account = getGoogleAccountOrPick()
             ?: throw NoGoogleAccountException()
@@ -105,7 +105,8 @@ class CloudBackupModule : Module() {
           val drive = getDriveService(account)
 
           val content = performWithAuthRetry {
-            val folderId = getOrCreateFolder(drive, "Portal")
+            val folderId = getFolder(drive, "Portal")
+              ?: throw Exception("Backup file '$fileName' not found")
             val query =
               "'$folderId' in parents and name='$fileName' and mimeType='text/plain' and trashed=false"
             val fileList = drive.files()
@@ -138,8 +139,8 @@ class CloudBackupModule : Module() {
       }
     }
 
-    AsyncFunction("deleteBackup") { fileName: String ->
-      runBlocking(Dispatchers.IO) {
+    AsyncFunction("deleteBackup") Coroutine { fileName: String ->
+      withContext(Dispatchers.IO) {
         try {
           val account = getGoogleAccountOrPick()
             ?: throw NoGoogleAccountException()
@@ -147,7 +148,8 @@ class CloudBackupModule : Module() {
           val drive = getDriveService(account)
 
           performWithAuthRetry {
-            val folderId = getOrCreateFolder(drive, "Portal")
+            val folderId = getFolder(drive, "Portal")
+              ?: return@performWithAuthRetry Unit
             val query =
               "'$folderId' in parents and name='$fileName' and mimeType='text/plain' and trashed=false"
             val fileList = drive.files()
@@ -188,17 +190,18 @@ class CloudBackupModule : Module() {
       }
     }
 
-    AsyncFunction("hasBackup") { fileName: String ->
-      runBlocking(Dispatchers.IO) {
+    AsyncFunction("hasBackup") Coroutine { fileName: String ->
+      withContext(Dispatchers.IO) {
         try {
           // Non-disruptive check: do NOT show the account picker here.
           // If there is no visible Google account, simply return false.
-          val account = getGoogleAccount() ?: return@runBlocking false
+          val account = getGoogleAccount() ?: return@withContext false
 
           val drive = getDriveService(account)
 
           val exists = performWithAuthRetry {
-            val folderId = getOrCreateFolder(drive, "Portal")
+            val folderId = getFolder(drive, "Portal")
+              ?: return@performWithAuthRetry false
             val query =
               "'$folderId' in parents and name='$fileName' and mimeType='text/plain' and trashed=false"
             val fileList = drive.files()
@@ -360,21 +363,9 @@ class CloudBackupModule : Module() {
   }
 
   private fun getOrCreateFolder(drive: Drive, folderName: String): String {
-    // Always operate in the hidden appDataFolder, to avoid accidentally matching or cluttering
-    // the user's visible Drive with similarly named folders.
-    val query =
-      "name='$folderName' and mimeType='application/vnd.google-apps.folder' and trashed=false"
-    val fileList = drive.files()
-      .list()
-      .setQ(query)
-      .setSpaces("appDataFolder")
-      .setFields("files(id, name)")
-      .setPageSize(1)
-      .execute()
-
-    fileList.files.firstOrNull()?.let { folder ->
-      Log.i(TAG, "Found existing folder: ${folder.id}")
-      return folder.id
+    getFolder(drive, folderName)?.let { folderId ->
+      Log.i(TAG, "Found existing folder: $folderId")
+      return folderId
     }
 
     val folderMetadata = File().apply {
@@ -390,5 +381,21 @@ class CloudBackupModule : Module() {
 
     Log.i(TAG, "Created new folder: ${createdFolder.id}")
     return createdFolder.id
+  }
+
+  private fun getFolder(drive: Drive, folderName: String): String? {
+    // Always operate in the hidden appDataFolder, to avoid accidentally matching or cluttering
+    // the user's visible Drive with similarly named folders.
+    val query =
+      "name='$folderName' and mimeType='application/vnd.google-apps.folder' and trashed=false"
+    val fileList = drive.files()
+      .list()
+      .setQ(query)
+      .setSpaces("appDataFolder")
+      .setFields("files(id, name)")
+      .setPageSize(1)
+      .execute()
+
+    return fileList.files.firstOrNull()?.id
   }
 }

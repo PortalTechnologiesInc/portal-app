@@ -1,10 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
-import { PermissionsAndroid, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import { SEED_ORIGIN_KEY } from '@/context/OnboardingFlowContext';
 
 export const CLOUD_BACKUP_ENABLED_KEY = 'portal_cloud_backup_enabled';
 const CLOUD_BACKUP_LAST_VERIFIED_KEY = 'portal_cloud_backup_last_verified_at';
+const BACKUP_FILE_NAME = 'portal-seed.json';
 
 /**
  * True if cloud backup is enabled (user preference). Default: true only for simple-setup path, false for advanced.
@@ -23,9 +24,9 @@ export async function setCloudBackupEnabled(enabled: boolean): Promise<void> {
 type BackupModuleShape = {
   backupSeed: (s: string, f: string) => Promise<string>;
   restoreSeed: (f: string) => Promise<string>;
-  deleteBackup?: (f: string) => Promise<void>;
-  hasBackup?: (f: string) => Promise<boolean>;
-  isAvailable?: () => Promise<boolean>;
+  deleteBackup: (f: string) => Promise<void>;
+  hasBackup: (f: string) => Promise<boolean>;
+  isAvailable: () => Promise<boolean>;
 };
 
 // Load native module only on the current platform to avoid "Cannot find native module" on the other
@@ -45,10 +46,10 @@ function getBackupModule(): BackupModuleShape | null {
 
 /**
  * Backup seed to cloud.
- * - Seed è mandato in chiaro al modulo nativo
- * - Modulo nativo salva su Google Drive (Android) o CloudKit (iOS)
- * - Transport è HTTPS (protetto in transit)
- * - Restituisce l'ID del file nel cloud
+ * - Seed is sent in cleartext to the native module
+ * - Native module stores it in Google Drive (Android) or CloudKit (iOS)
+ * - Transport is HTTPS (protected in transit)
+ * - Returns the cloud file ID
  */
 export async function backupSeedToCloud(seed: string): Promise<string> {
   const BackupModule = getBackupModule();
@@ -58,7 +59,7 @@ export async function backupSeedToCloud(seed: string): Promise<string> {
   }
 
   try {
-    return await BackupModule.backupSeed(seed, 'portal-seed.json');
+    return await BackupModule.backupSeed(seed, BACKUP_FILE_NAME);
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     if (msg.includes('NO_GOOGLE_ACCOUNT') || msg.includes('NO_ICLOUD_ACCOUNT')) {
@@ -84,12 +85,12 @@ export async function backupSeedToCloud(seed: string): Promise<string> {
 export async function deleteCloudBackup(): Promise<void> {
   const BackupModule = getBackupModule();
 
-  if (!BackupModule || typeof BackupModule.deleteBackup !== 'function') {
+  if (!BackupModule) {
     return;
   }
 
   try {
-    await BackupModule.deleteBackup('portal-seed.json');
+    await BackupModule.deleteBackup(BACKUP_FILE_NAME);
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     if (msg.includes('NO_GOOGLE_ACCOUNT') || msg.includes('NO_ICLOUD_ACCOUNT')) {
@@ -103,9 +104,9 @@ export async function deleteCloudBackup(): Promise<void> {
 
 /**
  * Restore seed from cloud.
- * - Chiama il modulo nativo per scaricare il file
- * - Seed viene ricevuto in chiaro
- * - Restituisce il seed
+ * - Calls the native module to download the file
+ * - Seed is received in cleartext
+ * - Returns the seed
  */
 export async function restoreSeedFromCloud(): Promise<string> {
   const BackupModule = getBackupModule();
@@ -115,7 +116,7 @@ export async function restoreSeedFromCloud(): Promise<string> {
   }
 
   try {
-    return await BackupModule.restoreSeed('portal-seed.json');
+    return await BackupModule.restoreSeed(BACKUP_FILE_NAME);
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     if (msg.includes('NO_GOOGLE_ACCOUNT') || msg.includes('NO_ICLOUD_ACCOUNT')) {
@@ -131,12 +132,12 @@ export async function restoreSeedFromCloud(): Promise<string> {
  */
 export async function hasCloudBackup(): Promise<boolean> {
   const module = getBackupModule();
-  if (!module || typeof module.hasBackup !== 'function') {
+  if (!module) {
     return false;
   }
 
   try {
-    return await module.hasBackup('portal-seed.json');
+    return await module.hasBackup(BACKUP_FILE_NAME);
   } catch (error) {
     if (__DEV__) {
       console.warn(
@@ -149,49 +150,22 @@ export async function hasCloudBackup(): Promise<boolean> {
 }
 
 export type IsCloudBackupAvailableOptions = {
-  /** If false, do not request GET_ACCOUNTS on Android (only check). Use after onboarding permissions page to avoid showing the permission dialog again. Default true. */
+  /** Reserved for backward compatibility. Permission prompts are not used. */
   requestPermission?: boolean;
 };
 
 /**
- * Utility: controlla se il device ha un account cloud configurato.
- * - Android: richiede GET_ACCOUNTS (runtime su Android 6+) e un account Google, unless requestPermission is false.
- * - iOS: richiede iCloud attivo.
+ * Utility: checks whether the device has a cloud account configured.
+ * - Android: requires a visible Google account.
+ * - iOS: requires an active iCloud account.
  */
 export async function isCloudBackupAvailable(
   options?: IsCloudBackupAvailableOptions
 ): Promise<boolean> {
-  const requestPermission = options?.requestPermission !== false;
+  void options;
   try {
     const module = getBackupModule();
     if (!module) return false;
-    if (typeof module.isAvailable !== 'function') return false;
-
-    if (Platform.OS === 'android') {
-      const hasPermission = await PermissionsAndroid.check(
-        PermissionsAndroid.PERMISSIONS.GET_ACCOUNTS
-      );
-      if (!hasPermission) {
-        if (!requestPermission) {
-          if (__DEV__) console.log('[CloudBackup] GET_ACCOUNTS not granted (skip request)');
-          return false;
-        }
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.GET_ACCOUNTS,
-          {
-            title: 'Cloud backup',
-            message: 'Portal needs access to your accounts to check for Google Drive backup.',
-            buttonNeutral: 'Later',
-            buttonNegative: 'Deny',
-            buttonPositive: 'OK',
-          }
-        );
-        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-          if (__DEV__) console.log('[CloudBackup] GET_ACCOUNTS not granted');
-          return false;
-        }
-      }
-    }
 
     const available = await module.isAvailable();
     if (__DEV__) {
@@ -214,14 +188,9 @@ type CloudBackupHealth = {
 
 /**
  * Verifies (at most once per day) that the cloud backup file still exists.
- * - Only runs on Android when cloud backup is enabled.
  * - If the backup is missing, disables the preference and reports `exists: false`.
  */
 export async function verifyCloudBackupIfStale(): Promise<CloudBackupHealth> {
-  if (Platform.OS !== 'android') {
-    return { exists: true, checked: false };
-  }
-
   const enabled = await getCloudBackupEnabled();
   if (!enabled) {
     return { exists: true, checked: false };
@@ -239,14 +208,13 @@ export async function verifyCloudBackupIfStale(): Promise<CloudBackupHealth> {
   }
 
   const module = getBackupModule();
-  if (!module || typeof module.hasBackup !== 'function') {
-    // Older native module: assume OK, but mark as checked to avoid loops.
+  if (!module) {
     await AsyncStorage.setItem(CLOUD_BACKUP_LAST_VERIFIED_KEY, new Date().toISOString());
     return { exists: true, checked: true };
   }
 
   try {
-    const has = await module.hasBackup('portal-seed.json');
+    const has = await module.hasBackup(BACKUP_FILE_NAME);
     if (has) {
       await AsyncStorage.setItem(CLOUD_BACKUP_LAST_VERIFIED_KEY, new Date().toISOString());
       return { exists: true, checked: true };
@@ -259,7 +227,10 @@ export async function verifyCloudBackupIfStale(): Promise<CloudBackupHealth> {
     return {
       exists: false,
       checked: true,
-      message: 'Cloud backup not found in Google Drive. It may have been deleted.',
+      message:
+        Platform.OS === 'android'
+          ? 'Cloud backup not found in Google Drive. It may have been deleted.'
+          : 'Cloud backup not found in iCloud. It may have been deleted.',
     };
   } catch (error) {
     if (__DEV__) {
