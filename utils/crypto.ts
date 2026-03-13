@@ -61,7 +61,7 @@ export function pkcs7Unpad(data: Uint8Array): Uint8Array {
     throw new Error('Invalid PKCS7 padding');
   }
   
-  return data.subarray(0, data.length - paddingLength);
+  return data.slice(0, data.length - paddingLength);
 }
 
 /**
@@ -72,18 +72,32 @@ export function pkcs7Unpad(data: Uint8Array): Uint8Array {
  * @returns Encrypted data with PKCS7 padding
  */
 export function des3Encrypt(data: Uint8Array, key: Uint8Array, iv: Uint8Array): Uint8Array {
-  // Use react-native-quick-crypto's 3DES-CBC
-  const cipher = Crypto.createCipheriv('des-ede3-cbc', key, iv);
-  
-  // Pad data
+  // Ensure fresh copies for quick-crypto's native layer (avoids subarray-view issues)
+  const cipher = Crypto.createCipheriv('des-ede3-cbc', new Uint8Array(key), new Uint8Array(iv));
   const padded = pkcs7Pad(data);
-  
-  const encrypted = Buffer.concat([
-    cipher.update(padded),
-    cipher.final()
-  ]);
-  
-  return new Uint8Array(encrypted);
+  const a = cipher.update(padded) as Uint8Array;
+  const b = cipher.final() as Uint8Array;
+  const out = new Uint8Array(a.length + b.length);
+  out.set(a, 0);
+  out.set(b, a.length);
+  return out;
+}
+
+/**
+ * 3DES-CBC encryption WITHOUT padding for BAC
+ * Used for E_IFD where input is already a multiple of 8 bytes
+ * and output must be exactly the same length as input.
+ */
+export function des3EncryptNopad(data: Uint8Array, key: Uint8Array, iv: Uint8Array): Uint8Array {
+  if (data.length % 8 !== 0) throw new Error('Data must be a multiple of 8 bytes');
+  const cipher = Crypto.createCipheriv('des-ede3-cbc', new Uint8Array(key), new Uint8Array(iv));
+  cipher.setAutoPadding(false);
+  const a = cipher.update(new Uint8Array(data)) as Uint8Array;
+  const b = cipher.final() as Uint8Array;
+  const out = new Uint8Array(a.length + b.length);
+  out.set(a, 0);
+  out.set(b, a.length);
+  return out;
 }
 
 /**
@@ -94,14 +108,14 @@ export function des3Encrypt(data: Uint8Array, key: Uint8Array, iv: Uint8Array): 
  * @returns Decrypted data with padding removed
  */
 export function des3Decrypt(data: Uint8Array, key: Uint8Array, iv: Uint8Array): Uint8Array {
-  const decipher = Crypto.createDecipheriv('des-ede3-cbc', key, iv);
-  
-  const decrypted = Buffer.concat([
-    decipher.update(data),
-    decipher.final()
-  ]);
-  
-  return pkcs7Unpad(new Uint8Array(decrypted));
+  // Ensure fresh copies for quick-crypto's native layer (avoids subarray-view issues)
+  const decipher = Crypto.createDecipheriv('des-ede3-cbc', new Uint8Array(key), new Uint8Array(iv));
+  const a = decipher.update(data) as Uint8Array;
+  const b = decipher.final() as Uint8Array;
+  const out = new Uint8Array(a.length + b.length);
+  out.set(a, 0);
+  out.set(b, a.length);
+  return pkcs7Unpad(out);
 }
 
 /**
@@ -115,10 +129,18 @@ export function des3EcbEncrypt(key: Uint8Array, data: Uint8Array): Uint8Array {
     throw new Error('3DES-ECB requires 8-byte blocks');
   }
   
-  const cipher = Crypto.createCipheriv('des-ede3-ecb', key, null);
-  const encrypted = Buffer.concat([cipher.update(data), cipher.final()]);
-  
-  return new Uint8Array(encrypted);
+  // quick-crypto's binaryLikeToArrayBuffer doesn't handle null IV;
+  // ECB mode needs a zero-length IV instead
+  const keyCopy = new Uint8Array(key);
+  const dataCopy = new Uint8Array(data);
+  const cipher = Crypto.createCipheriv('des-ede3-ecb', keyCopy, new Uint8Array(0));
+  const a = cipher.update(dataCopy) as Uint8Array;
+  const b = cipher.final() as Uint8Array;
+  const out = new Uint8Array(a.length + b.length);
+  out.set(a, 0);
+  out.set(b, a.length);
+  // ECB on 8 bytes produces 16 bytes (8 data + 8 PKCS padding); take first 8
+  return out.slice(0, 8);
 }
 
 /**
@@ -133,65 +155,110 @@ export function des3EcbEncrypt(key: Uint8Array, data: Uint8Array): Uint8Array {
  * @returns { k_enc: Uint8Array, k_mac: Uint8Array }
  */
 export function deriveBacKeys(mrzKey: Uint8Array): { k_enc: Uint8Array; k_mac: Uint8Array } {
-  // Derive K_enc
+  // ICAO 9303 Section 9.7.1: Kseed = most significant 16 bytes of SHA-1 hash
+  // If caller passes 20 bytes (full SHA-1), truncate to 16.
+  const kseed = mrzKey.length > 16 ? mrzKey.slice(0, 16) : mrzKey;
+
   const kEncSeed = Crypto.createHash('sha1')
-    .update(mrzKey)
-    .update(Buffer.from([0x00, 0x00, 0x00, 0x01]))
-    .digest();
-  
-  const kEnc = adjustParity(kEncSeed.subarray(0, 8));
-  
-  // Derive K_mac
+    .update(kseed)
+    .update(new Uint8Array([0x00, 0x00, 0x00, 0x01]))
+    .digest() as Uint8Array;
+
+  const kEnc = adjustParity(kEncSeed.slice(0, 16));
+
   const kMacSeed = Crypto.createHash('sha1')
-    .update(mrzKey)
-    .update(Buffer.from([0x00, 0x00, 0x00, 0x02]))
-    .digest();
-  
-  const kMac = adjustParity(kMacSeed.subarray(0, 8));
-  
+    .update(kseed)
+    .update(new Uint8Array([0x00, 0x00, 0x00, 0x02]))
+    .digest() as Uint8Array;
+
+  const kMac = adjustParity(kMacSeed.slice(0, 16));
+
   return { k_enc: kEnc, k_mac: kMac };
 }
 
 /**
- * retail-MAC (MAC-1) computation for BAC
- * 
- * Algorithm:
- * 1. Pad message with zeros to 8-byte boundary
- * 2. Encrypt with 3DES using K_mac in ECB mode
- * 3. XOR result with 0x0000000000000000
- * 4. Take leftmost 8 bytes
- * 
- * Note: In BAC, this is actually simpler - just 3DES-ECB encrypt and XOR with zeros
- * 
- * @param key - 8-byte K_mac key
- * @param data - Message data (will be padded to 8 bytes)
- * @returns 8-byte MAC
+ * Single DES-ECB encryption (used in retail-MAC intermediate blocks)
+ * @param key - 8-byte DES key
+ * @param data - 8-byte block
+ * @returns Encrypted 8-byte block
  */
-export function computeMac(key: Uint8Array, data: Uint8Array): Uint8Array {
-  // Pad to 8 bytes with zeros
-  let padded = data;
-  if (data.length < 8) {
-    const padBuffer = Buffer.alloc(8);
-    data.copy(padBuffer, 0, 0, data.length);
-    padded = new Uint8Array(padBuffer);
+export function desEcbEncrypt(key: Uint8Array, data: Uint8Array): Uint8Array {
+  if (data.length !== 8) {
+    throw new Error('DES-ECB requires 8-byte blocks');
   }
-  
-  // Encrypt with 3DES-ECB
-  const encrypted = des3EcbEncrypt(key, padded);
-  
-  // XOR with zeros (same as just taking the encrypted result)
-  return encrypted; // Already the result of XOR with zeros
+  if (key.length !== 8) {
+    throw new Error('DES key must be 8 bytes');
+  }
+
+  // Single DES = 3DES with K||K||K — use des-ede3-ecb since des-ecb may not be available
+  const tripleKey = new Uint8Array(24);
+  tripleKey.set(key, 0);
+  tripleKey.set(key, 8);
+  tripleKey.set(key, 16);
+  return des3EcbEncrypt(tripleKey, data);
 }
 
 /**
- * Compute BAC External Authenticate MAC (longer version)
- * For the EXTERNAL AUTHENTICATE command, we need to compute MAC over E_IFD
+ * ISO 9797-1 padding method 2
+ * Append 0x80 then 0x00 bytes until length is a multiple of 8.
+ * Always adds at least one byte.
  */
-export function computeExternalAuthMac(key: Uint8Array, data: Uint8Array): Uint8Array {
-  // Similar to computeMac but for the longer E_IFD message
-  const padded = pkcs7Pad(data, 8);
-  const encrypted = des3EcbEncrypt(key, padded);
-  return encrypted;
+export function iso9797Pad(data: Uint8Array): Uint8Array {
+  const padLen = 8 - ((data.length + 1) % 8);
+  const padded = new Uint8Array(data.length + 1 + (padLen === 8 ? 0 : padLen));
+  padded.set(data, 0);
+  padded[data.length] = 0x80;
+  // remaining bytes are already 0x00
+  return padded;
+}
+
+/**
+ * ISO 9797-1 MAC algorithm 3 (Retail-MAC) for BAC
+ *
+ * ICAO 9303 BAC uses this with DES/3DES and ISO 9797 padding method 2:
+ * 1. Pad input with ISO 9797 method 2
+ * 2. Split into 8-byte blocks D1..Dn
+ * 3. H0 = 0x0000000000000000
+ *    For i = 1..n-1: Hi = DES-ECB-encrypt(K1, Hi-1 XOR Di)   (single DES)
+ *    Hn = 3DES-ECB-encrypt(K_mac, Hn-1 XOR Dn)               (full 3DES)
+ * 4. MAC = Hn (8 bytes)
+ *
+ * @param key - 24-byte 3DES MAC key (two-key: K1|K2|K1)
+ * @param data - Message data (any length)
+ * @returns 8-byte MAC
+ */
+export function computeMac(key: Uint8Array, data: Uint8Array): Uint8Array {
+  if (key.length !== 24) {
+    throw new Error('MAC key must be 24 bytes (3DES)');
+  }
+
+  // ISO 9797 method 2 padding
+  const padded = iso9797Pad(data);
+
+  // Split into 8-byte blocks
+  const n = padded.length / 8;
+  const k1 = key.slice(0, 8); // First 8 bytes for single DES (slice = copy, not view)
+
+  // CBC with single DES for blocks 1..n-1
+  let h: Uint8Array<ArrayBufferLike> = new Uint8Array(8); // H0 = zeros
+  for (let i = 0; i < n - 1; i++) {
+    const block = padded.slice(i * 8, (i + 1) * 8);
+    const xored = new Uint8Array(8);
+    for (let j = 0; j < 8; j++) {
+      xored[j] = h[j]! ^ block[j]!;
+    }
+    h = desEcbEncrypt(k1, xored);
+  }
+
+  // Last block with full 3DES
+  const lastBlock = padded.slice((n - 1) * 8, n * 8);
+  const xored = new Uint8Array(8);
+  for (let j = 0; j < 8; j++) {
+    xored[j] = h[j]! ^ lastBlock[j]!;
+  }
+  h = des3EcbEncrypt(key, xored);
+
+  return h;
 }
 
 /**
@@ -229,20 +296,16 @@ export function bytesToHex(bytes: Uint8Array): string {
  * The expansion is: first 8 bytes + second 8 bytes + first 8 bytes (KDF repeats middle 8)
  */
 export function expand16To24Bytes(seed: Uint8Array): Uint8Array {
-  if (seed.length !== 8) {
-    throw new Error('KDF output must be 8 bytes for 3DES key expansion');
+  if (seed.length !== 16) {
+    throw new Error('Key must be 16 bytes for 3DES key expansion');
   }
   
-  // For 3DES-ede3, we need 24 bytes (3 x 8-byte DES keys)
-  // BAC key derivation gives us 8 bytes, which becomes the middle DES key
-  // The outer keys are derived from the same process
-  
-  // Actually, for BAC v2, we use 3DES with 16-byte effective key (128-bit)
-  // Expand to 24 bytes by repeating: K1 K2 K1 (two-key 3DES)
+  // Two-key 3DES (ICAO 9303): 16-byte key → 24-byte key
+  // K1 (first 8 bytes) + K2 (second 8 bytes) + K1 (first 8 bytes again)
   const expanded = new Uint8Array(24);
-  expanded.set(seed, 0);        // K1 (8 bytes)
-  expanded.set(seed, 8);        // K2 (8 bytes) - note: same as K1 for 2-key 3DES
-  expanded.set(seed, 16);       // K1 again (8 bytes)
+  expanded.set(seed.slice(0, 8), 0);    // K1
+  expanded.set(seed.slice(8, 16), 8);   // K2
+  expanded.set(seed.slice(0, 8), 16);   // K1 again
   
   return expanded;
 }
@@ -251,15 +314,15 @@ export function expand16To24Bytes(seed: Uint8Array): Uint8Array {
  * BAC v2 specific key expansion (two-key 3DES)
  */
 export function derive3DesKey(seed: Uint8Array): Uint8Array {
-  if (seed.length !== 8) {
-    throw new Error('KDF output must be 8 bytes for 3DES key');
+  if (seed.length !== 16) {
+    throw new Error('Key must be 16 bytes for 3DES key derivation');
   }
   
-  // Two-key 3DES: K1 K2 K1 where K1 = K2 = seed (after parity adjustment)
+  // Two-key 3DES: K1 (first 8) + K2 (second 8) + K1 (first 8 again)
   const key = new Uint8Array(24);
-  key.set(seed, 0);   // K1
-  key.set(seed, 8);   // K2
-  key.set(seed, 16);  // K1 again
+  key.set(seed.slice(0, 8), 0);    // K1
+  key.set(seed.slice(8, 16), 8);   // K2
+  key.set(seed.slice(0, 8), 16);   // K1 again
   
   return key;
 }

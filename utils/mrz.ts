@@ -22,13 +22,26 @@ export interface MrzData {
 }
 
 /**
- * Calculate MRZ check digit using mod-97 algorithm
+ * Calculate MRZ check digit using ICAO 9303 7-3-1 weighting algorithm.
+ * Each character is mapped to a value (0-9 for digits, A=10..Z=35, <=0),
+ * multiplied by the repeating weight pattern 7,3,1, summed, then mod 10.
  */
-function calculateCheckDigit(value: string): string {
-  const numValue = value.replace(/[^0-9]/g, '');
-  const padded = numValue.padStart(2, '0');
-  const mod = parseInt(padded) % 10;
-  return mod.toString();
+export function calculateCheckDigit(value: string): string {
+  const weights = [7, 3, 1];
+  let sum = 0;
+  for (let i = 0; i < value.length; i++) {
+    const ch = value[i];
+    let val: number;
+    if (ch >= '0' && ch <= '9') {
+      val = ch.charCodeAt(0) - 48; // '0'=0 .. '9'=9
+    } else if (ch >= 'A' && ch <= 'Z') {
+      val = ch.charCodeAt(0) - 55; // 'A'=10 .. 'Z'=35
+    } else {
+      val = 0; // '<' and any filler
+    }
+    sum += val * weights[i % 3];
+  }
+  return (sum % 10).toString();
 }
 
 /**
@@ -39,52 +52,77 @@ function validateCheckDigit(checkValue: string, computed: string): boolean {
 }
 
 /**
- * Parse TD1 (3 lines, 30 chars each) - ID cards
- * Line 1: Document number (7 chars) + check digit (1) + nationality (3) + DOB (6) + check digit (1) + sex (1) + padding
- * Line 2: Surname + given names
- * Line 3: Optional personal number + padding
+ * Parse TD1 (3 lines × 30 chars each) - ID cards
+ * Per ICAO 9303 Part 5:
+ *
+ * Line 1 (30 chars):
+ *   [0-1]  Document type (e.g. "I<")
+ *   [2-4]  Issuing country (3 chars)
+ *   [5-13] Document number (9 chars)
+ *   [14]   Document number check digit
+ *   [15-29] Optional data 1 (15 chars)
+ *
+ * Line 2 (30 chars):
+ *   [0-5]  Date of birth (YYMMDD)
+ *   [6]    DOB check digit
+ *   [7]    Sex (M/F/<)
+ *   [8-13] Date of expiry (YYMMDD)
+ *   [14]   Expiry check digit
+ *   [15-17] Nationality (3 chars)
+ *   [18-28] Optional data 2 (11 chars)
+ *   [29]   Composite check digit
+ *
+ * Line 3 (30 chars):
+ *   [0-29] Name: SURNAME<<GIVEN<NAMES<<<...
  */
 function parseTD1(lines: string[]): MrzData | null {
-  if (lines.length < 2) return null;
+  if (lines.length < 3) return null;
 
   const line1 = lines[0].trim();
   const line2 = lines[1].trim();
+  const line3 = lines[2].trim();
 
-  if (line1.length < 30 || line2.length < 30) return null;
+  if (line1.length < 30 || line2.length < 30 || line3.length < 30) return null;
 
-  const documentNumber = line1.substring(0, 7);
-  const documentNumberCheckDigit = line1[7];
-  const nationality = line1.substring(8, 11);
-  const dateOfBirth = line1.substring(11, 17);
-  const dateOfBirthCheckDigit = line1[17];
-  const sex = line1[18] as 'M' | 'F' | '<';
+  // Line 1
+  const documentNumber = line1.substring(5, 14);
+  const documentNumberCheckDigit = line1[14];
 
-  // Validate sex
+  // Line 2
+  const dateOfBirth = line2.substring(0, 6);
+  const dateOfBirthCheckDigit = line2[6];
+  const sex = line2[7] as 'M' | 'F' | '<';
   if (!['M', 'F', '<'].includes(sex)) return null;
+  const expiryDate = line2.substring(8, 14);
+  const expiryDateCheckDigit = line2[14];
+  const nationality = line2.substring(15, 18).replace(/<+$/g, '');
 
-  const expiryDate = line1.substring(19, 25);
-  const expiryDateCheckDigit = line1[25];
+  // Line 3: name
+  const nameParts = line3.split('<<');
+  const surname = (nameParts[0] || '').replace(/<+/g, ' ').trim();
+  const givenNames = (nameParts.slice(1).join(' ') || '').replace(/<+/g, ' ').trim() || '<';
 
-  // Parse surname and given names (line 2)
-  // Surname is right-justified or left-justified depending on length
-  const surnameEnd = Math.min(27, line2.length);
-  const surname = line2.substring(0, surnameEnd).replace(/<+/g, ' ');
-  const givenNames = line2.substring(surnameEnd).replace(/<+/g, ' ').trim() || '<';
-
-  // Line 3 (optional) - personal number
-  const personalNumber = lines[2]
-    ? lines[2].substring(0, 36).replace(/<+/g, ' ').trim()
-    : undefined;
+  // Optional data
+  const optional1 = line1.substring(15, 30);
+  const optional2 = line2.substring(18, 29);
+  const personalNumber = (optional1 + optional2).replace(/<+/g, ' ').trim() || undefined;
 
   // Validate check digits
-  const docNumComputed = calculateCheckDigit(documentNumber);
+  const docNumComputed = calculateCheckDigit(line1.substring(5, 14));
   const dobComputed = calculateCheckDigit(dateOfBirth);
   const expComputed = calculateCheckDigit(expiryDate);
+
+  // Composite check digit (line2[29]) covers:
+  //   line1[5..29] + line2[0..6] + line2[8..14] + line2[18..28]
+  const compositeData = line1.substring(5, 30) + line2.substring(0, 7) + line2.substring(8, 15) + line2.substring(18, 29);
+  const compositeCheck = line2[29];
+  const compositeComputed = calculateCheckDigit(compositeData);
 
   const checkDigitsValid =
     validateCheckDigit(documentNumberCheckDigit, docNumComputed) &&
     validateCheckDigit(dateOfBirthCheckDigit, dobComputed) &&
-    validateCheckDigit(expiryDateCheckDigit, expComputed);
+    validateCheckDigit(expiryDateCheckDigit, expComputed) &&
+    validateCheckDigit(compositeCheck, compositeComputed);
 
   return {
     documentType: 'I',
@@ -109,7 +147,7 @@ function parseTD1(lines: string[]): MrzData | null {
  * Parse TD3 (2 lines, 44 chars each) - Passports
  * Line 1: P<COUNTRY<SURNAME<GIVEN_NAMES<<<<<<<<<<<<<<<<<<<<<<
  *          Document number (9) + check digit (1) + nationality (3) + DOB (6) + check digit (1) + sex (1) + expiry (6) + check digit (1) + optional personal number (14) + check digit (1)
- * Line 2: Combined document number (7) + check digit + DOB + check digit + expiry + check digit + personal number + composite check digit
+ * Line 2: Document number (9) + check (1) + nationality (3) + DOB (6) + check (1) + sex (1) + expiry (6) + check (1) + optional (14) + check (1) + composite (1)
  */
 function parseTD3(lines: string[]): MrzData | null {
   if (lines.length < 1) return null;
@@ -133,17 +171,18 @@ function parseTD3(lines: string[]): MrzData | null {
       .replace(/<+/g, ' ')
       .trim() || '<';
 
-  // Line 2 structure (44 chars)
-  // Document number (7) + check (1) + Country (3) + DOB (6) + check (1) + sex (1) + expiry (6) + check (1) + personal (14) + check (1) + composite (1)
-  const documentNumber = line2.substring(0, 7);
-  const documentNumberCheckDigit = line2[7];
-  const nationality = line2.substring(8, 11);
-  const dateOfBirth = line2.substring(11, 17);
-  const dateOfBirthCheckDigit = line2[17];
-  const sex = line2[18] as 'M' | 'F' | '<';
-  const expiryDate = line2.substring(19, 25);
-  const expiryDateCheckDigit = line2[25];
-  const personalNumber = line2.substring(26, 40) || undefined;
+  // Line 2 structure per ICAO 9303 TD3 (44 chars):
+  // Doc number (9) + check (1) + Nationality (3) + DOB (6) + check (1) +
+  // Sex (1) + Expiry (6) + check (1) + Optional data (14) + check (1) + Composite (1)
+  const documentNumber = line2.substring(0, 9);
+  const documentNumberCheckDigit = line2[9];
+  const nationality = line2.substring(10, 13);
+  const dateOfBirth = line2.substring(13, 19);
+  const dateOfBirthCheckDigit = line2[19];
+  const sex = line2[20] as 'M' | 'F' | '<';
+  const expiryDate = line2.substring(21, 27);
+  const expiryDateCheckDigit = line2[27];
+  const personalNumber = line2.substring(28, 42) || undefined;
 
   // Validate sex
   if (!['M', 'F', '<'].includes(sex)) return null;
@@ -195,7 +234,7 @@ export function parseMrz(text: string): MrzData | null {
   }
 
   // Check for TD1 (ID cards - 3 lines, 30 chars)
-  if (lines.length >= 2 && lines[0].length >= 30) {
+  if (lines.length >= 3 && lines[0].length >= 30 && lines[0].length <= 36) {
     return parseTD1(lines.slice(0, 3));
   }
 
@@ -234,62 +273,142 @@ export function isMrzText(text: string): boolean {
  */
 
 export interface BacKeys {
-  k_enc: string; // Hex string of 24 bytes (3DES encryption key)
-  k_mac: string; // Hex string of 8 bytes (3DES MAC key)
+  k_enc: string; // Hex string of 16 bytes (3DES encryption key seed)
+  k_mac: string; // Hex string of 16 bytes (3DES MAC key seed)
   mrzKey: string; // Hex string of SHA1 hash
 }
 
+/**
+ * Interface matching @getportal/mrz-scanner's MRZResult type.
+ * Dates are YYYY-MM-DD, documentNumber has no < fillers.
+ */
+export interface MrzScannerResult {
+  documentType: string;
+  issuingCountry: string;
+  lastName: string;
+  firstName: string;
+  documentNumber: string; // No < fillers
+  nationality: string;
+  dateOfBirth: string;    // YYYY-MM-DD
+  sex: string;
+  expiryDate: string;     // YYYY-MM-DD
+  optionalData: string;
+  checksumValid: boolean;
+  format: 'TD1' | 'TD3';
+}
+
+/**
+ * Convert YYYY-MM-DD → YYMMDD (take last 2 of year + MM + DD)
+ */
+export function dateToMrzFormat(isoDate: string): string {
+  // "1990-08-06" → "900806", "2025-12-31" → "251231"
+  const parts = isoDate.split('-');
+  if (parts.length !== 3) throw new Error(`Invalid date format: ${isoDate}`);
+  const yy = parts[0].slice(-2); // Last 2 digits of year
+  return yy + parts[1] + parts[2];
+}
+
+/**
+ * Pad document number to 9 chars with '<' filler (ICAO 9303 TD3 field width).
+ * BAC key derivation requires the document number as it appears in the MRZ,
+ * which is always 9 characters, right-padded with '<'.
+ */
+export function padDocumentNumber(docNum: string): string {
+  return docNum.padEnd(9, '<');
+}
+
+/**
+ * Convert MRZResult from @getportal/mrz-scanner into MrzData for BAC key derivation.
+ * Handles:
+ * - documentNumber padding (< filler to 9 chars)
+ * - date format conversion (YYYY-MM-DD → YYMMDD)
+ * - check digit computation
+ */
+export function mrzScannerResultToMrzData(result: MrzScannerResult): MrzData {
+  const docNum = padDocumentNumber(result.documentNumber);
+  const dob = dateToMrzFormat(result.dateOfBirth);
+  const exp = dateToMrzFormat(result.expiryDate);
+
+  const docNumCheck = calculateCheckDigit(docNum);
+  const dobCheck = calculateCheckDigit(dob);
+  const expCheck = calculateCheckDigit(exp);
+
+  return {
+    documentType: (result.documentType === 'P' ? 'P' : 'I') as 'P' | 'I',
+    documentNumber: docNum,
+    documentNumberCheckDigit: docNumCheck,
+    nationality: result.nationality || result.issuingCountry,
+    dateOfBirth: dob,
+    dateOfBirthCheckDigit: dobCheck,
+    sex: (result.sex || '<') as 'M' | 'F' | '<',
+    expiryDate: exp,
+    expiryDateCheckDigit: expCheck,
+    surname: result.lastName,
+    givenNames: result.firstName,
+    checkDigitsValid: result.checksumValid,
+    lines: [],
+    format: result.format,
+  };
+}
+
 export function deriveBacKeys(mrzData: MrzData): BacKeys {
+  const quickCrypto = require('react-native-quick-crypto');
+
   // Build seed = documentNumber + checkDigit + DOB + checkDigit + expiry + checkDigit
   const seed = `${mrzData.documentNumber}${mrzData.documentNumberCheckDigit}${mrzData.dateOfBirth}${mrzData.dateOfBirthCheckDigit}${mrzData.expiryDate}${mrzData.expiryDateCheckDigit}`;
 
-  // SHA1 of seed (in hex)
-  const mrzKey = sha1(seed);
+  // SHA1 of ASCII seed → 40 hex chars (20 bytes)
+  const mrzKeyHex = sha1(seed);
 
-  // KDF for K_enc (seed || 0x00000001)
-  const k_encSeed = sha1(mrzKey + '00000001');
-  const k_enc = adjustParity(k_encSeed.substring(0, 16)); // First 16 hex chars = 8 bytes for 3DES key
+  // Convert hex → binary for proper ICAO 9303 KDF (must hash binary, not hex string)
+  function hexToUint8Array(hex: string): Uint8Array {
+    const bytes = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < hex.length; i += 2) {
+      bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+    }
+    return bytes;
+  }
 
-  // KDF for K_mac (seed || 0x00000002)
-  const k_macSeed = sha1(mrzKey + '00000002');
-  const k_mac = adjustParity(k_macSeed.substring(0, 16)); // First 16 hex chars = 8 bytes for 3DES MAC key
+  const mrzKeyBytes = hexToUint8Array(mrzKeyHex); // 20 bytes
+
+  // ICAO 9303 Section 9.7.1: Kseed = most significant 16 bytes of SHA-1 hash
+  // BUG FIX: was using all 20 bytes, must use only first 16!
+  const kseed = mrzKeyBytes.slice(0, 16); // 16 bytes
+
+  // KDF for K_enc: SHA1(Kseed || 0x00000001)
+  const kEncInput = new Uint8Array(20);
+  kEncInput.set(kseed, 0);
+  kEncInput[16] = 0x00; kEncInput[17] = 0x00; kEncInput[18] = 0x00; kEncInput[19] = 0x01;
+  const k_encSeed = (quickCrypto.createHash('sha1').update(kEncInput).digest('hex')) as string;
+  const k_enc = adjustParity(k_encSeed.substring(0, 32)); // First 16 bytes
+
+  // KDF for K_mac: SHA1(Kseed || 0x00000002)
+  const kMacInput = new Uint8Array(20);
+  kMacInput.set(kseed, 0);
+  kMacInput[16] = 0x00; kMacInput[17] = 0x00; kMacInput[18] = 0x00; kMacInput[19] = 0x02;
+  const k_macSeed = (quickCrypto.createHash('sha1').update(kMacInput).digest('hex')) as string;
+  const k_mac = adjustParity(k_macSeed.substring(0, 32)); // First 16 bytes
 
   return {
-    mrzKey,
+    mrzKey: mrzKeyHex,
     k_enc,
     k_mac,
   };
 }
 
 /**
- * SHA1 hash in hex string format
+ * SHA1 hash in hex string format (synchronous, using react-native-quick-crypto)
  */
 function sha1(data: string): string {
-  if (typeof globalThis.crypto !== 'undefined' && globalThis.crypto.subtle) {
-    const encoder = new TextEncoder();
-    const dataBuffer = encoder.encode(data);
-    return crypto.subtle.digest('SHA-1', dataBuffer).then(hash =>
-      Array.from(new Uint8Array(hash))
-        .map(b => b.toString(16).padStart(2, '0'))
-        .join('')
-    );
-  } else {
-    // Fallback using react-native-quick-crypto if available
-    try {
-      // @ts-expect-error - might not be typed
-      const crypto = require('react-native-quick-crypto');
-      const hash = crypto.createHash('sha1').update(data).digest('hex');
-      return hash;
-    } catch (e) {
-      throw new Error('No SHA1 implementation available');
-    }
-  }
+  const quickCrypto = require('react-native-quick-crypto');
+  const hash = quickCrypto.createHash('sha1').update(data).digest('hex');
+  return hash;
 }
 
 /**
- * Adjust parity for 3DES keys (remove odd parity bits)
- * Input: 16 hex chars (8 bytes)
- * Output: 16 hex chars (8 bytes) with adjusted parity
+ * Adjust parity for 3DES keys (set odd parity on each byte)
+ * Input: hex string (any even length)
+ * Output: hex string with adjusted parity bits
  */
 function adjustParity(inputHex: string): string {
   const bytes = [];
