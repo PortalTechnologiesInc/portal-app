@@ -1,6 +1,6 @@
 import { BanknoteIcon, Key, Ticket } from 'lucide-react-native';
 import type React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
@@ -23,6 +23,7 @@ interface ActivityMainCardProps {
   currency?: string | null;
   converted_amount?: number | null;
   converted_currency?: string | null;
+  fee_sats?: number | null;
 }
 
 export const ActivityMainCard: React.FC<ActivityMainCardProps> = ({
@@ -34,6 +35,7 @@ export const ActivityMainCard: React.FC<ActivityMainCardProps> = ({
   currency,
   converted_amount,
   converted_currency,
+  fee_sats,
 }) => {
   const surfaceSecondaryColor = useThemeColor({}, 'surfaceSecondary');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
@@ -111,6 +113,22 @@ export const ActivityMainCard: React.FC<ActivityMainCardProps> = ({
           <ThemedText style={[styles.amount, { color: primaryTextColor }]}>
             {formatActivityAmount(amount, currency || null)}
           </ThemedText>
+
+          {activityType === ActivityType.Pay && (
+            <View style={styles.feesContainer}>
+              <ThemedText style={[styles.amountSubtext, { color: secondaryTextColor }]}>
+                Fees:{' '}
+              </ThemedText>
+              {activityStatus === 'pending' ? (
+                <ActivityIndicator size={16} color={secondaryTextColor} />
+              ) : (
+                <ThemedText style={[styles.amountSubtext, { color: secondaryTextColor }]}>
+                  {fee_sats != null ? formatActivityAmount(fee_sats, 'sats') : 'N/A'}
+                </ThemedText>
+              )}
+            </View>
+          )}
+
           {shouldShowConvertedAmount({
             amount: converted_amount,
             originalCurrency: currency || null,
@@ -192,6 +210,12 @@ const styles = StyleSheet.create({
   },
   amountSubtext: {
     fontSize: 16,
+    marginVertical: 6,
+  },
+  feesContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   description: {
     fontSize: 16,

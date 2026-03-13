@@ -2,7 +2,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 
 // Function to migrate database schema if needed
 export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
-  const DATABASE_VERSION = 23;
+  const DATABASE_VERSION = 24;
 
   try {
     let { user_version: currentDbVersion } = (await db.getFirstAsync<{
@@ -516,6 +516,13 @@ export default async function migrateDbIfNeeded(db: SQLiteDatabase) {
       `);
 
       currentDbVersion = 23;
+    }
+
+    if (currentDbVersion < 24) {
+      await db.execAsync(`
+        ALTER TABLE activities ADD COLUMN fee_sats INTEGER;
+      `);
+      currentDbVersion = 24;
     }
 
     await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);

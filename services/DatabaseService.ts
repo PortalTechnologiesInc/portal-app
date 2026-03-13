@@ -53,6 +53,7 @@ export interface ActivityRecord {
   subscription_id: string | null;
   status: 'neutral' | 'positive' | 'negative' | 'pending';
   invoice?: string | null; // Invoice for payment activities (optional)
+  fee_sats?: number | null;
 }
 
 export interface SubscriptionRecord {
@@ -195,8 +196,8 @@ export class DatabaseService {
     const now = toUnixSeconds(Date.now());
     const result = await this.db.runAsync(
       `INSERT OR IGNORE INTO activities (
-            id, type, service_name, service_key, detail, date, amount, currency, converted_amount, converted_currency, request_id, created_at, subscription_id, status, invoice
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            id, type, service_name, service_key, detail, date, amount, currency, converted_amount, converted_currency, request_id, created_at, subscription_id, status, invoice, fee_sats
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         activity.type,
@@ -213,6 +214,7 @@ export class DatabaseService {
         activity.subscription_id,
         activity.status || 'neutral',
         activity.invoice || null,
+        activity.fee_sats ?? null,
       ]
     );
     if (result.changes && result.changes > 0) {
@@ -229,7 +231,7 @@ export class DatabaseService {
         `UPDATE activities SET
               type = ?, service_name = ?, service_key = ?, detail = ?, date = ?,
               amount = ?, currency = ?, converted_amount = ?, converted_currency = ?,
-              subscription_id = ?, status = ?, invoice = ?
+              subscription_id = ?, status = ?, invoice = ?, fee_sats = ?
             WHERE request_id = ?`,
         [
           activity.type,
@@ -244,6 +246,7 @@ export class DatabaseService {
           activity.subscription_id,
           activity.status || 'neutral',
           activity.invoice || null,
+          activity.fee_sats ?? null,
           activity.request_id,
         ]
       );
@@ -286,13 +289,13 @@ export class DatabaseService {
   async updateActivityStatus(
     id: string,
     status: 'neutral' | 'positive' | 'negative' | 'pending',
-    statusDetail: string
+    statusDetail: string,
+    feeSats?: number | null
   ): Promise<void> {
-    await this.db.runAsync('UPDATE activities SET status = ?, detail = ? WHERE id = ?', [
-      status,
-      statusDetail,
-      id,
-    ]);
+    await this.db.runAsync(
+      'UPDATE activities SET status = ?, detail = ?, fee_sats = ? WHERE id = ?',
+      [status, statusDetail, feeSats ?? null, id]
+    );
   }
 
   async getActivities(

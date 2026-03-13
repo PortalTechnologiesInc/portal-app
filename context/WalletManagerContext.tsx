@@ -39,7 +39,10 @@ export interface WalletManagerContextType {
   getWallet: <T extends WalletType>(walletType: T) => Promise<WalletTypeMap[T]>;
   walletStatus: Map<WalletType, WalletConnectionStatus>;
   prepareSendPayment: (paymentRequest: string, amountSats: bigint) => Promise<unknown>;
-  sendPayment: (paymentRequest: string, amountSats: bigint) => Promise<string>;
+  sendPayment: (
+    paymentRequest: string,
+    amountSats: bigint
+  ) => Promise<{ preimage: string; feeSats?: number }>;
   receivePayment: (amountSats: bigint) => Promise<string>;
   isWalletManagerInitialized: boolean;
 }
@@ -124,7 +127,7 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
             return; // Early exit if not a payment event
         }
 
-        const { amount, id, paymentType: pType, status: pStatus, details } = paymentData;
+        const { amount, id, paymentType: pType, status: pStatus, details, fees } = paymentData;
         const amountInSats = Number(amount);
         if (pType === PaymentType.Send) return;
 
@@ -190,6 +193,7 @@ export const WalletManagerContextProvider: React.FC<WalletManagerContextProvider
               subscription_id: null, // TODO: link to subscription if applicable
               status,
               invoice,
+              fee_sats: fees ? Number(fees) : null,
             })
           );
 
