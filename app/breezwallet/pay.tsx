@@ -29,6 +29,11 @@ enum PageState {
   PaymentSent = 1,
 }
 
+const msatsToSatsCeil = (msats: number): bigint => {
+  if (!Number.isFinite(msats) || msats <= 0) return 0n;
+  return BigInt(Math.ceil(msats / 1000));
+};
+
 export default function MyWalletManagementSecret() {
   const { invoice } = useLocalSearchParams<{ invoice: string }>();
   const router = useRouter();
@@ -231,7 +236,7 @@ export default function MyWalletManagementSecret() {
 
           const prepareResponse = await breezWallet?.prepareSendPayment(
             invoice,
-            BigInt(Number(section.value) / 1000)
+            msatsToSatsCeil(Number(section.value))
           );
 
           setPrepareSendPaymentResponse(prepareResponse);
