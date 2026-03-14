@@ -8,6 +8,16 @@ import NfcManager, { NfcTech } from 'react-native-nfc-manager';
 import { deriveBacKeys, MrzData } from '@/utils/mrz';
 import * as CryptoUtils from '@/utils/crypto';
 
+/** ICAO 9303 EF File Identifiers */
+function dgToFid(dgNumber: number): [number, number] {
+  // EF.COM = 0x1E, EF.SOD = 0x1D, DG1 = 0x1F, DG2..DG16 = 0x01..0x0F
+  if (dgNumber === 0x1e) return [0x01, 0x1e]; // EF.COM
+  if (dgNumber === 0x1d) return [0x01, 0x1d]; // EF.SOD
+  if (dgNumber === 1) return [0x01, 0x1f];     // DG1
+  // DGn (n>=2) → 0x01, n-1
+  return [0x01, dgNumber - 1];
+}
+
 export interface PassportData {
   mrz: MrzData;
   dg1Raw: string; // Hex string of DG1 (personal data)
@@ -32,7 +42,7 @@ export class PassportNfcService {
   private isoDep: any = null;
   private sessionK_enc: Uint8Array | null = null;
   private sessionK_mac: Uint8Array | null = null;
-  private sessionCounter: number = 0;
+  private ssc: Uint8Array | null = null; // Send Sequence Counter (8 bytes, big-endian)
 
   /**
    * Initialize NFC Manager
@@ -226,85 +236,331 @@ export class PassportNfcService {
       throw new ReadError('BAC_AUTH_FAILED', `BAC authentication failed: SW=${sw}`);
     }
 
-    // Extract session keys from response (if available)
-    // For now, we'll use the keys derived from BAC
-    console.log('[PassportNFC] BAC authentication successful');
+    // Parse EXTERNAL AUTHENTICATE response (40 data bytes + 9000)
+    const authData = authResp!.slice(0, -4); // strip SW
+    if (authData.length !== 80) { // 40 bytes = 80 hex chars
+      throw new ReadError('BAC_AUTH_FAILED', `Unexpected auth response length: ${authData.length / 2} bytes`);
+    }
 
-    // Store session keys for Secure Messaging
-    this.sessionK_enc = k_enc_3des;
-    this.sessionK_mac = k_mac_3des;
+    const eIc = CryptoUtils.hexToBytes(authData.substring(0, 64));  // 32 bytes
+    const mIc = CryptoUtils.hexToBytes(authData.substring(64, 80)); // 8 bytes
 
-    return { k_enc: k_enc_3des, k_mac: k_mac_3des };
+    // Verify MAC on E_IC
+    const mIcComputed = CryptoUtils.computeMac(k_mac_3des, eIc);
+    if (CryptoUtils.bytesToHex(mIcComputed) !== CryptoUtils.bytesToHex(mIc)) {
+      throw new ReadError('BAC_AUTH_FAILED', 'BAC mutual authentication MAC verification failed');
+    }
+
+    // Decrypt S_IC = 3DES-CBC-Dec(K_enc, IV=zeros, E_IC)
+    const sIc = CryptoUtils.des3DecryptCBC(k_enc_3des, new Uint8Array(8), eIc);
+
+    // Verify RND.IC and RND.IFD inside S_IC
+    const rndIcFromChip = sIc.slice(0, 8);
+    const rndIfdFromChip = sIc.slice(8, 16);
+    const kIc = sIc.slice(16, 32);
+
+    if (CryptoUtils.bytesToHex(rndIcFromChip) !== CryptoUtils.bytesToHex(rndIc)) {
+      throw new ReadError('BAC_AUTH_FAILED', 'BAC mutual auth: RND.IC mismatch');
+    }
+    if (CryptoUtils.bytesToHex(rndIfdFromChip) !== CryptoUtils.bytesToHex(rndIfd)) {
+      throw new ReadError('BAC_AUTH_FAILED', 'BAC mutual auth: RND.IFD mismatch');
+    }
+
+    // Derive session keys: Kseed = K.IFD XOR K.IC
+    const kseed = new Uint8Array(16);
+    for (let i = 0; i < 16; i++) {
+      kseed[i] = kifd[i]! ^ kIc[i]!;
+    }
+
+    // Use existing KDF (same as BAC key derivation but with new Kseed)
+    const sessionKeys = CryptoUtils.deriveBacKeys(kseed);
+    const sessionK_enc = CryptoUtils.expand16To24Bytes(sessionKeys.k_enc);
+    const sessionK_mac = CryptoUtils.expand16To24Bytes(sessionKeys.k_mac);
+
+    // SSC = last 4 bytes of RND.IC || last 4 bytes of RND.IFD
+    const ssc = new Uint8Array(8);
+    ssc.set(rndIc.slice(4, 8), 0);
+    ssc.set(rndIfd.slice(4, 8), 4);
+
+    this.sessionK_enc = sessionK_enc;
+    this.sessionK_mac = sessionK_mac;
+    this.ssc = ssc;
+
+    console.log('[PassportNFC] BAC authentication successful, session keys derived');
+    console.log('[PassportNFC] SSC initial:', CryptoUtils.bytesToHex(ssc));
+
+    return { k_enc: sessionK_enc, k_mac: sessionK_mac };
   }
 
   /**
-   * Read a Data Group (DG) from the passport chip
-   * Secure Messaging: encrypt + MAC
+   * Read a Data Group (DG) from the passport chip using Secure Messaging
    */
   private async readDataGroup(dgNumber: number): Promise<string> {
-    // SELECT MF
-    await this.selectMF();
+    const fid = dgToFid(dgNumber);
+    console.log(`[PassportNFC] Reading DG${dgNumber}, FID: ${fid.map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
 
-    // SELECT eMRTD application
-    const selectEMrtd = this.buildApdu(0x00, 0xa4, 0x01, 0x0c, 0, [0x01, 0x1f]);
-    await this.transceive(selectEMrtd);
-
-    // Read EF.DG (without secure messaging for now)
-    const fid = dgNumber;
-    const readApdu = this.buildApdu(0x00, 0xb0, 0x9c, fid, 0, []);
-
-    const response = await this.transceive(readApdu);
-
-    if (!this.isSuccess(response)) {
-      throw new ReadError(`DG${dgNumber}_READ_FAILED`, `Failed to read data group ${dgNumber}`);
+    // SM-wrapped SELECT EF by FID (P1=0x02 select by EF id, P2=0x0C no FCI)
+    const selectResp = await this.smTransceive(0x00, 0xa4, 0x02, 0x0c, fid, null);
+    if (!selectResp.success) {
+      throw new ReadError(`DG${dgNumber}_SELECT_FAILED`, `Failed to select DG${dgNumber}: SW=${selectResp.sw}`);
     }
 
-    // Remove SW1SW2 status bytes
-    const data = response.substring(0, response.length - 4);
-    console.log(
-      `[PassportNFC] DG${dgNumber} read successful (${Math.ceil(data.length / 2)} bytes)`
-    );
+    // Read binary in chunks with SM
+    const CHUNK_SIZE = 0xe0; // 224 bytes — safe with SM overhead
+    let buffer = new Uint8Array(0);
+    let offset = 0;
+    let totalLength = -1;
 
-    return data;
+    while (true) {
+      const p1 = (offset >> 8) & 0xff;
+      const p2 = offset & 0xff;
+
+      const readResp = await this.smTransceive(0x00, 0xb0, p1, p2, [], CHUNK_SIZE);
+      if (!readResp.success) {
+        // 6B00 or 6282 can mean end of file
+        if (readResp.sw === '6b00' || readResp.sw === '6282') break;
+        throw new ReadError(`DG${dgNumber}_READ_FAILED`, `Failed to read DG${dgNumber} at offset ${offset}: SW=${readResp.sw}`);
+      }
+
+      const chunk = readResp.data;
+      // Append chunk to buffer
+      const newBuf = new Uint8Array(buffer.length + chunk.length);
+      newBuf.set(buffer, 0);
+      newBuf.set(chunk, buffer.length);
+      buffer = newBuf;
+
+      // After first read, parse TLV header to get total length
+      if (totalLength < 0 && buffer.length >= 2) {
+        totalLength = this.parseTlvTotalLength(buffer);
+        console.log(`[PassportNFC] DG${dgNumber} total TLV length: ${totalLength}`);
+      }
+
+      offset += chunk.length;
+
+      // Stop conditions
+      if (totalLength >= 0 && offset >= totalLength) break;
+      if (chunk.length < CHUNK_SIZE) break;
+    }
+
+    console.log(`[PassportNFC] DG${dgNumber} read successful (${buffer.length} bytes)`);
+    return CryptoUtils.bytesToHex(buffer);
+  }
+
+  /**
+   * Parse TLV tag+length to determine total file size (tag + length + value)
+   */
+  private parseTlvTotalLength(data: Uint8Array): number {
+    let pos = 0;
+    // Skip tag (1 or 2 bytes)
+    if ((data[pos]! & 0x1f) === 0x1f) {
+      pos++; // multi-byte tag
+      while (pos < data.length && (data[pos]! & 0x80) !== 0) pos++;
+      pos++; // final tag byte
+    } else {
+      pos++;
+    }
+
+    if (pos >= data.length) return -1;
+
+    // Parse length
+    const firstLen = data[pos]!;
+    pos++;
+    let valueLength: number;
+    if (firstLen < 0x80) {
+      valueLength = firstLen;
+    } else {
+      const numLenBytes = firstLen & 0x7f;
+      if (pos + numLenBytes > data.length) return -1;
+      valueLength = 0;
+      for (let i = 0; i < numLenBytes; i++) {
+        valueLength = (valueLength << 8) | data[pos]!;
+        pos++;
+      }
+    }
+
+    return pos + valueLength; // total = header + value
   }
 
   /**
    * Check if Active Authentication is supported
    */
   private async checkActiveAuth(): Promise<boolean> {
+    // AA detection via EF.DG15 presence — try SM-wrapped select
     try {
-      // Try to select AID for Active Authentication
-      const aaAid = this.buildApdu(0x00, 0xa4, 0x04, 0x0c, 3, [0x93, 0x4f, 0x43]);
-      const resp = await this.transceive(aaAid);
-      return this.isSuccess(resp);
+      const resp = await this.smTransceive(0x00, 0xa4, 0x02, 0x0c, [0x01, 0x0f], null);
+      return resp.success;
     } catch {
       return false;
     }
   }
 
+  // ─── Secure Messaging (ICAO 9303) ───
+
   /**
-   * SELECT MF (Master File)
+   * Increment SSC (8-byte big-endian counter)
    */
-  private async selectMF(): Promise<void> {
-    const selectApdu = this.buildApdu(0x00, 0xa4, 0x00, 0x0c, 0, []);
-    const resp = await this.transceive(selectApdu);
-    if (!this.isSuccess(resp)) {
-      throw new ReadError('SELECT_MF_FAILED', 'Failed to select MF');
+  private incrementSSC(): void {
+    if (!this.ssc) throw new Error('SSC not initialized');
+    for (let i = 7; i >= 0; i--) {
+      this.ssc[i] = (this.ssc[i]! + 1) & 0xff;
+      if (this.ssc[i] !== 0) break; // no carry
     }
   }
 
   /**
-   * Apply Secure Messaging (encryption + MAC)
-   * For BAC authenticated sessions, wrap APDU with:
-   * - DO '87': Encrypted data (if any)
-   * - DO '97': LE length
-   * - DO '8E': MAC (8 bytes)
+   * SM-protect an APDU command
+   * Returns the wrapped APDU hex string
    */
-  private applySecureMessaging(apdu: string): string {
-    // TODO: Implement full Secure Messaging
-    // For now, return APDU as-is (no encryption)
-    // This should only work for DG reads without encryption
-    return apdu;
+  private smProtect(cla: number, ins: number, p1: number, p2: number, data: number[], le: number | null): string {
+    if (!this.sessionK_enc || !this.sessionK_mac || !this.ssc) {
+      throw new Error('Session keys not established');
+    }
+
+    this.incrementSSC();
+
+    const mCla = cla | 0x0c;
+
+    // DO87: encrypted command data
+    const do87: number[] = [];
+    if (data.length > 0) {
+      const padded = CryptoUtils.iso9797Pad(new Uint8Array(data));
+      const encrypted = CryptoUtils.des3EncryptNopad(padded, this.sessionK_enc, new Uint8Array(8));
+      const encBytes = Array.from(encrypted);
+      // TLV: 0x87, length(encrypted+1), 0x01, encrypted...
+      const contentLen = encBytes.length + 1;
+      if (contentLen < 0x80) {
+        do87.push(0x87, contentLen, 0x01, ...encBytes);
+      } else {
+        // Long form length
+        do87.push(0x87, 0x81, contentLen, 0x01, ...encBytes);
+      }
+    }
+
+    // DO97: expected response length
+    const do97: number[] = [];
+    if (le !== null) {
+      do97.push(0x97, 0x01, le);
+    }
+
+    // MAC input: SSC || padded(mCla||INS||P1||P2) || DO87 || DO97
+    const cmdHeader = CryptoUtils.iso9797Pad(new Uint8Array([mCla, ins, p1, p2]));
+    const macInputParts: number[] = [...Array.from(this.ssc), ...Array.from(cmdHeader), ...do87, ...do97];
+    // computeMac applies iso9797Pad internally
+    const mac = CryptoUtils.computeMac(this.sessionK_mac, new Uint8Array(macInputParts));
+
+    // DO8E: MAC
+    const do8e = [0x8e, 0x08, ...Array.from(mac)];
+
+    // Build final APDU
+    const smData = [...do87, ...do97, ...do8e];
+    const apdu = [mCla, ins, p1, p2, smData.length, ...smData, 0x00];
+
+    return apdu.map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  /**
+   * SM-unprotect a response
+   * Returns decrypted data and status word
+   */
+  private smUnprotect(responseHex: string): { data: Uint8Array; sw: string } {
+    if (!this.sessionK_enc || !this.sessionK_mac || !this.ssc) {
+      throw new Error('Session keys not established');
+    }
+
+    this.incrementSSC();
+
+    // Strip final SW (last 4 hex chars = 2 bytes)
+    const bodyHex = responseHex.slice(0, -4);
+    const outerSw = responseHex.slice(-4);
+    const body = CryptoUtils.hexToBytes(bodyHex);
+
+    // Parse TLV objects from body
+    let do87Bytes: Uint8Array | null = null;
+    let do87Raw: number[] = []; // raw TLV bytes for MAC verification
+    let do99Bytes: Uint8Array | null = null;
+    let do99Raw: number[] = [];
+    let do8eBytes: Uint8Array | null = null;
+
+    let pos = 0;
+    while (pos < body.length) {
+      const tlvStart = pos;
+      const tag = body[pos]!;
+      pos++;
+
+      // Parse length (BER-TLV)
+      let len = body[pos]!;
+      pos++;
+      if (len === 0x81) {
+        len = body[pos]!;
+        pos++;
+      } else if (len === 0x82) {
+        len = (body[pos]! << 8) | body[pos + 1]!;
+        pos += 2;
+      }
+
+      const value = body.slice(pos, pos + len);
+      const rawTlv = Array.from(body.slice(tlvStart, pos + len));
+
+      if (tag === 0x87) {
+        do87Bytes = value;
+        do87Raw = rawTlv;
+      } else if (tag === 0x99) {
+        do99Bytes = value;
+        do99Raw = rawTlv;
+      } else if (tag === 0x8e) {
+        do8eBytes = value;
+      }
+
+      pos += len;
+    }
+
+    // Verify MAC
+    if (!do8eBytes || do8eBytes.length !== 8) {
+      throw new ReadError('SM_MAC_MISSING', 'Response MAC (DO8E) missing or invalid');
+    }
+
+    const macInput = new Uint8Array([...Array.from(this.ssc), ...do87Raw, ...do99Raw]);
+    const computedMac = CryptoUtils.computeMac(this.sessionK_mac, macInput);
+    if (CryptoUtils.bytesToHex(computedMac) !== CryptoUtils.bytesToHex(do8eBytes)) {
+      throw new ReadError('SM_MAC_FAILED', 'Response MAC verification failed');
+    }
+
+    // Decrypt DO87 data if present
+    let decrypted = new Uint8Array(0);
+    if (do87Bytes && do87Bytes.length > 1) {
+      // First byte is padding indicator (0x01), skip it
+      const encData = do87Bytes.slice(1);
+      const raw = CryptoUtils.des3DecryptCBC(this.sessionK_enc, new Uint8Array(8), encData);
+      decrypted = new Uint8Array(CryptoUtils.removePadding(raw));
+    }
+
+    // SW from DO99 or outer SW
+    let sw = outerSw;
+    if (do99Bytes && do99Bytes.length === 2) {
+      sw = CryptoUtils.bytesToHex(do99Bytes);
+    }
+
+    return { data: decrypted, sw };
+  }
+
+  /**
+   * Send an SM-protected APDU and unwrap the response
+   */
+  private async smTransceive(
+    cla: number, ins: number, p1: number, p2: number,
+    data: number[], le: number | null
+  ): Promise<{ success: boolean; data: Uint8Array; sw: string }> {
+    const apdu = this.smProtect(cla, ins, p1, p2, data, le);
+    const responseHex = await this.transceive(apdu);
+
+    // If response is just a SW (4 hex chars), no SM wrapping to undo
+    if (responseHex.length <= 4) {
+      return { success: responseHex === '9000', data: new Uint8Array(0), sw: responseHex };
+    }
+
+    const result = this.smUnprotect(responseHex);
+    const success = result.sw === '9000';
+    return { success, data: result.data, sw: result.sw };
   }
 
   /**
@@ -378,6 +634,7 @@ export class PassportNfcService {
       }
       this.sessionK_enc = null;
       this.sessionK_mac = null;
+      this.ssc = null;
     } catch (error) {
       console.error('[PassportNFC] Cleanup failed:', error);
     }

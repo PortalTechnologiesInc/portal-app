@@ -262,6 +262,38 @@ export function computeMac(key: Uint8Array, data: Uint8Array): Uint8Array {
 }
 
 /**
+ * 3DES-CBC decryption WITHOUT padding for Secure Messaging
+ * Used for SM where padding is handled separately (ISO 9797-1 method 2)
+ */
+export function des3DecryptCBC(key: Uint8Array, iv: Uint8Array, data: Uint8Array): Uint8Array {
+  if (data.length % 8 !== 0) throw new Error('Data must be a multiple of 8 bytes');
+  const decipher = Crypto.createDecipheriv('des-ede3-cbc', new Uint8Array(key), new Uint8Array(iv));
+  decipher.setAutoPadding(false);
+  const a = decipher.update(new Uint8Array(data)) as Uint8Array;
+  const b = decipher.final() as Uint8Array;
+  const out = new Uint8Array(a.length + b.length);
+  out.set(a, 0);
+  out.set(b, a.length);
+  return out;
+}
+
+/**
+ * Remove ISO 9797-1 method 2 padding
+ * Finds the last 0x80 byte and trims from there
+ */
+export function removePadding(data: Uint8Array): Uint8Array {
+  for (let i = data.length - 1; i >= 0; i--) {
+    if (data[i] === 0x80) {
+      return data.slice(0, i);
+    }
+    if (data[i] !== 0x00) {
+      throw new Error('Invalid ISO 9797-1 method 2 padding');
+    }
+  }
+  throw new Error('No padding found');
+}
+
+/**
  * Generate random bytes
  */
 export function randomBytes(length: number): Uint8Array {
