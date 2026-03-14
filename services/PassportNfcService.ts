@@ -83,7 +83,7 @@ export class PassportNfcService {
    * Start NFC tag reading with IsoDep technology
    * Returns when tag is found
    */
-  async startReading(mrzData: MrzData): Promise<PassportData> {
+  async startReading(mrzData: MrzData, onTagFound?: () => void): Promise<PassportData> {
     if (!this.nfcEnabled) {
       await this.initialize();
     }
@@ -101,6 +101,9 @@ export class PassportNfcService {
       }
 
       this.isoDep = tag;
+
+      // Notify caller that the tag was found (UI can show "stay still" feedback)
+      onTagFound?.();
 
       // Perform BAC authentication
       const bacKeys = await this.bacAuth(mrzData);

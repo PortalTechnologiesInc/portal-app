@@ -35,7 +35,7 @@ export default function PassportNfcScanScreen() {
   const mrzData = params.mrzData ? (JSON.parse(params.mrzData) as MrzData) : null;
 
   const [isNFCEnabled, setIsNFCEnabled] = useState<boolean | null>(null);
-  const [scanState, setScanState] = useState<'ready' | 'scanning' | 'success' | 'error'>('ready');
+  const [scanState, setScanState] = useState<'ready' | 'scanning' | 'reading' | 'success' | 'error'>('ready');
   const [errorType, setErrorType] = useState<string | null>(null);
   const [isPageFocused, setIsPageFocused] = useState(false);
   const isPageFocusedRef = useRef(false);
@@ -95,15 +95,16 @@ export default function PassportNfcScanScreen() {
       }
 
       const sessionData = await sessionRes.json();
-      if (!sessionData?.id) {
-        throw new Error('Invalid session response: missing id');
+      const { session_url } = sessionData;
+      if (!session_url) {
+        throw new Error('Invalid session response: missing session_url');
       }
 
       // Pass passport data in the URL hash fragment — the hash is never sent
       // to the server in HTTP requests, keeping dg1+sod entirely client-side.
       // The webview JS reads it via window.location.hash and sends it to the
       // enclave over an encrypted channel.
-      const verifyUrl = `https://verify.getportal.cc/?id=${sessionData.id}#dg1=${dg1Hex}&sod=${sodHex}`;
+      const verifyUrl = `https://verify.getportal.cc${session_url}#dg1=${dg1Hex}&sod=${sodHex}`;
       await WebBrowser.openBrowserAsync(verifyUrl);
       router.replace('/(tabs)');
     } catch (e) {
@@ -175,7 +176,9 @@ export default function PassportNfcScanScreen() {
       startGlowAnimation();
       startScanLineAnimation();
 
-      const data = await passportNfcService.startReading(mrzData);
+      const data = await passportNfcService.startReading(mrzData, () => {
+        setScanState('reading');
+      });
       setPassportData(data);
 
       setScanState('success');
@@ -310,11 +313,13 @@ export default function PassportNfcScanScreen() {
     isNFCEnabled === null
       ? 'Checking NFC status...'
       : isNFCEnabled
-        ? scanState === 'scanning'
-          ? 'Hold your device near the passport chip'
-          : scanState === 'success'
-            ? 'Passport data read successfully!'
-            : getErrorMessage()
+        ? scanState === 'reading'
+          ? 'Stay still — reading document...'
+          : scanState === 'scanning'
+            ? 'Hold your device near the passport chip'
+            : scanState === 'success'
+              ? 'Passport data read successfully!'
+              : getErrorMessage()
         : 'Please enable NFC to use this feature';
 
   const getScanAreaColor = () => {
@@ -322,6 +327,7 @@ export default function PassportNfcScanScreen() {
     if (!isNFCEnabled) return statusWarningColor;
     switch (scanState) {
       case 'scanning':
+      case 'reading':
         return buttonPrimaryColor;
       case 'success':
         return statusConnectedColor;
@@ -345,6 +351,15 @@ export default function PassportNfcScanScreen() {
           <Animated.View style={{ transform: [{ scale: glowAnimation }] }}>
             <Nfc size={60} color={buttonPrimaryColor} />
           </Animated.View>
+        );
+      case 'reading':
+        return (
+          <View style={{ alignItems: 'center' }}>
+            <Animated.View style={{ transform: [{ scale: glowAnimation }] }}>
+              <Nfc size={60} color={buttonPrimaryColor} />
+            </Animated.View>
+            <ActivityIndicator size="small" color={buttonPrimaryColor} style={{ marginTop: 12 }} />
+          </View>
         );
       case 'success':
         return <CheckCircle size={60} color={statusConnectedColor} />;
@@ -400,13 +415,15 @@ export default function PassportNfcScanScreen() {
             {isNFCEnabled === null
               ? 'Checking NFC...'
               : isNFCEnabled
-                ? scanState === 'scanning'
-                  ? 'Scanning...'
-                  : scanState === 'success'
-                    ? 'Scan Successful'
-                    : scanState === 'error'
-                      ? 'Scan Failed'
-                      : 'NFC Ready'
+                ? scanState === 'reading'
+                  ? 'Reading Passport...'
+                  : scanState === 'scanning'
+                    ? 'Scanning...'
+                    : scanState === 'success'
+                      ? 'Scan Successful'
+                      : scanState === 'error'
+                        ? 'Scan Failed'
+                        : 'NFC Ready'
                 : 'NFC Required'}
           </ThemedText>
           <ThemedText style={[styles.statusMessage, { color: secondaryTextColor }]}>
@@ -436,7 +453,7 @@ export default function PassportNfcScanScreen() {
             />
 
             {/* Scan Line Animation */}
-            {scanState === 'scanning' && isNFCEnabled && (
+            {(scanState === 'scanning' || scanState === 'reading') && isNFCEnabled && (
               <Animated.View
                 style={[
                   styles.scanLine,
