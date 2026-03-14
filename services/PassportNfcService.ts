@@ -66,6 +66,9 @@ export class PassportNfcService {
       // Request IsoDep technology for smart card communication
       await NfcManager.requestTechnology(NfcTech.IsoDep);
 
+      // Increase IsoDep timeout to 10s (default 2s can drop during EXTERNAL AUTH)
+      try { await (NfcManager as any).setTimeout(10000); } catch (_) {}
+
       const tag = await NfcManager.getTag();
       if (!tag) {
         throw new ReadError('TAG_NOT_FOUND', 'No NFC tag detected');
