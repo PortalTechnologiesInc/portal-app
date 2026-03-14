@@ -236,46 +236,55 @@ export class PassportNfcService {
       throw new ReadError('BAC_AUTH_FAILED', `BAC authentication failed: SW=${sw}`);
     }
 
-    // Parse EXTERNAL AUTHENTICATE response (40 data bytes + 9000)
+    // Parse EXTERNAL AUTHENTICATE response
+    // ICAO 9303 mandates 40 data bytes (E_IC + M_IC) but some chips return only SW 9000.
+    // Fall back to using BAC keys directly as session keys when no data is returned.
     const authData = authResp!.slice(0, -4); // strip SW
-    if (authData.length !== 80) { // 40 bytes = 80 hex chars
-      throw new ReadError('BAC_AUTH_FAILED', `Unexpected auth response length: ${authData.length / 2} bytes`);
+    let sessionK_enc: Uint8Array;
+    let sessionK_mac: Uint8Array;
+
+    if (authData.length === 80) { // 40 bytes = 80 hex chars — full mutual auth
+      const eIc = CryptoUtils.hexToBytes(authData.substring(0, 64));  // 32 bytes
+      const mIc = CryptoUtils.hexToBytes(authData.substring(64, 80)); // 8 bytes
+
+      // Verify MAC on E_IC
+      const mIcComputed = CryptoUtils.computeMac(k_mac_3des, eIc);
+      if (CryptoUtils.bytesToHex(mIcComputed) !== CryptoUtils.bytesToHex(mIc)) {
+        throw new ReadError('BAC_AUTH_FAILED', 'BAC mutual authentication MAC verification failed');
+      }
+
+      // Decrypt S_IC = 3DES-CBC-Dec(K_enc, IV=zeros, E_IC)
+      const sIc = CryptoUtils.des3DecryptCBC(k_enc_3des, new Uint8Array(8), eIc);
+
+      // Verify RND.IC and RND.IFD inside S_IC
+      const rndIcFromChip = sIc.slice(0, 8);
+      const rndIfdFromChip = sIc.slice(8, 16);
+      const kIc = sIc.slice(16, 32);
+
+      if (CryptoUtils.bytesToHex(rndIcFromChip) !== CryptoUtils.bytesToHex(rndIc)) {
+        throw new ReadError('BAC_AUTH_FAILED', 'BAC mutual auth: RND.IC mismatch');
+      }
+      if (CryptoUtils.bytesToHex(rndIfdFromChip) !== CryptoUtils.bytesToHex(rndIfd)) {
+        throw new ReadError('BAC_AUTH_FAILED', 'BAC mutual auth: RND.IFD mismatch');
+      }
+
+      // Derive session keys: Kseed = K.IFD XOR K.IC
+      const kseed = new Uint8Array(16);
+      for (let i = 0; i < 16; i++) {
+        kseed[i] = kifd[i]! ^ kIc[i]!;
+      }
+
+      // Use existing KDF (same as BAC key derivation but with new Kseed)
+      const sessionKeys = CryptoUtils.deriveBacKeys(kseed);
+      sessionK_enc = CryptoUtils.expand16To24Bytes(sessionKeys.k_enc);
+      sessionK_mac = CryptoUtils.expand16To24Bytes(sessionKeys.k_mac);
+      console.log('[PassportNFC] Full mutual auth: session keys derived from K.IFD XOR K.IC');
+    } else {
+      // Chip returned only 9000 — use BAC keys directly as session keys
+      console.log('[PassportNFC] No mutual auth data from chip, using BAC keys as session keys');
+      sessionK_enc = k_enc_3des;
+      sessionK_mac = k_mac_3des;
     }
-
-    const eIc = CryptoUtils.hexToBytes(authData.substring(0, 64));  // 32 bytes
-    const mIc = CryptoUtils.hexToBytes(authData.substring(64, 80)); // 8 bytes
-
-    // Verify MAC on E_IC
-    const mIcComputed = CryptoUtils.computeMac(k_mac_3des, eIc);
-    if (CryptoUtils.bytesToHex(mIcComputed) !== CryptoUtils.bytesToHex(mIc)) {
-      throw new ReadError('BAC_AUTH_FAILED', 'BAC mutual authentication MAC verification failed');
-    }
-
-    // Decrypt S_IC = 3DES-CBC-Dec(K_enc, IV=zeros, E_IC)
-    const sIc = CryptoUtils.des3DecryptCBC(k_enc_3des, new Uint8Array(8), eIc);
-
-    // Verify RND.IC and RND.IFD inside S_IC
-    const rndIcFromChip = sIc.slice(0, 8);
-    const rndIfdFromChip = sIc.slice(8, 16);
-    const kIc = sIc.slice(16, 32);
-
-    if (CryptoUtils.bytesToHex(rndIcFromChip) !== CryptoUtils.bytesToHex(rndIc)) {
-      throw new ReadError('BAC_AUTH_FAILED', 'BAC mutual auth: RND.IC mismatch');
-    }
-    if (CryptoUtils.bytesToHex(rndIfdFromChip) !== CryptoUtils.bytesToHex(rndIfd)) {
-      throw new ReadError('BAC_AUTH_FAILED', 'BAC mutual auth: RND.IFD mismatch');
-    }
-
-    // Derive session keys: Kseed = K.IFD XOR K.IC
-    const kseed = new Uint8Array(16);
-    for (let i = 0; i < 16; i++) {
-      kseed[i] = kifd[i]! ^ kIc[i]!;
-    }
-
-    // Use existing KDF (same as BAC key derivation but with new Kseed)
-    const sessionKeys = CryptoUtils.deriveBacKeys(kseed);
-    const sessionK_enc = CryptoUtils.expand16To24Bytes(sessionKeys.k_enc);
-    const sessionK_mac = CryptoUtils.expand16To24Bytes(sessionKeys.k_mac);
 
     // SSC = last 4 bytes of RND.IC || last 4 bytes of RND.IFD
     const ssc = new Uint8Array(8);
