@@ -44,6 +44,7 @@ export default function PassportNfcScanScreen() {
   const [passportData, setPassportData] = useState<PassportData | null>(null);
   const [scanningActive, setScanningActive] = useState(false);
   const scanningActiveRef = useRef(false);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
 
   const glowAnimation = useRef(new Animated.Value(1)).current;
   const scanLineAnimation = useRef(new Animated.Value(0)).current;
@@ -79,6 +80,36 @@ export default function PassportNfcScanScreen() {
     }
     timeoutIds.current = [];
   }, []);
+
+  const openVerifySession = useCallback(async (dg1Hex: string, sodHex: string) => {
+    try {
+      setVerifyError(null);
+      const sessionRes = await fetch('https://verify.getportal.cc/verify/sessions/app', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ npub, dg1: dg1Hex, sod: sodHex }),
+      });
+
+      if (!sessionRes.ok) {
+        throw new Error(`Session creation failed: ${sessionRes.status}`);
+      }
+
+      const sessionData = await sessionRes.json();
+      if (!sessionData?.id) {
+        throw new Error('Invalid session response: missing id');
+      }
+
+      await WebBrowser.openBrowserAsync(
+        `https://verify.getportal.cc/?id=${sessionData.id}`,
+      );
+      router.replace('/(tabs)');
+    } catch (e) {
+      console.error('[PassportNFC] Verify session error:', e);
+      setVerifyError(
+        e instanceof Error ? e.message : 'Failed to create verification session',
+      );
+    }
+  }, [npub, router]);
 
   const startGlowAnimation = useCallback(() => {
     Animated.loop(
@@ -152,26 +183,10 @@ export default function PassportNfcScanScreen() {
 
       console.log('[PassportNFC] Read complete — DG1:', data.dg1Raw.length / 2, 'bytes, SOD:', data.sodRaw.length / 2, 'bytes');
 
-      // Create verification session and open enclave webview
-      addTimeout(async () => {
-        try {
-          const sessionRes = await fetch('https://verify.getportal.cc/verify/sessions/app', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ npub }),
-          });
-          const { id: sessionId } = await sessionRes.json();
-
-          const verifyUrl =
-            `https://verify.getportal.cc/?id=${sessionId}` +
-            `&dg1=${data.dg1Raw}` +
-            `&sod=${data.sodRaw}`;
-
-          await WebBrowser.openBrowserAsync(verifyUrl);
-        } catch (e) {
-          console.error('[PassportNFC] Verify session error:', e);
-        }
-        router.replace('/(tabs)');
+      // Create verification session and open enclave webview after a brief delay
+      // so the user can see the success state before transitioning.
+      addTimeout(() => {
+        openVerifySession(data.dg1Raw, data.sodRaw);
       }, 1500);
     } catch (error) {
       const err = error as ReadError;
@@ -192,7 +207,7 @@ export default function PassportNfcScanScreen() {
     stopGlowAnimation,
     stopScanLineAnimation,
     addTimeout,
-    router,
+    openVerifySession,
   ]);
 
   // Keep a ref to the latest startScan so the mount effect can call it
@@ -461,8 +476,40 @@ export default function PassportNfcScanScreen() {
           </ThemedText>
         </ThemedView>
 
-        {/* Retry button — shown on error */}
-        {scanState === 'error' && (
+        {/* Verify error state */}
+        {verifyError && (
+          <ThemedView style={[styles.statusCard, { backgroundColor: cardBackgroundColor }]}>
+            <ThemedText type="subtitle" style={[styles.statusTitle, { color: statusErrorColor }]}>
+              Verification Error
+            </ThemedText>
+            <ThemedText style={[styles.statusMessage, { color: secondaryTextColor }]}>
+              {verifyError}
+            </ThemedText>
+            <TouchableOpacity
+              style={[styles.retryButton, { backgroundColor: buttonPrimaryColor, marginTop: 12 }]}
+              onPress={() => {
+                if (passportData) {
+                  openVerifySession(passportData.dg1Raw, passportData.sodRaw);
+                }
+              }}
+            >
+              <ThemedText style={[styles.retryButtonText, { color: buttonPrimaryTextColor }]}>
+                Retry Verification
+              </ThemedText>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.retryButton, { backgroundColor: surfaceSecondaryColor, marginTop: 8 }]}
+              onPress={() => router.replace('/(tabs)')}
+            >
+              <ThemedText style={[styles.retryButtonText, { color: primaryTextColor }]}>
+                Skip for Now
+              </ThemedText>
+            </TouchableOpacity>
+          </ThemedView>
+        )}
+
+        {/* Retry button — shown on NFC scan error */}
+        {scanState === 'error' && !verifyError && (
           <TouchableOpacity
             style={[styles.retryButton, { backgroundColor: buttonPrimaryColor }]}
             onPress={() => {
