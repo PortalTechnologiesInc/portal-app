@@ -124,21 +124,15 @@ export class PassportNfcService {
       const presentDgs = comRaw ? this.parseCOMDataGroups(comRaw) : [];
       console.log('[PassportNFC] DGs present per EF.COM:', presentDgs);
 
-      // 2. Read DG1 — MRZ data
-      const dg1Raw = await this.readDataGroup(0x01);
-
-      // 3. Read EF.SOD — digital signature over data groups
+      // 2. Read EF.SOD — digital signature over data groups (primary goal)
       const sodRaw = await this.readDataGroup(0x1d);
 
-      // 4. Read DG2 (face image) only if EF.COM says it's present
-      let dg2Raw = '';
-      if (presentDgs.includes(2) || presentDgs.length === 0) {
-        try {
-          dg2Raw = await this.readDataGroup(0x02);
-        } catch (e: any) {
-          console.log('[PassportNFC] DG2 read failed (non-fatal):', e?.message);
-        }
-      }
+      // DG1 (MRZ data) and DG2 (face image) are not read for now:
+      // - DG1 duplicates what we already have from the MRZ optical scan
+      // - DG2 is the face photo, large and not needed for signature verification
+      // Keep readDataGroup(0x01) and readDataGroup(0x02) calls below for future use.
+      const dg1Raw = ''; // await this.readDataGroup(0x01);
+      const dg2Raw = ''; // await this.readDataGroup(0x02);
 
       // Check if Active Authentication is supported (DG15 present)
       const activeAuthSupported = presentDgs.includes(15);
