@@ -201,7 +201,6 @@ export default function PassportMrzScanScreen() {
           </ThemedView>
         </View>
       ) : (
-        {/* Result View */}
         <ThemedView style={styles.resultContainer}>
           <ThemedText style={styles.resultTitle}>MRZ Detected</ThemedText>
 
