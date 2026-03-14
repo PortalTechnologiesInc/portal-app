@@ -124,6 +124,20 @@ export class PassportNfcService {
     const rndIfd = CryptoUtils.randomBytes(8);
     const kifd = CryptoUtils.randomBytes(16);
 
+    // 0. Diagnostic: try to read EF.CardAccess (exists on PACE-capable chips, no auth needed)
+    try {
+      const selCardAccess = this.buildApdu(0x00, 0xa4, 0x02, 0x0c, 0, [0x01, 0x1c]);
+      const selCaResp = await this.transceive(selCardAccess);
+      console.log('[PassportNFC] EF.CardAccess SELECT:', selCaResp);
+      if (this.isSuccess(selCaResp)) {
+        const readCa = this.buildApdu(0x00, 0xb0, 0x00, 0x00, 0xfe);
+        const caData = await this.transceive(readCa);
+        console.log('[PassportNFC] EF.CardAccess DATA:', caData);
+      }
+    } catch (e: any) {
+      console.log('[PassportNFC] EF.CardAccess not available:', e?.message);
+    }
+
     // 1. SELECT MRTD application (A0 00 00 02 47 10 01)
     const selectMrtd = this.buildApdu(
       0x00,
@@ -193,16 +207,20 @@ export class PassportNfcService {
     );
     console.log('[PassportNFC] EXTERNAL AUTH APDU len:', externalAuth.length / 2, 'bytes');
 
+    let authResp: string;
     try {
-      const authResp = await this.transceive(externalAuth);
-
-      if (!this.isSuccess(authResp)) {
-        throw new ReadError('BAC_AUTH_FAILED', 'BAC authentication failed - check MRZ data');
-      }
+      authResp = await this.transceive(externalAuth);
+      console.log('[PassportNFC] EXTERNAL AUTH RX:', authResp);
     } catch (e: any) {
-      if (e instanceof ReadError) throw e;
-      // transceive fail during external auth = wrong BAC keys (chip closed NFC session)
+      // Log the raw exception to distinguish NFC drop vs protocol error
+      console.log('[PassportNFC] EXTERNAL AUTH transceive threw:', e?.message, e?.code, JSON.stringify(e));
       throw new ReadError('BAC_AUTH_FAILED', 'BAC authentication failed - passport rejected credentials');
+    }
+
+    if (!this.isSuccess(authResp!)) {
+      const sw = authResp!.slice(-4);
+      console.log('[PassportNFC] EXTERNAL AUTH bad SW:', sw);
+      throw new ReadError('BAC_AUTH_FAILED', `BAC authentication failed: SW=${sw}`);
     }
 
     // Extract session keys from response (if available)

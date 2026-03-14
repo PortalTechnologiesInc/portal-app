@@ -26,6 +26,7 @@ export default function PassportMrzScanScreen() {
 
     try {
       const rawMRZ = await scanMRZ({ timeoutMs: 30000, isChipShow: true });
+      console.log('[MRZ] raw lines:', JSON.stringify(rawMRZ));
       const result = parseMRZ(rawMRZ);
 
       if (!result.checksumValid) {
@@ -35,6 +36,8 @@ export default function PassportMrzScanScreen() {
       }
 
       const mrzData = mrzScannerResultToMrzData(result);
+      console.log('[MRZ] raw result:', JSON.stringify(result));
+      console.log('[MRZ] mrzData:', JSON.stringify(mrzData));
 
       router.push({
         pathname: '/passport-nfc-scan',
