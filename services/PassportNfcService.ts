@@ -111,6 +111,19 @@ export class PassportNfcService {
   private async bacAuth(mrzData: MrzData): Promise<{ k_enc: Uint8Array; k_mac: Uint8Array }> {
     const tag = this.isoDep;
 
+    // Pre-derive BAC keys BEFORE any NFC interaction to avoid timing issues.
+    // Some chips have tight timeouts between GET CHALLENGE and EXTERNAL AUTH.
+    const bacKeys = deriveBacKeys(mrzData);
+    const bacSeed = `${mrzData.documentNumber}${mrzData.documentNumberCheckDigit}${mrzData.dateOfBirth}${mrzData.dateOfBirthCheckDigit}${mrzData.expiryDate}${mrzData.expiryDateCheckDigit}`;
+    console.log('[PassportNFC] MRZ seed string:', JSON.stringify(bacSeed), `(${bacSeed.length} chars)`);
+    console.log('[PassportNFC] mrzKey (SHA-1 hex):', bacKeys.mrzKey);
+    console.log('[PassportNFC] k_enc hex:', bacKeys.k_enc);
+    console.log('[PassportNFC] k_mac hex:', bacKeys.k_mac);
+
+    // Pre-generate random values too
+    const rndIfd = CryptoUtils.randomBytes(8);
+    const kifd = CryptoUtils.randomBytes(16);
+
     // 1. SELECT MRTD application (A0 00 00 02 47 10 01)
     const selectMrtd = this.buildApdu(
       0x00,
@@ -135,20 +148,6 @@ export class PassportNfcService {
 
     // Extract RND.IC (8 bytes) from response
     const rndIc = CryptoUtils.hexToBytes(challengeResp.substring(0, 16));
-
-    // 3. Generate RND.IFD (8 bytes random) and K.IFD (16 bytes random)
-    const rndIfd = CryptoUtils.randomBytes(8);
-    const kifd = CryptoUtils.randomBytes(16);
-
-    // Derive BAC keys from MRZ (returns hex strings)
-    const bacKeys = deriveBacKeys(mrzData);
-
-    // Log BAC intermediate values for debugging
-    const bacSeed = `${mrzData.documentNumber}${mrzData.documentNumberCheckDigit}${mrzData.dateOfBirth}${mrzData.dateOfBirthCheckDigit}${mrzData.expiryDate}${mrzData.expiryDateCheckDigit}`;
-    console.log('[PassportNFC] MRZ seed string:', JSON.stringify(bacSeed), `(${bacSeed.length} chars)`);
-    console.log('[PassportNFC] mrzKey (SHA-1 hex):', bacKeys.mrzKey);
-    console.log('[PassportNFC] k_enc hex:', bacKeys.k_enc);
-    console.log('[PassportNFC] k_mac hex:', bacKeys.k_mac);
 
     // Convert hex strings to Uint8Array (16 bytes each)
     const k_enc_raw = CryptoUtils.hexToBytes(bacKeys.k_enc);
