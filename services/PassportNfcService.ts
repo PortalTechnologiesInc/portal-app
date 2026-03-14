@@ -127,11 +127,10 @@ export class PassportNfcService {
       // 2. Read EF.SOD — digital signature over data groups (primary goal)
       const sodRaw = await this.readDataGroup(0x1d);
 
-      // DG1 (MRZ data) and DG2 (face image) are not read for now:
-      // - DG1 duplicates what we already have from the MRZ optical scan
-      // - DG2 is the face photo, large and not needed for signature verification
-      // Keep readDataGroup(0x01) and readDataGroup(0x02) calls below for future use.
-      const dg1Raw = ''; // await this.readDataGroup(0x01);
+      // 3. Read DG1 — MRZ data (needed for SOD signature verification in enclave)
+      const dg1Raw = await this.readDataGroup(0x01);
+
+      // DG2 (face photo) skipped — not needed for signature verification
       const dg2Raw = ''; // await this.readDataGroup(0x02);
 
       // Check if Active Authentication is supported (DG15 present)

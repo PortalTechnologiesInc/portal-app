@@ -1,3 +1,4 @@
+import * as WebBrowser from 'expo-web-browser';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, CheckCircle, Nfc, Settings, XCircle } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -20,6 +21,7 @@ import {
   passportNfcService,
   type ReadError,
 } from '@/services/PassportNfcService';
+import { useNostrService } from '@/context/NostrServiceContext';
 import type { MrzData } from '@/utils/mrz';
 
 /**
@@ -29,6 +31,7 @@ import type { MrzData } from '@/utils/mrz';
 export default function PassportNfcScanScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ mrzData: string }>();
+  const { publicKey: npub } = useNostrService();
   const mrzData = params.mrzData ? (JSON.parse(params.mrzData) as MrzData) : null;
 
   const [isNFCEnabled, setIsNFCEnabled] = useState<boolean | null>(null);
@@ -147,11 +150,27 @@ export default function PassportNfcScanScreen() {
       scanningActiveRef.current = false;
       setScanningActive(false);
 
-      // Log the data
-      console.log('[PassportNFC] Passport data:', JSON.stringify(data, null, 2));
+      console.log('[PassportNFC] Read complete — DG1:', data.dg1Raw.length / 2, 'bytes, SOD:', data.sodRaw.length / 2, 'bytes');
 
-      // Navigate back to tabs after success (standalone flow, not onboarding)
-      addTimeout(() => {
+      // Create verification session and open enclave webview
+      addTimeout(async () => {
+        try {
+          const sessionRes = await fetch('https://verify.getportal.cc/verify/sessions/app', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ npub }),
+          });
+          const { id: sessionId } = await sessionRes.json();
+
+          const verifyUrl =
+            `https://verify.getportal.cc/?id=${sessionId}` +
+            `&dg1=${data.dg1Raw}` +
+            `&sod=${data.sodRaw}`;
+
+          await WebBrowser.openBrowserAsync(verifyUrl);
+        } catch (e) {
+          console.error('[PassportNFC] Verify session error:', e);
+        }
         router.replace('/(tabs)');
       }, 1500);
     } catch (error) {
