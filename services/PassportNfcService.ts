@@ -310,6 +310,14 @@ export class PassportNfcService {
     const fid = dgToFid(dgNumber);
     console.log(`[PassportNFC] Reading DG${dgNumber}, FID: ${fid.map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
 
+    // Re-select the MRTD application via SM so the chip's file context is established
+    // in SM mode (plain SELECT before BAC may be dropped when SM mode begins).
+    const mrtdAid = [0xa0, 0x00, 0x00, 0x02, 0x47, 0x10, 0x01];
+    const appSelectResp = await this.smTransceive(0x00, 0xa4, 0x04, 0x0c, mrtdAid, null);
+    if (!appSelectResp.success) {
+      console.log('[PassportNFC] MRTD re-select in SM mode failed:', appSelectResp.sw, '— continuing anyway');
+    }
+
     // SM-wrapped SELECT EF by FID (P1=0x02 select by EF id, P2=0x0C no FCI)
     const selectResp = await this.smTransceive(0x00, 0xa4, 0x02, 0x0c, fid, null);
     if (!selectResp.success) {
