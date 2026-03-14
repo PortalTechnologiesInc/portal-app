@@ -210,12 +210,14 @@ export class PassportNfcService {
     externalAuthData.set(eIfd, 0);
     externalAuthData.set(mIfd, eIfd.length);
 
+    // Le=0x28 (40) — request E_IC || M_IC response so we can derive proper session keys.
+    // ICAO 9303 mandates the chip returns 40 bytes here.
     const externalAuth = this.buildApdu(
       0x00,
       0x82,
       0x00,
       0x00,
-      0,  // No Le — avoid case-4 APDU rejection by some chips
+      0x28,  // Le = 40: request E_IC || M_IC for session key derivation
       Array.from(externalAuthData)
     );
     console.log('[PassportNFC] EXTERNAL AUTH APDU len:', externalAuth.length / 2, 'bytes');
