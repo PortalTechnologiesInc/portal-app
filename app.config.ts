@@ -111,6 +111,12 @@ export default {
           includeNdefEntitlement: false,
         },
       ],
+      [
+        '@getportal/mrz-scanner',
+        {
+          cameraPermissionText: 'Portal needs camera access to scan your document.',
+        },
+      ],
       './plugins/withRemoveUniffiDependency',
     ],
     experiments: {
