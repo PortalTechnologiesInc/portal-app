@@ -8,21 +8,37 @@ import NfcManager, { NfcTech } from 'react-native-nfc-manager';
 import { deriveBacKeys, MrzData } from '@/utils/mrz';
 import * as CryptoUtils from '@/utils/crypto';
 
-/** ICAO 9303 EF File Identifiers */
+/**
+ * ICAO 9303 Part 10 — EF File Identifiers and Short File Identifiers
+ *
+ * Per ICAO 9303 Part 10, Table 37 / JMRTD PassportService constants:
+ *   DG1  → FID 0x0101, SFID 0x01
+ *   DG2  → FID 0x0102, SFID 0x02
+ *   ...
+ *   DG16 → FID 0x0110, SFID 0x10
+ *   EF.COM → FID 0x011E, SFID 0x1E
+ *   EF.SOD → FID 0x011D, SFID 0x1D
+ */
 function dgToFid(dgNumber: number): [number, number] {
-  // EF.COM = 0x1E, EF.SOD = 0x1D, DG1 = 0x1F, DG2..DG16 = 0x01..0x0F
   if (dgNumber === 0x1e) return [0x01, 0x1e]; // EF.COM
   if (dgNumber === 0x1d) return [0x01, 0x1d]; // EF.SOD
-  if (dgNumber === 1) return [0x01, 0x1f];     // DG1
-  // DGn (n>=2) → 0x01, n-1
-  return [0x01, dgNumber - 1];
+  // DG1..DG16 → FID 0x0101..0x0110
+  return [0x01, dgNumber];
+}
+
+/** Map DG number to Short File Identifier (SFID) — same as low byte of FID */
+function dgToSfid(dgNumber: number): number {
+  if (dgNumber === 0x1e) return 0x1e; // EF.COM
+  if (dgNumber === 0x1d) return 0x1d; // EF.SOD
+  return dgNumber; // DG1=0x01, DG2=0x02, ..., DG16=0x10
 }
 
 export interface PassportData {
   mrz: MrzData;
-  dg1Raw: string; // Hex string of DG1 (personal data)
-  dg2Raw: string; // Hex string of DG2 (face image)
-  sodRaw: string; // Hex string of SOD (security object)
+  comRaw: string; // Hex string of EF.COM (data group presence list)
+  dg1Raw: string; // Hex string of DG1 (personal data / MRZ)
+  dg2Raw: string; // Hex string of DG2 (face image) — empty if not read
+  sodRaw: string; // Hex string of SOD (security object / digital signature)
   activeAuthSupported: boolean;
   readTimestamp: Date;
 }
@@ -89,16 +105,47 @@ export class PassportNfcService {
       // Perform BAC authentication
       const bacKeys = await this.bacAuth(mrzData);
 
-      // Read data groups
-      const dg1Raw = await this.readDataGroup(0x01); // DG1 = MRZ data
-      const dg2Raw = await this.readDataGroup(0x02); // DG2 = face image
-      const sodRaw = await this.readDataGroup(0x1d); // SOD = security object
+      // Re-select MRTD application once in SM mode (some chips reset DF context after BAC)
+      const mrtdAid = [0xa0, 0x00, 0x00, 0x02, 0x47, 0x10, 0x01];
+      const appSelectResp = await this.smTransceive(0x00, 0xa4, 0x04, 0x0c, mrtdAid, null);
+      if (!appSelectResp.success) {
+        console.log('[PassportNFC] MRTD re-select in SM mode failed:', appSelectResp.sw, '— continuing anyway');
+      }
 
-      // Check if Active Authentication is supported
-      const activeAuthSupported = await this.checkActiveAuth();
+      // 1. Read EF.COM — lists which DGs are present on this passport
+      let comRaw = '';
+      try {
+        comRaw = await this.readDataGroup(0x1e); // EF.COM
+      } catch (e: any) {
+        console.log('[PassportNFC] EF.COM read failed (non-fatal):', e?.message);
+      }
+
+      // Parse EF.COM to find which DGs are present
+      const presentDgs = comRaw ? this.parseCOMDataGroups(comRaw) : [];
+      console.log('[PassportNFC] DGs present per EF.COM:', presentDgs);
+
+      // 2. Read DG1 — MRZ data
+      const dg1Raw = await this.readDataGroup(0x01);
+
+      // 3. Read EF.SOD — digital signature over data groups
+      const sodRaw = await this.readDataGroup(0x1d);
+
+      // 4. Read DG2 (face image) only if EF.COM says it's present
+      let dg2Raw = '';
+      if (presentDgs.includes(2) || presentDgs.length === 0) {
+        try {
+          dg2Raw = await this.readDataGroup(0x02);
+        } catch (e: any) {
+          console.log('[PassportNFC] DG2 read failed (non-fatal):', e?.message);
+        }
+      }
+
+      // Check if Active Authentication is supported (DG15 present)
+      const activeAuthSupported = presentDgs.includes(15);
 
       return {
         mrz: mrzData,
+        comRaw,
         dg1Raw,
         dg2Raw,
         sodRaw,
@@ -304,33 +351,59 @@ export class PassportNfcService {
   }
 
   /**
-   * Read a Data Group (DG) from the passport chip using Secure Messaging
+   * Read a Data Group (DG) from the passport chip using Secure Messaging.
+   *
+   * Strategy: use SFID-based READ BINARY for the first chunk (implicitly selects
+   * the file per ISO 7816-4 §7.2.3), then continue with offset-based READ BINARY.
+   * Falls back to explicit SELECT by FID + READ BINARY if the chip rejects SFID reads.
    */
   private async readDataGroup(dgNumber: number): Promise<string> {
+    const sfid = dgToSfid(dgNumber);
     const fid = dgToFid(dgNumber);
-    console.log(`[PassportNFC] Reading DG${dgNumber}, FID: ${fid.map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
+    const label = dgNumber <= 0x10 ? `DG${dgNumber}` : dgNumber === 0x1d ? 'EF.SOD' : dgNumber === 0x1e ? 'EF.COM' : `EF(${dgNumber.toString(16)})`;
+    console.log(`[PassportNFC] Reading ${label}, FID: ${fid.map(b => b.toString(16).padStart(2, '0')).join('')}, SFID: ${sfid.toString(16)}`);
 
-    // Re-select the MRTD application via SM so the chip's file context is established
-    // in SM mode (plain SELECT before BAC may be dropped when SM mode begins).
-    const mrtdAid = [0xa0, 0x00, 0x00, 0x02, 0x47, 0x10, 0x01];
-    const appSelectResp = await this.smTransceive(0x00, 0xa4, 0x04, 0x0c, mrtdAid, null);
-    if (!appSelectResp.success) {
-      console.log('[PassportNFC] MRTD re-select in SM mode failed:', appSelectResp.sw, '— continuing anyway');
-    }
-
-    // SM-wrapped SELECT EF by FID (P1=0x02 select by EF id, P2=0x0C no FCI)
-    const selectResp = await this.smTransceive(0x00, 0xa4, 0x02, 0x0c, fid, null);
-    if (!selectResp.success) {
-      throw new ReadError(`DG${dgNumber}_SELECT_FAILED`, `Failed to select DG${dgNumber}: SW=${selectResp.sw}`);
-    }
-
-    // Read binary in chunks with SM
     const CHUNK_SIZE = 0xe0; // 224 bytes — safe with SM overhead
     let buffer = new Uint8Array(0);
     let offset = 0;
     let totalLength = -1;
+    let useSfid = true; // try SFID-based read first
 
+    // First read: SFID-based (P1 = 0x80 | SFID, P2 = 0x00)
+    // This implicitly selects the EF and reads from offset 0.
+    const firstP1 = 0x80 | sfid;
+    let firstResp = await this.smTransceive(0x00, 0xb0, firstP1, 0x00, [], CHUNK_SIZE);
+
+    if (!firstResp.success) {
+      // SFID read not supported — fall back to SELECT by FID + READ BINARY
+      console.log(`[PassportNFC] SFID read for ${label} failed (SW=${firstResp.sw}), falling back to SELECT by FID`);
+      useSfid = false;
+
+      const selectResp = await this.smTransceive(0x00, 0xa4, 0x02, 0x0c, fid, null);
+      if (!selectResp.success) {
+        throw new ReadError(`${label}_SELECT_FAILED`, `Failed to select ${label}: SW=${selectResp.sw}`);
+      }
+
+      firstResp = await this.smTransceive(0x00, 0xb0, 0x00, 0x00, [], CHUNK_SIZE);
+      if (!firstResp.success) {
+        throw new ReadError(`${label}_READ_FAILED`, `Failed to read ${label} at offset 0: SW=${firstResp.sw}`);
+      }
+    }
+
+    // Process first chunk
+    buffer = new Uint8Array(firstResp.data);
+    offset = buffer.length;
+
+    if (buffer.length >= 2) {
+      totalLength = this.parseTlvTotalLength(buffer);
+      console.log(`[PassportNFC] ${label} total TLV length: ${totalLength}`);
+    }
+
+    // Continue reading with offset-based READ BINARY
     while (true) {
+      if (totalLength >= 0 && offset >= totalLength) break;
+      if (buffer.length > 0 && firstResp.data.length < CHUNK_SIZE && offset === firstResp.data.length) break;
+
       const p1 = (offset >> 8) & 0xff;
       const p2 = offset & 0xff;
 
@@ -338,7 +411,7 @@ export class PassportNfcService {
       if (!readResp.success) {
         // 6B00 or 6282 can mean end of file
         if (readResp.sw === '6b00' || readResp.sw === '6282') break;
-        throw new ReadError(`DG${dgNumber}_READ_FAILED`, `Failed to read DG${dgNumber} at offset ${offset}: SW=${readResp.sw}`);
+        throw new ReadError(`${label}_READ_FAILED`, `Failed to read ${label} at offset ${offset}: SW=${readResp.sw}`);
       }
 
       const chunk = readResp.data;
@@ -348,10 +421,10 @@ export class PassportNfcService {
       newBuf.set(chunk, buffer.length);
       buffer = newBuf;
 
-      // After first read, parse TLV header to get total length
+      // Parse TLV header if we haven't yet
       if (totalLength < 0 && buffer.length >= 2) {
         totalLength = this.parseTlvTotalLength(buffer);
-        console.log(`[PassportNFC] DG${dgNumber} total TLV length: ${totalLength}`);
+        console.log(`[PassportNFC] ${label} total TLV length: ${totalLength}`);
       }
 
       offset += chunk.length;
@@ -361,7 +434,7 @@ export class PassportNfcService {
       if (chunk.length < CHUNK_SIZE) break;
     }
 
-    console.log(`[PassportNFC] DG${dgNumber} read successful (${buffer.length} bytes)`);
+    console.log(`[PassportNFC] ${label} read successful (${buffer.length} bytes)`);
     return CryptoUtils.bytesToHex(buffer);
   }
 
@@ -401,16 +474,78 @@ export class PassportNfcService {
   }
 
   /**
-   * Check if Active Authentication is supported
+   * Parse EF.COM to extract the list of Data Group numbers present on the chip.
+   * EF.COM structure (simplified):
+   *   Tag 0x60 (Application template)
+   *     Tag 0x5F01 — LDS version
+   *     Tag 0x5F36 — Unicode version
+   *     Tag 0x5C   — Tag list (list of DG tags present)
+   *
+   * DG tags in the tag list: 0x61=DG1, 0x75=DG2, 0x63=DG3, ..., 0x6E=DG14, 0x6F=DG15, 0x70=DG16
+   * Mapping: DG1=0x61, DG2=0x75, DG3=0x63, DG4=0x76, DG5-DG16 = 0x65..0x70
    */
-  private async checkActiveAuth(): Promise<boolean> {
-    // AA detection via EF.DG15 presence — try SM-wrapped select
+  private parseCOMDataGroups(comHex: string): number[] {
     try {
-      const resp = await this.smTransceive(0x00, 0xa4, 0x02, 0x0c, [0x01, 0x0f], null);
-      return resp.success;
-    } catch {
-      return false;
+      const data = CryptoUtils.hexToBytes(comHex);
+      // Find tag 0x5C (tag list)
+      let pos = 0;
+      while (pos < data.length - 1) {
+        const tag = data[pos]!;
+
+        // Handle 2-byte tags (0x5Fxx)
+        let fullTag: number;
+        let tagLen: number;
+        if (tag === 0x5f) {
+          fullTag = (tag << 8) | data[pos + 1]!;
+          tagLen = 2;
+        } else {
+          fullTag = tag;
+          tagLen = 1;
+        }
+
+        pos += tagLen;
+        if (pos >= data.length) break;
+
+        // Parse length
+        let len = data[pos]!;
+        pos++;
+        if (len === 0x81) {
+          len = data[pos]!;
+          pos++;
+        } else if (len === 0x82) {
+          len = (data[pos]! << 8) | data[pos + 1]!;
+          pos += 2;
+        }
+
+        if (fullTag === 0x5c) {
+          // Tag list found — each byte is a DG tag
+          const dgs: number[] = [];
+          for (let i = 0; i < len && (pos + i) < data.length; i++) {
+            const dgTag = data[pos + i]!;
+            const dgNum = this.dgTagToNumber(dgTag);
+            if (dgNum > 0) dgs.push(dgNum);
+          }
+          return dgs;
+        }
+
+        pos += len;
+      }
+    } catch (e: any) {
+      console.log('[PassportNFC] Failed to parse EF.COM:', e?.message);
     }
+    return [];
+  }
+
+  /** Map LDS1 DG tag byte to DG number */
+  private dgTagToNumber(tag: number): number {
+    // ICAO 9303 Part 10: DG tags
+    const tagMap: Record<number, number> = {
+      0x61: 1, 0x75: 2, 0x63: 3, 0x76: 4,
+      0x65: 5, 0x66: 6, 0x67: 7, 0x68: 8,
+      0x69: 9, 0x6a: 10, 0x6b: 11, 0x6c: 12,
+      0x6d: 13, 0x6e: 14, 0x6f: 15, 0x70: 16,
+    };
+    return tagMap[tag] ?? 0;
   }
 
   // ─── Secure Messaging (ICAO 9303) ───
