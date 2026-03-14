@@ -87,7 +87,7 @@ export default function PassportNfcScanScreen() {
       const sessionRes = await fetch('https://verify.getportal.cc/verify/sessions/app', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ npub, dg1: dg1Hex, sod: sodHex }),
+        body: JSON.stringify({ npub }),
       });
 
       if (!sessionRes.ok) {
@@ -99,9 +99,12 @@ export default function PassportNfcScanScreen() {
         throw new Error('Invalid session response: missing id');
       }
 
-      await WebBrowser.openBrowserAsync(
-        `https://verify.getportal.cc/?id=${sessionData.id}`,
-      );
+      // Pass passport data in the URL hash fragment — the hash is never sent
+      // to the server in HTTP requests, keeping dg1+sod entirely client-side.
+      // The webview JS reads it via window.location.hash and sends it to the
+      // enclave over an encrypted channel.
+      const verifyUrl = `https://verify.getportal.cc/?id=${sessionData.id}#dg1=${dg1Hex}&sod=${sodHex}`;
+      await WebBrowser.openBrowserAsync(verifyUrl);
       router.replace('/(tabs)');
     } catch (e) {
       console.error('[PassportNFC] Verify session error:', e);
