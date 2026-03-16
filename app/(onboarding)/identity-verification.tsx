@@ -23,7 +23,11 @@ export default function IdentityVerification() {
     }
   }, []);
 
-  const handleStart = () => {
+  const handlePassportScan = () => {
+    router.push('/(onboarding)/passport-mrz-scan');
+  };
+
+  const handleAgeVerification = () => {
     router.push('/(onboarding)/age-verification');
   };
 
@@ -63,10 +67,19 @@ export default function IdentityVerification() {
           <View style={[styles.footer, styles.footerStack]}>
             <TouchableOpacity
               style={[styles.button, { backgroundColor: buttonPrimary }]}
-              onPress={handleStart}
+              onPress={handlePassportScan}
             >
               <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>
-                Start verification
+                Scan passport
+              </ThemedText>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.button, { backgroundColor: buttonPrimary }]}
+              onPress={handleAgeVerification}
+            >
+              <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>
+                Age verification
               </ThemedText>
             </TouchableOpacity>
 
