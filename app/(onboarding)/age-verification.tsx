@@ -21,7 +21,7 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 import { getKeypairFromKey, hasKey } from '@/utils/keyHelpers';
 import { ageVerificationInjectedScript } from './ageVerificationInjectedScript';
 
-const VERIFY_SESSIONS_URL = 'https://8081.wheatley.getportal.cc:32000/verify/sessions/app';
+const VERIFY_SESSIONS_URL = 'https://verify.getportal.cc/verify/sessions/app';
 
 type SessionResponse = {
   ephemeral_npub: string;
@@ -131,7 +131,7 @@ export default function AgeVerification() {
     if (sessionData?.session_id) {
       console.log(
         '[AgeVerification] Session data available, WebView URL:',
-        `https://8081.wheatley.getportal.cc:32000/?id=${sessionData.session_id}`
+        `https://verify.getportal.cc/verify/?id=${sessionData.session_id}`
       );
     } else {
       console.log('[AgeVerification] No session data yet, sessionData:', sessionData);
@@ -239,7 +239,7 @@ export default function AgeVerification() {
                 <WebView
                   ref={webViewRef}
                   source={{
-                    uri: `https://8081.wheatley.getportal.cc:32000/?id=${sessionData.session_id}`,
+                    uri: `https://verify.getportal.cc/verify/?id=${sessionData.session_id}`,
                   }}
                   style={[localStyles.webview, { backgroundColor }]}
                   onLoadStart={handleWebViewLoadStart}
