@@ -19,7 +19,7 @@ import { useDatabaseContext } from '@/context/DatabaseContext';
 import { useKey } from '@/context/KeyContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { getKeypairFromKey, hasKey } from '@/utils/keyHelpers';
-import { ageVerificationInjectedScript } from './ageVerificationInjectedScript';
+import { ageVerificationInjectedScript } from '@/utils/ageVerificationInjectedScript';
 
 const VERIFY_SESSIONS_URL = 'https://verify.getportal.cc/verify/sessions/app';
 

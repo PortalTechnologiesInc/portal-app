@@ -24,7 +24,7 @@ export default function IdentityVerification() {
   }, []);
 
   const handlePassportScan = () => {
-    router.push('/(onboarding)/passport-mrz-scan');
+    router.push('/passport-scan');
   };
 
   const handleAgeVerification = () => {
