@@ -1,7 +1,7 @@
 const { getDefaultConfig } = require('expo/metro-config');
 const path = require('path');
 
-const mrzScannerPath = path.resolve(__dirname, '../../mrz-scanner');
+const mrzScannerPath = path.resolve(__dirname, '../mrz-scanner');
 const config = getDefaultConfig(__dirname);
 
 // Watch the local mrz-scanner package (file: dep, bun uses symlinks)
