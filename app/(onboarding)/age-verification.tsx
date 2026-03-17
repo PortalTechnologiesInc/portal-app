@@ -131,7 +131,7 @@ export default function AgeVerification() {
     if (sessionData?.session_id) {
       console.log(
         '[AgeVerification] Session data available, WebView URL:',
-        `https://verify.getportal.cc/verify/?id=${sessionData.session_id}`
+        `https://verify.getportal.cc/?id=${sessionData.session_id}`
       );
     } else {
       console.log('[AgeVerification] No session data yet, sessionData:', sessionData);
@@ -239,7 +239,7 @@ export default function AgeVerification() {
                 <WebView
                   ref={webViewRef}
                   source={{
-                    uri: `https://verify.getportal.cc/verify/?id=${sessionData.session_id}`,
+                    uri: `https://verify.getportal.cc/?id=${sessionData.session_id}`,
                   }}
                   style={[localStyles.webview, { backgroundColor }]}
                   onLoadStart={handleWebViewLoadStart}
