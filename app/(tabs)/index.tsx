@@ -269,11 +269,12 @@ export default function Home() {
                 <View style={styles.buttonContainer}>
                   <TouchableOpacity
                     style={[styles.qrButton, { backgroundColor: buttonPrimaryColor }]}
-                    onPress={() => router.push('/passport-scan')}
+                    onPress={() => handleScan('qr')}
                   >
                     <ThemedText style={[styles.qrText, { color: buttonPrimaryTextColor }]}>
-                      Passport
+                      Scan QR
                     </ThemedText>
+                    <QrCode size={24} color={buttonPrimaryTextColor} />
                   </TouchableOpacity>
                 </View>
               </View>

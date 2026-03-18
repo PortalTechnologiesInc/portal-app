@@ -1,12 +1,11 @@
 'use client';
 
-import { detectText, TextRecognitionResult } from '@react-native-ml-kit/text-recognition';
+import detectText from '@react-native-ml-kit/text-recognition';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, Camera as CameraIcon, CheckCircle, XCircle } from 'lucide-react-native';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
-import * as Crypto from 'react-native-quick-crypto';
+import { ArrowLeft, CheckCircle, XCircle } from 'lucide-react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -24,11 +23,11 @@ export default function PassportMrzScanScreen() {
   const [errorMsg, setErrorMsg] = useState<string>('');
 
   const backgroundColor = useThemeColor({}, 'background');
-  const cardBackgroundColor = useThemeColor({}, 'cardBackground');
   const primaryTextColor = useThemeColor({}, 'textPrimary');
-  const secondaryTextColor = useThemeColor({}, 'textSecondary');
   const buttonPrimaryColor = useThemeColor({}, 'buttonPrimary');
   const buttonPrimaryTextColor = useThemeColor({}, 'buttonPrimaryText');
+  const statusConnectedColor = useThemeColor({}, 'statusConnected');
+  const statusErrorColor = useThemeColor({}, 'statusError');
 
   // Check if text looks like MRZ
   const checkMrzFormat = useCallback((text: string): boolean => {
@@ -57,9 +56,7 @@ export default function PassportMrzScanScreen() {
       // Read image and detect text
       // Note: ML Kit text detection in React Native may not work perfectly
       // In production, you'd want to convert to a format ML Kit can process
-      const textResult = await detectText({
-        uri: photo.uri,
-      });
+      const textResult = await detectText.recognize(photo.uri);
 
       // Extract all text from the image
       let extractedText = '';
@@ -270,10 +267,11 @@ export default function PassportMrzScanScreen() {
   );
 }
 
-const statusConnectedColor = useThemeColor({}, 'statusConnected');
-const statusErrorColor = useThemeColor({}, 'statusError');
-
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 24,
+  },
   safeArea: {
     flex: 1,
   },
@@ -297,6 +295,22 @@ const styles = StyleSheet.create({
   headerText: {
     fontSize: 20,
     fontWeight: 'bold',
+  },
+  grantButton: {
+    marginTop: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  grantButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  descriptionText: {
+    fontSize: 14,
+    marginTop: 8,
+    textAlign: 'center',
   },
   cameraContainer: {
     flex: 1,

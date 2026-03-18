@@ -1,4 +1,4 @@
-export function ageVerificationInjectedScript(backgroundColor) {
+export function ageVerificationInjectedScript(backgroundColor: string) {
   return `
     const style = document.createElement('style');
     style.textContent = \`
@@ -48,3 +48,4 @@ export function ageVerificationInjectedScript(backgroundColor) {
     true;
   `;
 }
+
