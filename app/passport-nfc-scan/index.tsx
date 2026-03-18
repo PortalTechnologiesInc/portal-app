@@ -1,4 +1,3 @@
-import * as WebBrowser from 'expo-web-browser';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, CheckCircle, Nfc, Settings, XCircle } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -13,8 +12,10 @@ import {
 } from 'react-native';
 import NfcManager, { NfcEvents } from 'react-native-nfc-manager';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { WebView } from 'react-native-webview';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { useOnboarding } from '@/context/OnboardingContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import {
   type PassportData,
@@ -22,6 +23,7 @@ import {
   type ReadError,
 } from '@/services/PassportNfcService';
 import { useNostrService } from '@/context/NostrServiceContext';
+import { ageVerificationInjectedScript } from '@/utils/ageVerificationInjectedScript';
 import type { MrzData } from '@/utils/mrz';
 
 /**
@@ -33,6 +35,7 @@ export default function PassportNfcScanScreen() {
   const params = useLocalSearchParams<{ mrzData: string }>();
   const { publicKey: npub } = useNostrService();
   const mrzData = params.mrzData ? (JSON.parse(params.mrzData) as MrzData) : null;
+  const { isOnboardingComplete } = useOnboarding();
 
   const [isNFCEnabled, setIsNFCEnabled] = useState<boolean | null>(null);
   const [scanState, setScanState] = useState<'ready' | 'scanning' | 'reading' | 'success' | 'error'>('ready');
@@ -45,6 +48,8 @@ export default function PassportNfcScanScreen() {
   const [scanningActive, setScanningActive] = useState(false);
   const scanningActiveRef = useRef(false);
   const [verifyError, setVerifyError] = useState<string | null>(null);
+  const [verifyUrl, setVerifyUrl] = useState<string | null>(null);
+  const [isVerifyLoading, setIsVerifyLoading] = useState(false);
 
   const glowAnimation = useRef(new Animated.Value(1)).current;
   const scanLineAnimation = useRef(new Animated.Value(0)).current;
@@ -84,6 +89,7 @@ export default function PassportNfcScanScreen() {
   const openVerifySession = useCallback(async (dg1Hex: string, sodHex: string) => {
     try {
       setVerifyError(null);
+      setIsVerifyLoading(true);
       const sessionRes = await fetch('https://verify.getportal.cc/verify/sessions/app', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -104,16 +110,33 @@ export default function PassportNfcScanScreen() {
       // to the server in HTTP requests, keeping dg1+sod entirely client-side.
       // The webview JS reads it via window.location.hash and sends it to the
       // enclave over an encrypted channel.
-      const verifyUrl = `https://verify.getportal.cc${session_url}#dg1=${dg1Hex}&sod=${sodHex}`;
-      await WebBrowser.openBrowserAsync(verifyUrl);
-      router.replace('/(tabs)');
+      const nextUrl = `https://verify.getportal.cc${session_url}#dg1=${dg1Hex}&sod=${sodHex}`;
+      setVerifyUrl(nextUrl);
     } catch (e) {
       console.error('[PassportNFC] Verify session error:', e);
       setVerifyError(
         e instanceof Error ? e.message : 'Failed to create verification session',
       );
+      setIsVerifyLoading(false);
     }
-  }, [npub, router]);
+  }, [npub]);
+
+  const handleVerifyMessage = useCallback((event: { nativeEvent: { data: string } }) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      if (data.type === 'verification-complete') {
+        setTimeout(() => {
+          if (!isOnboardingComplete) {
+            router.push('/(onboarding)/pin-setup');
+            return;
+          }
+          router.replace({ pathname: '/(tabs)/Settings' });
+        }, 2000);
+      }
+    } catch (error) {
+      console.warn('[PassportNFC] Failed to parse WebView message:', error);
+    }
+  }, [isOnboardingComplete, router]);
 
   const startGlowAnimation = useCallback(() => {
     Animated.loop(
@@ -385,6 +408,55 @@ export default function PassportNfcScanScreen() {
             <ThemedText>Go back</ThemedText>
           </TouchableOpacity>
         </ThemedView>
+      </SafeAreaView>
+    );
+  }
+
+  if (verifyUrl) {
+    return (
+      <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
+        <ThemedView style={styles.header}>
+          <TouchableOpacity
+            onPress={() => {
+              setVerifyUrl(null);
+              setIsVerifyLoading(false);
+              if (!isOnboardingComplete) {
+                router.back();
+                return;
+              }
+              router.replace({ pathname: '/(tabs)/Settings' });
+            }}
+            style={styles.backButton}
+          >
+            <ArrowLeft size={24} color={primaryTextColor} />
+          </TouchableOpacity>
+          <ThemedText style={[styles.headerText, { color: primaryTextColor }]}>
+            Passport Verification
+          </ThemedText>
+        </ThemedView>
+
+        <View style={{ flex: 1 }}>
+          <WebView
+            source={{ uri: verifyUrl }}
+            style={{ flex: 1, backgroundColor }}
+            onMessage={handleVerifyMessage}
+            onLoadStart={() => setIsVerifyLoading(true)}
+            onLoadEnd={() => setIsVerifyLoading(false)}
+            injectedJavaScript={ageVerificationInjectedScript(backgroundColor)}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            startInLoadingState={true}
+            showsHorizontalScrollIndicator={false}
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+            mixedContentMode="always"
+          />
+          {isVerifyLoading && (
+            <View style={[StyleSheet.absoluteFillObject, { justifyContent: 'center' }]}>
+              <ActivityIndicator size="large" color={buttonPrimaryColor} />
+            </View>
+          )}
+        </View>
       </SafeAreaView>
     );
   }

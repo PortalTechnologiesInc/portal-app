@@ -20,6 +20,7 @@ import { useKey } from '@/context/KeyContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { getKeypairFromKey, hasKey } from '@/utils/keyHelpers';
 import { ageVerificationInjectedScript } from '@/utils/ageVerificationInjectedScript';
+import { useOnboarding } from '@/context/OnboardingContext';
 
 const VERIFY_SESSIONS_URL = 'https://verify.getportal.cc/verify/sessions/app';
 
@@ -41,6 +42,7 @@ export default function AgeVerification() {
   const [sessionData, setSessionData] = useState<SessionResponse | null>(null);
   const [webViewReady, setWebViewReady] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const { isOnboardingComplete } = useOnboarding();
 
   // Fetch relays from database and create verification session
   useEffect(() => {
@@ -193,16 +195,23 @@ export default function AgeVerification() {
       console.log('[AgeVerification] Parsed message data:', data);
       // Handle messages from the webview (e.g., verification complete)
       if (data.type === 'verification-complete') {
-        console.log('[AgeVerification] Verification complete, navigating to identity-verification');
+        console.log('[AgeVerification] Verification complete');
         setTimeout(() => {
-          router.push('/(onboarding)/pin-setup');
-        }, 2000);
+          if (!isOnboardingComplete) {
+            router.push('/(onboarding)/pin-setup');
+            return;
+          }
+
+          router.replace({
+            pathname: '/(tabs)/Settings',
+          });
+        }, 3000);
         return;
       }
     } catch (error) {
       console.warn('[AgeVerification] Failed to parse message as JSON:', error);
     }
-  }, []);
+  }, [isOnboardingComplete]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>
