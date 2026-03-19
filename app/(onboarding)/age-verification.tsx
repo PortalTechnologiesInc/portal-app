@@ -17,10 +17,10 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useDatabaseContext } from '@/context/DatabaseContext';
 import { useKey } from '@/context/KeyContext';
-import { useThemeColor } from '@/hooks/useThemeColor';
-import { getKeypairFromKey, hasKey } from '@/utils/keyHelpers';
-import { ageVerificationInjectedScript } from '@/utils/ageVerificationInjectedScript';
 import { useOnboarding } from '@/context/OnboardingContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import { ageVerificationInjectedScript } from '@/utils/ageVerificationInjectedScript';
+import { getKeypairFromKey, hasKey } from '@/utils/keyHelpers';
 
 const VERIFY_SESSIONS_URL = 'https://verify.getportal.cc/verify/sessions/app';
 
@@ -188,30 +188,33 @@ export default function AgeVerification() {
     setRetryCount(c => c + 1);
   }, []);
 
-  const handleMessage = useCallback((event: { nativeEvent: { data: string } }) => {
-    console.log('[AgeVerification] WebView message received:', event.nativeEvent.data);
-    try {
-      const data = JSON.parse(event.nativeEvent.data);
-      console.log('[AgeVerification] Parsed message data:', data);
-      // Handle messages from the webview (e.g., verification complete)
-      if (data.type === 'verification-complete') {
-        console.log('[AgeVerification] Verification complete');
-        setTimeout(() => {
-          if (!isOnboardingComplete) {
-            router.push('/(onboarding)/pin-setup');
-            return;
-          }
+  const handleMessage = useCallback(
+    (event: { nativeEvent: { data: string } }) => {
+      console.log('[AgeVerification] WebView message received:', event.nativeEvent.data);
+      try {
+        const data = JSON.parse(event.nativeEvent.data);
+        console.log('[AgeVerification] Parsed message data:', data);
+        // Handle messages from the webview (e.g., verification complete)
+        if (data.type === 'verification-complete') {
+          console.log('[AgeVerification] Verification complete');
+          setTimeout(() => {
+            if (!isOnboardingComplete) {
+              router.push('/(onboarding)/pin-setup');
+              return;
+            }
 
-          router.replace({
-            pathname: '/(tabs)/Settings',
-          });
-        }, 3000);
-        return;
+            router.replace({
+              pathname: '/(tabs)/Settings',
+            });
+          }, 3000);
+          return;
+        }
+      } catch (error) {
+        console.warn('[AgeVerification] Failed to parse message as JSON:', error);
       }
-    } catch (error) {
-      console.warn('[AgeVerification] Failed to parse message as JSON:', error);
-    }
-  }, [isOnboardingComplete]);
+    },
+    [isOnboardingComplete]
+  );
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]} edges={['top']}>

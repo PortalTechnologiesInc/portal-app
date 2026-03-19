@@ -1,7 +1,7 @@
 'use client';
 
-import { useRouter } from 'expo-router';
-import { CheckCircle2, ChevronRight, Home } from 'lucide-react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { CheckCircle2, ChevronRight } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,15 +10,11 @@ import { ThemedView } from '@/components/ThemedView';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import type { PassportData } from '@/services/PassportNfcService';
 
-interface RouteParams {
-  passportData: string;
-}
-
 export default function PassportSuccessScreen() {
   const router = useRouter();
-  const params = router.route.params as RouteParams;
+  const params = useLocalSearchParams<{ passportData?: string }>();
   const passportData = params.passportData
-    ? (JSON.parse(params.passportData) as PassportData | null)
+    ? (JSON.parse(params.passportData) as PassportData)
     : null;
 
   const backgroundColor = useThemeColor({}, 'background');
@@ -40,7 +36,7 @@ export default function PassportSuccessScreen() {
       router.replace('/(tabs)');
     }, 3000);
     return () => clearTimeout(timer);
-  }, []);
+  }, [router]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]}>

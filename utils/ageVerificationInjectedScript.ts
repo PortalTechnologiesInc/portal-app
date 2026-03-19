@@ -48,4 +48,3 @@ export function ageVerificationInjectedScript(backgroundColor: string) {
     true;
   `;
 }
-

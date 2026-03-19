@@ -5,8 +5,8 @@
  */
 
 import NfcManager, { NfcTech } from 'react-native-nfc-manager';
-import { deriveBacKeys, MrzData } from '@/utils/mrz';
 import * as CryptoUtils from '@/utils/crypto';
+import { deriveBacKeys, type MrzData } from '@/utils/mrz';
 
 /**
  * ICAO 9303 Part 10 — EF File Identifiers and Short File Identifiers
@@ -43,7 +43,7 @@ export interface PassportData {
   readTimestamp: Date;
 }
 
-export interface ReadError {
+export interface ReadErrorInfo {
   code: string;
   message: string;
   details?: any;
@@ -93,7 +93,9 @@ export class PassportNfcService {
       await NfcManager.requestTechnology(NfcTech.IsoDep);
 
       // Increase IsoDep timeout to 10s (default 2s can drop during EXTERNAL AUTH)
-      try { await (NfcManager as any).setTimeout(10000); } catch (_) {}
+      try {
+        await (NfcManager as any).setTimeout(10000);
+      } catch (_) {}
 
       const tag = await NfcManager.getTag();
       if (!tag) {
@@ -112,7 +114,11 @@ export class PassportNfcService {
       const mrtdAid = [0xa0, 0x00, 0x00, 0x02, 0x47, 0x10, 0x01];
       const appSelectResp = await this.smTransceive(0x00, 0xa4, 0x04, 0x0c, mrtdAid, null);
       if (!appSelectResp.success) {
-        console.log('[PassportNFC] MRTD re-select in SM mode failed:', appSelectResp.sw, '— continuing anyway');
+        console.log(
+          '[PassportNFC] MRTD re-select in SM mode failed:',
+          appSelectResp.sw,
+          '— continuing anyway'
+        );
       }
 
       // 1. Read EF.COM — lists which DGs are present on this passport
@@ -171,7 +177,11 @@ export class PassportNfcService {
     // Some chips have tight timeouts between GET CHALLENGE and EXTERNAL AUTH.
     const bacKeys = deriveBacKeys(mrzData);
     const bacSeed = `${mrzData.documentNumber}${mrzData.documentNumberCheckDigit}${mrzData.dateOfBirth}${mrzData.dateOfBirthCheckDigit}${mrzData.expiryDate}${mrzData.expiryDateCheckDigit}`;
-    console.log('[PassportNFC] MRZ seed string:', JSON.stringify(bacSeed), `(${bacSeed.length} chars)`);
+    console.log(
+      '[PassportNFC] MRZ seed string:',
+      JSON.stringify(bacSeed),
+      `(${bacSeed.length} chars)`
+    );
     console.log('[PassportNFC] mrzKey (SHA-1 hex):', bacKeys.mrzKey);
     console.log('[PassportNFC] k_enc hex:', bacKeys.k_enc);
     console.log('[PassportNFC] k_mac hex:', bacKeys.k_mac);
@@ -222,19 +232,36 @@ export class PassportNfcService {
     // Convert hex strings to Uint8Array (16 bytes each)
     const k_enc_raw = CryptoUtils.hexToBytes(bacKeys.k_enc);
     const k_mac_raw = CryptoUtils.hexToBytes(bacKeys.k_mac);
-    console.log('[PassportNFC] k_enc_raw len:', k_enc_raw.length, 'k_mac_raw len:', k_mac_raw.length);
+    console.log(
+      '[PassportNFC] k_enc_raw len:',
+      k_enc_raw.length,
+      'k_mac_raw len:',
+      k_mac_raw.length
+    );
 
     // Convert keys to 24-byte 3DES keys (two-key 3DES: K1 K2 K1)
     const k_enc_3des = CryptoUtils.expand16To24Bytes(k_enc_raw);
     const k_mac_3des = CryptoUtils.expand16To24Bytes(k_mac_raw);
-    console.log('[PassportNFC] k_enc_3des len:', k_enc_3des.length, 'k_mac_3des len:', k_mac_3des.length);
+    console.log(
+      '[PassportNFC] k_enc_3des len:',
+      k_enc_3des.length,
+      'k_mac_3des len:',
+      k_mac_3des.length
+    );
 
     // 4. Build S = RND.IFD || RND.IC || K.IFD
     const s = new Uint8Array(rndIfd.length + rndIc.length + kifd.length);
     s.set(rndIfd, 0);
     s.set(rndIc, rndIfd.length);
     s.set(kifd, rndIfd.length + rndIc.length);
-    console.log('[PassportNFC] S len:', s.length, 'rndIc:', Array.from(rndIc).map(b=>b.toString(16).padStart(2,'0')).join(''));
+    console.log(
+      '[PassportNFC] S len:',
+      s.length,
+      'rndIc:',
+      Array.from(rndIc)
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('')
+    );
 
     // 5. E_IFD = 3DES-CBC-encrypt(K_enc, S)
     console.log('[PassportNFC] About to des3Encrypt');
@@ -260,7 +287,7 @@ export class PassportNfcService {
       0x82,
       0x00,
       0x00,
-      0x28,  // Le = 40: request E_IC || M_IC for session key derivation
+      0x28, // Le = 40: request E_IC || M_IC for session key derivation
       Array.from(externalAuthData)
     );
     console.log('[PassportNFC] EXTERNAL AUTH APDU len:', externalAuth.length / 2, 'bytes');
@@ -271,8 +298,16 @@ export class PassportNfcService {
       console.log('[PassportNFC] EXTERNAL AUTH RX:', authResp);
     } catch (e: any) {
       // Log the raw exception to distinguish NFC drop vs protocol error
-      console.log('[PassportNFC] EXTERNAL AUTH transceive threw:', e?.message, e?.code, JSON.stringify(e));
-      throw new ReadError('BAC_AUTH_FAILED', 'BAC authentication failed - passport rejected credentials');
+      console.log(
+        '[PassportNFC] EXTERNAL AUTH transceive threw:',
+        e?.message,
+        e?.code,
+        JSON.stringify(e)
+      );
+      throw new ReadError(
+        'BAC_AUTH_FAILED',
+        'BAC authentication failed - passport rejected credentials'
+      );
     }
 
     if (!this.isSuccess(authResp!)) {
@@ -288,8 +323,9 @@ export class PassportNfcService {
     let sessionK_enc: Uint8Array;
     let sessionK_mac: Uint8Array;
 
-    if (authData.length === 80) { // 40 bytes = 80 hex chars — full mutual auth
-      const eIc = CryptoUtils.hexToBytes(authData.substring(0, 64));  // 32 bytes
+    if (authData.length === 80) {
+      // 40 bytes = 80 hex chars — full mutual auth
+      const eIc = CryptoUtils.hexToBytes(authData.substring(0, 64)); // 32 bytes
       const mIc = CryptoUtils.hexToBytes(authData.substring(64, 80)); // 8 bytes
 
       // Verify MAC on E_IC
@@ -356,8 +392,17 @@ export class PassportNfcService {
   private async readDataGroup(dgNumber: number): Promise<string> {
     const sfid = dgToSfid(dgNumber);
     const fid = dgToFid(dgNumber);
-    const label = dgNumber <= 0x10 ? `DG${dgNumber}` : dgNumber === 0x1d ? 'EF.SOD' : dgNumber === 0x1e ? 'EF.COM' : `EF(${dgNumber.toString(16)})`;
-    console.log(`[PassportNFC] Reading ${label}, FID: ${fid.map(b => b.toString(16).padStart(2, '0')).join('')}, SFID: ${sfid.toString(16)}`);
+    const label =
+      dgNumber <= 0x10
+        ? `DG${dgNumber}`
+        : dgNumber === 0x1d
+          ? 'EF.SOD'
+          : dgNumber === 0x1e
+            ? 'EF.COM'
+            : `EF(${dgNumber.toString(16)})`;
+    console.log(
+      `[PassportNFC] Reading ${label}, FID: ${fid.map(b => b.toString(16).padStart(2, '0')).join('')}, SFID: ${sfid.toString(16)}`
+    );
 
     const CHUNK_SIZE = 0xe0; // 224 bytes — safe with SM overhead
     let buffer = new Uint8Array(0);
@@ -372,17 +417,25 @@ export class PassportNfcService {
 
     if (!firstResp.success) {
       // SFID read not supported — fall back to SELECT by FID + READ BINARY
-      console.log(`[PassportNFC] SFID read for ${label} failed (SW=${firstResp.sw}), falling back to SELECT by FID`);
+      console.log(
+        `[PassportNFC] SFID read for ${label} failed (SW=${firstResp.sw}), falling back to SELECT by FID`
+      );
       useSfid = false;
 
       const selectResp = await this.smTransceive(0x00, 0xa4, 0x02, 0x0c, fid, null);
       if (!selectResp.success) {
-        throw new ReadError(`${label}_SELECT_FAILED`, `Failed to select ${label}: SW=${selectResp.sw}`);
+        throw new ReadError(
+          `${label}_SELECT_FAILED`,
+          `Failed to select ${label}: SW=${selectResp.sw}`
+        );
       }
 
       firstResp = await this.smTransceive(0x00, 0xb0, 0x00, 0x00, [], CHUNK_SIZE);
       if (!firstResp.success) {
-        throw new ReadError(`${label}_READ_FAILED`, `Failed to read ${label} at offset 0: SW=${firstResp.sw}`);
+        throw new ReadError(
+          `${label}_READ_FAILED`,
+          `Failed to read ${label} at offset 0: SW=${firstResp.sw}`
+        );
       }
     }
 
@@ -398,7 +451,12 @@ export class PassportNfcService {
     // Continue reading with offset-based READ BINARY
     while (true) {
       if (totalLength >= 0 && offset >= totalLength) break;
-      if (buffer.length > 0 && firstResp.data.length < CHUNK_SIZE && offset === firstResp.data.length) break;
+      if (
+        buffer.length > 0 &&
+        firstResp.data.length < CHUNK_SIZE &&
+        offset === firstResp.data.length
+      )
+        break;
 
       const p1 = (offset >> 8) & 0xff;
       const p2 = offset & 0xff;
@@ -407,7 +465,10 @@ export class PassportNfcService {
       if (!readResp.success) {
         // 6B00 or 6282 can mean end of file
         if (readResp.sw === '6b00' || readResp.sw === '6282') break;
-        throw new ReadError(`${label}_READ_FAILED`, `Failed to read ${label} at offset ${offset}: SW=${readResp.sw}`);
+        throw new ReadError(
+          `${label}_READ_FAILED`,
+          `Failed to read ${label} at offset ${offset}: SW=${readResp.sw}`
+        );
       }
 
       const chunk = readResp.data;
@@ -516,7 +577,7 @@ export class PassportNfcService {
         if (fullTag === 0x5c) {
           // Tag list found — each byte is a DG tag
           const dgs: number[] = [];
-          for (let i = 0; i < len && (pos + i) < data.length; i++) {
+          for (let i = 0; i < len && pos + i < data.length; i++) {
             const dgTag = data[pos + i]!;
             const dgNum = this.dgTagToNumber(dgTag);
             if (dgNum > 0) dgs.push(dgNum);
@@ -536,10 +597,22 @@ export class PassportNfcService {
   private dgTagToNumber(tag: number): number {
     // ICAO 9303 Part 10: DG tags
     const tagMap: Record<number, number> = {
-      0x61: 1, 0x75: 2, 0x63: 3, 0x76: 4,
-      0x65: 5, 0x66: 6, 0x67: 7, 0x68: 8,
-      0x69: 9, 0x6a: 10, 0x6b: 11, 0x6c: 12,
-      0x6d: 13, 0x6e: 14, 0x6f: 15, 0x70: 16,
+      97: 1,
+      117: 2,
+      99: 3,
+      118: 4,
+      101: 5,
+      102: 6,
+      103: 7,
+      104: 8,
+      105: 9,
+      106: 10,
+      107: 11,
+      108: 12,
+      109: 13,
+      110: 14,
+      111: 15,
+      112: 16,
     };
     return tagMap[tag] ?? 0;
   }
@@ -561,7 +634,14 @@ export class PassportNfcService {
    * SM-protect an APDU command
    * Returns the wrapped APDU hex string
    */
-  private smProtect(cla: number, ins: number, p1: number, p2: number, data: number[], le: number | null): string {
+  private smProtect(
+    cla: number,
+    ins: number,
+    p1: number,
+    p2: number,
+    data: number[],
+    le: number | null
+  ): string {
     if (!this.sessionK_enc || !this.sessionK_mac || !this.ssc) {
       throw new Error('Session keys not established');
     }
@@ -594,7 +674,12 @@ export class PassportNfcService {
 
     // MAC input: SSC || padded(mCla||INS||P1||P2) || DO87 || DO97
     const cmdHeader = CryptoUtils.iso9797Pad(new Uint8Array([mCla, ins, p1, p2]));
-    const macInputParts: number[] = [...Array.from(this.ssc), ...Array.from(cmdHeader), ...do87, ...do97];
+    const macInputParts: number[] = [
+      ...Array.from(this.ssc),
+      ...Array.from(cmdHeader),
+      ...do87,
+      ...do97,
+    ];
     // computeMac applies iso9797Pad internally
     const mac = CryptoUtils.computeMac(this.sessionK_mac, new Uint8Array(macInputParts));
 
@@ -697,8 +782,12 @@ export class PassportNfcService {
    * Send an SM-protected APDU and unwrap the response
    */
   private async smTransceive(
-    cla: number, ins: number, p1: number, p2: number,
-    data: number[], le: number | null
+    cla: number,
+    ins: number,
+    p1: number,
+    p2: number,
+    data: number[],
+    le: number | null
   ): Promise<{ success: boolean; data: Uint8Array; sw: string }> {
     const apdu = this.smProtect(cla, ins, p1, p2, data, le);
     const responseHex = await this.transceive(apdu);

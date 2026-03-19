@@ -1,19 +1,17 @@
 'use client';
 
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, CheckCircle, Nfc, Settings, XCircle } from 'lucide-react-native';
-import { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   AppState,
-  Platform,
   StyleSheet,
   TouchableOpacity,
   View,
 } from 'react-native';
-import NfcManager, { NfcEvents, NfcTech } from 'react-native-nfc-manager';
+import NfcManager, { NfcEvents } from 'react-native-nfc-manager';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -21,17 +19,13 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 import {
   type PassportData,
   passportNfcService,
-  type ReadError,
+  type ReadErrorInfo,
 } from '@/services/PassportNfcService';
 import type { MrzData } from '@/utils/mrz';
 
-interface RouteParams {
-  mrzData: string;
-}
-
 export default function PassportNfcScanScreen() {
   const router = useRouter();
-  const params = router.route.params as RouteParams;
+  const params = useLocalSearchParams<{ mrzData: string }>();
   const mrzData = params.mrzData ? (JSON.parse(params.mrzData) as MrzData) : null;
 
   const [isNFCEnabled, setIsNFCEnabled] = useState<boolean | null>(null);
@@ -150,7 +144,7 @@ export default function PassportNfcScanScreen() {
         router.replace('/(onboarding)/passport-success');
       }, 1500);
     } catch (error) {
-      const err = error as ReadError;
+      const err = error as ReadErrorInfo;
       console.error('[PassportNFC] Error:', err);
 
       setScanState('error');
@@ -187,7 +181,7 @@ export default function PassportNfcScanScreen() {
         }
 
         // Set up NFC state listener
-        NfcManager.setEventListener(NfcEvents.StateChanged, async event => {
+        NfcManager.setEventListener(NfcEvents.StateChanged, async (event: { state: string }) => {
           const isEnabled = event.state === 'on' || event.state === 'turning_on';
           if (isEnabled !== isNFCEnabled) {
             setIsNFCEnabled(isEnabled);

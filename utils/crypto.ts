@@ -12,10 +12,10 @@ import * as Crypto from 'react-native-quick-crypto';
  */
 export function adjustParity(bytes: Uint8Array): Uint8Array {
   const adjusted = new Uint8Array(bytes.length);
-  
+
   for (let i = 0; i < bytes.length; i++) {
-    let byte = bytes[i];
-    
+    const byte = bytes[i];
+
     // Count set bits
     let bitCount = 0;
     let temp = byte;
@@ -23,7 +23,7 @@ export function adjustParity(bytes: Uint8Array): Uint8Array {
       bitCount += temp & 1;
       temp >>= 1;
     }
-    
+
     // If even parity, flip last bit to make odd
     if (bitCount % 2 === 0) {
       adjusted[i] = byte ^ 1;
@@ -31,7 +31,7 @@ export function adjustParity(bytes: Uint8Array): Uint8Array {
       adjusted[i] = byte;
     }
   }
-  
+
   return adjusted;
 }
 
@@ -42,12 +42,12 @@ export function adjustParity(bytes: Uint8Array): Uint8Array {
 export function pkcs7Pad(data: Uint8Array, blockSize: number = 8): Uint8Array {
   const paddingLength = blockSize - (data.length % blockSize);
   const padded = new Uint8Array(data.length + paddingLength);
-  
+
   padded.set(data);
   for (let i = 0; i < paddingLength; i++) {
     padded[data.length + i] = paddingLength;
   }
-  
+
   return padded;
 }
 
@@ -56,11 +56,11 @@ export function pkcs7Pad(data: Uint8Array, blockSize: number = 8): Uint8Array {
  */
 export function pkcs7Unpad(data: Uint8Array): Uint8Array {
   const paddingLength = data[data.length - 1];
-  
+
   if (paddingLength === 0 || paddingLength > 8) {
     throw new Error('Invalid PKCS7 padding');
   }
-  
+
   return data.slice(0, data.length - paddingLength);
 }
 
@@ -128,7 +128,7 @@ export function des3EcbEncrypt(key: Uint8Array, data: Uint8Array): Uint8Array {
   if (data.length !== 8) {
     throw new Error('3DES-ECB requires 8-byte blocks');
   }
-  
+
   // quick-crypto's binaryLikeToArrayBuffer doesn't handle null IV;
   // ECB mode needs a zero-length IV instead
   const keyCopy = new Uint8Array(key);
@@ -146,11 +146,11 @@ export function des3EcbEncrypt(key: Uint8Array, data: Uint8Array): Uint8Array {
 /**
  * BAC Key Derivation Function (KDF)
  * Generates K_enc and K_mac from mrzKey using SHA1
- * 
+ *
  * seed = SHA1(mrzKey)
  * K_enc = adjust_parity(SHA1(seed || 0x00000001)[0:16])
  * K_mac = adjust_parity(SHA1(seed || 0x00000002)[0:16])
- * 
+ *
  * @param mrzKey - SHA1 hash of MRZ data (20 bytes)
  * @returns { k_enc: Uint8Array, k_mac: Uint8Array }
  */
@@ -331,14 +331,14 @@ export function expand16To24Bytes(seed: Uint8Array): Uint8Array {
   if (seed.length !== 16) {
     throw new Error('Key must be 16 bytes for 3DES key expansion');
   }
-  
+
   // Two-key 3DES (ICAO 9303): 16-byte key → 24-byte key
   // K1 (first 8 bytes) + K2 (second 8 bytes) + K1 (first 8 bytes again)
   const expanded = new Uint8Array(24);
-  expanded.set(seed.slice(0, 8), 0);    // K1
-  expanded.set(seed.slice(8, 16), 8);   // K2
-  expanded.set(seed.slice(0, 8), 16);   // K1 again
-  
+  expanded.set(seed.slice(0, 8), 0); // K1
+  expanded.set(seed.slice(8, 16), 8); // K2
+  expanded.set(seed.slice(0, 8), 16); // K1 again
+
   return expanded;
 }
 
@@ -349,12 +349,12 @@ export function derive3DesKey(seed: Uint8Array): Uint8Array {
   if (seed.length !== 16) {
     throw new Error('Key must be 16 bytes for 3DES key derivation');
   }
-  
+
   // Two-key 3DES: K1 (first 8) + K2 (second 8) + K1 (first 8 again)
   const key = new Uint8Array(24);
-  key.set(seed.slice(0, 8), 0);    // K1
-  key.set(seed.slice(8, 16), 8);   // K2
-  key.set(seed.slice(0, 8), 16);   // K1 again
-  
+  key.set(seed.slice(0, 8), 0); // K1
+  key.set(seed.slice(8, 16), 8); // K2
+  key.set(seed.slice(0, 8), 16); // K1 again
+
   return key;
 }

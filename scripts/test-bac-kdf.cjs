@@ -37,7 +37,10 @@ console.log('Kseed (first 16 bytes):', kseed.toString('hex'));
 // KDF for K_enc: SHA1(Kseed[16] || 0x00000001) → take first 16 bytes
 const kEncInput = Buffer.alloc(20);
 kseed.copy(kEncInput, 0);
-kEncInput[16] = 0x00; kEncInput[17] = 0x00; kEncInput[18] = 0x00; kEncInput[19] = 0x01;
+kEncInput[16] = 0x00;
+kEncInput[17] = 0x00;
+kEncInput[18] = 0x00;
+kEncInput[19] = 0x01;
 const kEncSeed = crypto.createHash('sha1').update(kEncInput).digest();
 console.log('\nK_enc seed (full SHA1):', kEncSeed.toString('hex'));
 const kEnc16 = kEncSeed.slice(0, 16);
@@ -46,7 +49,10 @@ console.log('K_enc (first 16 bytes):', kEnc16.toString('hex'));
 // KDF for K_mac: SHA1(Kseed[16] || 0x00000002) → take first 16 bytes
 const kMacInput = Buffer.alloc(20);
 kseed.copy(kMacInput, 0);
-kMacInput[16] = 0x00; kMacInput[17] = 0x00; kMacInput[18] = 0x00; kMacInput[19] = 0x02;
+kMacInput[16] = 0x00;
+kMacInput[17] = 0x00;
+kMacInput[18] = 0x00;
+kMacInput[19] = 0x02;
 const kMacSeed = crypto.createHash('sha1').update(kMacInput).digest();
 console.log('\nK_mac seed (full SHA1):', kMacSeed.toString('hex'));
 const kMac16 = kMacSeed.slice(0, 16);
@@ -56,11 +62,14 @@ console.log('K_mac (first 16 bytes):', kMac16.toString('hex'));
 function adjustParity(buf) {
   const adjusted = Buffer.alloc(buf.length);
   for (let i = 0; i < buf.length; i++) {
-    let b = buf[i];
+    const b = buf[i];
     let bitCount = 0;
     let temp = b;
-    while (temp > 0) { bitCount += temp & 1; temp >>= 1; }
-    adjusted[i] = (bitCount % 2 === 0) ? (b ^ 1) : b;
+    while (temp > 0) {
+      bitCount += temp & 1;
+      temp >>= 1;
+    }
+    adjusted[i] = bitCount % 2 === 0 ? b ^ 1 : b;
   }
   return adjusted;
 }
@@ -80,7 +89,7 @@ const kEnc24 = Buffer.alloc(24);
 kEncAdj.slice(0, 8).copy(kEnc24, 0);
 kEncAdj.slice(8, 16).copy(kEnc24, 8);
 kEncAdj.slice(0, 8).copy(kEnc24, 16);
-const testS = Buffer.alloc(32, 0xAB);
+const testS = Buffer.alloc(32, 0xab);
 const cipher = crypto.createCipheriv('des-ede3-cbc', kEnc24, Buffer.alloc(8, 0));
 cipher.setAutoPadding(false);
 const eIfd = Buffer.concat([cipher.update(testS), cipher.final()]);

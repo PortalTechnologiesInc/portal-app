@@ -114,7 +114,11 @@ function parseTD1(lines: string[]): MrzData | null {
 
   // Composite check digit (line2[29]) covers:
   //   line1[5..29] + line2[0..6] + line2[8..14] + line2[18..28]
-  const compositeData = line1.substring(5, 30) + line2.substring(0, 7) + line2.substring(8, 15) + line2.substring(18, 29);
+  const compositeData =
+    line1.substring(5, 30) +
+    line2.substring(0, 7) +
+    line2.substring(8, 15) +
+    line2.substring(18, 29);
   const compositeCheck = line2[29];
   const compositeComputed = calculateCheckDigit(compositeData);
 
@@ -289,9 +293,9 @@ export interface MrzScannerResult {
   firstName: string;
   documentNumber: string; // No < fillers
   nationality: string;
-  dateOfBirth: string;    // YYYY-MM-DD
+  dateOfBirth: string; // YYYY-MM-DD
   sex: string;
-  expiryDate: string;     // YYYY-MM-DD
+  expiryDate: string; // YYYY-MM-DD
   optionalData: string;
   checksumValid: boolean;
   format: 'TD1' | 'TD3';
@@ -378,15 +382,21 @@ export function deriveBacKeys(mrzData: MrzData): BacKeys {
   // KDF for K_enc: SHA1(Kseed || 0x00000001)
   const kEncInput = new Uint8Array(20);
   kEncInput.set(kseed, 0);
-  kEncInput[16] = 0x00; kEncInput[17] = 0x00; kEncInput[18] = 0x00; kEncInput[19] = 0x01;
-  const k_encSeed = (quickCrypto.createHash('sha1').update(kEncInput).digest('hex')) as string;
+  kEncInput[16] = 0x00;
+  kEncInput[17] = 0x00;
+  kEncInput[18] = 0x00;
+  kEncInput[19] = 0x01;
+  const k_encSeed = quickCrypto.createHash('sha1').update(kEncInput).digest('hex') as string;
   const k_enc = adjustParity(k_encSeed.substring(0, 32)); // First 16 bytes
 
   // KDF for K_mac: SHA1(Kseed || 0x00000002)
   const kMacInput = new Uint8Array(20);
   kMacInput.set(kseed, 0);
-  kMacInput[16] = 0x00; kMacInput[17] = 0x00; kMacInput[18] = 0x00; kMacInput[19] = 0x02;
-  const k_macSeed = (quickCrypto.createHash('sha1').update(kMacInput).digest('hex')) as string;
+  kMacInput[16] = 0x00;
+  kMacInput[17] = 0x00;
+  kMacInput[18] = 0x00;
+  kMacInput[19] = 0x02;
+  const k_macSeed = quickCrypto.createHash('sha1').update(kMacInput).digest('hex') as string;
   const k_mac = adjustParity(k_macSeed.substring(0, 32)); // First 16 bytes
 
   return {

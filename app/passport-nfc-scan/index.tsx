@@ -15,14 +15,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { useNostrService } from '@/context/NostrServiceContext';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import {
   type PassportData,
   passportNfcService,
-  type ReadError,
+  type ReadErrorInfo,
 } from '@/services/PassportNfcService';
-import { useNostrService } from '@/context/NostrServiceContext';
 import { ageVerificationInjectedScript } from '@/utils/ageVerificationInjectedScript';
 import type { MrzData } from '@/utils/mrz';
 
@@ -38,7 +38,9 @@ export default function PassportNfcScanScreen() {
   const { isOnboardingComplete } = useOnboarding();
 
   const [isNFCEnabled, setIsNFCEnabled] = useState<boolean | null>(null);
-  const [scanState, setScanState] = useState<'ready' | 'scanning' | 'reading' | 'success' | 'error'>('ready');
+  const [scanState, setScanState] = useState<
+    'ready' | 'scanning' | 'reading' | 'success' | 'error'
+  >('ready');
   const [errorType, setErrorType] = useState<string | null>(null);
   const [isPageFocused, setIsPageFocused] = useState(false);
   const isPageFocusedRef = useRef(false);
@@ -86,57 +88,61 @@ export default function PassportNfcScanScreen() {
     timeoutIds.current = [];
   }, []);
 
-  const openVerifySession = useCallback(async (dg1Hex: string, sodHex: string) => {
-    try {
-      setVerifyError(null);
-      setIsVerifyLoading(true);
-      const sessionRes = await fetch('https://verify.getportal.cc/verify/sessions/app', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ npub }),
-      });
+  const openVerifySession = useCallback(
+    async (dg1Hex: string, sodHex: string) => {
+      try {
+        setVerifyError(null);
+        setIsVerifyLoading(true);
+        const sessionRes = await fetch('https://verify.getportal.cc/verify/sessions/app', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ npub }),
+        });
 
-      if (!sessionRes.ok) {
-        throw new Error(`Session creation failed: ${sessionRes.status}`);
+        if (!sessionRes.ok) {
+          throw new Error(`Session creation failed: ${sessionRes.status}`);
+        }
+
+        const sessionData = await sessionRes.json();
+        const { session_url } = sessionData;
+        if (!session_url) {
+          throw new Error('Invalid session response: missing session_url');
+        }
+
+        // Pass passport data in the URL hash fragment — the hash is never sent
+        // to the server in HTTP requests, keeping dg1+sod entirely client-side.
+        // The webview JS reads it via window.location.hash and sends it to the
+        // enclave over an encrypted channel.
+        const nextUrl = `https://verify.getportal.cc${session_url}#dg1=${dg1Hex}&sod=${sodHex}`;
+        setVerifyUrl(nextUrl);
+      } catch (e) {
+        console.error('[PassportNFC] Verify session error:', e);
+        setVerifyError(e instanceof Error ? e.message : 'Failed to create verification session');
+        setIsVerifyLoading(false);
       }
+    },
+    [npub]
+  );
 
-      const sessionData = await sessionRes.json();
-      const { session_url } = sessionData;
-      if (!session_url) {
-        throw new Error('Invalid session response: missing session_url');
+  const handleVerifyMessage = useCallback(
+    (event: { nativeEvent: { data: string } }) => {
+      try {
+        const data = JSON.parse(event.nativeEvent.data);
+        if (data.type === 'verification-complete') {
+          setTimeout(() => {
+            if (!isOnboardingComplete) {
+              router.push('/(onboarding)/pin-setup');
+              return;
+            }
+            router.replace({ pathname: '/(tabs)/Settings' });
+          }, 2000);
+        }
+      } catch (error) {
+        console.warn('[PassportNFC] Failed to parse WebView message:', error);
       }
-
-      // Pass passport data in the URL hash fragment — the hash is never sent
-      // to the server in HTTP requests, keeping dg1+sod entirely client-side.
-      // The webview JS reads it via window.location.hash and sends it to the
-      // enclave over an encrypted channel.
-      const nextUrl = `https://verify.getportal.cc${session_url}#dg1=${dg1Hex}&sod=${sodHex}`;
-      setVerifyUrl(nextUrl);
-    } catch (e) {
-      console.error('[PassportNFC] Verify session error:', e);
-      setVerifyError(
-        e instanceof Error ? e.message : 'Failed to create verification session',
-      );
-      setIsVerifyLoading(false);
-    }
-  }, [npub]);
-
-  const handleVerifyMessage = useCallback((event: { nativeEvent: { data: string } }) => {
-    try {
-      const data = JSON.parse(event.nativeEvent.data);
-      if (data.type === 'verification-complete') {
-        setTimeout(() => {
-          if (!isOnboardingComplete) {
-            router.push('/(onboarding)/pin-setup');
-            return;
-          }
-          router.replace({ pathname: '/(tabs)/Settings' });
-        }, 2000);
-      }
-    } catch (error) {
-      console.warn('[PassportNFC] Failed to parse WebView message:', error);
-    }
-  }, [isOnboardingComplete, router]);
+    },
+    [isOnboardingComplete, router]
+  );
 
   const startGlowAnimation = useCallback(() => {
     Animated.loop(
@@ -210,7 +216,13 @@ export default function PassportNfcScanScreen() {
       scanningActiveRef.current = false;
       setScanningActive(false);
 
-      console.log('[PassportNFC] Read complete — DG1:', data.dg1Raw.length / 2, 'bytes, SOD:', data.sodRaw.length / 2, 'bytes');
+      console.log(
+        '[PassportNFC] Read complete — DG1:',
+        data.dg1Raw.length / 2,
+        'bytes, SOD:',
+        data.sodRaw.length / 2,
+        'bytes'
+      );
 
       // Create verification session and open enclave webview after a brief delay
       // so the user can see the success state before transitioning.
@@ -218,7 +230,7 @@ export default function PassportNfcScanScreen() {
         openVerifySession(data.dg1Raw, data.sodRaw);
       }, 1500);
     } catch (error) {
-      const err = error as ReadError;
+      const err = error as ReadErrorInfo;
       console.error('[PassportNFC] Error:', err);
 
       setScanState('error');
