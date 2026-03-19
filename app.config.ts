@@ -109,6 +109,7 @@ export default {
         {
           nfcPermission: 'Portal uses NFC for contactless interactions',
           includeNdefEntitlement: false,
+          selectIdentifiers: ['A0000002471001'],
         },
       ],
       [
