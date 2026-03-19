@@ -327,7 +327,7 @@ export default function PassportNfcScanScreen() {
       <SafeAreaView style={[styles.safeArea, { backgroundColor }]}>
         <ThemedView style={styles.container}>
           <ThemedText>Error: No MRZ data available</ThemedText>
-          <TouchableOpacity onPress={() => router.replace('/(onboarding)/passport-mrz-scan')}>
+          <TouchableOpacity onPress={() => router.replace('/passport-scan')}>
             <ThemedText>Go back</ThemedText>
           </TouchableOpacity>
         </ThemedView>
