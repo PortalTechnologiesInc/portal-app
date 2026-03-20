@@ -25,8 +25,17 @@ import type { MrzData } from '@/utils/mrz';
 
 export default function PassportNfcScanScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ mrzData: string }>();
-  const mrzData = params.mrzData ? (JSON.parse(params.mrzData) as MrzData) : null;
+  const params = useLocalSearchParams();
+
+  let mrzData: MrzData | null = null;
+  const mrzDataParam = params?.mrzData;
+  if (typeof mrzDataParam === 'string') {
+    try {
+      mrzData = JSON.parse(mrzDataParam) as MrzData;
+    } catch {
+      mrzData = null;
+    }
+  }
 
   const [isNFCEnabled, setIsNFCEnabled] = useState<boolean | null>(null);
   const [scanState, setScanState] = useState<'ready' | 'scanning' | 'success' | 'error'>('ready');

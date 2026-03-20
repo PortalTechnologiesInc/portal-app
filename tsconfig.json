@@ -3,7 +3,8 @@
   "compilerOptions": {
     "strict": true,
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "expo-modules-core": ["./node_modules/expo-modules-core/build/index.d.ts"]
     },
     "skipLibCheck": true,
     "skipDefaultLibCheck": true,

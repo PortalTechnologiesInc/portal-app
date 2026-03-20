@@ -2,7 +2,7 @@
 
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { CheckCircle2, ChevronRight } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/ThemedText';
@@ -12,14 +12,20 @@ import type { PassportData } from '@/services/PassportNfcService';
 
 export default function PassportSuccessScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ passportData?: string }>();
-  const passportData = params.passportData
-    ? (JSON.parse(params.passportData) as PassportData)
-    : null;
+  const params = useLocalSearchParams();
+
+  let passportData: PassportData | null = null;
+  const passportDataParam = params?.passportData;
+  if (typeof passportDataParam === 'string') {
+    try {
+      passportData = JSON.parse(passportDataParam) as PassportData;
+    } catch {
+      passportData = null;
+    }
+  }
 
   const backgroundColor = useThemeColor({}, 'background');
   const cardBackgroundColor = useThemeColor({}, 'cardBackground');
-  const primaryTextColor = useThemeColor({}, 'textPrimary');
   const secondaryTextColor = useThemeColor({}, 'textSecondary');
   const statusConnectedColor = useThemeColor({}, 'statusConnected');
 
