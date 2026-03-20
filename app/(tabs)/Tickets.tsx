@@ -20,6 +20,7 @@ import TicketCard from '@/components/TicketCard';
 import { Colors } from '@/constants/Colors';
 import { useECash } from '@/context/ECashContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { isAgeVerificationTicket } from '@/utils/ageVerification';
 import { globalEvents } from '@/utils/common';
 import type { Ticket } from '@/utils/types';
 
@@ -55,17 +56,23 @@ export default function TicketsScreen() {
 
       for (const [_, wallet] of Object.entries(wallets)) {
         const mintUrl = wallet.getMintUrl();
+        const unit = wallet.unit();
         try {
           const unitInfo = await wallet.getUnitInfo();
           const balance = await wallet.getBalance();
           statusMap[mintUrl] = 'good';
+
+          // Age verification logic: hide the tickets if they match the age verification mint/unit.
+          if (isAgeVerificationTicket(mintUrl, unit)) {
+            continue;
+          }
 
           if (unitInfo?.showIndividually) {
             // Create separate tickets for each unit when showIndividually is true
             for (let i = 0; i < balance; i++) {
               allTickets.push({
                 id: uuid.v4(),
-                title: unitInfo?.title || wallet.unit(),
+                title: unitInfo?.title || unit,
                 description: unitInfo?.description,
                 isNonFungible: unitInfo?.showIndividually || false,
                 mintUrl,
@@ -83,7 +90,7 @@ export default function TicketsScreen() {
             // Create a single aggregated ticket when showIndividually is false
             allTickets.push({
               id: uuid.v4(),
-              title: unitInfo?.title || wallet.unit(),
+              title: unitInfo?.title || unit,
               description: unitInfo?.description,
               isNonFungible: unitInfo?.showIndividually || false,
               mintUrl,

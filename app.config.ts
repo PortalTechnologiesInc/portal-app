@@ -128,6 +128,10 @@ export default {
       eas: {
         projectId: '8aa33e4a-b2db-43ab-832b-709fb7f2ec0d',
       },
+      ageVerification: {
+        mintUrl: process.env.AGE_VERIFICATION_MINT_URL || '',
+        ticketUnit: process.env.AGE_VERIFICATION_TICKET_UNIT || '',
+      },
     },
   },
 };
