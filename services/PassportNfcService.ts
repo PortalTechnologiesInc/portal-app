@@ -812,7 +812,22 @@ export class PassportNfcService {
 
     console.log('[PassportNFC] >> TX:', apdu);
     const apduBytes = this.hexToBytes(apdu);
-    const response = await NfcManager.transceive(apduBytes);
+    let response: number[] = [];
+
+    // Use technology handler first (cross-platform); fall back to platform-specific APIs.
+    if ((NfcManager as any).isoDepHandler?.transceive) {
+      response = await (NfcManager as any).isoDepHandler.transceive(apduBytes);
+    } else if (typeof (NfcManager as any).transceive === 'function') {
+      response = await (NfcManager as any).transceive(apduBytes);
+    } else if (typeof (NfcManager as any).sendCommandAPDUIOS === 'function') {
+      const iosResp = await (NfcManager as any).sendCommandAPDUIOS(apduBytes);
+      response = [...(iosResp?.response ?? []), iosResp?.sw1 ?? 0x6f, iosResp?.sw2 ?? 0x00];
+    } else {
+      throw new ReadError(
+        'NFC_TRANSCEIVE_UNAVAILABLE',
+        'No NFC transceive API available for current platform'
+      );
+    }
 
     const hex = Array.from(response)
       .map(b => b.toString(16).padStart(2, '0'))
