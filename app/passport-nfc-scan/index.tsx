@@ -88,6 +88,19 @@ export default function PassportNfcScanScreen() {
     timeoutIds.current = [];
   }, []);
 
+  const stopNfcFlow = useCallback(async () => {
+    clearAllTimeouts();
+    scanningActiveRef.current = false;
+    setScanningActive(false);
+    try {
+      await passportNfcService.cleanup();
+    } catch {}
+    try {
+      await NfcManager.cancelTechnologyRequest();
+    } catch {}
+    NfcManager.setEventListener(NfcEvents.StateChanged, null);
+  }, [clearAllTimeouts]);
+
   const openVerifySession = useCallback(
     async (dg1Hex: string, sodHex: string) => {
       try {
@@ -130,18 +143,21 @@ export default function PassportNfcScanScreen() {
         const data = JSON.parse(event.nativeEvent.data);
         if (data.type === 'verification-complete') {
           setTimeout(() => {
-            if (!isOnboardingComplete) {
-              router.push('/(onboarding)/pin-setup');
-              return;
-            }
-            router.replace({ pathname: '/(tabs)/Settings' });
+            stopNfcFlow().finally(() => {
+              if (!isOnboardingComplete) {
+                // Use replace so NFC scan screen is removed from stack on onboarding flow.
+                router.replace('/(onboarding)/pin-setup');
+                return;
+              }
+              router.replace({ pathname: '/(tabs)/Settings' });
+            });
           }, 2000);
         }
       } catch (error) {
         console.warn('[PassportNFC] Failed to parse WebView message:', error);
       }
     },
-    [isOnboardingComplete, router]
+    [isOnboardingComplete, router, stopNfcFlow]
   );
 
   const startGlowAnimation = useCallback(() => {
@@ -430,6 +446,7 @@ export default function PassportNfcScanScreen() {
         <ThemedView style={styles.header}>
           <TouchableOpacity
             onPress={() => {
+              void stopNfcFlow();
               setVerifyUrl(null);
               setIsVerifyLoading(false);
               if (!isOnboardingComplete) {
@@ -478,8 +495,9 @@ export default function PassportNfcScanScreen() {
       {/* Header */}
       <ThemedView style={styles.header}>
         <TouchableOpacity
-          onPress={() => {
+            onPress={() => {
             isLeavingPageRef.current = true;
+              void stopNfcFlow();
             router.back();
           }}
           style={styles.backButton}
