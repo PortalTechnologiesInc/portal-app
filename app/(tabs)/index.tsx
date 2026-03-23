@@ -29,6 +29,7 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 import { formatAvatarUri } from '@/utils/common';
 
 const FIRST_LAUNCH_KEY = 'portal_first_launch_completed';
+const REVOLUT_BANNER_DISMISSED_KEY = 'portal_revolut_banner_dismissed';
 
 export default function Home() {
   const { isLoading, isOnboardingComplete } = useOnboarding();
@@ -37,6 +38,7 @@ export default function Home() {
   const walletService = useWalletManager();
   const [refreshing, setRefreshing] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0); // For triggering immediate ConnectionStatusIndicator updates
+  const [welcomeCompleted, setWelcomeCompleted] = useState<boolean | null>(null);
 
   // Theme colors
   const backgroundColor = useThemeColor({}, 'background');
@@ -135,25 +137,29 @@ export default function Home() {
   }, [displayName, username]);
 
   // Memoize handlers to prevent recreation on every render
-  const handleScan = useCallback(async (scanType: 'nfc' | 'qr') => {
-    // Determine the navigation path based on scan type
-    const pathname = scanType === 'nfc' ? '/nfc' : '/qr';
+  const handleScan = useCallback(
+    async (scanType: 'nfc' | 'qr') => {
+      // Determine the navigation path based on scan type
+      const pathname = scanType === 'nfc' ? '/nfc' : '/qr';
 
-    // Using 'modal' navigation to ensure cleaner navigation history
-    router.push({
-      pathname,
-      params: {
-        source: 'homepage',
-        scanType, // Pass the scan type to the destination
-        timestamp: Date.now(), // Prevent caching issues
-      },
-    });
+      // Using 'modal' navigation to ensure cleaner navigation history
+      router.push({
+        pathname,
+        params: {
+          source: 'homepage',
+          scanType, // Pass the scan type to the destination
+          timestamp: Date.now(), // Prevent caching issues
+        },
+      });
 
-    // Mark welcome banner as viewed when user interacts with scan buttons (same as old behavior)
-    try {
-      await SecureStore.setItemAsync(FIRST_LAUNCH_KEY, 'true');
-    } catch (_e) {}
-  }, []);
+      // Mark welcome banner as viewed when user interacts with scan buttons (same as old behavior)
+      try {
+        await SecureStore.setItemAsync(FIRST_LAUNCH_KEY, 'true');
+        setWelcomeCompleted(true);
+      } catch (_e) {}
+    },
+    [setWelcomeCompleted]
+  );
 
   // Legacy handler for backward compatibility
   const handleQrScan = useCallback(() => {
@@ -163,6 +169,23 @@ export default function Home() {
   const handleSettingsNavigate = useCallback(() => {
     router.push('/(tabs)/IdentityList');
   }, []);
+
+  useEffect(() => {
+    const checkFirstLaunch = async () => {
+      try {
+        if (!isOnboardingComplete || isLoading) {
+          return;
+        }
+        const firstLaunch = await SecureStore.getItemAsync(FIRST_LAUNCH_KEY);
+        const bannerDismissed = await SecureStore.getItemAsync(REVOLUT_BANNER_DISMISSED_KEY);
+        setWelcomeCompleted(firstLaunch === 'true' || bannerDismissed === 'true');
+      } catch (_e) {
+        setWelcomeCompleted(false);
+      }
+    };
+
+    checkFirstLaunch();
+  }, [isLoading, isOnboardingComplete]);
 
   // Don't render anything until onboarding state is loaded
   if (isLoading) {
@@ -281,16 +304,22 @@ export default function Home() {
             </View>
           </ThemedView>
 
-          <WelcomeBanner />
+          {welcomeCompleted === false && (
+            <WelcomeBanner onCompleted={() => setWelcomeCompleted(true)} />
+          )}
 
-          {/* Pending Requests Section */}
-          <PendingRequestsList />
+          {welcomeCompleted !== false && (
+            <>
+              {/* Pending Requests Section */}
+              <PendingRequestsList />
 
-          {/* Upcoming Payments Section */}
-          <UpcomingPaymentsList />
+              {/* Upcoming Payments Section */}
+              <UpcomingPaymentsList />
 
-          {/* Recent Activities Section */}
-          <RecentActivitiesList />
+              {/* Recent Activities Section */}
+              <RecentActivitiesList />
+            </>
+          )}
         </ScrollView>
       </ThemedView>
     </SafeAreaView>

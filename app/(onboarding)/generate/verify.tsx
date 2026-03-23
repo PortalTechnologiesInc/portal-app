@@ -19,6 +19,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { useKey } from '@/context/KeyContext';
 import { SEED_ORIGIN_KEY, useOnboardingFlow } from '@/context/OnboardingFlowContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { setCloudBackupEnabled } from '@/services/CloudBackupService';
 
 export default function VerifySeed() {
   const { setMnemonic } = useKey();
@@ -98,6 +99,7 @@ export default function VerifySeed() {
     try {
       await setMnemonic(seedPhrase);
       await SecureStore.setItemAsync(SEED_ORIGIN_KEY, 'generated');
+      await setCloudBackupEnabled(false); // Default off for advanced (generate)
 
       // Clear state after saving
       clearVerificationChallenge();

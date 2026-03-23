@@ -1,4 +1,9 @@
-import { PaymentStatus, type SinglePaymentRequest } from 'portal-app-lib';
+import {
+  Currency_Tags,
+  PaymentStatus,
+  parseBolt11,
+  type SinglePaymentRequest,
+} from 'portal-app-lib';
 import type { DatabaseService, PaymentAction } from '@/services/DatabaseService';
 import { globalEvents } from '@/utils/common';
 import type { ActiveWalletProvider } from '../providers/ActiveWallet';
@@ -6,6 +11,42 @@ import type { RelayStatusesProvider } from '../providers/RelayStatus';
 import { Task, TransactionalTask } from '../WorkQueue';
 import { SendSinglePaymentResponseTask } from './HandleSinglePaymentRequest';
 import { type SaveActivityArgs, SaveActivityTask } from './SaveActivity';
+
+const toBigIntSafe = (value: unknown): bigint | null => {
+  try {
+    if (typeof value === 'bigint') return value;
+    if (typeof value === 'number') {
+      if (!Number.isFinite(value)) return null;
+      return BigInt(Math.trunc(value));
+    }
+    if (typeof value === 'string') return BigInt(value);
+    return null;
+  } catch (_error) {
+    return null;
+  }
+};
+
+const msatsToSatsCeil = (msats: bigint): bigint => {
+  if (msats <= 0n) return 0n;
+  return (msats + 999n) / 1000n;
+};
+
+const getWalletAmountSats = (request: SinglePaymentRequest): bigint => {
+  if (request.content.currency.tag === Currency_Tags.Millisats) {
+    const requestMsats = toBigIntSafe(request.content.amount);
+    if (requestMsats != null) {
+      return msatsToSatsCeil(requestMsats);
+    }
+  }
+
+  // For fiat requests (and as fallback), derive sats from invoice amount.
+  const parsedInvoice = parseBolt11(request.content.invoice);
+  const invoiceMsats = toBigIntSafe(parsedInvoice.amountMsat);
+  if (invoiceMsats == null) {
+    throw new Error('Unable to resolve wallet payment amount');
+  }
+  return msatsToSatsCeil(invoiceMsats);
+};
 
 export class StartPaymentTask extends Task<
   [SaveActivityArgs, SinglePaymentRequest, string],
@@ -37,10 +78,8 @@ export class StartPaymentTask extends Task<
     await new SendSinglePaymentResponseTask(request, new PaymentStatus.Approved()).run();
 
     try {
-      const preimage = await new PayInvoiceTask(
-        request.content.invoice,
-        request.content.amount
-      ).run();
+      const walletAmountSats = getWalletAmountSats(request);
+      const preimage = await new PayInvoiceTask(request.content.invoice, walletAmountSats).run();
       if (!preimage) {
         await new UpdateActivityStatusTask(
           id,

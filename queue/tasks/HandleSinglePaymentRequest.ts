@@ -265,7 +265,11 @@ export class HandleSinglePaymentRequestTask extends Task<
       }
 
       const balance = walletInfo.balanceInSats;
-      const isBalanceEnough = balance && balance > BigInt(amount);
+      // For fiat amounts, `amount` is in major units (e.g. 10.99 EUR) after dividing by 100.
+      // BigInt() throws TypeError on non-integers, so fiat balance checks are skipped here.
+      // Sats amounts are integers after dividing by 1000 (msats → sats), so BigInt() is safe.
+      const isBalanceEnough =
+        currency === 'SATS' ? balance && balance > BigInt(Math.round(amount)) : true;
 
       if (!isBalanceEnough) {
         await new SaveActivityTask({

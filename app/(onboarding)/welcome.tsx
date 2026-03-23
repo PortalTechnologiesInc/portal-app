@@ -19,12 +19,12 @@ export default function Welcome() {
 
   const handleGetStarted = () => {
     setOnboardingPath('simple');
-    router.push('/(onboarding)/simple-setup');
+    router.push('/(onboarding)/permissions');
   };
 
   const handleAdvanced = () => {
     setOnboardingPath('advanced');
-    router.push('/(onboarding)/backup-warning');
+    router.push('/(onboarding)/permissions');
   };
 
   return (

@@ -13,6 +13,7 @@ import {
   keyToHex,
   NostrConnectResponseStatus,
   PaymentStatus,
+  parseBolt11,
   RecurringPaymentStatus,
 } from 'portal-app-lib';
 import type React from 'react';
@@ -148,6 +149,25 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
     if (amount == null) return null;
     const num = Number(amount);
     return Number.isNaN(num) ? null : num;
+  };
+
+  const toBigIntSafe = (value: unknown): bigint | null => {
+    try {
+      if (typeof value === 'bigint') return value;
+      if (typeof value === 'number') {
+        if (!Number.isFinite(value)) return null;
+        return BigInt(Math.trunc(value));
+      }
+      if (typeof value === 'string') return BigInt(value);
+      return null;
+    } catch (_error) {
+      return null;
+    }
+  };
+
+  const msatsToSatsCeil = (msats: bigint): bigint => {
+    if (msats <= 0n) return 0n;
+    return (msats + 999n) / 1000n;
   };
 
   // Helper function to create ticket activity with progressive fallback retry logic
@@ -343,6 +363,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             const currencyObj = metadata.content.currency;
             let conversionSourceAmount = rawAmount;
             let conversionSourceCurrency = 'MSATS';
+            let amountForWallet: bigint | null = null;
             switch (currencyObj.tag) {
               case Currency_Tags.Fiat:
                 {
@@ -356,6 +377,12 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                   amount = rawAmount / 100; // store fiat in major units
                   conversionSourceAmount = rawAmount / 100;
                   conversionSourceCurrency = fiatCode;
+                  // For fiat requests, use invoice amount for wallet payment.
+                  const parsedInvoice = parseBolt11(metadata.content.invoice);
+                  const invoiceMsats = toBigIntSafe(parsedInvoice.amountMsat);
+                  if (invoiceMsats != null) {
+                    amountForWallet = msatsToSatsCeil(invoiceMsats);
+                  }
                 }
                 break;
               case Currency_Tags.Millisats:
@@ -363,6 +390,12 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 currency = 'SATS';
                 conversionSourceAmount = rawAmount;
                 conversionSourceCurrency = 'MSATS';
+                {
+                  const requestMsats = toBigIntSafe(metadata.content.amount);
+                  if (requestMsats != null) {
+                    amountForWallet = msatsToSatsCeil(requestMsats);
+                  }
+                }
                 break;
             }
 
@@ -422,9 +455,12 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
             await notifier(new PaymentStatus.Approved());
 
             try {
+              if (amountForWallet == null) {
+                throw new Error('Unable to resolve wallet payment amount');
+              }
               const _response = await walletService.sendPayment(
                 metadata.content.invoice,
-                BigInt(amount)
+                amountForWallet
               );
 
               await executeOperation(
