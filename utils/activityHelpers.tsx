@@ -91,22 +91,6 @@ export const getStatusText = (status: ActivityStatus): string => {
   }
 };
 
-export const getActivityTypeText = (type: string): string => {
-  switch (type) {
-    case ActivityType.Auth:
-      return 'Login Request';
-    case ActivityType.Pay:
-      return 'Payment';
-    case 'ticket':
-    case 'ticket_approved':
-    case 'ticket_denied':
-    case 'ticket_received':
-      return 'Ticket';
-    default:
-      return 'Activity';
-  }
-};
-
 export const getActivityDescription = (
   type: string,
   status: ActivityStatus,
