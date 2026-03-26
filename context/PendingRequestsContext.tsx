@@ -37,9 +37,9 @@ import { SaveActivityAndAddPaymentStatusTransactionalTask } from '@/queue/tasks/
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 import { fromUnixSeconds } from '@/services/DatabaseService';
+import { isAgeVerificationTicket } from '@/utils/ageVerification';
 import { getServiceNameFromMintUrl, globalEvents } from '@/utils/common';
 import { normalizeCurrencyForComparison } from '@/utils/currency';
-import { isAgeVerificationTicket } from '@/utils/ageVerification';
 import { logError } from '@/utils/errorLogger';
 import { getServiceNameFromProfile } from '@/utils/nostrHelper';
 import type {
@@ -187,7 +187,10 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
       const { mintUrl, ticketUnit, serviceName, ticketTitle, amount, requestId } = baseData;
       const status =
         activityType === 'ticket_approved' ? ('positive' as const) : ('negative' as const);
-      const isAgeVerification = isAgeVerificationTicket(mintUrl ?? undefined, ticketUnit ?? undefined);
+      const isAgeVerification = isAgeVerificationTicket(
+        mintUrl ?? undefined,
+        ticketUnit ?? undefined
+      );
 
       // Try with full data first
       try {

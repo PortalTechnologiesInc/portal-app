@@ -21,9 +21,9 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 import { useWalletStatus } from '@/hooks/useWalletStatus';
 import { FetchServiceProfileTask } from '@/queue/tasks/ProcessAuthRequest';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import { isAgeVerificationTicket } from '@/utils/ageVerification';
 import { formatActivityAmount, normalizeCurrencyForComparison } from '@/utils/currency';
 import { getServiceNameFromProfile } from '@/utils/nostrHelper';
-import { isAgeVerificationTicket } from '@/utils/ageVerification';
 import type { PendingRequest } from '@/utils/types';
 import { usePendingRequests } from '../context/PendingRequestsContext';
 import { SkeletonPulse } from './PendingRequestSkeletonCard';
@@ -87,11 +87,10 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const isPaymentRequest = type === 'payment';
     const isSubscriptionRequest = type === 'subscription';
     const isTicketRequest = type === 'ticket';
-    const isAgeVerificationRequest =
-      isAgeVerificationTicket(
-        (metadata as CashuRequestContentWithKey)?.inner?.mintUrl,
-        (metadata as CashuRequestContentWithKey)?.inner?.unit
-      );
+    const isAgeVerificationRequest = isAgeVerificationTicket(
+      (metadata as CashuRequestContentWithKey)?.inner?.mintUrl,
+      (metadata as CashuRequestContentWithKey)?.inner?.unit
+    );
     const ticketTitle = isAgeVerificationRequest
       ? "Wants to verify you're over 18"
       : request.ticketTitle;
@@ -467,10 +466,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     return (
       <View style={[styles.card, { backgroundColor: cardBackgroundColor, shadowColor }]}>
         <Text style={[styles.requestType, { color: secondaryTextColor }]}>
-          {getRequestTypeText(
-            type,
-            isAgeVerificationRequest
-          )}
+          {getRequestTypeText(type, isAgeVerificationRequest)}
         </Text>
 
         <Text

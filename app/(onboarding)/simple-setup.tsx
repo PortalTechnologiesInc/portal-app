@@ -63,6 +63,41 @@ export default function SimpleSetup() {
     'wallet-setup': 'Failed to setup wallet',
   };
 
+  const normalizeSetupErrorMessage = (currentStep: typeof step, error: unknown): string => {
+    const fallback = stepErrors[currentStep as keyof typeof stepErrors];
+    const raw = error instanceof Error ? error.message : String(error ?? '');
+    const msg = raw.toLowerCase();
+
+    if (currentStep === 'generate-profile') {
+      if (msg.includes('nostr service not initialized')) {
+        return 'Nostr is still initializing. Please retry.';
+      }
+      if (msg.includes('profile setup timeout')) {
+        return 'Profile creation timed out. Please retry.';
+      }
+      if (msg.includes('username') && (msg.includes('taken') || msg.includes('reserved'))) {
+        return raw;
+      }
+      if (msg.includes('registration service offline')) {
+        return raw;
+      }
+    }
+
+    if (currentStep === 'backup-cloud' || currentStep === 'restore-cloud') {
+      if (msg.includes('no_google_account') || msg.includes('no_icloud_account')) {
+        return 'No cloud account available on this device.';
+      }
+      if (msg.includes('consent_denied')) {
+        return 'Cloud consent was denied. Please allow access and retry.';
+      }
+      if (msg.includes('backup file') && msg.includes('not found')) {
+        return 'No cloud backup was found for this account.';
+      }
+    }
+
+    return raw && raw !== 'error' ? raw : fallback;
+  };
+
   const generateKey = async () => {
     // Check if mnemonic already exists (e.g., from a previous failed attempt)
     const existingMnemonic = await getMnemonic();
@@ -203,7 +238,7 @@ export default function SimpleSetup() {
         router.replace('/(onboarding)/identity-verification');
       } catch (error) {
         setOnboardingError({
-          message: stepErrors[currentStep as keyof typeof stepErrors],
+          message: normalizeSetupErrorMessage(currentStep, error),
           retryRoute: '/(onboarding)/simple-setup',
         });
         router.replace('/(onboarding)/onboarding-error');

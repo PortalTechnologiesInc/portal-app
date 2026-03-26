@@ -495,9 +495,9 @@ export default function PassportNfcScanScreen() {
       {/* Header */}
       <ThemedView style={styles.header}>
         <TouchableOpacity
-            onPress={() => {
+          onPress={() => {
             isLeavingPageRef.current = true;
-              void stopNfcFlow();
+            void stopNfcFlow();
             router.back();
           }}
           style={styles.backButton}
