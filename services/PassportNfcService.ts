@@ -4,9 +4,22 @@
  * Uses ICAO 9303 eMRTD standard
  */
 
+import { Buffer } from '@craftzdog/react-native-buffer';
 import NfcManager, { NfcTech } from 'react-native-nfc-manager';
+import { createDiffieHellman, randomBytes } from 'react-native-quick-crypto';
 import * as CryptoUtils from '@/utils/crypto';
 import { deriveBacKeys, type MrzData } from '@/utils/mrz';
+import {
+  getECCurveName,
+  getPACEConfig,
+  getStandardizedDHParams,
+  type PACEConfig,
+  type PACEInfo,
+  unwrapDO as paceUnwrapDO,
+  wrapDO as paceWrapDO,
+  parsePACEInfo,
+  wrapGA,
+} from '@/utils/pace';
 
 /**
  * ICAO 9303 Part 10 — EF File Identifiers and Short File Identifiers
@@ -58,7 +71,8 @@ export class PassportNfcService {
   private isoDep: any = null;
   private sessionK_enc: Uint8Array | null = null;
   private sessionK_mac: Uint8Array | null = null;
-  private ssc: Uint8Array | null = null; // Send Sequence Counter (8 bytes, big-endian)
+  private ssc: Uint8Array | null = null;
+  private smCipher: '3DES' | 'AES' = '3DES';
 
   /**
    * Initialize NFC Manager
@@ -107,10 +121,30 @@ export class PassportNfcService {
       // Notify caller that the tag was found (UI can show "stay still" feedback)
       onTagFound?.();
 
-      // Perform BAC authentication
-      const bacKeys = await this.bacAuth(mrzData);
+      // Reset SM cipher to default for each new read
+      this.smCipher = '3DES';
 
-      // Re-select MRTD application once in SM mode (some chips reset DF context after BAC)
+      // Try PACE first; fall back to BAC if unsupported
+      let usedPACE = false;
+      const paceResult = await this.readPACEInfo();
+      if (paceResult) {
+        try {
+          await this.doPACE(mrzData, paceResult.info, paceResult.config);
+          usedPACE = true;
+          console.log('[PassportNFC] PACE succeeded, using PACE session keys');
+        } catch (paceErr) {
+          console.log(
+            '[PassportNFC] PACE failed, falling back to BAC:',
+            (paceErr as Error).message
+          );
+        }
+      }
+
+      if (!usedPACE) {
+        await this.bacAuth(mrzData);
+      }
+
+      // Re-select MRTD application in SM mode (some chips reset DF context after auth)
       const mrtdAid = [0xa0, 0x00, 0x00, 0x02, 0x47, 0x10, 0x01];
       const appSelectResp = await this.smTransceive(0x00, 0xa4, 0x04, 0x0c, mrtdAid, null);
       if (!appSelectResp.success) {
@@ -382,6 +416,390 @@ export class PassportNfcService {
     return { k_enc: sessionK_enc, k_mac: sessionK_mac };
   }
 
+  // ─── PACE (Password Authenticated Connection Establishment) ───
+
+  /**
+   * Attempt to read EF.CardAccess and parse PACEInfo.
+   * Returns null if the file is absent or does not contain a PACE OID.
+   */
+  private async readPACEInfo(): Promise<{ info: PACEInfo; config: PACEConfig } | null> {
+    try {
+      const selectApdu = [0x00, 0xa4, 0x02, 0x0c, 0x02, 0x01, 0x1c];
+      const selResp = await this.transceiveBytes(selectApdu);
+      const selSw = (selResp[selResp.length - 2]! << 8) | selResp[selResp.length - 1]!;
+      if (selSw !== 0x9000) return null;
+
+      let cardAccessHex = '';
+      let offset = 0;
+      while (true) {
+        const readApdu = [0x00, 0xb0, (offset >> 8) & 0xff, offset & 0xff, 0x00];
+        const readResp = await this.transceiveBytes(readApdu);
+        const sw = (readResp[readResp.length - 2]! << 8) | readResp[readResp.length - 1]!;
+        if (readResp.length > 2) {
+          cardAccessHex += readResp
+            .slice(0, readResp.length - 2)
+            .map((b: number) => b.toString(16).padStart(2, '0'))
+            .join('');
+        }
+        if (sw === 0x9000) break;
+        if (sw >> 8 === 0x61) {
+          offset += readResp.length - 2;
+          continue;
+        }
+        break;
+      }
+
+      if (!cardAccessHex) return null;
+      console.log('[PassportNFC] EF.CardAccess:', cardAccessHex);
+
+      const info = parsePACEInfo(cardAccessHex);
+      if (!info) return null;
+      const config = getPACEConfig(info.oid);
+      console.log(
+        '[PassportNFC] PACEInfo:',
+        JSON.stringify({ oid: info.oid, version: info.version, parameterId: info.parameterId })
+      );
+      console.log('[PassportNFC] PACEConfig:', JSON.stringify(config));
+      return { info, config };
+    } catch (e) {
+      console.log('[PassportNFC] EF.CardAccess not readable:', (e as Error).message);
+      return null;
+    }
+  }
+
+  /**
+   * PACE authentication (BSI TR-03110).
+   * Supports DH-GM and ECDH-GM with 3DES and AES-128/256 ciphers.
+   */
+  private async doPACE(mrzData: MrzData, paceInfo: PACEInfo, config: PACEConfig): Promise<void> {
+    console.log('[PassportNFC] Starting PACE authentication');
+
+    // Derive K_pi from MRZ data (PACE password key, counter = 3)
+    // BSI TR-03110: Pi = SHA-1(MRZ_information) where MRZ_information =
+    //   docNo || docNoCD || DOB || DOBCD || DOE || DOECD
+    const mrzConcat =
+      mrzData.documentNumber +
+      mrzData.documentNumberCheckDigit +
+      mrzData.dateOfBirth +
+      mrzData.dateOfBirthCheckDigit +
+      mrzData.expiryDate +
+      mrzData.expiryDateCheckDigit;
+    const mrzBytes = new TextEncoder().encode(mrzConcat);
+    const Crypto = require('react-native-quick-crypto');
+    const mrzHash: Uint8Array = Crypto.createHash('sha1').update(mrzBytes).digest();
+    const kPi = CryptoUtils.derivePACEKey(mrzHash, 3, config.cipher, config.digest);
+    console.log('[PassportNFC] K_pi derived, length:', kPi.length);
+
+    // ── MSE:Set AT ──
+    const oidDO = [0x80, paceInfo.oid.length, ...paceInfo.oid]; // tag 80
+    const refDO = [0x83, 0x01, 0x01]; // key reference: MRZ
+    const mseData = [...oidDO, ...refDO];
+    const mseApdu = [0x00, 0x22, 0xc1, 0xa4, mseData.length, ...mseData];
+    const mseResp = await this.transceiveBytes(mseApdu);
+    const mseSw = (mseResp[mseResp.length - 2]! << 8) | mseResp[mseResp.length - 1]!;
+    if (mseSw !== 0x9000) {
+      throw new ReadError('PACE_MSE_FAILED', `MSE:Set AT failed with SW=${mseSw.toString(16)}`);
+    }
+    console.log('[PassportNFC] MSE:Set AT success');
+
+    // ── Step 1: Get encrypted nonce ──
+    const gaStep1Body = wrapGA([]);
+    const gaStep1Resp = await this.sendGA(true, gaStep1Body);
+    this.checkSW(gaStep1Resp, 'PACE Step 1');
+    const respData1 = new Uint8Array(gaStep1Resp.slice(0, gaStep1Resp.length - 2));
+    const encryptedNonce = paceUnwrapDO(0x80, respData1);
+    console.log('[PassportNFC] Encrypted nonce length:', encryptedNonce.length);
+
+    // Decrypt nonce with K_pi
+    let nonce: Uint8Array;
+    if (config.cipher === '3DES') {
+      const k3des = CryptoUtils.derive3DesKey(kPi);
+      nonce = CryptoUtils.des3DecryptCBC(k3des, new Uint8Array(8), encryptedNonce);
+    } else {
+      nonce = CryptoUtils.aesDecryptCBC(encryptedNonce, kPi, new Uint8Array(16));
+    }
+    console.log('[PassportNFC] Nonce decrypted, length:', nonce.length);
+
+    // ── Steps 2-4 dispatch based on agreement algorithm ──
+    let sessionKeys: { kEnc: Uint8Array; kMac: Uint8Array };
+    if (config.agreementAlg === 'DH') {
+      sessionKeys = await this.paceDHGM(nonce, paceInfo, config);
+    } else {
+      sessionKeys = await this.paceECDHGM(nonce, paceInfo, config);
+    }
+
+    // Install session keys
+    this.sessionK_enc = sessionKeys.kEnc;
+    this.sessionK_mac = sessionKeys.kMac;
+    this.smCipher = config.cipher === '3DES' ? '3DES' : 'AES';
+
+    // SSC starts at zero for PACE
+    const sscLen = this.smCipher === 'AES' ? 16 : 8;
+    this.ssc = new Uint8Array(sscLen);
+
+    console.log('[PassportNFC] PACE authentication successful');
+    console.log('[PassportNFC] SM cipher:', this.smCipher);
+  }
+
+  /**
+   * PACE DH-GM steps 2-4.
+   * Uses react-native-quick-crypto (OpenSSL) for DH key generation and shared
+   * secret computation to avoid potential Hermes BigInt precision issues with
+   * 2048-bit modular exponentiation.
+   */
+  private async paceDHGM(
+    nonce: Uint8Array,
+    paceInfo: PACEInfo,
+    config: PACEConfig
+  ): Promise<{ kEnc: Uint8Array; kMac: Uint8Array }> {
+    const dhParams = getStandardizedDHParams(paceInfo.parameterId);
+    if (!dhParams) {
+      throw new ReadError(
+        'PACE_UNSUPPORTED_PARAMS',
+        `Unsupported DH parameterId: ${paceInfo.parameterId}`
+      );
+    }
+
+    const pBuf = Buffer.from(dhParams.p, 'hex');
+    const gBuf = Buffer.from(dhParams.g, 'hex');
+    const qBuf = Buffer.from(dhParams.q, 'hex');
+    const pByteLen = pBuf.length;
+
+    // ── Step 2: DH Generic Mapping (native OpenSSL) ──
+    const dhMap = createDiffieHellman(pBuf, gBuf);
+    dhMap.generateKeys();
+    dhMap.setPrivateKey(generateDHPrivateKey(qBuf));
+    const pkMapBuf = dhMap.computeSecret(gBuf) as Buffer;
+    const pkMapBytes = dhPadKey(pkMapBuf, pByteLen);
+    console.log('[PassportNFC] DH Step 2 pubkey length:', pkMapBytes.length);
+
+    const ga2Body = wrapGA(paceWrapDO(0x81, pkMapBytes));
+    const ga2Resp = await this.sendGA(true, ga2Body);
+    this.checkSW(ga2Resp, 'PACE DH Step 2');
+
+    const respData2 = new Uint8Array(ga2Resp.slice(0, ga2Resp.length - 2));
+    const pkMapChipBytes = paceUnwrapDO(0x82, respData2);
+
+    // H = pkMapChip^skMap mod p (native OpenSSL)
+    const H_buf = dhMap.computeSecret(Buffer.from(pkMapChipBytes)) as Buffer;
+
+    // g^s mod p: create DH, set private key to nonce s, compute g^s
+    const dhGs = createDiffieHellman(pBuf, gBuf);
+    dhGs.generateKeys();
+    dhGs.setPrivateKey(Buffer.from(nonce));
+    const gs_buf = dhGs.computeSecret(gBuf) as Buffer;
+
+    // Mapped generator: gNew = g^s * H mod p (single BigInt multiply)
+    const gs = bytesToBigInt(new Uint8Array(gs_buf));
+    const H = bytesToBigInt(new Uint8Array(H_buf));
+    const p = CryptoUtils.hexToBigInt(dhParams.p);
+    const gNew = (gs * H) % p;
+    const gNewBuf = Buffer.from(CryptoUtils.bigIntToBytes(gNew, pByteLen));
+
+    // ── Step 3: Ephemeral key exchange with mapped generator ──
+    const dhEph = createDiffieHellman(pBuf, gNewBuf);
+    dhEph.generateKeys();
+    dhEph.setPrivateKey(generateDHPrivateKey(qBuf));
+    const pkEphBuf = dhEph.computeSecret(gNewBuf) as Buffer;
+    const pkEphBytes = dhPadKey(pkEphBuf, pByteLen);
+
+    const ga3Body = wrapGA(paceWrapDO(0x83, pkEphBytes));
+    const ga3Resp = await this.sendGA(true, ga3Body);
+    this.checkSW(ga3Resp, 'PACE DH Step 3');
+
+    const respData3 = new Uint8Array(ga3Resp.slice(0, ga3Resp.length - 2));
+    const pkEphChipBytes = paceUnwrapDO(0x84, respData3);
+
+    // K = pkEphChip^skEph mod p (native OpenSSL)
+    const K_buf = dhEph.computeSecret(Buffer.from(pkEphChipBytes)) as Buffer;
+    const sharedSecret = dhPadBytes(K_buf, pByteLen);
+
+    // ── Step 4: Derive keys + mutual authentication ──
+    return this.paceStep4(sharedSecret, pkEphBytes, Array.from(pkEphChipBytes), config, paceInfo);
+  }
+
+  /**
+   * PACE ECDH-GM steps 2-4.
+   */
+  private async paceECDHGM(
+    nonce: Uint8Array,
+    paceInfo: PACEInfo,
+    config: PACEConfig
+  ): Promise<{ kEnc: Uint8Array; kMac: Uint8Array }> {
+    const curveName = getECCurveName(paceInfo.parameterId);
+    if (!curveName) {
+      throw new ReadError(
+        'PACE_UNSUPPORTED_PARAMS',
+        `Unsupported EC parameterId: ${paceInfo.parameterId}`
+      );
+    }
+
+    const curve = getNobleECCurve(curveName);
+    if (!curve) {
+      throw new ReadError(
+        'PACE_UNSUPPORTED_CURVE',
+        `Curve ${curveName} not available in @noble/curves`
+      );
+    }
+
+    const G = curve.ProjectivePoint.BASE;
+    const s = bytesToBigInt(nonce);
+    const fieldSize = Math.ceil(curve.CURVE.Fp.BYTES ?? curve.CURVE.nBitLength / 8);
+
+    // ── Step 2: EC Generic Mapping ──
+    const skMap: Uint8Array = generateECPrivateKey(curve);
+    const pkMapPoint = G.multiply(bytesToBigInt(skMap));
+    const pkMapBytes = Array.from(pkMapPoint.toRawBytes(false)) as number[];
+
+    const ga2Body = wrapGA(paceWrapDO(0x81, pkMapBytes));
+    const ga2Resp = await this.sendGA(true, ga2Body);
+    this.checkSW(ga2Resp, 'PACE ECDH Step 2');
+
+    const respData2 = new Uint8Array(ga2Resp.slice(0, ga2Resp.length - 2));
+    const pkMapChipRaw = paceUnwrapDO(0x82, respData2);
+    const pkMapChip = curve.ProjectivePoint.fromHex(CryptoUtils.bytesToHex(pkMapChipRaw));
+
+    // H = skMap * pkMapChip
+    const H = pkMapChip.multiply(bytesToBigInt(new Uint8Array(skMap)));
+    // G_new = s*G + H
+    const sG = G.multiply(s);
+    const Gnew = sG.add(H);
+
+    // ── Step 3: Ephemeral key exchange ──
+    const skEph = generateECPrivateKey(curve);
+    const pkEphPoint = Gnew.multiply(bytesToBigInt(new Uint8Array(skEph)));
+    const pkEphBytes = Array.from(pkEphPoint.toRawBytes(false)) as number[];
+
+    const ga3Body = wrapGA(paceWrapDO(0x83, pkEphBytes));
+    const ga3Resp = await this.sendGA(true, ga3Body);
+    this.checkSW(ga3Resp, 'PACE ECDH Step 3');
+
+    const respData3 = new Uint8Array(ga3Resp.slice(0, ga3Resp.length - 2));
+    const pkEphChipRaw = paceUnwrapDO(0x84, respData3);
+    const pkEphChip = curve.ProjectivePoint.fromHex(CryptoUtils.bytesToHex(pkEphChipRaw));
+
+    // Shared secret = x-coordinate of skEph * pkEphChip
+    const sharedPoint = pkEphChip.multiply(bytesToBigInt(new Uint8Array(skEph)));
+    const sharedSecret = CryptoUtils.bigIntToBytes(sharedPoint.x, fieldSize);
+
+    // ── Step 4: Derive keys + mutual authentication ──
+    return this.paceStep4(sharedSecret, pkEphBytes, Array.from(pkEphChipRaw), config, paceInfo);
+  }
+
+  /**
+   * PACE Step 4: derive session keys, mutual authentication token exchange.
+   */
+  private async paceStep4(
+    sharedSecret: Uint8Array,
+    pkEphTerminal: number[],
+    pkEphChip: number[],
+    config: PACEConfig,
+    paceInfo: PACEInfo
+  ): Promise<{ kEnc: Uint8Array; kMac: Uint8Array }> {
+    const kEnc = CryptoUtils.derivePACEKey(sharedSecret, 1, config.cipher, config.digest);
+    const kMac = CryptoUtils.derivePACEKey(sharedSecret, 2, config.cipher, config.digest);
+    console.log('[PassportNFC] PACE session keys derived');
+
+    // BSI TR-03110-3 §A.2.4: auth token = MAC over 7F49{OID, pubKey}
+    const oid = Array.from(paceInfo.oid);
+    const pkTag = config.agreementAlg === 'DH' ? 0x84 : 0x86;
+    const termAuthInput = buildAuthTokenInput(oid, pkTag, pkEphChip);
+    const chipAuthInput = buildAuthTokenInput(oid, pkTag, pkEphTerminal);
+
+    let tIfd: Uint8Array;
+    if (config.cipher === '3DES') {
+      const kMac3des = CryptoUtils.derive3DesKey(kMac);
+      tIfd = CryptoUtils.computeMac(kMac3des, new Uint8Array(termAuthInput));
+    } else {
+      tIfd = CryptoUtils.aesCmac(kMac, new Uint8Array(termAuthInput));
+      tIfd = tIfd.slice(0, 8); // Truncate to 8 bytes
+    }
+
+    const ga4Body = wrapGA(paceWrapDO(0x85, Array.from(tIfd)));
+    const ga4Resp = await this.sendGA(false, ga4Body);
+    this.checkSW(ga4Resp, 'PACE Step 4');
+
+    const respData4 = new Uint8Array(ga4Resp.slice(0, ga4Resp.length - 2));
+    const tIc = paceUnwrapDO(0x86, respData4);
+
+    // Verify chip's auth token
+    let tIcExpected: Uint8Array;
+    if (config.cipher === '3DES') {
+      const kMac3des = CryptoUtils.derive3DesKey(kMac);
+      tIcExpected = CryptoUtils.computeMac(kMac3des, new Uint8Array(chipAuthInput));
+    } else {
+      tIcExpected = CryptoUtils.aesCmac(kMac, new Uint8Array(chipAuthInput));
+      tIcExpected = tIcExpected.slice(0, 8);
+    }
+
+    if (!constantTimeEqual(tIc, tIcExpected)) {
+      throw new ReadError(
+        'PACE_AUTH_FAILED',
+        'PACE mutual authentication failed: chip token mismatch'
+      );
+    }
+    console.log('[PassportNFC] PACE mutual authentication verified');
+
+    if (config.cipher === '3DES') {
+      return { kEnc: CryptoUtils.derive3DesKey(kEnc), kMac: CryptoUtils.derive3DesKey(kMac) };
+    }
+    return { kEnc, kMac };
+  }
+
+  /**
+   * Send a General Authenticate APDU with proper length encoding.
+   * Uses extended length (Case 3e) when data exceeds 255 bytes.
+   */
+  private async sendGA(chaining: boolean, body: number[]): Promise<number[]> {
+    const cla = chaining ? 0x10 : 0x00;
+
+    if (body.length <= 255) {
+      return this.transceiveBytes([cla, 0x86, 0x00, 0x00, body.length, ...body, 0x00]);
+    }
+
+    const lcHi = (body.length >> 8) & 0xff;
+    const lcLo = body.length & 0xff;
+
+    // Try 1: Extended length Case 4e (with Le)
+    const resp4e = await this.transceiveBytes([
+      cla, 0x86, 0x00, 0x00, 0x00, lcHi, lcLo, ...body, 0x00, 0x00,
+    ]);
+    const sw4e = (resp4e[resp4e.length - 2]! << 8) | resp4e[resp4e.length - 1]!;
+    if (sw4e !== 0x6a80 && sw4e !== 0x6700) return resp4e;
+
+    // Try 2: Extended length Case 3e (without Le)
+    console.log('[PassportNFC] Case 4e rejected, trying Case 3e (no Le)');
+    const resp3e = await this.transceiveBytes([
+      cla, 0x86, 0x00, 0x00, 0x00, lcHi, lcLo, ...body,
+    ]);
+    const sw3e = (resp3e[resp3e.length - 2]! << 8) | resp3e[resp3e.length - 1]!;
+    if (sw3e !== 0x6a80 && sw3e !== 0x6700) return resp3e;
+
+    // Try 3: APDU-level command chaining
+    console.log('[PassportNFC] Extended length rejected, trying command chaining');
+    const CHUNK = 255;
+    let offset = 0;
+    while (offset + CHUNK < body.length) {
+      const chunk = body.slice(offset, offset + CHUNK);
+      const chunkResp = await this.transceiveBytes([0x10, 0x86, 0x00, 0x00, chunk.length, ...chunk]);
+      const chunkSw = (chunkResp[chunkResp.length - 2]! << 8) | chunkResp[chunkResp.length - 1]!;
+      if (chunkSw !== 0x9000) return chunkResp;
+      offset += CHUNK;
+    }
+    const last = body.slice(offset);
+    return this.transceiveBytes([cla, 0x86, 0x00, 0x00, last.length, ...last, 0x00]);
+  }
+
+  private checkSW(resp: number[], label: string): void {
+    const sw = (resp[resp.length - 2]! << 8) | resp[resp.length - 1]!;
+    if (sw !== 0x9000) {
+      throw new ReadError(
+        'PACE_APDU_ERROR',
+        `${label} failed: SW=${sw.toString(16).padStart(4, '0')}`
+      );
+    }
+  }
+
   /**
    * Read a Data Group (DG) from the passport chip using Secure Messaging.
    *
@@ -619,14 +1037,12 @@ export class PassportNfcService {
 
   // ─── Secure Messaging (ICAO 9303) ───
 
-  /**
-   * Increment SSC (8-byte big-endian counter)
-   */
+  /** Increment SSC (big-endian counter, 8 or 16 bytes) */
   private incrementSSC(): void {
     if (!this.ssc) throw new Error('SSC not initialized');
-    for (let i = 7; i >= 0; i--) {
+    for (let i = this.ssc.length - 1; i >= 0; i--) {
       this.ssc[i] = (this.ssc[i]! + 1) & 0xff;
-      if (this.ssc[i] !== 0) break; // no carry
+      if (this.ssc[i] !== 0) break;
     }
   }
 
@@ -778,8 +1194,164 @@ export class PassportNfcService {
     return { data: decrypted, sw };
   }
 
+  // ─── AES Secure Messaging (for PACE with AES ciphers) ───
+
   /**
-   * Send an SM-protected APDU and unwrap the response
+   * SM-protect an APDU using AES-CBC + AES-CMAC.
+   * SSC is 16 bytes for AES SM.
+   */
+  private smProtectAES(
+    cla: number,
+    ins: number,
+    p1: number,
+    p2: number,
+    data: number[],
+    le: number | null
+  ): string {
+    if (!this.sessionK_enc || !this.sessionK_mac || !this.ssc) {
+      throw new Error('Session keys not established');
+    }
+
+    this.incrementSSC();
+
+    const mCla = cla | 0x0c;
+
+    // DO87: AES-CBC encrypted command data
+    const do87: number[] = [];
+    if (data.length > 0) {
+      const padded = CryptoUtils.iso9797PadAES(new Uint8Array(data));
+      // IV for AES SM = AES-ECB(K_enc, SSC)
+      const iv = this.aesSmIV();
+      const encrypted = CryptoUtils.aesEncryptCBC(padded, this.sessionK_enc, iv);
+      const encBytes = Array.from(encrypted);
+      const contentLen = encBytes.length + 1;
+      if (contentLen < 0x80) {
+        do87.push(0x87, contentLen, 0x01, ...encBytes);
+      } else if (contentLen < 0x100) {
+        do87.push(0x87, 0x81, contentLen, 0x01, ...encBytes);
+      } else {
+        do87.push(0x87, 0x82, (contentLen >> 8) & 0xff, contentLen & 0xff, 0x01, ...encBytes);
+      }
+    }
+
+    // DO97: expected response length
+    const do97: number[] = [];
+    if (le !== null) {
+      do97.push(0x97, 0x01, le);
+    }
+
+    // MAC input: SSC || padded(mCla||INS||P1||P2) || DO87 || DO97
+    const cmdHeader = CryptoUtils.iso9797PadAES(new Uint8Array([mCla, ins, p1, p2]));
+    const macInputParts = new Uint8Array([
+      ...Array.from(this.ssc),
+      ...Array.from(cmdHeader),
+      ...do87,
+      ...do97,
+    ]);
+    const mac = CryptoUtils.aesCmac(this.sessionK_mac, macInputParts);
+    const macTruncated = mac.slice(0, 8);
+
+    const do8e = [0x8e, 0x08, ...Array.from(macTruncated)];
+    const smData = [...do87, ...do97, ...do8e];
+    const apdu = [mCla, ins, p1, p2, smData.length, ...smData, 0x00];
+
+    return apdu.map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  /**
+   * SM-unprotect a response using AES-CBC + AES-CMAC.
+   */
+  private smUnprotectAES(responseHex: string): { data: Uint8Array; sw: string } {
+    if (!this.sessionK_enc || !this.sessionK_mac || !this.ssc) {
+      throw new Error('Session keys not established');
+    }
+
+    this.incrementSSC();
+
+    const bodyHex = responseHex.slice(0, -4);
+    const outerSw = responseHex.slice(-4);
+    const body = CryptoUtils.hexToBytes(bodyHex);
+
+    let do87Bytes: Uint8Array | null = null;
+    let do87Raw: number[] = [];
+    let do99Bytes: Uint8Array | null = null;
+    let do99Raw: number[] = [];
+    let do8eBytes: Uint8Array | null = null;
+
+    let pos = 0;
+    while (pos < body.length) {
+      const tlvStart = pos;
+      const tag = body[pos]!;
+      pos++;
+      let len = body[pos]!;
+      pos++;
+      if (len === 0x81) {
+        len = body[pos]!;
+        pos++;
+      } else if (len === 0x82) {
+        len = (body[pos]! << 8) | body[pos + 1]!;
+        pos += 2;
+      }
+      const value = body.slice(pos, pos + len);
+      const rawTlv = Array.from(body.slice(tlvStart, pos + len));
+      if (tag === 0x87) {
+        do87Bytes = value;
+        do87Raw = rawTlv;
+      } else if (tag === 0x99) {
+        do99Bytes = value;
+        do99Raw = rawTlv;
+      } else if (tag === 0x8e) {
+        do8eBytes = value;
+      }
+      pos += len;
+    }
+
+    if (!do8eBytes || do8eBytes.length !== 8) {
+      throw new ReadError('SM_MAC_MISSING', 'AES SM response MAC (DO8E) missing or invalid');
+    }
+
+    const macInput = new Uint8Array([...Array.from(this.ssc), ...do87Raw, ...do99Raw]);
+    const computedMac = CryptoUtils.aesCmac(this.sessionK_mac, macInput).slice(0, 8);
+    if (CryptoUtils.bytesToHex(computedMac) !== CryptoUtils.bytesToHex(do8eBytes)) {
+      throw new ReadError('SM_MAC_FAILED', 'AES SM response MAC verification failed');
+    }
+
+    let decrypted = new Uint8Array(0);
+    if (do87Bytes && do87Bytes.length > 1) {
+      const encData = do87Bytes.slice(1);
+      const iv = this.aesSmIV();
+      const raw = CryptoUtils.aesDecryptCBC(encData, this.sessionK_enc, iv);
+      decrypted = new Uint8Array(CryptoUtils.removePaddingAES(raw));
+    }
+
+    let sw = outerSw;
+    if (do99Bytes && do99Bytes.length === 2) {
+      sw = CryptoUtils.bytesToHex(do99Bytes);
+    }
+    return { data: decrypted, sw };
+  }
+
+  /** Compute AES SM IV = AES-ECB(K_enc, SSC) */
+  private aesSmIV(): Uint8Array {
+    const algo = this.sessionK_enc!.length === 32 ? 'aes-256-ecb' : 'aes-128-ecb';
+    const Crypto = require('react-native-quick-crypto');
+    const cipher = Crypto.createCipheriv(
+      algo,
+      new Uint8Array(this.sessionK_enc!),
+      new Uint8Array(0)
+    );
+    cipher.setAutoPadding(false);
+    const a = cipher.update(new Uint8Array(this.ssc!)) as Uint8Array;
+    const b = cipher.final() as Uint8Array;
+    const out = new Uint8Array(a.length + b.length);
+    out.set(a, 0);
+    out.set(b, a.length);
+    return out;
+  }
+
+  /**
+   * Send an SM-protected APDU and unwrap the response.
+   * Dispatches to 3DES or AES SM based on the active cipher.
    */
   private async smTransceive(
     cla: number,
@@ -789,15 +1361,18 @@ export class PassportNfcService {
     data: number[],
     le: number | null
   ): Promise<{ success: boolean; data: Uint8Array; sw: string }> {
-    const apdu = this.smProtect(cla, ins, p1, p2, data, le);
+    const apdu =
+      this.smCipher === 'AES'
+        ? this.smProtectAES(cla, ins, p1, p2, data, le)
+        : this.smProtect(cla, ins, p1, p2, data, le);
     const responseHex = await this.transceive(apdu);
 
-    // If response is just a SW (4 hex chars), no SM wrapping to undo
     if (responseHex.length <= 4) {
       return { success: responseHex === '9000', data: new Uint8Array(0), sw: responseHex };
     }
 
-    const result = this.smUnprotect(responseHex);
+    const result =
+      this.smCipher === 'AES' ? this.smUnprotectAES(responseHex) : this.smUnprotect(responseHex);
     const success = result.sw === '9000';
     return { success, data: result.data, sw: result.sw };
   }
@@ -805,6 +1380,17 @@ export class PassportNfcService {
   /**
    * Transceive APDU to tag
    */
+  /** Convenience wrapper: transceive with number[] in/out */
+  private async transceiveBytes(apdu: number[]): Promise<number[]> {
+    const hex = apdu.map(b => b.toString(16).padStart(2, '0')).join('');
+    const respHex = await this.transceive(hex);
+    const resp: number[] = [];
+    for (let i = 0; i < respHex.length; i += 2) {
+      resp.push(parseInt(respHex.substring(i, i + 2), 16));
+    }
+    return resp;
+  }
+
   private async transceive(apdu: string): Promise<string> {
     if (!this.isoDep) {
       throw new ReadError('NFC_NOT_INITIALIZED', 'NFC not initialized');
@@ -889,6 +1475,7 @@ export class PassportNfcService {
       this.sessionK_enc = null;
       this.sessionK_mac = null;
       this.ssc = null;
+      this.smCipher = '3DES';
     } catch (error) {
       console.error('[PassportNFC] Cleanup failed:', error);
     }
@@ -918,5 +1505,100 @@ export class ReadError extends Error {
     this.code = code;
     this.details = details;
     Object.setPrototypeOf(this, ReadError.prototype);
+  }
+}
+
+// ─── PACE helpers (module-level) ───
+
+/** Generate a random EC private key in [1, n-1] using native PRNG (Hermes-safe). */
+function generateECPrivateKey(curve: any): Uint8Array {
+  const order = curve.CURVE.n as bigint;
+  const byteLen = Math.ceil(curve.CURVE.nBitLength / 8);
+  for (;;) {
+    const priv = randomBytes(byteLen) as Buffer;
+    const scalar = bytesToBigInt(new Uint8Array(priv));
+    if (scalar >= 1n && scalar < order) return new Uint8Array(priv);
+  }
+}
+
+/** Generate a random DH private key in [1, q-1] to ensure subgroup membership. */
+function generateDHPrivateKey(qBuf: Buffer): Buffer {
+  const len = qBuf.length;
+  for (;;) {
+    const priv = randomBytes(len) as Buffer;
+    priv[0]! &= 0x7f; // clear top bit → value < 2^(8*len-1) < q (q has top bit set)
+    if (priv.some(b => b !== 0)) return priv;
+  }
+}
+
+/** Left-pad a DH public key Buffer to exactly `len` bytes and return as number[] */
+function dhPadKey(buf: Buffer, len: number): number[] {
+  const out = new Uint8Array(len);
+  const src = new Uint8Array(buf);
+  out.set(src, len - src.length);
+  return Array.from(out);
+}
+
+/** Left-pad a DH secret Buffer to exactly `len` bytes and return as Uint8Array */
+function dhPadBytes(buf: Buffer, len: number): Uint8Array {
+  const out = new Uint8Array(len);
+  const src = new Uint8Array(buf);
+  out.set(src, len - src.length);
+  return out;
+}
+
+function bytesToBigInt(bytes: Uint8Array): bigint {
+  let hex = '';
+  for (const b of bytes) hex += b.toString(16).padStart(2, '0');
+  if (hex.length === 0) return 0n;
+  return BigInt(`0x${hex}`);
+}
+
+/** BSI TR-03110-3 §A.2.4: 7F49 { 06 [OID], tag [pubKey] } */
+function buildAuthTokenInput(oid: number[], tag: number, pubKey: number[]): number[] {
+  const oidDO = [0x06, ...berLen(oid.length), ...oid];
+  const pkDO = [tag, ...berLen(pubKey.length), ...pubKey];
+  const inner = [...oidDO, ...pkDO];
+  return [0x7f, 0x49, ...berLen(inner.length), ...inner];
+}
+
+function berLen(length: number): number[] {
+  if (length < 0x80) return [length];
+  if (length < 0x100) return [0x81, length];
+  return [0x82, (length >> 8) & 0xff, length & 0xff];
+}
+
+function constantTimeEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a[i]! ^ b[i]!;
+  return diff === 0;
+}
+
+/**
+ * Resolve a @noble/curves EC curve by name.
+ * Supports secp and brainpool curves used in eMRTD PACE.
+ */
+function getNobleECCurve(name: string): any {
+  try {
+    // @noble/curves v2: NIST curves in "nist.js", brainpool in "misc.js"
+    switch (name) {
+      case 'secp256r1':
+        return require('@noble/curves/nist.js').p256;
+      case 'secp384r1':
+        return require('@noble/curves/nist.js').p384;
+      case 'secp521r1':
+        return require('@noble/curves/nist.js').p521;
+      case 'brainpoolP256r1':
+        return require('@noble/curves/misc.js').brainpoolP256r1;
+      case 'brainpoolP384r1':
+        return require('@noble/curves/misc.js').brainpoolP384r1;
+      case 'brainpoolP512r1':
+        return require('@noble/curves/misc.js').brainpoolP512r1;
+      default:
+        return null;
+    }
+  } catch {
+    return null;
   }
 }

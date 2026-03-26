@@ -358,3 +358,220 @@ export function derive3DesKey(seed: Uint8Array): Uint8Array {
 
   return key;
 }
+
+// ─── PACE Crypto Primitives ───
+
+/**
+ * AES-CBC encryption without padding.
+ * Input must be a multiple of 16 bytes.
+ */
+export function aesEncryptCBC(data: Uint8Array, key: Uint8Array, iv: Uint8Array): Uint8Array {
+  if (data.length % 16 !== 0) throw new Error('Data must be a multiple of 16 bytes for AES-CBC');
+  const algo = key.length === 32 ? 'aes-256-cbc' : 'aes-128-cbc';
+  const cipher = Crypto.createCipheriv(algo, new Uint8Array(key), new Uint8Array(iv));
+  cipher.setAutoPadding(false);
+  const a = cipher.update(new Uint8Array(data)) as Uint8Array;
+  const b = cipher.final() as Uint8Array;
+  const out = new Uint8Array(a.length + b.length);
+  out.set(a, 0);
+  out.set(b, a.length);
+  return out;
+}
+
+/**
+ * AES-CBC decryption without padding.
+ * Input must be a multiple of 16 bytes.
+ */
+export function aesDecryptCBC(data: Uint8Array, key: Uint8Array, iv: Uint8Array): Uint8Array {
+  if (data.length % 16 !== 0) throw new Error('Data must be a multiple of 16 bytes for AES-CBC');
+  const algo = key.length === 32 ? 'aes-256-cbc' : 'aes-128-cbc';
+  const decipher = Crypto.createDecipheriv(algo, new Uint8Array(key), new Uint8Array(iv));
+  decipher.setAutoPadding(false);
+  const a = decipher.update(new Uint8Array(data)) as Uint8Array;
+  const b = decipher.final() as Uint8Array;
+  const out = new Uint8Array(a.length + b.length);
+  out.set(a, 0);
+  out.set(b, a.length);
+  return out;
+}
+
+/** AES-ECB encrypt a single 16-byte block (building block for CMAC) */
+function aesEcbEncryptBlock(block: Uint8Array, key: Uint8Array): Uint8Array {
+  const algo = key.length === 32 ? 'aes-256-ecb' : 'aes-128-ecb';
+  const cipher = Crypto.createCipheriv(algo, new Uint8Array(key), new Uint8Array(0));
+  cipher.setAutoPadding(false);
+  const a = cipher.update(new Uint8Array(block)) as Uint8Array;
+  const b = cipher.final() as Uint8Array;
+  const out = new Uint8Array(a.length + b.length);
+  out.set(a, 0);
+  out.set(b, a.length);
+  return out;
+}
+
+/**
+ * AES-CMAC (RFC 4493).
+ * Returns 16-byte MAC.
+ */
+export function aesCmac(key: Uint8Array, message: Uint8Array): Uint8Array {
+  const BLOCK = 16;
+  const L = aesEcbEncryptBlock(new Uint8Array(BLOCK), key);
+  const K1 = cmacSubkey(L);
+  const K2 = cmacSubkey(K1);
+
+  const n = message.length === 0 ? 1 : Math.ceil(message.length / BLOCK);
+  const lastBlockComplete = message.length > 0 && message.length % BLOCK === 0;
+
+  const lastBlock = new Uint8Array(BLOCK);
+  if (lastBlockComplete) {
+    const start = (n - 1) * BLOCK;
+    // biome-ignore lint/style/noNonNullAssertion: bounded index into Uint8Array
+    for (let i = 0; i < BLOCK; i++) lastBlock[i] = message[start + i]! ^ K1[i]!;
+  } else {
+    const start = (n - 1) * BLOCK;
+    const remaining = message.length - start;
+    const padded = new Uint8Array(BLOCK);
+    // biome-ignore lint/style/noNonNullAssertion: bounded index into Uint8Array
+    for (let i = 0; i < remaining; i++) padded[i] = message[start + i]!;
+    padded[remaining] = 0x80;
+    // biome-ignore lint/style/noNonNullAssertion: bounded index into Uint8Array
+    for (let i = 0; i < BLOCK; i++) lastBlock[i] = padded[i]! ^ K2[i]!;
+  }
+
+  let x = new Uint8Array(BLOCK);
+  for (let i = 0; i < n - 1; i++) {
+    const y = new Uint8Array(BLOCK);
+    // biome-ignore lint/style/noNonNullAssertion: bounded index into Uint8Array
+    for (let j = 0; j < BLOCK; j++) y[j] = x[j]! ^ message[i * BLOCK + j]!;
+    x = new Uint8Array(aesEcbEncryptBlock(y, key));
+  }
+
+  const y = new Uint8Array(BLOCK);
+  // biome-ignore lint/style/noNonNullAssertion: bounded index into Uint8Array
+  for (let j = 0; j < BLOCK; j++) y[j] = x[j]! ^ lastBlock[j]!;
+  return aesEcbEncryptBlock(y, key);
+}
+
+function cmacSubkey(input: Uint8Array): Uint8Array {
+  const BLOCK = 16;
+  const RB = 0x87;
+  const out = new Uint8Array(BLOCK);
+  let carry = 0;
+  for (let i = BLOCK - 1; i >= 0; i--) {
+    // biome-ignore lint/style/noNonNullAssertion: bounded index into Uint8Array
+    const shifted = (input[i]! << 1) | carry;
+    out[i] = shifted & 0xff;
+    // biome-ignore lint/style/noNonNullAssertion: bounded index into Uint8Array
+    carry = (input[i]! >> 7) & 1;
+  }
+  // biome-ignore lint/style/noNonNullAssertion: index 0 always exists
+  if ((input[0]! >> 7) & 1) out[BLOCK - 1] ^= RB;
+  return out;
+}
+
+/**
+ * ISO 9797-1 padding method 2 for AES (16-byte block size).
+ * Append 0x80 then 0x00 bytes until length is a multiple of 16.
+ */
+export function iso9797PadAES(data: Uint8Array): Uint8Array {
+  const BLOCK = 16;
+  const padLen = BLOCK - ((data.length + 1) % BLOCK);
+  const padded = new Uint8Array(data.length + 1 + (padLen === BLOCK ? 0 : padLen));
+  padded.set(data, 0);
+  padded[data.length] = 0x80;
+  return padded;
+}
+
+/** Remove ISO 9797-1 method 2 padding (AES, 16-byte block) */
+export function removePaddingAES(data: Uint8Array): Uint8Array {
+  for (let i = data.length - 1; i >= 0; i--) {
+    if (data[i] === 0x80) return data.slice(0, i);
+    if (data[i] !== 0x00) throw new Error('Invalid ISO 9797-1 method 2 padding (AES)');
+  }
+  throw new Error('No padding found');
+}
+
+/**
+ * PACE Key Derivation Function (KDF) per BSI TR-03110-3.
+ *
+ * For 3DES: KDF(K, c) = adjustParity(SHA-1(K || c)[0:16])
+ * For AES:  KDF(K, c) = SHA-1(K || c)[0:keyLen]  (keyLen=16 for AES-128)
+ *           or SHA-256(K || c)[0:keyLen] for AES-192/256
+ *
+ * Counter values: 1=enc, 2=mac, 3=PACE password key
+ */
+export function derivePACEKey(
+  keySeed: Uint8Array,
+  counter: number,
+  cipher: '3DES' | 'AES-128' | 'AES-192' | 'AES-256',
+  digest: 'SHA-1' | 'SHA-256'
+): Uint8Array {
+  const hashAlg = digest === 'SHA-256' ? 'sha256' : 'sha1';
+  const counterBytes = new Uint8Array([0, 0, 0, counter]);
+
+  const hash = Crypto.createHash(hashAlg)
+    .update(keySeed)
+    .update(counterBytes)
+    .digest() as Uint8Array;
+
+  let keyLen: number;
+  switch (cipher) {
+    case '3DES':
+      keyLen = 16;
+      break;
+    case 'AES-128':
+      keyLen = 16;
+      break;
+    case 'AES-192':
+      keyLen = 24;
+      break;
+    case 'AES-256':
+      keyLen = 32;
+      break;
+  }
+
+  const raw = hash.slice(0, keyLen);
+  if (cipher === '3DES') return adjustParity(raw);
+  return raw;
+}
+
+/**
+ * Modular exponentiation: base^exp mod mod.
+ * Uses BigInt for arbitrary-precision arithmetic (DH mapping).
+ */
+export function modPow(base: bigint, exp: bigint, mod: bigint): bigint {
+  if (mod === 1n) return 0n;
+  let result = 1n;
+  base = ((base % mod) + mod) % mod;
+  while (exp > 0n) {
+    if (exp & 1n) result = (result * base) % mod;
+    exp >>= 1n;
+    base = (base * base) % mod;
+  }
+  return result;
+}
+
+/** Convert hex string to BigInt */
+export function hexToBigInt(hex: string): bigint {
+  if (hex.length === 0) return 0n;
+  return BigInt(`0x${hex}`);
+}
+
+/** Convert BigInt to hex string (even-length, no prefix) */
+export function bigIntToHex(n: bigint): string {
+  let hex = n.toString(16);
+  if (hex.length % 2 !== 0) hex = `0${hex}`;
+  return hex;
+}
+
+/**
+ * Convert BigInt to fixed-length byte array.
+ * Pads with leading zeros to match the expected field length.
+ */
+export function bigIntToBytes(n: bigint, length: number): Uint8Array {
+  const hex = bigIntToHex(n);
+  const bytes = hexToBytes(hex);
+  if (bytes.length >= length) return bytes.slice(bytes.length - length);
+  const padded = new Uint8Array(length);
+  padded.set(bytes, length - bytes.length);
+  return padded;
+}
