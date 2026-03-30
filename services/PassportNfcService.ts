@@ -17,7 +17,7 @@ import {
   type PACEInfo,
   unwrapDO as paceUnwrapDO,
   wrapDO as paceWrapDO,
-  parsePACEInfo,
+  parseAllPACEInfo,
   wrapGA,
 } from '@/utils/pace';
 
@@ -97,7 +97,11 @@ export class PassportNfcService {
    * Start NFC tag reading with IsoDep technology
    * Returns when tag is found
    */
-  async startReading(mrzData: MrzData, onTagFound?: () => void): Promise<PassportData> {
+  async startReading(
+    mrzData: MrzData,
+    onTagFound?: () => void,
+    options?: { skipPACE?: boolean }
+  ): Promise<PassportData> {
     if (!this.nfcEnabled) {
       await this.initialize();
     }
@@ -126,7 +130,8 @@ export class PassportNfcService {
 
       // Try PACE first; fall back to BAC if unsupported
       let usedPACE = false;
-      const paceResult = await this.readPACEInfo();
+      const skipPACE = options?.skipPACE === true;
+      const paceResult = skipPACE ? null : await this.readPACEInfo();
       if (paceResult) {
         try {
           await this.doPACE(mrzData, paceResult.info, paceResult.config);
@@ -137,6 +142,20 @@ export class PassportNfcService {
             '[PassportNFC] PACE failed, falling back to BAC:',
             (paceErr as Error).message
           );
+          // Some chips get "stuck" after a partial PACE attempt and will reject BAC secure messaging.
+          // Clear local SM state and best-effort reset chip state before starting BAC.
+          this.sessionK_enc = null;
+          this.sessionK_mac = null;
+          this.ssc = null;
+          this.smCipher = '3DES';
+          try {
+            // SELECT MF (3F00)
+            await this.transceiveBytes([0x00, 0xa4, 0x00, 0x0c, 0x02, 0x3f, 0x00]);
+          } catch (_) {}
+          try {
+            // Re-select MRTD application (A0000002471001)
+            await this.transceiveBytes([0x00, 0xa4, 0x04, 0x0c, 0x07, 0xa0, 0x00, 0x00, 0x02, 0x47, 0x10, 0x01]);
+          } catch (_) {}
         }
       }
 
@@ -144,16 +163,10 @@ export class PassportNfcService {
         await this.bacAuth(mrzData);
       }
 
-      // Re-select MRTD application in SM mode (some chips reset DF context after auth)
-      const mrtdAid = [0xa0, 0x00, 0x00, 0x02, 0x47, 0x10, 0x01];
-      const appSelectResp = await this.smTransceive(0x00, 0xa4, 0x04, 0x0c, mrtdAid, null);
-      if (!appSelectResp.success) {
-        console.log(
-          '[PassportNFC] MRTD re-select in SM mode failed:',
-          appSelectResp.sw,
-          '— continuing anyway'
-        );
-      }
+      // Skip SM re-select of MRTD AID — it's already selected before BAC auth.
+      // Some chips return 6F00 on SM SELECT after BAC; go directly to reading.
+      // If a chip needs re-select, the SFID-based READ BINARY will fail and
+      // readDataGroup falls back to SELECT-by-FID + READ BINARY anyway.
 
       // 1. Read EF.COM — lists which DGs are present on this passport
       let comRaw = '';
@@ -452,13 +465,26 @@ export class PassportNfcService {
       if (!cardAccessHex) return null;
       console.log('[PassportNFC] EF.CardAccess:', cardAccessHex);
 
-      const info = parsePACEInfo(cardAccessHex);
-      if (!info) return null;
+      const allInfos = parseAllPACEInfo(cardAccessHex);
+      if (allInfos.length === 0) return null;
+
+      // Log all entries for diagnostics
+      for (const entry of allInfos) {
+        const cfg = getPACEConfig(entry.oid);
+        console.log(
+          '[PassportNFC] PACEInfo found:',
+          JSON.stringify({ oid: entry.oid, version: entry.version, parameterId: entry.parameterId }),
+          '→', JSON.stringify(cfg)
+        );
+      }
+
+      // Prefer ECDH over DH — ECDH pubkeys are ~65 bytes (fit in short APDUs),
+      // DH-2048 pubkeys are 256 bytes (require extended APDUs that some chips reject).
+      const preferred = allInfos.find(i => getPACEConfig(i.oid).agreementAlg === 'ECDH') ?? allInfos[0];
+      if (!preferred) return null;
+      const info = preferred;
       const config = getPACEConfig(info.oid);
-      console.log(
-        '[PassportNFC] PACEInfo:',
-        JSON.stringify({ oid: info.oid, version: info.version, parameterId: info.parameterId })
-      );
+      console.log('[PassportNFC] Selected PACEInfo:', JSON.stringify({ oid: info.oid, version: info.version, parameterId: info.parameterId }));
       console.log('[PassportNFC] PACEConfig:', JSON.stringify(config));
       return { info, config };
     } catch (e) {
@@ -511,10 +537,23 @@ export class PassportNfcService {
     console.log('[PassportNFC] Encrypted nonce length:', encryptedNonce.length);
 
     // Decrypt nonce with K_pi
+    // For 3DES the nonce is 8 bytes (BSI TR-03110-3 Table A.5); the chip may pad
+    // to a full block boundary before encrypting, so strip ISO 9797-1 method 2
+    // padding if the decrypted result is longer than one block.
     let nonce: Uint8Array;
     if (config.cipher === '3DES') {
       const k3des = CryptoUtils.derive3DesKey(kPi);
-      nonce = CryptoUtils.des3DecryptCBC(k3des, new Uint8Array(8), encryptedNonce);
+      const decrypted = CryptoUtils.des3DecryptCBC(k3des, new Uint8Array(8), encryptedNonce);
+      if (decrypted.length > 8) {
+        try {
+          nonce = CryptoUtils.removePadding(decrypted);
+        } catch {
+          // If unpadding fails, use the raw decrypted bytes (chip may send unpadded 16-byte nonce)
+          nonce = decrypted;
+        }
+      } else {
+        nonce = decrypted;
+      }
     } else {
       nonce = CryptoUtils.aesDecryptCBC(encryptedNonce, kPi, new Uint8Array(16));
     }
@@ -562,15 +601,15 @@ export class PassportNfcService {
 
     const pBuf = Buffer.from(dhParams.p, 'hex');
     const gBuf = Buffer.from(dhParams.g, 'hex');
-    const qBuf = Buffer.from(dhParams.q, 'hex');
     const pByteLen = pBuf.length;
 
     // ── Step 2: DH Generic Mapping (native OpenSSL) ──
+    // Use getPublicKey() instead of computeSecret(g) to avoid potential KDF
+    // processing that react-native-quick-crypto may apply to computeSecret results.
     const dhMap = createDiffieHellman(pBuf, gBuf);
     dhMap.generateKeys();
-    dhMap.setPrivateKey(generateDHPrivateKey(qBuf));
-    const pkMapBuf = dhMap.computeSecret(gBuf) as Buffer;
-    const pkMapBytes = dhPadKey(pkMapBuf, pByteLen);
+    const pkMapBuf = dhMap.getPublicKey() as Buffer;
+    const pkMapBytes = dhStripKey(pkMapBuf);
     console.log('[PassportNFC] DH Step 2 pubkey length:', pkMapBytes.length);
 
     const ga2Body = wrapGA(paceWrapDO(0x81, pkMapBytes));
@@ -583,25 +622,23 @@ export class PassportNfcService {
     // H = pkMapChip^skMap mod p (native OpenSSL)
     const H_buf = dhMap.computeSecret(Buffer.from(pkMapChipBytes)) as Buffer;
 
-    // g^s mod p: create DH, set private key to nonce s, compute g^s
-    const dhGs = createDiffieHellman(pBuf, gBuf);
-    dhGs.generateKeys();
-    dhGs.setPrivateKey(Buffer.from(nonce));
-    const gs_buf = dhGs.computeSecret(gBuf) as Buffer;
-
-    // Mapped generator: gNew = g^s * H mod p (single BigInt multiply)
-    const gs = bytesToBigInt(new Uint8Array(gs_buf));
-    const H = bytesToBigInt(new Uint8Array(H_buf));
+    // g^s mod p using BigInt modPow (avoids setPrivateKey+computeSecret(g) hack
+    // which may not work reliably in react-native-quick-crypto)
+    const g = CryptoUtils.hexToBigInt(dhParams.g);
+    const s = bytesToBigInt(nonce);
     const p = CryptoUtils.hexToBigInt(dhParams.p);
-    const gNew = (gs * H) % p;
+    const gsBigInt = CryptoUtils.modPow(g, s, p);
+
+    // Mapped generator: gNew = g^s * H mod p
+    const H = bytesToBigInt(new Uint8Array(H_buf));
+    const gNew = (gsBigInt * H) % p;
     const gNewBuf = Buffer.from(CryptoUtils.bigIntToBytes(gNew, pByteLen));
 
     // ── Step 3: Ephemeral key exchange with mapped generator ──
     const dhEph = createDiffieHellman(pBuf, gNewBuf);
     dhEph.generateKeys();
-    dhEph.setPrivateKey(generateDHPrivateKey(qBuf));
-    const pkEphBuf = dhEph.computeSecret(gNewBuf) as Buffer;
-    const pkEphBytes = dhPadKey(pkEphBuf, pByteLen);
+    const pkEphBuf = dhEph.getPublicKey() as Buffer;
+    const pkEphBytes = dhStripKey(pkEphBuf);
 
     const ga3Body = wrapGA(paceWrapDO(0x83, pkEphBytes));
     const ga3Resp = await this.sendGA(true, ga3Body);
@@ -759,35 +796,60 @@ export class PassportNfcService {
 
     const lcHi = (body.length >> 8) & 0xff;
     const lcLo = body.length & 0xff;
+    const isReject = (sw: number) =>
+      sw === 0x6a80 || sw === 0x6700 || sw === 0x6800 ||
+      sw === 0x6f00 || sw === 0x6e00 || sw === 0x6d00;
+    const getSW = (r: number[]) => (r[r.length - 2]! << 8) | r[r.length - 1]!;
 
-    // Try 1: Extended length Case 4e (with Le)
-    const resp4e = await this.transceiveBytes([
+    // Try 1: Extended Case 4e, CLA=0x00, Le=0x0100 (256) — matches JMRTD default
+    const resp1 = await this.transceiveBytes([
+      0x00, 0x86, 0x00, 0x00, 0x00, lcHi, lcLo, ...body, 0x01, 0x00,
+    ]);
+    if (!isReject(getSW(resp1))) return resp1;
+    console.log(`[PassportNFC] Ext 4e CLA=0x00 Le=256: SW=${getSW(resp1).toString(16)}`);
+
+    // Try 2: Extended Case 3e, CLA=0x00, NO Le — some chips reject Le on GA
+    const resp2 = await this.transceiveBytes([
+      0x00, 0x86, 0x00, 0x00, 0x00, lcHi, lcLo, ...body,
+    ]);
+    if (!isReject(getSW(resp2))) return resp2;
+    console.log(`[PassportNFC] Ext 3e CLA=0x00 no-Le: SW=${getSW(resp2).toString(16)}`);
+
+    // Try 3: Extended Case 4e, CLA=0x10, Le=0x0200 (512)
+    const resp3 = await this.transceiveBytes([
+      cla, 0x86, 0x00, 0x00, 0x00, lcHi, lcLo, ...body, 0x02, 0x00,
+    ]);
+    if (!isReject(getSW(resp3))) return resp3;
+    console.log(`[PassportNFC] Ext 4e CLA=0x10 Le=512: SW=${getSW(resp3).toString(16)}`);
+
+    // Try 4: Extended Case 4e, CLA=0x10, Le=0x0000 (max)
+    const resp4 = await this.transceiveBytes([
       cla, 0x86, 0x00, 0x00, 0x00, lcHi, lcLo, ...body, 0x00, 0x00,
     ]);
-    const sw4e = (resp4e[resp4e.length - 2]! << 8) | resp4e[resp4e.length - 1]!;
-    if (sw4e !== 0x6a80 && sw4e !== 0x6700) return resp4e;
+    if (!isReject(getSW(resp4))) return resp4;
+    console.log(`[PassportNFC] Ext 4e CLA=0x10 Le=max: SW=${getSW(resp4).toString(16)}`);
 
-    // Try 2: Extended length Case 3e (without Le)
-    console.log('[PassportNFC] Case 4e rejected, trying Case 3e (no Le)');
-    const resp3e = await this.transceiveBytes([
-      cla, 0x86, 0x00, 0x00, 0x00, lcHi, lcLo, ...body,
-    ]);
-    const sw3e = (resp3e[resp3e.length - 2]! << 8) | resp3e[resp3e.length - 1]!;
-    if (sw3e !== 0x6a80 && sw3e !== 0x6700) return resp3e;
-
-    // Try 3: APDU-level command chaining
+    // Try 5: Command chaining — intermediate chunks are Case 3s (NO Le per ISO 7816-4),
+    // only the final chunk includes Le.
     console.log('[PassportNFC] Extended length rejected, trying command chaining');
-    const CHUNK = 255;
+    const CHUNK = 128;
     let offset = 0;
     while (offset + CHUNK < body.length) {
       const chunk = body.slice(offset, offset + CHUNK);
-      const chunkResp = await this.transceiveBytes([0x10, 0x86, 0x00, 0x00, chunk.length, ...chunk]);
-      const chunkSw = (chunkResp[chunkResp.length - 2]! << 8) | chunkResp[chunkResp.length - 1]!;
-      if (chunkSw !== 0x9000) return chunkResp;
+      // Intermediate chunk: CLA=0x10 (chaining), Case 3s (no Le)
+      const chunkResp = await this.transceiveBytes([
+        0x10, 0x86, 0x00, 0x00, chunk.length, ...chunk,
+      ]);
+      const chunkSw = getSW(chunkResp);
+      if (chunkSw !== 0x9000) {
+        console.log(`[PassportNFC] Chain chunk@${offset}: SW=${chunkSw.toString(16)}`);
+        return chunkResp;
+      }
       offset += CHUNK;
     }
+    // Final chunk: CLA=0x00 (last command), Case 4s (with Le)
     const last = body.slice(offset);
-    return this.transceiveBytes([cla, 0x86, 0x00, 0x00, last.length, ...last, 0x00]);
+    return this.transceiveBytes([0x00, 0x86, 0x00, 0x00, last.length, ...last, 0x00]);
   }
 
   private checkSW(resp: number[], label: string): void {
@@ -840,7 +902,7 @@ export class PassportNfcService {
       );
       useSfid = false;
 
-      const selectResp = await this.smTransceive(0x00, 0xa4, 0x02, 0x0c, fid, null);
+      const selectResp = await this.smTransceive(0x00, 0xa4, 0x02, 0x0c, fid, 0x00);
       if (!selectResp.success) {
         throw new ReadError(
           `${label}_SELECT_FAILED`,
@@ -1066,7 +1128,7 @@ export class PassportNfcService {
 
     const mCla = cla | 0x0c;
 
-    // DO87: encrypted command data
+    // DO87: encrypted command data (3DES-CBC, IV=zeros)
     const do87: number[] = [];
     if (data.length > 0) {
       const padded = CryptoUtils.iso9797Pad(new Uint8Array(data));
@@ -1088,23 +1150,34 @@ export class PassportNfcService {
       do97.push(0x97, 0x01, le);
     }
 
-    // MAC input: SSC || padded(mCla||INS||P1||P2) || DO87 || DO97
-    const cmdHeader = CryptoUtils.iso9797Pad(new Uint8Array([mCla, ins, p1, p2]));
+    // MAC input (ICAO 9303 Part 11 §9.8.6.2):
+    //   SSC || pad(CLA' INS P1 P2) || DO87 || DO97
+    // The command header MUST be padded separately to an 8-byte block boundary
+    // (ISO 9797-1 Method 2) before concatenation with the data objects.
+    // computeMac() then applies final padding to the whole concatenation.
+    const paddedHeader = new Uint8Array([mCla, ins, p1, p2, 0x80, 0x00, 0x00, 0x00]);
     const macInputParts: number[] = [
       ...Array.from(this.ssc),
-      ...Array.from(cmdHeader),
+      ...Array.from(paddedHeader),
       ...do87,
       ...do97,
     ];
-    // computeMac applies iso9797Pad internally
-    const mac = CryptoUtils.computeMac(this.sessionK_mac, new Uint8Array(macInputParts));
+    const macInput = new Uint8Array(macInputParts);
+    console.log('[PassportNFC] SM MAC input hex:', CryptoUtils.bytesToHex(macInput), `(${macInput.length} bytes)`);
+    console.log('[PassportNFC] SM k_mac hex:', CryptoUtils.bytesToHex(this.sessionK_mac));
+    console.log('[PassportNFC] SM k_enc hex:', CryptoUtils.bytesToHex(this.sessionK_enc));
+    console.log('[PassportNFC] SM SSC hex:', CryptoUtils.bytesToHex(this.ssc));
+    const mac = CryptoUtils.computeMac(this.sessionK_mac, macInput);
+    console.log('[PassportNFC] SM MAC result:', CryptoUtils.bytesToHex(mac));
 
     // DO8E: MAC
     const do8e = [0x8e, 0x08, ...Array.from(mac)];
 
     // Build final APDU
     const smData = [...do87, ...do97, ...do8e];
-    const apdu = [mCla, ins, p1, p2, smData.length, ...smData, 0x00];
+    // Only include outer Le when DO97 is present.
+    const apdu =
+      le !== null ? [mCla, ins, p1, p2, smData.length, ...smData, 0x00] : [mCla, ins, p1, p2, smData.length, ...smData];
 
     return apdu.map(b => b.toString(16).padStart(2, '0')).join('');
   }
@@ -1176,7 +1249,7 @@ export class PassportNfcService {
       throw new ReadError('SM_MAC_FAILED', 'Response MAC verification failed');
     }
 
-    // Decrypt DO87 data if present
+    // Decrypt DO87 data if present (3DES-CBC, IV=zeros)
     let decrypted = new Uint8Array(0);
     if (do87Bytes && do87Bytes.length > 1) {
       // First byte is padding indicator (0x01), skip it
@@ -1240,11 +1313,20 @@ export class PassportNfcService {
       do97.push(0x97, 0x01, le);
     }
 
-    // MAC input: SSC || padded(mCla||INS||P1||P2) || DO87 || DO97
-    const cmdHeader = CryptoUtils.iso9797PadAES(new Uint8Array([mCla, ins, p1, p2]));
+    // MAC input (ICAO 9303 / TR-03110): SSC || pad(CLA' INS P1 P2) || DO87 || DO97
+    // The command header MUST be padded separately to a 16-byte block boundary
+    // (ISO 9797-1 Method 2, AES block size) before concatenation with the data objects.
+    // CMAC then applies its own finalization over the whole concatenation.
+    const paddedHeader = new Uint8Array(16);
+    paddedHeader[0] = mCla;
+    paddedHeader[1] = ins;
+    paddedHeader[2] = p1;
+    paddedHeader[3] = p2;
+    paddedHeader[4] = 0x80;
+    // bytes 5-15 already 0x00
     const macInputParts = new Uint8Array([
       ...Array.from(this.ssc),
-      ...Array.from(cmdHeader),
+      ...Array.from(paddedHeader),
       ...do87,
       ...do97,
     ]);
@@ -1253,7 +1335,9 @@ export class PassportNfcService {
 
     const do8e = [0x8e, 0x08, ...Array.from(macTruncated)];
     const smData = [...do87, ...do97, ...do8e];
-    const apdu = [mCla, ins, p1, p2, smData.length, ...smData, 0x00];
+    // Only include outer Le when DO97 is present.
+    const apdu =
+      le !== null ? [mCla, ins, p1, p2, smData.length, ...smData, 0x00] : [mCla, ins, p1, p2, smData.length, ...smData];
 
     return apdu.map(b => b.toString(16).padStart(2, '0')).join('');
   }
@@ -1457,13 +1541,6 @@ export class PassportNfcService {
   }
 
   /**
-   * Generate random bytes
-   */
-  private randomBytes(length: number): Uint8Array {
-    return CryptoUtils.randomBytes(length);
-  }
-
-  /**
    * Cleanup NFC resources
    */
   async cleanup(): Promise<void> {
@@ -1521,22 +1598,15 @@ function generateECPrivateKey(curve: any): Uint8Array {
   }
 }
 
-/** Generate a random DH private key in [1, q-1] to ensure subgroup membership. */
-function generateDHPrivateKey(qBuf: Buffer): Buffer {
-  const len = qBuf.length;
-  for (;;) {
-    const priv = randomBytes(len) as Buffer;
-    priv[0]! &= 0x7f; // clear top bit → value < 2^(8*len-1) < q (q has top bit set)
-    if (priv.some(b => b !== 0)) return priv;
-  }
-}
-
-/** Left-pad a DH public key Buffer to exactly `len` bytes and return as number[] */
-function dhPadKey(buf: Buffer, len: number): number[] {
-  const out = new Uint8Array(len);
-  const src = new Uint8Array(buf);
-  out.set(src, len - src.length);
-  return Array.from(out);
+/**
+ * Strip leading 0x00 bytes from a DH public key.
+ * BSI TR-03110 §9.4.1: "The minimum number of octets SHALL be used,
+ * i.e. leading octets of value 0x00 MUST NOT be used."
+ */
+function dhStripKey(buf: Buffer): number[] {
+  let i = 0;
+  while (i < buf.length - 1 && buf[i] === 0) i++;
+  return Array.from(buf.slice(i));
 }
 
 /** Left-pad a DH secret Buffer to exactly `len` bytes and return as Uint8Array */

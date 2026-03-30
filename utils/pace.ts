@@ -20,16 +20,26 @@ export interface PACEConfig {
 }
 
 /**
- * Parse EF.CardAccess hex to extract PACEInfo.
+ * Parse EF.CardAccess hex to extract the first PACEInfo.
+ * Delegates to parseAllPACEInfo and returns the first match.
+ */
+export function parsePACEInfo(hex: string): PACEInfo | null {
+  const all = parseAllPACEInfo(hex);
+  return all[0] ?? null;
+}
+
+/**
+ * Parse EF.CardAccess hex to extract ALL PACEInfo entries.
  * EF.CardAccess is a SET OF SecurityInfo (ASN.1 DER).
  * PACEInfo ::= SEQUENCE { protocol OID, version INTEGER, parameterId INTEGER OPTIONAL }
  */
-export function parsePACEInfo(hex: string): PACEInfo | null {
+export function parseAllPACEInfo(hex: string): PACEInfo[] {
   const data = hexToBytes(hex);
+  const results: PACEInfo[] = [];
   let pos = 0;
 
   // Outer SET (tag 0x31)
-  if (pos >= data.length || data[pos] !== 0x31) return null;
+  if (pos >= data.length || data[pos] !== 0x31) return results;
   pos++;
   const setLen = parseDERLength(data, pos);
   pos = setLen.nextPos;
@@ -74,14 +84,14 @@ export function parsePACEInfo(hex: string): PACEInfo | null {
           pos += pLen.length;
         }
 
-        return { oid: oidBytes, version, parameterId };
+        results.push({ oid: oidBytes, version, parameterId });
       }
     }
 
     pos = seqEnd;
   }
 
-  return null;
+  return results;
 }
 
 function parseDERLength(data: Uint8Array, pos: number): { length: number; nextPos: number } {

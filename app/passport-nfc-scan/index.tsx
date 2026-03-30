@@ -52,6 +52,7 @@ export default function PassportNfcScanScreen() {
   const [verifyError, setVerifyError] = useState<string | null>(null);
   const [verifyUrl, setVerifyUrl] = useState<string | null>(null);
   const [isVerifyLoading, setIsVerifyLoading] = useState(false);
+  const hasRetriedFreshBacRef = useRef(false);
 
   const glowAnimation = useRef(new Animated.Value(1)).current;
   const scanLineAnimation = useRef(new Animated.Value(0)).current;
@@ -221,9 +222,34 @@ export default function PassportNfcScanScreen() {
       startGlowAnimation();
       startScanLineAnimation();
 
-      const data = await passportNfcService.startReading(mrzData, () => {
-        setScanState('reading');
-      });
+      let data: PassportData;
+      try {
+        data = await passportNfcService.startReading(mrzData, () => {
+          setScanState('reading');
+        });
+      } catch (error) {
+        const err = error as ReadErrorInfo;
+        if (err.code === 'PACE_FALLBACK_RETRY_REQUIRED' && !hasRetriedFreshBacRef.current) {
+          hasRetriedFreshBacRef.current = true;
+          console.log('[PassportNFC] Retrying with fresh BAC-only session');
+          // Important: the first startReading is still unwinding (finally cleanup runs after throw).
+          // Explicitly stop/cleanup, then retry after a short delay to ensure IsoDep tech is released.
+          await stopNfcFlow();
+          await new Promise(resolve => setTimeout(resolve, 250));
+          scanningActiveRef.current = true;
+          setScanningActive(true);
+          setScanState('scanning');
+          data = await passportNfcService.startReading(
+            mrzData,
+            () => {
+              setScanState('reading');
+            },
+            { skipPACE: true }
+          );
+        } else {
+          throw error;
+        }
+      }
       setPassportData(data);
 
       setScanState('success');
@@ -255,6 +281,7 @@ export default function PassportNfcScanScreen() {
       stopScanLineAnimation();
       scanningActiveRef.current = false;
       setScanningActive(false);
+      hasRetriedFreshBacRef.current = false;
     }
   }, [
     isNFCEnabled,
@@ -637,6 +664,7 @@ export default function PassportNfcScanScreen() {
             onPress={() => {
               setScanState('ready');
               setErrorType(null);
+              hasRetriedFreshBacRef.current = false;
               startScanRef.current();
             }}
           >

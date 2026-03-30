@@ -159,18 +159,25 @@ export function deriveBacKeys(mrzKey: Uint8Array): { k_enc: Uint8Array; k_mac: U
   // If caller passes 20 bytes (full SHA-1), truncate to 16.
   const kseed = mrzKey.length > 16 ? mrzKey.slice(0, 16) : mrzKey;
 
-  const kEncSeed = Crypto.createHash('sha1')
-    .update(kseed)
-    .update(new Uint8Array([0x00, 0x00, 0x00, 0x01]))
-    .digest() as Uint8Array;
-
+  // Pre-concatenate kseed + counter into a single buffer before hashing.
+  // react-native-quick-crypto may not correctly handle chained .update() calls,
+  // so we use a single .update() with the full input (matching mrz.ts approach).
+  const kEncInput = new Uint8Array(kseed.length + 4);
+  kEncInput.set(kseed, 0);
+  kEncInput[kseed.length] = 0x00;
+  kEncInput[kseed.length + 1] = 0x00;
+  kEncInput[kseed.length + 2] = 0x00;
+  kEncInput[kseed.length + 3] = 0x01;
+  const kEncSeed = Crypto.createHash('sha1').update(kEncInput).digest() as Uint8Array;
   const kEnc = adjustParity(kEncSeed.slice(0, 16));
 
-  const kMacSeed = Crypto.createHash('sha1')
-    .update(kseed)
-    .update(new Uint8Array([0x00, 0x00, 0x00, 0x02]))
-    .digest() as Uint8Array;
-
+  const kMacInput = new Uint8Array(kseed.length + 4);
+  kMacInput.set(kseed, 0);
+  kMacInput[kseed.length] = 0x00;
+  kMacInput[kseed.length + 1] = 0x00;
+  kMacInput[kseed.length + 2] = 0x00;
+  kMacInput[kseed.length + 3] = 0x02;
+  const kMacSeed = Crypto.createHash('sha1').update(kMacInput).digest() as Uint8Array;
   const kMac = adjustParity(kMacSeed.slice(0, 16));
 
   return { k_enc: kEnc, k_mac: kMac };
@@ -506,12 +513,17 @@ export function derivePACEKey(
   digest: 'SHA-1' | 'SHA-256'
 ): Uint8Array {
   const hashAlg = digest === 'SHA-256' ? 'sha256' : 'sha1';
-  const counterBytes = new Uint8Array([0, 0, 0, counter]);
 
-  const hash = Crypto.createHash(hashAlg)
-    .update(keySeed)
-    .update(counterBytes)
-    .digest() as Uint8Array;
+  // Pre-concatenate keySeed + counter into single buffer (avoid chained .update()
+  // which may not work correctly in react-native-quick-crypto).
+  const input = new Uint8Array(keySeed.length + 4);
+  input.set(keySeed, 0);
+  input[keySeed.length] = 0;
+  input[keySeed.length + 1] = 0;
+  input[keySeed.length + 2] = 0;
+  input[keySeed.length + 3] = counter;
+
+  const hash = Crypto.createHash(hashAlg).update(input).digest() as Uint8Array;
 
   let keyLen: number;
   switch (cipher) {

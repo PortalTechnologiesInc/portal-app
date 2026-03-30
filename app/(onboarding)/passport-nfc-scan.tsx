@@ -2,7 +2,7 @@
 
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, CheckCircle, Nfc, Settings, XCircle } from 'lucide-react-native';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -46,6 +46,7 @@ export default function PassportNfcScanScreen() {
 
   const [passportData, setPassportData] = useState<PassportData | null>(null);
   const [scanningActive, setScanningActive] = useState(false);
+  const hasRetriedFreshBacRef = useRef(false);
 
   const glowAnimation = React.useRef(new Animated.Value(1)).current;
   const scanLineAnimation = React.useRef(new Animated.Value(0)).current;
@@ -137,13 +138,33 @@ export default function PassportNfcScanScreen() {
       startGlowAnimation();
       startScanLineAnimation();
 
-      const data = await passportNfcService.startReading(mrzData);
+      let data: PassportData;
+      try {
+        data = await passportNfcService.startReading(mrzData);
+      } catch (error) {
+        const err = error as ReadErrorInfo;
+        if (err.code === 'PACE_FALLBACK_RETRY_REQUIRED' && !hasRetriedFreshBacRef.current) {
+          hasRetriedFreshBacRef.current = true;
+          // Ensure the prior IsoDep tech request is fully released before retry.
+          try {
+            await passportNfcService.cleanup();
+          } catch {}
+          try {
+            await NfcManager.cancelTechnologyRequest();
+          } catch {}
+          await new Promise(resolve => setTimeout(resolve, 250));
+          data = await passportNfcService.startReading(mrzData, undefined, { skipPACE: true });
+        } else {
+          throw error;
+        }
+      }
       setPassportData(data);
 
       setScanState('success');
       stopGlowAnimation();
       stopScanLineAnimation();
       setScanningActive(false);
+      hasRetriedFreshBacRef.current = false;
 
       // Log the data (as requested)
       console.log('[PassportNFC] Passport data:', JSON.stringify(data, null, 2));
@@ -161,6 +182,7 @@ export default function PassportNfcScanScreen() {
       stopGlowAnimation();
       stopScanLineAnimation();
       setScanningActive(false);
+      hasRetriedFreshBacRef.current = false;
     }
   }, [
     isNFCEnabled,
