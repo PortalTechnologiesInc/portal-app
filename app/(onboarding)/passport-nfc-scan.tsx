@@ -24,6 +24,13 @@ import {
 } from '@/services/PassportNfcService';
 import type { MrzData } from '@/utils/mrz';
 
+/** Build a ReadID-style progress string for the iOS system NFC sheet. */
+function nfcProgressMessage(step: number, total: number, label: string): string {
+  const filled = '●'.repeat(step);
+  const empty = '○'.repeat(total - step);
+  return `${filled}${empty}\n${label}`;
+}
+
 export default function PassportNfcScanScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -147,14 +154,25 @@ export default function PassportNfcScanScreen() {
       startGlowAnimation();
       startScanLineAnimation();
 
+      const iosProgress = (step: number, total: number, label: string) => {
+        if (Platform.OS === 'ios') {
+          try {
+            (NfcManager as any).setAlertMessageIOS(nfcProgressMessage(step, total, label));
+          } catch {}
+        }
+      };
+
       let data: PassportData;
       try {
-        data = await passportNfcService.startReading(mrzData);
+        data = await passportNfcService.startReading(
+          mrzData,
+          undefined,
+          { onProgress: iosProgress },
+        );
       } catch (error) {
         const err = error as ReadErrorInfo;
         if (err.code === 'PACE_FALLBACK_RETRY_REQUIRED' && !hasRetriedFreshBacRef.current) {
           hasRetriedFreshBacRef.current = true;
-          // Ensure the prior IsoDep tech request is fully released before retry.
           try {
             await passportNfcService.cleanup();
           } catch {}
@@ -162,7 +180,11 @@ export default function PassportNfcScanScreen() {
             await NfcManager.cancelTechnologyRequest();
           } catch {}
           await new Promise(resolve => setTimeout(resolve, 250));
-          data = await passportNfcService.startReading(mrzData, undefined, { skipPACE: true });
+          data = await passportNfcService.startReading(
+            mrzData,
+            undefined,
+            { skipPACE: true, onProgress: iosProgress },
+          );
         } else {
           throw error;
         }
