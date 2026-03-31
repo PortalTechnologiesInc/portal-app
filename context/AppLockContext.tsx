@@ -16,6 +16,7 @@ import {
 } from '@/services/AppLockService';
 import { isBiometricPromptInProgress } from '@/services/BiometricAuthService';
 import { isFilePickerActive } from '@/services/FilePickerService';
+import { isNfcScanInProgress } from '@/services/PassportNfcService';
 
 interface AppLockContextType {
   isLocked: boolean;
@@ -106,17 +107,19 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
           // Ignore Android inactive state (only background matters)
           return;
         }
-        // For iOS inactive state: only record background time if biometric prompt is NOT in progress
-        // and file picker is NOT active. When FaceID modal or image picker appears, app goes to
-        // "inactive" but this is not real backgrounding. We should only record background time
-        // for actual backgrounding, not system modals or file picker UI.
-        if (!isBiometricPromptInProgress() && !isFilePickerActive()) {
+        // For iOS inactive state: only record background time if biometric prompt is NOT in progress,
+        // file picker is NOT active, and NFC scan is NOT in progress. When FaceID modal, image
+        // picker, or the system NFC sheet appears, app goes to "inactive" but this is not real
+        // backgrounding. We should only record background time for actual backgrounding, not
+        // system modals or file picker/NFC UI.
+        if (!isBiometricPromptInProgress() && !isFilePickerActive() && !isNfcScanInProgress()) {
           AppLockService.recordBackgroundTime();
         }
       } else if (nextAppState === 'active') {
-        // Skip lock check if biometric prompt is in progress or file picker is active
-        // to avoid race conditions and prevent locking while user is selecting images
-        if (isBiometricPromptInProgress() || isFilePickerActive()) {
+        // Skip lock check if biometric prompt is in progress, file picker is active,
+        // or NFC scan is in progress (the system NFC sheet briefly puts the app in
+        // inactive/background state on iOS, which would falsely trigger the lock).
+        if (isBiometricPromptInProgress() || isFilePickerActive() || isNfcScanInProgress()) {
           return;
         }
 

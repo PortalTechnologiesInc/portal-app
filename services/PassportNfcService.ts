@@ -106,6 +106,7 @@ export class PassportNfcService {
       await this.initialize();
     }
 
+    nfcScanActive = true;
     try {
       // Request IsoDep technology for smart card communication
       await NfcManager.requestTechnology(NfcTech.IsoDep);
@@ -206,6 +207,7 @@ export class PassportNfcService {
       throw error;
     } finally {
       await this.cleanup();
+      nfcScanActive = false;
     }
   }
 
@@ -1569,6 +1571,12 @@ export class PassportNfcService {
     return bytes;
   }
 }
+
+// Module-level flag used by AppLockContext to suppress the app-lock trigger
+// while the iOS system NFC sheet is in the foreground (AppState goes inactive
+// during the scan, which would otherwise trigger a lock prompt).
+let nfcScanActive = false;
+export const isNfcScanInProgress = (): boolean => nfcScanActive;
 
 // Export singleton instance
 export const passportNfcService = new PassportNfcService();
