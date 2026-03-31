@@ -6,6 +6,7 @@ import {
   Animated,
   AppState,
   Dimensions,
+  Platform,
   StyleSheet,
   TouchableOpacity,
   View,
@@ -49,6 +50,8 @@ export default function PassportNfcScanScreen() {
   const [passportData, setPassportData] = useState<PassportData | null>(null);
   const [scanningActive, setScanningActive] = useState(false);
   const scanningActiveRef = useRef(false);
+  // Prevents re-triggering NFC scan after a successful read (iOS NFC sheet bug)
+  const scanSuccessRef = useRef(false);
   const [verifyError, setVerifyError] = useState<string | null>(null);
   const [verifyUrl, setVerifyUrl] = useState<string | null>(null);
   const [isVerifyLoading, setIsVerifyLoading] = useState(false);
@@ -92,6 +95,7 @@ export default function PassportNfcScanScreen() {
   const stopNfcFlow = useCallback(async () => {
     clearAllTimeouts();
     scanningActiveRef.current = false;
+    scanSuccessRef.current = false;
     setScanningActive(false);
     try {
       await passportNfcService.cleanup();
@@ -214,6 +218,12 @@ export default function PassportNfcScanScreen() {
       return;
     }
 
+    // Prevent re-triggering NFC after a successful scan (avoids iOS system NFC
+    // sheet re-appearing due to AppState / StateChanged listeners firing post-scan)
+    if (scanSuccessRef.current) {
+      return;
+    }
+
     try {
       scanningActiveRef.current = true;
       setScanningActive(true);
@@ -251,6 +261,17 @@ export default function PassportNfcScanScreen() {
         }
       }
       setPassportData(data);
+
+      // Mark success before updating state so any concurrent listener callbacks
+      // triggered by cancelTechnologyRequest won't restart the scan on iOS.
+      scanSuccessRef.current = true;
+
+      // Show a success message in the iOS system NFC sheet before dismissing it.
+      if (Platform.OS === 'ios') {
+        try {
+          await (NfcManager as any).setAlertMessageIOS('Passport read ✓');
+        } catch {}
+      }
 
       setScanState('success');
       stopGlowAnimation();
