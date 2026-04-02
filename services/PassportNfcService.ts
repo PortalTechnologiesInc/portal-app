@@ -100,13 +100,17 @@ export class PassportNfcService {
   async startReading(
     mrzData: MrzData,
     onTagFound?: () => void,
-    options?: { skipPACE?: boolean }
+    options?: { skipPACE?: boolean; onProgress?: (step: number, total: number, label: string) => void },
   ): Promise<PassportData> {
     if (!this.nfcEnabled) {
       await this.initialize();
     }
 
     nfcScanActive = true;
+
+    const progress = options?.onProgress;
+    const TOTAL_STEPS = 6;
+
     try {
       // Request IsoDep technology for smart card communication
       await NfcManager.requestTechnology(NfcTech.IsoDep);
@@ -125,6 +129,7 @@ export class PassportNfcService {
 
       // Notify caller that the tag was found (UI can show "stay still" feedback)
       onTagFound?.();
+      progress?.(1, TOTAL_STEPS, 'Authenticating…');
 
       // Reset SM cipher to default for each new read
       this.smCipher = '3DES';
@@ -163,6 +168,7 @@ export class PassportNfcService {
       if (!usedPACE) {
         await this.bacAuth(mrzData);
       }
+      progress?.(2, TOTAL_STEPS, 'Authenticated');
 
       // Skip SM re-select of MRTD AID — it's already selected before BAC auth.
       // Some chips return 6F00 on SM SELECT after BAC; go directly to reading.
@@ -170,6 +176,7 @@ export class PassportNfcService {
       // readDataGroup falls back to SELECT-by-FID + READ BINARY anyway.
 
       // 1. Read EF.COM — lists which DGs are present on this passport
+      progress?.(3, TOTAL_STEPS, 'Reading document info…');
       let comRaw = '';
       try {
         comRaw = await this.readDataGroup(0x1e); // EF.COM
@@ -182,13 +189,17 @@ export class PassportNfcService {
       console.log('[PassportNFC] DGs present per EF.COM:', presentDgs);
 
       // 2. Read EF.SOD — digital signature over data groups (primary goal)
+      progress?.(4, TOTAL_STEPS, 'Reading digital signature…');
       const sodRaw = await this.readDataGroup(0x1d);
 
       // 3. Read DG1 — MRZ data (needed for SOD signature verification in enclave)
+      progress?.(5, TOTAL_STEPS, 'Reading personal data…');
       const dg1Raw = await this.readDataGroup(0x01);
 
       // DG2 (face photo) skipped — not needed for signature verification
       const dg2Raw = ''; // await this.readDataGroup(0x02);
+
+      progress?.(6, TOTAL_STEPS, 'Done');
 
       // Check if Active Authentication is supported (DG15 present)
       const activeAuthSupported = presentDgs.includes(15);
