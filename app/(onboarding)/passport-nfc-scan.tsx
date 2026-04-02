@@ -2,11 +2,12 @@
 
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, CheckCircle, Nfc, Settings, XCircle } from 'lucide-react-native';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
   AppState,
+  Platform,
   StyleSheet,
   TouchableOpacity,
   View,
@@ -46,6 +47,9 @@ export default function PassportNfcScanScreen() {
 
   const [passportData, setPassportData] = useState<PassportData | null>(null);
   const [scanningActive, setScanningActive] = useState(false);
+  const hasRetriedFreshBacRef = useRef(false);
+  // Prevents re-triggering NFC scan after a successful read (iOS NFC sheet bug)
+  const scanSuccessRef = React.useRef(false);
 
   const glowAnimation = React.useRef(new Animated.Value(1)).current;
   const scanLineAnimation = React.useRef(new Animated.Value(0)).current;
@@ -130,6 +134,12 @@ export default function PassportNfcScanScreen() {
       return;
     }
 
+    // Prevent re-triggering NFC after a successful scan (avoids iOS system NFC
+    // sheet re-appearing due to AppState / StateChanged listeners firing post-scan)
+    if (scanSuccessRef.current) {
+      return;
+    }
+
     try {
       setScanningActive(true);
       setScanState('scanning');
@@ -137,13 +147,44 @@ export default function PassportNfcScanScreen() {
       startGlowAnimation();
       startScanLineAnimation();
 
-      const data = await passportNfcService.startReading(mrzData);
+      let data: PassportData;
+      try {
+        data = await passportNfcService.startReading(mrzData);
+      } catch (error) {
+        const err = error as ReadErrorInfo;
+        if (err.code === 'PACE_FALLBACK_RETRY_REQUIRED' && !hasRetriedFreshBacRef.current) {
+          hasRetriedFreshBacRef.current = true;
+          // Ensure the prior IsoDep tech request is fully released before retry.
+          try {
+            await passportNfcService.cleanup();
+          } catch {}
+          try {
+            await NfcManager.cancelTechnologyRequest();
+          } catch {}
+          await new Promise(resolve => setTimeout(resolve, 250));
+          data = await passportNfcService.startReading(mrzData, undefined, { skipPACE: true });
+        } else {
+          throw error;
+        }
+      }
       setPassportData(data);
+
+      // Mark success before updating state so any concurrent listener callbacks
+      // triggered by cancelTechnologyRequest won't restart the scan on iOS.
+      scanSuccessRef.current = true;
+
+      // Show a success message in the iOS system NFC sheet before dismissing it.
+      if (Platform.OS === 'ios') {
+        try {
+          await (NfcManager as any).setAlertMessageIOS('Passport read ✓');
+        } catch {}
+      }
 
       setScanState('success');
       stopGlowAnimation();
       stopScanLineAnimation();
       setScanningActive(false);
+      hasRetriedFreshBacRef.current = false;
 
       // Log the data (as requested)
       console.log('[PassportNFC] Passport data:', JSON.stringify(data, null, 2));
@@ -161,6 +202,7 @@ export default function PassportNfcScanScreen() {
       stopGlowAnimation();
       stopScanLineAnimation();
       setScanningActive(false);
+      hasRetriedFreshBacRef.current = false;
     }
   }, [
     isNFCEnabled,
