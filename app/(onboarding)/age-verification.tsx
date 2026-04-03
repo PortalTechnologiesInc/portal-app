@@ -272,6 +272,10 @@ export default function AgeVerification() {
                   mediaPlaybackRequiresUserAction={false}
                   // Android specific
                   mixedContentMode="always"
+                  // Disable cache to prevent stale frontend versions from breaking
+                  // the WebSocket/attestation connection after server updates
+                  cacheEnabled={false}
+                  incognito={true}
                   onHttpError={syntheticEvent => {
                     const { nativeEvent } = syntheticEvent;
                     console.error('[AgeVerification] WebView HTTP error:', {
