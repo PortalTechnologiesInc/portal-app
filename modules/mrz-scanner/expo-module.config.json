@@ -1,16 +1,9 @@
 {
-    "platforms": [
-        "ios",
-        "android"
-    ],
-    "ios": {
-        "modules": [
-            "MRZScannerModule"
-        ]
-    },
-    "android": {
-        "modules": [
-            "cc.getportal.mrz.MRZScannerModule"
-        ]
-    }
+  "platforms": ["ios", "android"],
+  "ios": {
+    "modules": ["MRZScannerModule"]
+  },
+  "android": {
+    "modules": ["cc.getportal.mrz.MRZScannerModule"]
+  }
 }

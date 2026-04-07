@@ -100,7 +100,10 @@ export class PassportNfcService {
   async startReading(
     mrzData: MrzData,
     onTagFound?: () => void,
-    options?: { skipPACE?: boolean; onProgress?: (step: number, total: number, label: string) => void },
+    options?: {
+      skipPACE?: boolean;
+      onProgress?: (step: number, total: number, label: string) => void;
+    }
   ): Promise<PassportData> {
     if (!this.nfcEnabled) {
       await this.initialize();
@@ -160,7 +163,9 @@ export class PassportNfcService {
           } catch (_) {}
           try {
             // Re-select MRTD application (A0000002471001)
-            await this.transceiveBytes([0x00, 0xa4, 0x04, 0x0c, 0x07, 0xa0, 0x00, 0x00, 0x02, 0x47, 0x10, 0x01]);
+            await this.transceiveBytes([
+              0x00, 0xa4, 0x04, 0x0c, 0x07, 0xa0, 0x00, 0x00, 0x02, 0x47, 0x10, 0x01,
+            ]);
           } catch (_) {}
         }
       }
@@ -486,18 +491,27 @@ export class PassportNfcService {
         const cfg = getPACEConfig(entry.oid);
         console.log(
           '[PassportNFC] PACEInfo found:',
-          JSON.stringify({ oid: entry.oid, version: entry.version, parameterId: entry.parameterId }),
-          '→', JSON.stringify(cfg)
+          JSON.stringify({
+            oid: entry.oid,
+            version: entry.version,
+            parameterId: entry.parameterId,
+          }),
+          '→',
+          JSON.stringify(cfg)
         );
       }
 
       // Prefer ECDH over DH — ECDH pubkeys are ~65 bytes (fit in short APDUs),
       // DH-2048 pubkeys are 256 bytes (require extended APDUs that some chips reject).
-      const preferred = allInfos.find(i => getPACEConfig(i.oid).agreementAlg === 'ECDH') ?? allInfos[0];
+      const preferred =
+        allInfos.find(i => getPACEConfig(i.oid).agreementAlg === 'ECDH') ?? allInfos[0];
       if (!preferred) return null;
       const info = preferred;
       const config = getPACEConfig(info.oid);
-      console.log('[PassportNFC] Selected PACEInfo:', JSON.stringify({ oid: info.oid, version: info.version, parameterId: info.parameterId }));
+      console.log(
+        '[PassportNFC] Selected PACEInfo:',
+        JSON.stringify({ oid: info.oid, version: info.version, parameterId: info.parameterId })
+      );
       console.log('[PassportNFC] PACEConfig:', JSON.stringify(config));
       return { info, config };
     } catch (e) {
@@ -810,34 +824,63 @@ export class PassportNfcService {
     const lcHi = (body.length >> 8) & 0xff;
     const lcLo = body.length & 0xff;
     const isReject = (sw: number) =>
-      sw === 0x6a80 || sw === 0x6700 || sw === 0x6800 ||
-      sw === 0x6f00 || sw === 0x6e00 || sw === 0x6d00;
+      sw === 0x6a80 ||
+      sw === 0x6700 ||
+      sw === 0x6800 ||
+      sw === 0x6f00 ||
+      sw === 0x6e00 ||
+      sw === 0x6d00;
     const getSW = (r: number[]) => (r[r.length - 2]! << 8) | r[r.length - 1]!;
 
     // Try 1: Extended Case 4e, CLA=0x00, Le=0x0100 (256) — matches JMRTD default
     const resp1 = await this.transceiveBytes([
-      0x00, 0x86, 0x00, 0x00, 0x00, lcHi, lcLo, ...body, 0x01, 0x00,
+      0x00,
+      0x86,
+      0x00,
+      0x00,
+      0x00,
+      lcHi,
+      lcLo,
+      ...body,
+      0x01,
+      0x00,
     ]);
     if (!isReject(getSW(resp1))) return resp1;
     console.log(`[PassportNFC] Ext 4e CLA=0x00 Le=256: SW=${getSW(resp1).toString(16)}`);
 
     // Try 2: Extended Case 3e, CLA=0x00, NO Le — some chips reject Le on GA
-    const resp2 = await this.transceiveBytes([
-      0x00, 0x86, 0x00, 0x00, 0x00, lcHi, lcLo, ...body,
-    ]);
+    const resp2 = await this.transceiveBytes([0x00, 0x86, 0x00, 0x00, 0x00, lcHi, lcLo, ...body]);
     if (!isReject(getSW(resp2))) return resp2;
     console.log(`[PassportNFC] Ext 3e CLA=0x00 no-Le: SW=${getSW(resp2).toString(16)}`);
 
     // Try 3: Extended Case 4e, CLA=0x10, Le=0x0200 (512)
     const resp3 = await this.transceiveBytes([
-      cla, 0x86, 0x00, 0x00, 0x00, lcHi, lcLo, ...body, 0x02, 0x00,
+      cla,
+      0x86,
+      0x00,
+      0x00,
+      0x00,
+      lcHi,
+      lcLo,
+      ...body,
+      0x02,
+      0x00,
     ]);
     if (!isReject(getSW(resp3))) return resp3;
     console.log(`[PassportNFC] Ext 4e CLA=0x10 Le=512: SW=${getSW(resp3).toString(16)}`);
 
     // Try 4: Extended Case 4e, CLA=0x10, Le=0x0000 (max)
     const resp4 = await this.transceiveBytes([
-      cla, 0x86, 0x00, 0x00, 0x00, lcHi, lcLo, ...body, 0x00, 0x00,
+      cla,
+      0x86,
+      0x00,
+      0x00,
+      0x00,
+      lcHi,
+      lcLo,
+      ...body,
+      0x00,
+      0x00,
     ]);
     if (!isReject(getSW(resp4))) return resp4;
     console.log(`[PassportNFC] Ext 4e CLA=0x10 Le=max: SW=${getSW(resp4).toString(16)}`);
@@ -851,7 +894,12 @@ export class PassportNfcService {
       const chunk = body.slice(offset, offset + CHUNK);
       // Intermediate chunk: CLA=0x10 (chaining), Case 3s (no Le)
       const chunkResp = await this.transceiveBytes([
-        0x10, 0x86, 0x00, 0x00, chunk.length, ...chunk,
+        0x10,
+        0x86,
+        0x00,
+        0x00,
+        chunk.length,
+        ...chunk,
       ]);
       const chunkSw = getSW(chunkResp);
       if (chunkSw !== 0x9000) {
@@ -1176,7 +1224,11 @@ export class PassportNfcService {
       ...do97,
     ];
     const macInput = new Uint8Array(macInputParts);
-    console.log('[PassportNFC] SM MAC input hex:', CryptoUtils.bytesToHex(macInput), `(${macInput.length} bytes)`);
+    console.log(
+      '[PassportNFC] SM MAC input hex:',
+      CryptoUtils.bytesToHex(macInput),
+      `(${macInput.length} bytes)`
+    );
     console.log('[PassportNFC] SM k_mac hex:', CryptoUtils.bytesToHex(this.sessionK_mac));
     console.log('[PassportNFC] SM k_enc hex:', CryptoUtils.bytesToHex(this.sessionK_enc));
     console.log('[PassportNFC] SM SSC hex:', CryptoUtils.bytesToHex(this.ssc));
@@ -1190,7 +1242,9 @@ export class PassportNfcService {
     const smData = [...do87, ...do97, ...do8e];
     // Only include outer Le when DO97 is present.
     const apdu =
-      le !== null ? [mCla, ins, p1, p2, smData.length, ...smData, 0x00] : [mCla, ins, p1, p2, smData.length, ...smData];
+      le !== null
+        ? [mCla, ins, p1, p2, smData.length, ...smData, 0x00]
+        : [mCla, ins, p1, p2, smData.length, ...smData];
 
     return apdu.map(b => b.toString(16).padStart(2, '0')).join('');
   }
@@ -1350,7 +1404,9 @@ export class PassportNfcService {
     const smData = [...do87, ...do97, ...do8e];
     // Only include outer Le when DO97 is present.
     const apdu =
-      le !== null ? [mCla, ins, p1, p2, smData.length, ...smData, 0x00] : [mCla, ins, p1, p2, smData.length, ...smData];
+      le !== null
+        ? [mCla, ins, p1, p2, smData.length, ...smData, 0x00]
+        : [mCla, ins, p1, p2, smData.length, ...smData];
 
     return apdu.map(b => b.toString(16).padStart(2, '0')).join('');
   }

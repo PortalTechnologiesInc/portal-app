@@ -8,7 +8,7 @@
 function withMRZScanner(config, props = {}) {
   const cameraPermissionText =
     props.cameraPermissionText ||
-    "This app needs camera access to scan MRZ codes on identity documents.";
+    'This app needs camera access to scan MRZ codes on identity documents.';
 
   // iOS: ensure infoPlist exists, then add NSCameraUsageDescription
   if (!config.ios) config.ios = {};
@@ -20,8 +20,8 @@ function withMRZScanner(config, props = {}) {
   // Android: add CAMERA permission to android.permissions list
   if (!config.android) config.android = {};
   if (!config.android.permissions) config.android.permissions = [];
-  if (!config.android.permissions.includes("android.permission.CAMERA")) {
-    config.android.permissions.push("android.permission.CAMERA");
+  if (!config.android.permissions.includes('android.permission.CAMERA')) {
+    config.android.permissions.push('android.permission.CAMERA');
   }
 
   return config;

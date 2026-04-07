@@ -1,9 +1,9 @@
-import { requireNativeModule } from "expo-modules-core";
+import { requireNativeModule } from 'expo-modules-core';
 
-const MRZScannerModule = requireNativeModule("MRZScanner");
+const MRZScannerModule = requireNativeModule('MRZScanner');
 
-export { parseMRZ } from "./parseMRZ";
-export type { MRZResult } from "./parseMRZ";
+export type { MRZResult } from './parseMRZ';
+export { parseMRZ } from './parseMRZ';
 
 export interface ScanMRZOptions {
   /** Custom instruction text displayed on the scanner overlay. */

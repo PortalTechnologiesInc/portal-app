@@ -251,8 +251,10 @@ export default function PassportNfcScanScreen() {
       try {
         data = await passportNfcService.startReading(
           mrzData,
-          () => { setScanState('reading'); },
-          { onProgress: iosProgress },
+          () => {
+            setScanState('reading');
+          },
+          { onProgress: iosProgress }
         );
       } catch (error) {
         const err = error as ReadErrorInfo;
@@ -266,8 +268,10 @@ export default function PassportNfcScanScreen() {
           setScanState('scanning');
           data = await passportNfcService.startReading(
             mrzData,
-            () => { setScanState('reading'); },
-            { skipPACE: true, onProgress: iosProgress },
+            () => {
+              setScanState('reading');
+            },
+            { skipPACE: true, onProgress: iosProgress }
           );
         } else {
           throw error;

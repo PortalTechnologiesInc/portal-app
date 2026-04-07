@@ -40,7 +40,7 @@ export interface MRZResult {
    */
   optionalChecksumValid: boolean;
   /** The raw MRZ format detected: "TD1" or "TD3". */
-  format: "TD1" | "TD3";
+  format: 'TD1' | 'TD3';
 }
 
 // ---------------------------------------------------------------------------
@@ -48,7 +48,7 @@ export interface MRZResult {
 // ---------------------------------------------------------------------------
 
 function charValue(ch: string): number {
-  if (ch === "<") return 0;
+  if (ch === '<') return 0;
   const code = ch.charCodeAt(0);
   // 0-9
   if (code >= 0x30 && code <= 0x39) return code - 0x30;
@@ -111,14 +111,14 @@ function parseDate(yymmdd: string, isBirth: boolean): string {
 
 /** Strip trailing filler (<) characters. */
 function stripFiller(s: string): string {
-  return s.replace(/<+$/, "");
+  return s.replace(/<+$/, '');
 }
 
 /** Parse name field: "LAST<<FIRST<SECOND" → { lastName, firstName }. */
 function parseName(field: string): { lastName: string; firstName: string } {
-  const parts = field.split("<<");
-  const lastName = (parts[0] || "").replace(/</g, " ").trim();
-  const firstName = (parts[1] || "").replace(/</g, " ").trim();
+  const parts = field.split('<<');
+  const lastName = (parts[0] || '').replace(/</g, ' ').trim();
+  const firstName = (parts[1] || '').replace(/</g, ' ').trim();
   return { lastName, firstName };
 }
 
@@ -137,18 +137,26 @@ function parseName(field: string): { lastName: string; firstName: string } {
  * @throws If the MRZ format is not recognized.
  */
 export function parseMRZ(mrzString: string): MRZResult {
-  const lines = mrzString.trim().split("\n").map((l) => l.trim());
+  const lines = mrzString
+    .trim()
+    .split('\n')
+    .map(l => l.trim());
 
   if (lines.length === 2 && lines[0].length === 44 && lines[1].length === 44) {
     return parseTD3(lines[0], lines[1]);
   }
 
-  if (lines.length === 3 && lines[0].length === 30 && lines[1].length === 30 && lines[2].length === 30) {
+  if (
+    lines.length === 3 &&
+    lines[0].length === 30 &&
+    lines[1].length === 30 &&
+    lines[2].length === 30
+  ) {
     return parseTD1(lines[0], lines[1], lines[2]);
   }
 
   throw new Error(
-    `Unrecognized MRZ format: ${lines.length} line(s), lengths [${lines.map((l) => l.length).join(",")}]`
+    `Unrecognized MRZ format: ${lines.length} line(s), lengths [${lines.map(l => l.length).join(',')}]`
   );
 }
 
@@ -189,7 +197,7 @@ function parseTD3(line1: string, line2: string): MRZResult {
   const c5 = verifyCheck(compositeData, compositeCheck);
 
   return {
-    format: "TD3",
+    format: 'TD3',
     documentType,
     issuingCountry,
     lastName,
@@ -243,11 +251,12 @@ function parseTD1(line1: string, line2: string, line3: string): MRZResult {
   // + line2[8..14] (expiry + check)
   // + line2[18..28] (optional2)
   // Excludes: type (l1[0..1]), country (l1[2..4]), sex (l2[7]), nationality (l2[15..17])
-  const compositeData = line1.slice(5, 30) + line2.slice(0, 7) + line2.slice(8, 15) + line2.slice(18, 29);
+  const compositeData =
+    line1.slice(5, 30) + line2.slice(0, 7) + line2.slice(8, 15) + line2.slice(18, 29);
   const c4 = verifyCheck(compositeData, compositeCheck);
 
   return {
-    format: "TD1",
+    format: 'TD1',
     documentType,
     issuingCountry,
     lastName,

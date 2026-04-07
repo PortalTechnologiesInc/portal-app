@@ -164,11 +164,9 @@ export default function PassportNfcScanScreen() {
 
       let data: PassportData;
       try {
-        data = await passportNfcService.startReading(
-          mrzData,
-          undefined,
-          { onProgress: iosProgress },
-        );
+        data = await passportNfcService.startReading(mrzData, undefined, {
+          onProgress: iosProgress,
+        });
       } catch (error) {
         const err = error as ReadErrorInfo;
         if (err.code === 'PACE_FALLBACK_RETRY_REQUIRED' && !hasRetriedFreshBacRef.current) {
@@ -180,11 +178,10 @@ export default function PassportNfcScanScreen() {
             await NfcManager.cancelTechnologyRequest();
           } catch {}
           await new Promise(resolve => setTimeout(resolve, 250));
-          data = await passportNfcService.startReading(
-            mrzData,
-            undefined,
-            { skipPACE: true, onProgress: iosProgress },
-          );
+          data = await passportNfcService.startReading(mrzData, undefined, {
+            skipPACE: true,
+            onProgress: iosProgress,
+          });
         } else {
           throw error;
         }
