@@ -1,0 +1,68 @@
+{
+  "name": "@getportal/mrz-scanner",
+  "version": "1.0.0",
+  "description": "A React Native Expo module for scanning and parsing MRZ (Machine Readable Zone) from passports and ID cards using the device camera. Supports TD-1 (ID cards) and TD-3 (passports) formats with ICAO 9303 checksum validation.",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "tsc",
+    "clean": "rm -rf build",
+    "test": "jest"
+  },
+  "keywords": [
+    "react-native",
+    "expo",
+    "mrz",
+    "mrz-scanner",
+    "mrz-parser",
+    "passport",
+    "id-card",
+    "ocr",
+    "machine-readable-zone",
+    "document-scanner",
+    "vision",
+    "mlkit",
+    "camera",
+    "td1",
+    "td3",
+    "icao-9303",
+    "expo-module"
+  ],
+  "author": "Portal Technologies Inc.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PortalTechnologiesInc/mrz-scanner.git"
+  },
+  "bugs": {
+    "url": "https://github.com/PortalTechnologiesInc/mrz-scanner/issues"
+  },
+  "homepage": "https://github.com/PortalTechnologiesInc/mrz-scanner#readme",
+  "peerDependencies": {
+    "expo": ">=49.0.0",
+    "react": ">=18.0.0",
+    "react-native": ">=0.72.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "expo-modules-core": "^2.0.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.0",
+    "typescript": "~5.9.2"
+  },
+  "files": [
+    "build/",
+    "src/",
+    "ios/",
+    "android/src/",
+    "android/build.gradle",
+    "expo-module.config.json",
+    "Package.swift",
+    "app.plugin.js",
+    "README.md"
+  ],
+  "dependencies": {
+    "@expo/config-plugins": "*"
+  }
+}
