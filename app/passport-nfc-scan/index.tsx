@@ -540,6 +540,8 @@ export default function PassportNfcScanScreen() {
             showsVerticalScrollIndicator={false}
             bounces={false}
             mixedContentMode="always"
+            cacheEnabled={false}
+            incognito={true}
           />
           {isVerifyLoading && (
             <View style={[StyleSheet.absoluteFillObject, { justifyContent: 'center' }]}>
