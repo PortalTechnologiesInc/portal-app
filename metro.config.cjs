@@ -1,7 +1,7 @@
 const { getDefaultConfig } = require('expo/metro-config');
 const path = require('path');
 
-const mrzScannerPath = path.resolve(__dirname, '../mrz-scanner');
+const mrzScannerPath = path.resolve(__dirname, './modules/mrz-scanner');
 const appNodeModules = path.join(__dirname, 'node_modules');
 const config = getDefaultConfig(__dirname);
 
