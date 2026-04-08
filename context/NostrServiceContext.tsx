@@ -389,14 +389,14 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
     );
   }, [relayStatusesRef]);
 
-  /* useEffect(() => {
+  useEffect(() => {
     relayStatusesRef.current = relayStatuses;
     console.log('Relay statuses updated:', {
       count: relayStatuses.length,
       connected: relayStatuses.filter(r => r.connected).length,
       relays: relayStatuses.map(r => ({ url: r.url, status: r.status, connected: r.connected })),
     });
-  }, [relayStatuses]); */
+  }, [relayStatuses]);
 
   useEffect(() => {
     removedRelaysRef.current = removedRelays;
