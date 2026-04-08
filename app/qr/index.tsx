@@ -291,14 +291,14 @@ export default function QRScannerScreen() {
               globalEvents.emit('activityAdded', activity);
             } else {
             }
-          } catch (_activityError) {}
+          } catch (_activityError) { }
 
           Alert.alert(
             'Ticket Added Successfully!',
             `Great! You've received a ${tokenInfo.unit} ticket from ${tokenInfo.mintUrl}.`
           );
         } catch (error) {
-          const _jsonErr = JSON.stringify(error, Object.getOwnPropertyNames(error));
+          console.warn(JSON.stringify(error, Object.getOwnPropertyNames(error)));
           Alert.alert(
             'Ticket Processing Error',
             'There was a problem redeeming the ticket. The ticket may have already been used.'

@@ -18,6 +18,7 @@ import { mapNumericStatusToString } from '@/utils/nostrHelper';
 import type { PendingRequest, RelayInfo, WalletInfoState } from '@/utils/types';
 import defaultRelayList from '../assets/DefaultRelays.json';
 import { useOnboarding } from './OnboardingContext';
+import { SendKeyHandshakeTask } from '@/queue/tasks/SendKeyHandshake';
 
 // Context type definition
 export interface NostrServiceContextType {
@@ -195,7 +196,7 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
                   setTimeout(async () => {
                     try {
                       await PortalAppManager.tryGetInstance().reconnectRelay(relay_url);
-                    } catch (_error) {}
+                    } catch (_error) { }
                   }, 2000);
                 }
               }
@@ -347,24 +348,11 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   // Send auth init
   const sendKeyHandshake = useCallback(
     async (url: KeyHandshakeUrl): Promise<void> => {
+      console.warn(0);
       if (!isOnboardingComplete) {
         return;
       }
-      // let's try for 30 times. One every .5 sec should timeout after 15 secs.
-      let attempt = 0;
-      while (
-        !url.relays.some(urlRelay =>
-          relayStatusesRef.current.some(r => r.url === urlRelay && r.status === 'Connected')
-        ) ||
-        !isAppActive.current
-      ) {
-        if (attempt > 30) {
-          return;
-        }
-        await new Promise(resolve => setTimeout(resolve, 500));
-        attempt++;
-      }
-      return PortalAppManager.tryGetInstance().sendKeyHandshake(url);
+      await new SendKeyHandshakeTask(url).run();
     },
     [isOnboardingComplete]
   );
@@ -378,9 +366,9 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   }, []);
 
   // Simple monitoring control functions (to be used by navigation-based polling)
-  const startPeriodicMonitoring = useCallback(() => {}, []);
+  const startPeriodicMonitoring = useCallback(() => { }, []);
 
-  const stopPeriodicMonitoring = useCallback(() => {}, []);
+  const stopPeriodicMonitoring = useCallback(() => { }, []);
 
   useEffect(() => {
     ProviderRepository.register(

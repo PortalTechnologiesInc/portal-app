@@ -117,7 +117,7 @@ export abstract class Task<A extends unknown[], P extends GlobalProviderNames[],
 
   private readonly db: DatabaseService;
   protected readonly args: Arguments<A>;
-  protected expiry: Expiry = 'forever';
+  protected expiry: Expiry = new Date(Date.now());
 
   constructor(
     private readonly providerNames: P,

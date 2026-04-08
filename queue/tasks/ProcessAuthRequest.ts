@@ -75,7 +75,12 @@ export class FetchServiceProfileTask extends Task<
     key: string
   ): Promise<Profile | undefined> {
     await RelayStatusesProvider.waitForRelaysConnected();
-    return await PortalAppInterface.fetchProfile(key);
+    try {
+      return await PortalAppInterface.fetchProfile(key);
+    } catch (error) {
+      console.error('[FetchServiceProfileTask] Error fetching profile:', error);
+      return undefined;
+    }
   }
 }
 Task.register(FetchServiceProfileTask);

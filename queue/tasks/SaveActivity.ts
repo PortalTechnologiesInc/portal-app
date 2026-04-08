@@ -1,5 +1,4 @@
 import type { ActivityWithDates, DatabaseService } from '@/services/DatabaseService';
-import { globalEvents } from '@/utils/common';
 import { Task } from '../WorkQueue';
 
 export type SaveActivityArgs = Omit<ActivityWithDates, 'id' | 'created_at'>;
