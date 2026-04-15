@@ -235,6 +235,14 @@ export default function SettingsScreen() {
     router.push('/recoverTickets');
   };
 
+  const handlePassportVerificationPress = () => {
+    router.push('/passport-scan');
+  };
+
+  const handleAgeVerificationPress = () => {
+    router.push('/(onboarding)/age-verification');
+  };
+
   const resetPinVerificationConfig = useCallback(() => {
     setPinVerificationConfig({
       title: 'Verify PIN',
@@ -1255,6 +1263,59 @@ export default function SettingsScreen() {
               </View>
             </View>
           )}
+
+          {/* Identity Verification Section */}
+          <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>
+            Identity verification
+          </ThemedText>
+          <TouchableOpacity
+            style={[styles.card, { backgroundColor: cardBackgroundColor }]}
+            onPress={handlePassportVerificationPress}
+            activeOpacity={0.7}
+          >
+            <View style={styles.cardContent}>
+              <View style={styles.cardLeft}>
+                <View style={styles.cardHeader}>
+                  <View style={[styles.iconContainer]}>
+                    <Shield size={22} color={buttonPrimaryColor} />
+                  </View>
+                  <View style={styles.cardText}>
+                    <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
+                      Verify with passport
+                    </ThemedText>
+                    <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
+                      Scan your passport to verify your identity and age
+                    </ThemedText>
+                  </View>
+                </View>
+              </View>
+              <ChevronRight size={22} color={secondaryTextColor} />
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.card, { backgroundColor: cardBackgroundColor }]}
+            onPress={handleAgeVerificationPress}
+            activeOpacity={0.7}
+          >
+            <View style={styles.cardContent}>
+              <View style={styles.cardLeft}>
+                <View style={styles.cardHeader}>
+                  <View style={[styles.iconContainer]}>
+                    <Shield size={22} color={buttonPrimaryColor} />
+                  </View>
+                  <View style={styles.cardText}>
+                    <ThemedText style={[styles.cardTitle, { color: primaryTextColor }]}>
+                      Age verification
+                    </ThemedText>
+                    <ThemedText style={[styles.cardStatus, { color: secondaryTextColor }]}>
+                      Complete age check if you skipped it during onboarding
+                    </ThemedText>
+                  </View>
+                </View>
+              </View>
+              <ChevronRight size={22} color={secondaryTextColor} />
+            </View>
+          </TouchableOpacity>
 
           {/* Backup & Recovery Section */}
           <ThemedText style={[styles.sectionTitle, { color: primaryTextColor }]}>

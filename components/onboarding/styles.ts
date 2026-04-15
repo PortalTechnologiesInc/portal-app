@@ -349,4 +349,13 @@ export const onboardingStyles = StyleSheet.create({
   footerCompact: {
     marginBottom: -50,
   },
+  // Passport/NFC feature info
+  infoText: {
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
+    opacity: 0.7,
+    marginTop: 20,
+    paddingHorizontal: 10,
+  },
 });

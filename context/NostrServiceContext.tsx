@@ -138,9 +138,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
   const createRelayStatusListener = useCallback((): RelayStatusListener => {
     return {
       onRelayStatusChange: (relay_url: string, status: number): Promise<void> => {
-        console.log(
-          `Relay status change: ${relay_url} -> ${status} (${mapNumericStatusToString(status)})`
-        );
         const execOp = executeOperationRef.current;
         const setStatuses = setRelayStatusesRef.current;
         const statusString = mapNumericStatusToString(status);
@@ -173,7 +170,6 @@ export const NostrServiceProvider: React.FC<NostrServiceProviderProps> = ({
               // Check if this relay has been marked as removed by user
               if (removedRelaysRef.current.has(relay_url)) {
                 // Don't add removed relays back to the status list
-                console.log(`Ignoring status update for removed relay: ${relay_url}`);
                 return prev.filter(relay => relay.url !== relay_url);
               }
 

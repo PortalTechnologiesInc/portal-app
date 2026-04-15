@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { ShieldCheck } from 'lucide-react-native';
 import { useEffect } from 'react';
 import { BackHandler, Platform, ScrollView, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -22,9 +23,12 @@ export default function IdentityVerification() {
     }
   }, []);
 
-  const handleStart = () => {
-    // TODO: Start verification process
-    router.push('/(onboarding)/pin-setup');
+  const handlePassportScan = () => {
+    router.push('/passport-scan');
+  };
+
+  const handleAgeVerification = () => {
+    router.push('/(onboarding)/age-verification');
   };
 
   const handleSkip = () => {
@@ -42,35 +46,40 @@ export default function IdentityVerification() {
             showsVerticalScrollIndicator={false}
           >
             <View style={[styles.pageContainer, styles.scrollPageContainer]}>
-              <ThemedText type="title" style={styles.title}>
-                Identity Verification
-              </ThemedText>
-              <ThemedText style={styles.subtitle}>
-                Verify your identity to enhance security (optional)
-              </ThemedText>
-
-              {/* TODO: Add camera preview here for video streaming */}
-              <View
-                style={{
-                  width: '100%',
-                  height: 300,
-                  backgroundColor: '#1a1a1a',
-                  borderRadius: 12,
-                  marginTop: 20,
-                }}
-              >
-                {/* Camera preview placeholder */}
+              <View style={{ marginBottom: 20 }}>
+                <ShieldCheck size={48} color={buttonPrimary} strokeWidth={1.5} />
               </View>
+
+              <ThemedText type="title" style={styles.title}>
+                Verify your age?
+              </ThemedText>
+              <ThemedText style={[styles.subtitle, { marginBottom: 16 }]}>
+                Age verification is optional. It helps you access age-restricted content and
+                services when needed.
+              </ThemedText>
+              <ThemedText style={{ fontSize: 15, textAlign: 'center', opacity: 0.8 }}>
+                The process is quick and private. You can skip this step and verify later from
+                settings.
+              </ThemedText>
             </View>
           </ScrollView>
 
           <View style={[styles.footer, styles.footerStack]}>
             <TouchableOpacity
               style={[styles.button, { backgroundColor: buttonPrimary }]}
-              onPress={handleStart}
+              onPress={handlePassportScan}
             >
               <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>
-                Start
+                Scan passport
+              </ThemedText>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.button, { backgroundColor: buttonPrimary }]}
+              onPress={handleAgeVerification}
+            >
+              <ThemedText style={[styles.buttonText, { color: buttonPrimaryText }]}>
+                Age verification
               </ThemedText>
             </TouchableOpacity>
 
@@ -81,7 +90,9 @@ export default function IdentityVerification() {
               ]}
               onPress={handleSkip}
             >
-              <ThemedText style={[styles.buttonText, { color: buttonPrimary }]}>Skip</ThemedText>
+              <ThemedText style={[styles.buttonText, { color: buttonPrimary }]}>
+                Skip for now
+              </ThemedText>
             </TouchableOpacity>
           </View>
         </View>

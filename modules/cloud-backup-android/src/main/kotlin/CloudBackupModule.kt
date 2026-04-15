@@ -224,9 +224,10 @@ class CloudBackupModule : Module() {
     }
 
     AsyncFunction("isAvailable") {
-      // True only when at least one Google account is already visible on the device.
-      // Account picker / consent flows are triggered by backup/restore operations themselves.
-      getGoogleAccount() != null
+      // On modern Android versions, AccountManager visibility can return zero accounts
+      // even when Google accounts are present. Do not hard-fail availability on that check:
+      // backup/restore flows can still launch Account Picker and consent UIs.
+      appContext.reactContext != null
     }
   }
 
@@ -264,6 +265,9 @@ class CloudBackupModule : Module() {
     val ctx = appContext.reactContext ?: return null
     val accountManager = AccountManager.get(ctx)
     val accounts = accountManager.getAccountsByType("com.google")
+    if (BuildConfig.DEBUG) {
+      Log.d(TAG, "getGoogleAccount(): visible Google accounts=${accounts.size}")
+    }
     return accounts.firstOrNull()
   }
 
@@ -276,6 +280,9 @@ class CloudBackupModule : Module() {
     val receiver = object : ResultReceiver(Handler(Looper.getMainLooper())) {
       override fun onReceiveResult(resultCode: Int, resultData: Bundle?) {
         val name = resultData?.getString(AccountPickerHostActivity.KEY_ACCOUNT_NAME)
+        if (BuildConfig.DEBUG) {
+          Log.d(TAG, "pickGoogleAccount() resultCode=$resultCode accountName=${name ?: "<null>"}")
+        }
         cont.resume(name?.let { Account(it, "com.google") })
       }
     }
@@ -288,7 +295,9 @@ class CloudBackupModule : Module() {
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         ctx.startActivity(intent)
       }
-      Log.i(TAG, "Launched AccountPickerHostActivity")
+      if (BuildConfig.DEBUG) {
+        Log.d(TAG, "Launched AccountPickerHostActivity")
+      }
     } catch (e: Exception) {
       Log.e(TAG, "Failed to launch Account Picker", e)
       cont.resume(null)
@@ -297,7 +306,15 @@ class CloudBackupModule : Module() {
 
   /** Gets account from list, or shows Account Picker if list is empty (Android 10+ visibility). */
   private suspend fun getGoogleAccountOrPick(): Account? {
-    getGoogleAccount()?.let { return it }
+    getGoogleAccount()?.let {
+      if (BuildConfig.DEBUG) {
+        Log.d(TAG, "getGoogleAccountOrPick(): using visible account=${it.name}")
+      }
+      return it
+    }
+    if (BuildConfig.DEBUG) {
+      Log.d(TAG, "getGoogleAccountOrPick(): no visible account, opening picker")
+    }
     return withContext(Dispatchers.Main) { pickGoogleAccount() }
   }
 

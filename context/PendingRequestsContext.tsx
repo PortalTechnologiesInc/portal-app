@@ -1,4 +1,5 @@
 import type {
+  CashuRequestContentWithKey,
   KeyHandshakeUrl,
   NostrConnectEvent,
   NostrConnectRequest,
@@ -36,6 +37,7 @@ import { SaveActivityAndAddPaymentStatusTransactionalTask } from '@/queue/tasks/
 import { registerContextReset, unregisterContextReset } from '@/services/ContextResetService';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
 import { fromUnixSeconds } from '@/services/DatabaseService';
+import { isAgeVerificationTicket } from '@/utils/ageVerification';
 import { getServiceNameFromMintUrl, globalEvents } from '@/utils/common';
 import { normalizeCurrencyForComparison } from '@/utils/currency';
 import { logError } from '@/utils/errorLogger';
@@ -175,15 +177,20 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
       activityType: 'ticket_approved' | 'ticket_denied',
       baseData: {
         mintUrl: string | null;
+        ticketUnit: string | null;
         serviceName: string;
         ticketTitle: string;
         amount: number | null;
         requestId: string;
       }
     ): Promise<void> => {
-      const { mintUrl, serviceName, ticketTitle, amount, requestId } = baseData;
+      const { mintUrl, ticketUnit, serviceName, ticketTitle, amount, requestId } = baseData;
       const status =
         activityType === 'ticket_approved' ? ('positive' as const) : ('negative' as const);
+      const isAgeVerification = isAgeVerificationTicket(
+        mintUrl ?? undefined,
+        ticketUnit ?? undefined
+      );
 
       // Try with full data first
       try {
@@ -233,7 +240,9 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
           type: activityType,
           service_key: mintUrl || 'Unknown Service',
           service_name: 'Unknown Service',
-          detail: `Ticket ${activityType === 'ticket_approved' ? 'approved' : 'denied'}`,
+          detail: isAgeVerification
+            ? `Age verification ${activityType === 'ticket_approved' ? 'approved' : 'denied'}`
+            : `Ticket ${activityType === 'ticket_approved' ? 'approved' : 'denied'}`,
           date: new Date(),
           amount: null,
           currency: null,
@@ -621,7 +630,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
         case 'ticket':
           // Handle Cashu requests (sending tokens only)
           try {
-            const cashuEvent = request.metadata as any;
+            const cashuEvent = request.metadata as CashuRequestContentWithKey;
 
             // Only handle Cashu request events (sending tokens)
             if (cashuEvent.inner?.mintUrl && cashuEvent.inner?.amount) {
@@ -662,7 +671,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               const mintUrl = cashuEvent.inner.mintUrl;
 
               // Get Nostr service key for resolving service name (the requestor's public key)
-              const nostrServiceKey = cashuEvent.serviceKey || cashuEvent.mainKey || null;
+              const nostrServiceKey = cashuEvent.mainKey || null;
 
               // Resolve service name from Nostr service key if available
               const serviceName = nostrServiceKey
@@ -697,6 +706,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 mintUrl,
                 serviceName,
                 ticketTitle,
+                ticketUnit: cashuEvent.inner.unit,
                 amount: Number(amount),
                 requestId: `${id}-approved`,
               });
@@ -1014,6 +1024,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
               mintUrl: mintUrl || null,
               serviceName,
               ticketTitle,
+              ticketUnit: cashuEvent.inner.unit,
               amount: ticketAmount,
               requestId: `${id}-denied`,
             });
@@ -1042,6 +1053,7 @@ export const PendingRequestsProvider: React.FC<{ children: ReactNode }> = ({ chi
                 mintUrl: mintUrl || null,
                 serviceName,
                 ticketTitle: 'Ticket request denied',
+                ticketUnit: cashuEvent.inner?.unit,
                 amount: null,
                 requestId: `${id}-denied`,
               });

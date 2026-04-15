@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react-native';
 import {
   type CashuDirectContentWithKey,
+  type CashuRequestContentWithKey,
   Currency_Tags,
   type NostrConnectEvent,
   NostrConnectMethod,
@@ -15,12 +16,12 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Layout } from '@/constants/Layout';
 import { useCurrency } from '@/context/CurrencyContext';
 import { useECash } from '@/context/ECashContext';
-import { useNostrService } from '@/context/NostrServiceContext';
 import { useWalletManager } from '@/context/WalletManagerContext';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useWalletStatus } from '@/hooks/useWalletStatus';
 import { FetchServiceProfileTask } from '@/queue/tasks/ProcessAuthRequest';
 import { CurrencyConversionService } from '@/services/CurrencyConversionService';
+import { isAgeVerificationTicket } from '@/utils/ageVerification';
 import { formatActivityAmount, normalizeCurrencyForComparison } from '@/utils/currency';
 import { getServiceNameFromProfile } from '@/utils/nostrHelper';
 import type { PendingRequest } from '@/utils/types';
@@ -32,7 +33,7 @@ interface PendingRequestCardProps {
   key?: string;
 }
 
-const getRequestTypeText = (type: string) => {
+const getRequestTypeText = (type: string, isAgeVerificationCard: boolean) => {
   switch (type) {
     case 'login':
       return 'Login Request';
@@ -45,7 +46,11 @@ const getRequestTypeText = (type: string) => {
     case 'identity':
       return 'Identity Request';
     case 'ticket':
-      return 'Ticket Request';
+      if (isAgeVerificationCard) {
+        return 'Age Verification Request';
+      } else {
+        return 'Ticket Request';
+      }
     case 'nostrConnect':
       return 'Nostr Connect';
     default:
@@ -63,7 +68,6 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
   ({ request }) => {
     const { approve, deny } = usePendingRequests();
     const { id, metadata, type } = request;
-    const nostrService = useNostrService();
     const { wallets } = useECash();
     const { preferredCurrency } = useCurrency();
     const { eCashLoading, hasECashWallets } = useWalletStatus();
@@ -83,6 +87,14 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     const isPaymentRequest = type === 'payment';
     const isSubscriptionRequest = type === 'subscription';
     const isTicketRequest = type === 'ticket';
+    const isAgeVerificationRequest = isAgeVerificationTicket(
+      (metadata as CashuRequestContentWithKey)?.inner?.mintUrl,
+      (metadata as CashuRequestContentWithKey)?.inner?.unit
+    );
+    const ticketTitle = isAgeVerificationRequest
+      ? "Wants to verify you're over 18"
+      : request.ticketTitle;
+
     const isNostrConnect = type === 'nostrConnect';
     let nostrConnectMethod: NostrConnectMethod | undefined;
     let nostrConnectParams: string[] | undefined;
@@ -94,11 +106,6 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     }
     const content = (metadata as SinglePaymentRequest)?.content;
     const amount = content?.amount ?? (isTicketRequest ? (metadata as any)?.inner?.amount : null);
-
-    // For ticket requests, get the requestor's pubkey from mainKey (CashuRequestContentWithKey structure)
-    const _ticketRequestorPubkey = isTicketRequest
-      ? (metadata as any)?.mainKey || (metadata as any)?.serviceKey
-      : null;
 
     // Theme colors
     const cardBackgroundColor = useThemeColor({}, 'cardBackground');
@@ -135,8 +142,8 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
         serviceKey = (metadata as any).serviceKey;
       }
 
-      if (type === 'ticket' && request.ticketTitle) {
-        setServiceName(request.ticketTitle);
+      if (type === 'ticket' && ticketTitle) {
+        setServiceName(ticketTitle);
         setIsServiceNameLoading(false);
         // For ticket requests, also fetch the requestor's name
         const fetchRequestorName = async () => {
@@ -191,7 +198,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
       return () => {
         isMounted.current = false;
       };
-    }, [type, metadata, request.ticketTitle]);
+    }, [type, metadata, ticketTitle]);
 
     // Check for insufficient balance on payment requests
     useEffect(() => {
@@ -365,9 +372,9 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
         // For ticket requests, show ticket title as secondary info
         if (amount && Number(amount) > 1) {
           const ticketAmount = Number(amount);
-          return `${serviceName || request.ticketTitle || 'Unknown Ticket'} x ${ticketAmount}`;
+          return `${serviceName || ticketTitle || 'Unknown Ticket'} x ${ticketAmount}`;
         }
-        return serviceName || request.ticketTitle || 'Unknown Ticket';
+        return serviceName || ticketTitle || 'Unknown Ticket';
       }
       // For payment/subscription requests, show truncated recipient pubkey
       return truncatePubkey(recipientPubkey);
@@ -459,7 +466,7 @@ export const PendingRequestCard: FC<PendingRequestCardProps> = React.memo(
     return (
       <View style={[styles.card, { backgroundColor: cardBackgroundColor, shadowColor }]}>
         <Text style={[styles.requestType, { color: secondaryTextColor }]}>
-          {getRequestTypeText(type)}
+          {getRequestTypeText(type, isAgeVerificationRequest)}
         </Text>
 
         <Text
